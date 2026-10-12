@@ -1,0 +1,844 @@
+// khuiai-fullstack/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+/// User account model managing profile, auth credentials, tier, and economy state
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  avatarUrl    String?   @map("avatar_url")
+  /// Public display name shown above the @username on creator cards
+  displayName  String?   @map("display_name")
+  tier         String    @default("ROOKIE") // ROOKIE, PRO, MASTER, LEGEND, EPIC, MYTHIC
+  /// Cached creator-leaderboard counters (see prisma/seed-creators.ts)
+  followerCount        Int @default(0) @map("follower_count")
+  characterCount       Int @default(0) @map("character_count")
+  messageCount         Int @default(0) @map("message_count")
+  chatCount            Int @default(0) @map("chat_count")
+  universeMessageCount Int @default(0) @map("universe_message_count")
+  universeChatCount    Int @default(0) @map("universe_chat_count")
+  /// Followers gained in the last seven days — powers the "มาแรงสัปดาห์นี้" tab
+  weeklyFollowerGain   Int @default(0) @map("weekly_follower_gain")
+  /// Bumped on logout to invalidate every token issued before it. Tokens carry this
+  /// value, so a leaked one stops working as soon as the user signs out.
+  tokenVersion Int       @default(0) @map("token_version")
+  deletedAt DateTime? @map("deleted_at")
+  communityBannedAt DateTime? @map("community_banned_at")
+  communityBanReason String? @map("community_ban_reason")
+  /// Reader preferences from the chat panel. bannedWords is a newline-separated list
+  /// ("คำที่ไม่ต้องการ"); shortcuts is JSON for the quick-insert buttons.
+  bannedWords  String?   @map("banned_words")
+  readingMode  Boolean   @default(false) @map("reading_mode")
+  shortcuts    String?
+  coins        Int       @default(100)
+  streakCount  Int       @default(0) @map("streak_count")
+  lastCheckin  DateTime? @map("last_checkin")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  circles Circle[]
+  circleMemberships CircleMember[]
+  posts Post[]
+  postLikes PostLike[]
+  postComments PostComment[]
+  following Follow[] @relation("Following")
+  followers Follow[] @relation("Followers")
+  moderationActions ModerationAction[]
+  appeals CommunityAppeal[]
+
+  // Relationships
+  characters       Character[]       @relation("CreatedCharacters")
+  conversations    Conversation[]
+  checkins         Checkin[]
+  giftsSent        Gift[]            @relation("UserGiftsSent")
+  coinTransactions CoinTransaction[]
+  paymentOrders    PaymentOrder[]
+  userMissions     UserMission[]
+  characterLikes     CharacterLike[]
+  characterBookmarks CharacterBookmark[]
+  reportsFiled       Report[]            @relation("ReportsFiled")
+  questProgress      UserCharacterQuest[]
+  aiCalls            AiCall[]
+  aiDailyUsage       AiDailyUsage[]
+  accountClosure AccountClosure?
+  uploadAssets UploadAsset[]
+
+  @@map("users")
+  comments     Comment[]
+  commentLikes CommentLike[]
+}
+
+model AccountClosure {
+  id String @id @default(cuid())
+  userId String @unique @map("user_id")
+  fileUrlsJson String @map("file_urls_json")
+  status String @default("PENDING_FILES")
+  createdAt DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@map("account_closures")
+}
+
+model UploadAsset {
+  id String @id @default(cuid())
+  ownerId String @map("owner_id")
+  url String @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  @@index([ownerId])
+  @@map("upload_assets")
+}
+
+/// Character model for AI persona (both user-created and system featured characters)
+model Character {
+  communityPosts Post[]
+  id          String   @id @default(cuid())
+  name        String
+  /// Short hook shown on cards in the explore page
+  tagline     String?
+  personality String
+  background  String
+  greeting    String?
+  avatarUrl   String?  @map("avatar_url")
+  creatorId   String?  @map("creator_id")
+  isPublic    Boolean  @default(false) @map("is_public")
+  publicationRequested Boolean @default(false) @map("publication_requested")
+  reviewStatus String @default("DRAFT") @map("review_status")
+  reviewReason String? @map("review_reason")
+  copyrightStatement String? @map("copyright_statement")
+  reviewedBy String? @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+  chatCount   Int      @default(0) @map("chat_count")
+  /// Shown with the "Only on Khui AI" badge on cards
+  isExclusive Boolean  @default(false) @map("is_exclusive")
+  /// Comma-separated feature emojis rendered on the card (e.g. "☺️,🎹")
+  badges      String?
+  /// Comma-separated tag keys (e.g. "Female,NC,นอกใจ")
+  tags        String?
+  /// Persona template for the player character, shown under "บทบาท" — the live site
+  /// ships a fill-in-the-blanks profile the user adopts.
+  roleTemplate String? @map("role_template")
+  /// Opening situation, shown under "สถานการณ์".
+  scenario     String?
+  /// Cached counters the detail header shows: ไลก์ / แชท / ข้อความ / ของขวัญ.
+  /// chatCount already exists; likes and gifts are also derivable from their tables,
+  /// but the header reads them on every card so they are denormalised here.
+  likeCount    Int @default(0) @map("like_count")
+  messageCount Int @default(0) @map("message_count")
+  giftCount    Int @default(0) @map("gift_count")
+  /// 18+ content, which the live site warns about above the fold.
+  isAdult      Boolean @default(false) @map("is_adult")
+  /// Starting relationship, shown as "ค่าความสัมพันธ์เริ่มต้น": a status label plus
+  /// two meters (romance and intimacy).
+  ///
+  /// These are NOT percentages. The live chat page shows a romance value of 1100 with
+  /// its bar about half filled, so the fill is relative to the band of the current
+  /// status tier rather than to a 0-100 range. Only non-negative is enforced here; the
+  /// tier thresholds that drive the bar are not known.
+  relationshipStatus String? @map("relationship_status")
+  initialRomance     Int     @default(0) @map("initial_romance")
+  initialIntimacy    Int     @default(0) @map("initial_intimacy")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  creator       User?          @relation("CreatedCharacters", fields: [creatorId], references: [id], onDelete: SetNull)
+  conversations Conversation[]
+  giftsReceived Gift[]         @relation("CharacterGiftsReceived")
+  images        CharacterImage[]
+  emojis        CharacterEmoji[]
+  supportCast   SupportCharacter[]
+  likes         CharacterLike[]
+  bookmarks     CharacterBookmark[]
+  quests        CharacterQuest[]
+
+  @@index([creatorId])
+  @@index([isPublic])
+  @@map("characters")
+  comments      Comment[]
+}
+
+/// Extra pictures behind the main one — the detail header pages through them ("1/5").
+model CharacterImage {
+  id          String   @id @default(cuid())
+  characterId String   @map("character_id")
+  url         String
+  /// IMAGE or VIDEO — the panel lists both under "รูปภาพและวิดีโอ".
+  kind        String   @default("IMAGE")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, sortOrder])
+  @@map("character_images")
+}
+
+/// One picture per emotion, shown in the "อิโมจิตัวละคร" strip. The live site uses
+/// happy / sad / angry / embarrassed / confident / blank.
+model CharacterEmoji {
+  id          String   @id @default(cuid())
+  characterId String   @map("character_id")
+  emotion     String
+  url         String
+  sortOrder   Int      @default(0) @map("sort_order")
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, emotion])
+  @@map("character_emojis")
+}
+
+/// Secondary cast listed under "ตัวละครสนับสนุน", each with its own portrait and notes.
+model SupportCharacter {
+  id          String   @id @default(cuid())
+  characterId String   @map("character_id")
+  name        String
+  avatarUrl   String?  @map("avatar_url")
+  description String
+  sortOrder   Int      @default(0) @map("sort_order")
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, sortOrder])
+  @@map("support_characters")
+}
+
+/// A like is per person, so it needs a row rather than only a counter — otherwise the
+/// same account could like a character repeatedly.
+model CharacterLike {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  characterId String   @map("character_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, characterId])
+  @@index([characterId])
+  @@map("character_likes")
+}
+
+/// The bookmark button in the detail header.
+model CharacterBookmark {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  characterId String   @map("character_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, characterId])
+  @@index([userId])
+  @@map("character_bookmarks")
+}
+
+/// Per-character quests, shown as "ภารกิจ (4)" on the detail dialog. The existing
+/// Mission model is platform-wide; these belong to one character.
+model CharacterQuest {
+  id          String   @id @default(cuid())
+  characterId String   @map("character_id")
+  title       String
+  description String?
+  rewardCoins Int      @default(0) @map("reward_coins")
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  character Character            @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  progress  UserCharacterQuest[]
+
+  @@index([characterId, sortOrder])
+  @@map("character_quests")
+}
+
+/// One row per reader per quest, so a reward can only be collected once.
+model UserCharacterQuest {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  questId     String    @map("quest_id")
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at")
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest CharacterQuest @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId])
+  @@map("user_character_quests")
+}
+
+/// A moderation report. A platform carrying adult user-generated content needs a way
+/// for readers to flag it, so this is deliberately broad: any target type, the same
+/// categories the live site offers, and the extra fields its copyright form collects.
+model Report {
+  id         String   @id @default(cuid())
+  reporterId String   @map("reporter_id")
+  /// CHARACTER, USER, COMMENT, POST, UNIVERSE or MESSAGE.
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  /// One of the categories in REPORT_CATEGORIES (src/lib/reports.ts).
+  category   String
+  /// Narrows an inappropriateImage report: realPerson, explicit, violent or other.
+  imageReason String? @map("image_reason")
+  details    String
+  /// Submitted assistant reply retained as evidence even if its chat is deleted.
+  evidenceContent String? @map("evidence_content")
+  /// Copyright claims carry provenance the other categories do not.
+  workTitle    String? @map("work_title")
+  relationship String?
+  sourceLink   String? @map("source_link")
+  contactType  String? @map("contact_type")
+  contactValue String? @map("contact_value")
+  /// OPEN, REVIEWING, ACTIONED or DISMISSED.
+  status     String   @default("OPEN")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  reporter User @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([targetType, targetId])
+  @@index([reporterId])
+  @@index([status])
+  @@map("reports")
+}
+
+/// Conversation container between a User and a Character
+model Conversation {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  characterId String   @map("character_id")
+  title       String?
+  /// Relationship state belongs to the conversation, not the character: the live chat
+  /// page shows these moving as you talk, and seeds them from the character's initial
+  /// values. A user can hold several conversations with one character, each at its own
+  /// stage.
+  relationshipStatus String? @map("relationship_status")
+  romance            Int     @default(0)
+  intimacy           Int     @default(0)
+  /// The "โหมดความสัมพันธ์ (ทดลอง)" switch, per chat.
+  relationshipMode Boolean @default(true) @map("relationship_mode")
+  /// Overrides AI_MODEL for this chat only, chosen from a server-side allowlist so a
+  /// reader cannot point the shared provider quota at an arbitrary model.
+  aiModel     String?  @map("ai_model")
+  /// Free-text notes the reader keeps for this chat ("โน้ตตัวละคร").
+  notes       String?
+  /// Set when the chat is moved out of the sidebar list ("แชทที่จัดเก็บ").
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([userId])
+  @@index([characterId])
+  @@index([userId, characterId])
+  @@index([userId, archivedAt])
+  @@map("conversations")
+}
+
+/// Chat message history inside a conversation
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  role           String   // USER, ASSISTANT, SYSTEM
+  content        String
+  /// Set when the reader taps the thumbs-up on a reply.
+  likedAt        DateTime? @map("liked_at")
+  /// A picture generated alongside the reply, as the live greeting message carries.
+  imageUrl       String?   @map("image_url")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+/// Daily check-in activity log for tracking user streak and reward distribution
+model Checkin {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  checkedInAt DateTime @default(now()) @map("checked_in_at")
+  coinsEarned Int      @map("coins_earned")
+  streakDay   Int      @map("streak_day")
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([checkedInAt])
+  @@map("checkins")
+}
+
+/// Gift transaction sent by a user to support a character (used for Gift Leaderboard)
+model Gift {
+  id          String   @id @default(cuid())
+  senderId    String   @map("sender_id")
+  characterId String   @map("character_id")
+  amount      Int
+  giftType    String   @default("rose") @map("gift_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  sender    User      @relation("UserGiftsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  character Character @relation("CharacterGiftsReceived", fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([characterId])
+  @@index([createdAt])
+  @@map("gifts")
+}
+
+/// Ledger tracking all coin adjustments (purchases, rewards, spent)
+model CoinTransaction {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  paymentOrderId String? @unique @map("payment_order_id")
+  refundId String? @unique @map("refund_id")
+  refundReleaseId String? @unique @map("refund_release_id")
+  amount      Int
+  type        String   // PURCHASE, EARNED, SPENT
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentOrder PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  refund PaymentRefund? @relation("RefundDebit", fields: [refundId], references: [id], onDelete: Restrict)
+  refundRelease PaymentRefund? @relation("RefundRelease", fields: [refundReleaseId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("coin_transactions")
+}
+
+/// A server-priced EZFP checkout. Coin and CNY amounts are immutable snapshots;
+/// paymentOrderId on CoinTransaction gives each order at most one coin credit.
+model PaymentOrder {
+  id                 String   @id @default(cuid())
+  orderNo            String   @unique @map("order_no")
+  idempotencyKey     String   @map("idempotency_key")
+  userId             String   @map("user_id")
+  packageId          String?  @map("package_id")
+  packageCoins       Int      @map("package_coins")
+  packageBonus       Int      @map("package_bonus")
+  coinAmount         Int      @map("coin_amount")
+  amountCnyCents     Int      @map("amount_cny_cents")
+  currency           String   @default("CNY")
+  status             String   @default("PENDING")
+  provider            String   @default("EZFP")
+  providerTradeNo     String?  @unique @map("provider_trade_no")
+  providerPayType     String?  @map("provider_pay_type")
+  providerPayInfo     String?  @map("provider_pay_info")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  paidAt              DateTime? @map("paid_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinTransaction CoinTransaction?
+  refund PaymentRefund?
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("payment_orders")
+}
+
+/// One full refund per order. PROCESSING/UNKNOWN reserve coins until confirmed.
+model PaymentRefund {
+  id String @id @default(cuid())
+  paymentOrderId String @unique @map("payment_order_id")
+  refundNo String @unique @map("refund_no")
+  providerRefundNo String? @unique @map("provider_refund_no")
+  actorId String @map("actor_id")
+  reason String
+  amountCnyCents Int @map("amount_cny_cents")
+  coinAmount Int @map("coin_amount")
+  status String @default("PROCESSING")
+  errorCode String? @map("error_code")
+  attemptedAt DateTime @default(now()) @map("attempted_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+  paymentOrder PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
+  debit CoinTransaction? @relation("RefundDebit")
+  release CoinTransaction? @relation("RefundRelease")
+  @@index([status, createdAt])
+  @@map("payment_refunds")
+}
+
+/// Master table of available platform missions
+model Mission {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  rewardCoins Int      @map("reward_coins")
+  category    String   @default("DAILY") // DAILY, ONBOARDING, STARTER, SPECIAL, CREATOR
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  userMissions UserMission[]
+
+  @@map("missions")
+}
+
+/// Junction table tracking user progress and completion status for missions
+model UserMission {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  missionId   String    @map("mission_id")
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, missionId])
+  @@index([userId])
+  @@index([missionId])
+  @@map("user_missions")
+}
+
+// ==========================================
+// SITE CONTENT (everything the UI renders is DB-driven)
+// ==========================================
+
+/// Promo banners for the explore hero carousel and the sidebar carousel
+model Banner {
+  id           String   @id @default(cuid())
+  placement    String   // HERO, SIDEBAR
+  title        String
+  description  String
+  href         String
+  gradientFrom String   @map("gradient_from")
+  gradientTo   String   @map("gradient_to")
+  imageUrl     String?  @map("image_url")
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([placement, isActive])
+  @@map("banners")
+}
+
+/// Master tag catalog used by the creator picker and the explore filter chips
+model Tag {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  label     String
+  group     String   // ประเภท, บทบาท, บุคลิก, แนวเรื่อง, ความสัมพันธ์
+  filterRow String?  @map("filter_row") // type | role -> shown as a filter chip row on the explore page
+  sortOrder Int      @default(0) @map("sort_order")
+
+  @@index([group])
+  @@index([filterRow])
+  @@map("tags")
+}
+
+/// Feature emojis a creator can pin on a character card
+model Badge {
+  id        String @id @default(cuid())
+  emoji     String @unique
+  label     String
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@map("badges")
+}
+
+/// A horizontal rail on the explore page and how it picks its characters
+model HomeSection {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  emoji     String
+  title     String
+  /// FOR_YOU | EXCLUSIVE | POPULAR | NEWEST | TAG
+  source    String
+  tagKey    String?  @map("tag_key")
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+
+  @@map("home_sections")
+}
+
+/// Coin bundles shown in the shop
+model CoinPackage {
+  id        String  @id @default(cuid())
+  coins     Int
+  priceThb  Int     @map("price_thb")
+  priceCnyCents Int? @map("price_cny_cents")
+  bonus     Int     @default(0)
+  bonusStartsAt DateTime? @map("bonus_starts_at")
+  bonusEndsAt DateTime? @map("bonus_ends_at")
+  version Int @default(0)
+  label     String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  @@map("coin_packages")
+}
+
+model CoinPackageChange {
+  id String @id @default(cuid())
+  packageId String @map("package_id")
+  actorId String @map("actor_id")
+  beforeJson String? @map("before_json")
+  afterJson String @map("after_json")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([packageId, createdAt])
+  @@map("coin_package_changes")
+}
+
+/// Daily horoscope copy per zodiac sign
+model Horoscope {
+  id            String @id @default(cuid())
+  sign          String @unique
+  thaiName      String @map("thai_name")
+  title         String
+  description   String
+  luckyNumber   Int    @map("lucky_number")
+  luckyColor    String @map("lucky_color")
+  compatibility String
+  advice        String
+
+  @@map("horoscopes")
+}
+
+/// A shared world (จักรวาล) that groups several characters into one setting
+model Universe {
+  circles Circle[]
+  id             String   @id @default(cuid())
+  name           String
+  /// Short hook shown under the name on cards
+  tagline        String?
+  description    String
+  imageUrl       String?  @map("image_url")
+  creatorId      String?  @map("creator_id")
+  /// How many characters live in this world
+  characterCount Int      @default(0) @map("character_count")
+  chatCount      Int      @default(0) @map("chat_count")
+  /// Comma-separated tag keys (e.g. "แฟนตาซี,ดันเจี้ยน")
+  tags           String?
+  isPublic       Boolean  @default(true) @map("is_public")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([isPublic])
+  @@map("universes")
+}
+
+/// Comments on a character's page. The report taxonomy already carries a COMMENT target
+/// type, so this is the surface it was written for.
+///
+/// `parentId` gives one level of replies. It is deliberately not a general tree: an
+/// unbounded thread needs its own moderation and pagination story, and a reply-to-a-reply
+/// reads the same as a reply in a list this short.
+model Comment {
+  id          String   @id @default(cuid())
+  characterId String   @map("character_id")
+  authorId    String   @map("author_id")
+  parentId    String?  @map("parent_id")
+  body        String
+  likeCount   Int      @default(0) @map("like_count")
+  /// Soft-hidden by moderation. The row stays so a reply keeps its parent and the
+  /// reporter can still see what they filed against.
+  hiddenAt    DateTime? @map("hidden_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  character Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]      @relation("CommentReplies")
+  likes     CommentLike[]
+
+  @@index([characterId, createdAt])
+  @@index([parentId])
+  @@map("comments")
+}
+
+/// One like per person per comment, enforced by the unique index rather than by a
+/// read-then-write, which is how the mission rewards were double-collected.
+model CommentLike {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  commentId String   @map("comment_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId])
+  @@map("comment_likes")
+}
+
+/// Accepted generation attempts; no prompt or response text is stored here.
+model AiDailyUsage {
+  userId String @map("user_id")
+  day String
+  count Int @default(0)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@id([userId,day])
+  @@map("ai_daily_usage")
+}
+model AiCall {
+  id String @id @default(cuid())
+  userId String @map("user_id")
+  conversationId String @map("conversation_id")
+  operation String
+  status String @default("STARTED")
+  model String?
+  attempts Int @default(0)
+  inputTokens Int? @map("input_tokens")
+  outputTokens Int? @map("output_tokens")
+  estimatedCost Float? @map("estimated_cost")
+  currency String
+  errorCode String? @map("error_code")
+  startedAt DateTime @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  durationMs Int? @map("duration_ms")
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([userId,startedAt])
+  @@map("ai_calls")
+}
+
+/// Creating a circle does not automatically subscribe its owner.
+model Circle {
+ id String @id @default(cuid())
+ name String
+ description String
+ tags String?
+ ownerId String @map("owner_id")
+ universeId String? @map("universe_id")
+ status String @default("ACTIVE")
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ universe Universe? @relation(fields: [universeId], references: [id], onDelete: SetNull)
+ members CircleMember[]
+ posts Post[]
+ @@index([status, createdAt])
+ @@map("circles")
+}
+model CircleMember {
+ circleId String @map("circle_id")
+ userId String @map("user_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ @@id([circleId, userId])
+ @@index([userId, createdAt])
+ @@map("circle_members")
+}
+model Post {
+ id String @id @default(cuid())
+ circleId String @map("circle_id")
+ authorId String @map("author_id")
+ characterId String? @map("character_id")
+ content String
+ status String @default("VISIBLE")
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+ author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+ character Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+ media PostMedia[]
+ likes PostLike[]
+ comments PostComment[]
+ @@index([circleId, status, createdAt])
+ @@index([authorId, createdAt])
+ @@map("posts")
+}
+model PostMedia {
+ id String @id @default(cuid())
+ postId String @map("post_id")
+ url String
+ position Int @default(0)
+ post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+ @@unique([postId, position])
+ @@map("post_media")
+}
+model PostLike {
+ postId String @map("post_id")
+ userId String @map("user_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ @@id([postId, userId])
+ @@map("post_likes")
+}
+/// Independent from character comments; community visibility applies here.
+model PostComment {
+ id String @id @default(cuid())
+ postId String @map("post_id")
+ authorId String @map("author_id")
+ content String
+ imageUrl String? @map("image_url")
+ status String @default("VISIBLE")
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+ author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+ @@index([postId, status, createdAt])
+ @@map("post_comments")
+}
+model Follow {
+ followerId String @map("follower_id")
+ followingId String @map("following_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ follower User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+ following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+ @@id([followerId, followingId])
+ @@index([followingId, createdAt])
+ @@map("follows")
+}
+/// Target identifiers survive deletion for audit history.
+model ModerationAction {
+ id String @id @default(cuid())
+ actorId String @map("actor_id")
+ targetType String @map("target_type")
+ targetId String @map("target_id")
+ action String
+ reason String
+ createdAt DateTime @default(now()) @map("created_at")
+ actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+ @@index([targetType, targetId, createdAt])
+ @@map("moderation_actions")
+}
+model CommunityAppeal {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ reason String
+ status String @default("OPEN")
+ resolution String?
+ reviewedBy String? @map("reviewed_by")
+ reviewedAt DateTime? @map("reviewed_at")
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ @@index([status, createdAt])
+ @@index([userId, createdAt])
+ @@map("community_appeals")
+}

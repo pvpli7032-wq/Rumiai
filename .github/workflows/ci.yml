@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      # A throwaway database per run: the suite writes real rows, so it must never
+      # point at anything shared. The signing secret is generated in the first step.
+      DATABASE_URL: file:./ci.db
+      # NODE_ENV is deliberately NOT set here. Exporting NODE_ENV=development into
+      # `next build` makes it emit the production server runtime while loading the
+      # development React build, and prerendering then dies with a null useContext
+      # and a bogus "<Html> should not be imported outside of pages/_document".
+      # `next build` picks production on its own, and `next dev` picks development.
+      TEST_BASE_URL: http://localhost:3000
+      # No AI key on CI. The development test server uses a labeled mock streamer, which
+      # keeps the SSE contract identical without spending the shared daily quota.
+      AI_MODEL: ci-mock
+      # Development test server only. Production build still blocks demo currency.
+      ALLOW_SIMULATED_PURCHASES: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Validate the Node.js version required by the implementation plan.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Generate isolated auth secret
+        run: node -e "const secret = require('crypto').randomBytes(48).toString('hex'); console.log('::add-mask::' + secret); require('fs').appendFileSync(process.env.GITHUB_ENV, 'JWT_SECRET=' + secret + '\n')"
+
+      - run: npm ci
+
+      - name: Apply migrations
+        run: |
+          npx prisma migrate deploy
+          npx prisma generate
+
+      - name: Seed
+        run: |
+          npm run db:seed
+          npm run db:seed:site
+
+      - name: Prepare isolated moderation reviewer
+        run: |
+          node --input-type=module <<'NODE'
+          import { PrismaClient } from '@prisma/client';
+          import bcrypt from 'bcryptjs';
+          import { randomBytes } from 'node:crypto';
+          import { appendFileSync } from 'node:fs';
+          const db = new PrismaClient();
+          const password = randomBytes(24).toString('hex');
+          console.log('::add-mask::' + password);
+          try {
+            const user = await db.user.create({ data: { username: 'ci-reviewer', email: 'reviewer@example.invalid', passwordHash: await bcrypt.hash(password, 10) } });
+            appendFileSync(process.env.GITHUB_ENV, `MODERATOR_USER_IDS=${user.id}\nTEST_REVIEWER_EMAIL=${user.email}\nTEST_REVIEWER_PASSWORD=${password}\n`);
+          } finally { await db.$disconnect(); }
+          NODE
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Start server
+        run: |
+          npm run dev > dev.log 2>&1 &
+          for i in $(seq 1 60); do
+            if grep -q "Ready in" dev.log; then exit 0; fi
+            if grep -qE "^ *⨯|Error:" dev.log; then cat dev.log; exit 1; fi
+            sleep 2
+          done
+          echo "server did not become ready"; cat dev.log; exit 1
+
+      - name: E2E suite
+        run: npm test
+
+      - name: Verify the prompt sent to the model
+        run: node scripts/verify-ai-context.mjs
+
+      - name: Verify rate limiting
+        run: node scripts/verify-rate-limit.mjs
+
+      - name: Stress the coin economy
+        run: STRESS_ROUNDS=3 node scripts/stress-economy.mjs
+
+      - name: Server log on failure
+        if: failure()
+        run: tail -200 dev.log || true

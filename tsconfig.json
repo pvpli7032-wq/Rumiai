@@ -1,0 +1,55 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".next-account-ui/types/**/*.ts",
+    ".next-ai-tests/types/**/*.ts",
+    ".next-build/types/**/*.ts",
+    ".next-chat-tests/types/**/*.ts",
+    ".next-circle-tests/types/**/*.ts",
+    ".next-finance-validation/types/**/*.ts",
+    ".next-goal-validation/types/**/*.ts",
+    ".next-m1-tests/types/**/*.ts",
+    ".next-m2-tests/types/**/*.ts",
+    ".next-m3-posts-tests/types/**/*.ts",
+    ".next-verify-context/types/**/*.ts",
+    ".next-verify-ratelimit/types/**/*.ts",
+    ".next-verify/types/**/*.ts",
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    ".next-next15-regression/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "artifacts"
+  ]
+}

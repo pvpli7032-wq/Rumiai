@@ -1,0 +1,74 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+.next-build/
+.next-*/
+.next-finance-validation/
+out/
+next-env.d.ts
+
+# typescript
+*.tsbuildinfo
+
+# env
+.env*
+.env
+.env.local
+.env*.local
+.env.bak*
+!.env.example
+
+# database (sqlite dev) — migrations themselves ARE tracked
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db.bak*
+prisma/migrations/dev.db*
+
+# downloaded / uploaded assets
+public/uploads/
+public/universes/
+public/creators/
+
+# logs & os
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# claude code — local overrides only, ส่วนที่แชร์ทีมได้ commit ปกติ
+.claude/settings.local.json
+
+# sqlite WAL sidecars
+prisma/*.db-wal
+prisma/*.db-shm
+
+# per-process next build dirs used by the verify scripts
+.next-verify
+.next-verify-*
+
+prisma/backups/
+screens/
+
+
+.next-m1-tests/
+
+.next-m2-tests/
+
+.next-ai-tests/
+
+.next-chat-tests/
+.next-circle-tests/
+.next-m3-posts-tests/
+.next-m3-follow-tests/
+.next-m3-moderation-tests/
+.next-m3-content-tests/
+
+.next-goal-validation/
+.next-final/
+.next-account-ui/
+.next-m3-circles-validation/
+artifacts/
