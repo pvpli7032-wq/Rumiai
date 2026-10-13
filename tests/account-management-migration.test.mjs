@@ -70,6 +70,17 @@ test('ordered account migration preserves existing data/custom grants and adds o
     const characterManager = await client.adminRole.findUnique({where: {code: 'CHARACTER_MANAGER'}, include: {permissions: true}});
     assert.equal(characterManager.id, 'preexisting_character_manager'); assert.equal(characterManager.permissions.length, 3);
     assert(sqlite.prepare("PRAGMA index_list('characters')").all().some(index => index.name === 'characters_review_status_updated_at_id_idx'));
+    sqlite.prepare('INSERT INTO upload_assets (id, owner_id, url) VALUES (?, ?, ?)').run('fixture_upload', 'fixture_owner', '/uploads/synthetic-migration.png');
+    const uploadFields = sqlite.prepare('PRAGMA table_info(upload_assets)').all().map(row => row.name);
+    const uploadProjection = uploadFields.map(name => '"' + name + '"').join(',');
+    const beforeUpload = sqlite.prepare('SELECT ' + uploadProjection + ' FROM upload_assets').all();
+    cpSync('prisma/migrations/20261014060000_site_owned_character_assets', path.join(schema, 'migrations/20261014060000_site_owned_character_assets'), {recursive: true});
+    deploy();
+    assert.deepEqual(sqlite.prepare('SELECT ' + uploadProjection + ' FROM upload_assets').all(), beforeUpload);
+    assert.deepEqual(sqlite.prepare("SELECT * FROM characters WHERE id='fixture_character'").get(), beforeCharacter);
+    assert.deepEqual(sqlite.prepare("SELECT * FROM admin_role_permissions WHERE role_id='fixture_custom_role'").all(), beforeCustom);
+    assert.equal((await client.uploadAsset.findUnique({where: {id: 'fixture_upload'}, select: {siteOwned: true}})).siteOwned, false);
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS total FROM _prisma_migrations WHERE finished_at IS NOT NULL').get().total, 20);
     assert.equal(sqlite.prepare('PRAGMA integrity_check').get().integrity_check, 'ok'); assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {await client?.$disconnect(); sqlite?.close(); assert.equal(path.dirname(path.resolve(work)), artifactRoot); rmSync(work, {recursive: true, force: true});}
 });

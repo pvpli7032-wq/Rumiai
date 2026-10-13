@@ -4,6 +4,7 @@ import {hasAdminPermission} from '@/lib/admin/authorization';
 import type {AdminPermission} from '@/lib/admin/permissions';
 import {recordAdminAudit} from '@/lib/admin/management-service';
 import {mayAttachAccountUpload} from '@/lib/uploads/read-service';
+import {retainCharacterUploadsForSite} from '@/lib/uploads/storage-service';
 import {saveCharacterAssets, CharacterAssetError} from './managed-assets';
 import {validateCharacter, CHARACTER_LIMITS} from './validation';
 
@@ -65,12 +66,19 @@ export async function saveManagedCharacter(actor: string, id: string | null, inp
     if (id && !before) throw new CharacterManagementError('角色不存在。', 404);
     if (before?.reviewStatus === 'DELETED') throw new CharacterManagementError('已注销作者的角色不能恢复或编辑。', 409);
     if (before && before.updatedAt.getTime() !== Date.parse(body.updatedAt as string)) throw new CharacterManagementError('角色已被修改，请刷新后重试。', 409);
-    if (typeof content.avatarUrl === 'string' && content.avatarUrl.startsWith('/uploads/') && content.avatarUrl !== before?.avatarUrl && !await mayAttachAccountUpload(before?.creatorId ?? actor, content.avatarUrl)) throw new CharacterManagementError('上传素材须属于角色作者；其他私有附件不能关联到此角色。');
+    if (typeof content.avatarUrl === 'string' && content.avatarUrl.startsWith('/uploads/') && content.avatarUrl !== before?.avatarUrl && !await mayAttachAccountUpload(before?.creatorId ?? actor, content.avatarUrl, {allowSiteOwned: !before || before.creatorId === null})) throw new CharacterManagementError('上传素材须属于角色作者或已归属站点。');
     const updatedAt = new Date(Math.max(Date.now(), (before?.updatedAt.getTime() ?? 0) + 1));
     const state = before?.publicationRequested ? {isPublic: false, reviewStatus: 'PENDING', reviewReason: null, reviewedAt: null, reviewedBy: null} : {isPublic: false, reviewStatus: 'DRAFT'};
-    const saved = before && id ? await tx.character.update({where: {id}, data: {...content, ...state, updatedAt}}) : await tx.character.create({data: {name: content.name, personality: content.personality, background: content.background ?? '', ...content, creatorId: actor, isPublic: false, reviewStatus: 'DRAFT', publicationRequested: false, updatedAt}});
-    try {await saveCharacterAssets(tx, saved.id, saved.creatorId ?? actor, assets);} catch (error) {if (error instanceof CharacterAssetError) throw new CharacterManagementError(error.message); throw error;}
-    await recordAdminAudit(tx, actor, before ? 'CHARACTER_EDITED' : 'CHARACTER_CREATED', saved.id, reason, {fields: [...Object.keys(content), ...['images', 'emojis', 'supportCast'].filter(key => assets[key] !== undefined)], before: before ? {status: before.reviewStatus, isPublic: before.isPublic, updatedAt: before.updatedAt} : null, after: {status: saved.reviewStatus, isPublic: saved.isPublic, updatedAt}});
+    const saved = before && id ? await tx.character.update({where: {id}, data: {...content, ...state, updatedAt}}) : await tx.character.create({data: {name: content.name, personality: content.personality, background: content.background ?? '', ...content, creatorId: null, isPublic: false, reviewStatus: 'DRAFT', publicationRequested: false, updatedAt}});
+    let siteAssetsRetained = 0;
+    try {
+      await saveCharacterAssets(tx, saved.id, saved.creatorId, assets, actor);
+      if (saved.creatorId === null) {
+        const linked = await tx.character.findUniqueOrThrow({where: {id: saved.id}, select: {avatarUrl: true, images: {select: {url: true}}, emojis: {select: {url: true}}, supportCast: {select: {avatarUrl: true}}}});
+        siteAssetsRetained = await retainCharacterUploadsForSite(tx, actor, [linked.avatarUrl ?? '', ...linked.images.map(row => row.url), ...linked.emojis.map(row => row.url), ...linked.supportCast.map(row => row.avatarUrl ?? '')]);
+      }
+    } catch (error) {if (error instanceof CharacterAssetError) throw new CharacterManagementError(error.message); throw error;}
+    await recordAdminAudit(tx, actor, before ? 'CHARACTER_EDITED' : 'CHARACTER_CREATED', saved.id, reason, {fields: [...Object.keys(content), ...['images', 'emojis', 'supportCast'].filter(key => assets[key] !== undefined)], before: before ? {status: before.reviewStatus, isPublic: before.isPublic, updatedAt: before.updatedAt} : null, after: {status: saved.reviewStatus, isPublic: saved.isPublic, updatedAt, siteAssetsRetained}});
     return saved;
   });
 }

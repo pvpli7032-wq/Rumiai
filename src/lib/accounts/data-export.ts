@@ -37,7 +37,7 @@ export async function exportAccountData(userId: string) {
       orderNo: true, status: true, amountCnyCents: true, coinAmount: true, createdAt: true, paidAt: true,
       refund: { select: { refundNo: true, status: true, amountCnyCents: true, coinAmount: true, createdAt: true, completedAt: true } },
     } });
-    const uploads = await tx.uploadAsset.findMany({ where: { ownerId: userId }, select: { url: true, createdAt: true } });
+    const uploads = await tx.uploadAsset.findMany({ where: { ownerId: userId, siteOwned: false }, select: { url: true, createdAt: true } });
     const [reports, appeals, following, followers, memberships, circles, bookmarks, characterLikes, postLikes, commentLikes, checkins, gifts, missions, questProgress, aiCalls, aiDailyUsage] = await Promise.all([
       // Evidence snapshots and other reporters' records are deliberately excluded.
       tx.report.findMany({ where: { reporterId: userId }, select: { id: true, targetType: true, targetId: true, category: true, imageReason: true, details: true, workTitle: true, relationship: true, sourceLink: true, contactType: true, contactValue: true, status: true, createdAt: true } }),

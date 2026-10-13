@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {rmSync} from 'node:fs';
-import {rm, rmdir} from 'node:fs/promises';
+import {rm, rmdir, readFile, stat} from 'node:fs/promises';
+import bcrypt from 'bcryptjs';
 import path from 'node:path';
 
 const file = `character-management-${process.pid}-${Date.now()}.db`, uploadRoot = path.resolve('artifacts', 'character-management', file, 'uploads');
@@ -19,7 +20,9 @@ const {GET: publicDetail} = await import('../src/app/api/characters/[id]/route.t
 const {GET: managementList} = await import('../src/app/api/characters/management/route.ts');
 const {signToken} = await import('../src/lib/auth.ts');
 const {saveAccountUpload} = await import('../src/lib/uploads/storage-service.ts');
-const {readVisibleUpload} = await import('../src/lib/uploads/read-service.ts');
+const {readVisibleUpload, mayAttachAccountUpload} = await import('../src/lib/uploads/read-service.ts');
+const {closeAccount} = await import('../src/lib/accounts/closure-service.ts');
+const {exportAccountData} = await import('../src/lib/accounts/data-export.ts');
 const users = [];
 for (const name of ['owner', 'editor', 'publisher', 'reader', 'author', 'ordinary']) users.push(await db.user.create({data: {username: name, email: `${name}@example.invalid`, passwordHash: 'synthetic-only'}}));
 const [owner, editor, publisher, reader, author, ordinary] = users;
@@ -51,7 +54,7 @@ test('editing and publication are distinct permissions with enforced read depend
   await denied(() => saveRole(owner.id, {name: '错误配置', permissions: ['characters.write'], reason: '测试'}), 400);
 });
 test('draft creation and content validation cannot bypass publication', async () => {
-  const role = await create(editor, {copyrightStatement: ''}); assert.equal(role.reviewStatus, 'DRAFT'); assert.equal(role.isPublic, false); assert.equal(role.creatorId, editor.id);
+  const role = await create(editor, {copyrightStatement: ''}); assert.equal(role.reviewStatus, 'DRAFT'); assert.equal(role.isPublic, false); assert.equal(role.creatorId, null);
   await denied(() => publish(publisher, role), 400);
   for (const content of [{name: '', personality: '人设'}, {name: '非法', personality: '人设', avatarUrl: 'javascript:alert(1)'}, {name: '直接公开', personality: '人设', isPublic: true}]) await denied(() => saveManagedCharacter(editor.id, null, {content, reason: '无效内容'}), 400);
 });
@@ -59,17 +62,17 @@ test('published edit withdraws visibility, preserves ownership and keeps counter
   const role = await create(editor, {copyrightStatement: '合成原创'}); const published = await publish(publisher, role);
   const conversation = await db.conversation.create({data: {userId: ordinary.id, characterId: role.id}});
   const edited = await saveManagedCharacter(editor.id, role.id, {updatedAt: published.updatedAt.toISOString(), content: {background: '修改后的合成背景'}, reason: '内容修订'});
-  assert.equal(edited.reviewStatus, 'PENDING'); assert.equal(edited.isPublic, false); assert.equal(edited.creatorId, editor.id); assert.equal(edited.chatCount, role.chatCount);
+  assert.equal(edited.reviewStatus, 'PENDING'); assert.equal(edited.isPublic, false); assert.equal(edited.creatorId, null); assert.equal(edited.chatCount, role.chatCount);
   assert.equal((await db.conversation.findUnique({where: {id: conversation.id}})).characterId, role.id);
   const visible = await (await publicList(new Request('http://localhost/api/characters'))).json(); assert(!visible.some(item => item.id === role.id));
   await denied(() => publish(publisher, published), 409);
   const restored = await publish(publisher, edited); assert(restored.isPublic);
   const down = await publish(publisher, restored, 'UNPUBLISH'); assert.equal(down.reviewStatus, 'REJECTED'); assert.equal(down.isPublic, false);
 });
-test('search, exact tag boundaries, ownership and all review statuses paginate stored records', async () => {
+test('search, exact tag boundaries and all review statuses paginate stored records', async () => {
   for (let i = 0; i < 26; i++) await create(editor, {name: `分页_${i}`, tags: '猫,原创'});
   await create(editor, {name: '不应误匹配', tags: '猫娘'});
-  const first = await listManagedCharacters(reader.id, {q: '分页_', tag: '猫', status: 'DRAFT', creatorId: editor.id, page: 1}), second = await listManagedCharacters(reader.id, {q: '分页_', tag: '猫', page: 2});
+  const first = await listManagedCharacters(reader.id, {q: '分页_', tag: '猫', status: 'DRAFT', page: 1}), second = await listManagedCharacters(reader.id, {q: '分页_', tag: '猫', page: 2});
   assert.equal(first.total, 26); assert.equal(first.items.length, 25); assert.equal(second.items.length, 1); assert(!first.items.some(item => item.id === second.items[0].id));
   assert.equal((await listManagedCharacters(reader.id, {tag: '猫'})).total, 26);
   for (const params of [{status: 'INVALID'}, {page: NaN}, {creatorId: '..'}, {q: 'x'.repeat(101)}]) await denied(() => listManagedCharacters(reader.id, params), 400);
@@ -125,4 +128,44 @@ test('system-owned roles can use the editor own uploads without exposing foreign
   const edited = await saveManagedCharacter(owner.id, system.id, {updatedAt: system.updatedAt.toISOString(), content: {avatarUrl: asset.url, images: [{url: asset.url}]}, reason: '配置系统素材'});
   assert.equal(edited.creatorId, null); assert.deepEqual((await readVisibleUpload(path.basename(asset.url), reader.id)).bytes, pixel);
   await publish(publisher, edited); assert.deepEqual((await readVisibleUpload(path.basename(asset.url), null)).bytes, pixel);
+});
+
+test('site assets survive staff departure and closure while personal assets are erased', async () => {
+  const password = randomUUID();
+  const staff = await db.user.create({data: {username: 'departing-staff', email: 'departing-staff@example.invalid', passwordHash: await bcrypt.hash(password, 10)}});
+  const role = await saveRole(owner.id, {name: '离任素材验收', permissions: ['characters.read', 'characters.write'], reason: '合成角色'});
+  await saveOperator(owner.id, {userId: staff.id, roleIds: [role.id], enabled: true, version: 0, reason: '合成员工'});
+  const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64');
+  const site = await saveAccountUpload(staff.id, new File([pixel], 'site.png', {type: 'image/png'}));
+  const personal = await saveAccountUpload(staff.id, new File([Buffer.concat([pixel, Buffer.from('synthetic-personal')])], 'personal.png', {type: 'image/png'}));
+  for (const asset of [site, personal]) files.add(path.basename(asset.url));
+  const character = await create(staff, {name: '站点保留角色', copyrightStatement: '合成原创', avatarUrl: site.url, images: [{url: site.url}]});
+  const personalCharacter = await db.character.create({data: {creatorId: staff.id, name: '个人待注销角色', personality: '个人合成人设', background: '', avatarUrl: personal.url}});
+  const editedPersonal = await saveManagedCharacter(owner.id, personalCharacter.id, {updatedAt: personalCharacter.updatedAt.toISOString(), content: {background: '管理员修订个人角色'}, reason: '保留个人作者归属'});
+  assert.equal(editedPersonal.creatorId, staff.id);
+  assert.equal(character.creatorId, null);
+  assert.equal((await db.uploadAsset.findUnique({where: {url: site.url}})).siteOwned, true);
+  assert.equal((await db.uploadAsset.findUnique({where: {url: personal.url}})).siteOwned, false);
+  const exported = await exportAccountData(staff.id);
+  assert(!exported.uploads.some(asset => asset.url === site.url)); assert(exported.uploads.some(asset => asset.url === personal.url));
+  assert(!exported.characters.some(item => item.id === character.id));
+  const operator = await db.adminOperator.findUnique({where: {userId: staff.id}});
+  await saveOperator(owner.id, {userId: staff.id, roleIds: [role.id], enabled: false, version: operator.version, reason: '员工离任'});
+  await denied(() => readVisibleUpload(path.basename(site.url), staff.id), 404);
+  assert.equal(await mayAttachAccountUpload(staff.id, site.url), false);
+  // A personal profile reference cannot publish a private site asset.
+  await db.user.update({where: {id: staff.id}, data: {avatarUrl: site.url}});
+  await denied(() => readVisibleUpload(path.basename(site.url), ordinary.id), 404);
+  assert.deepEqual((await readVisibleUpload(path.basename(site.url), reader.id)).bytes, pixel);
+  const closed = await closeAccount(staff.id, {password, confirmation: '注销我的账号', acknowledgeRetention: true});
+  assert.equal(closed.fileCleanupPending, false);
+  assert.deepEqual(await readFile(path.join(uploadRoot, path.basename(site.url))), pixel);
+  await assert.rejects(stat(path.join(uploadRoot, path.basename(personal.url))), {code: 'ENOENT'});
+  assert.equal((await db.character.findUnique({where: {id: personalCharacter.id}})).reviewStatus, 'DELETED');
+  const retained = await db.character.findUnique({where: {id: character.id}});
+  assert.equal(retained.reviewStatus, 'DRAFT'); assert.equal(retained.name, '站点保留角色');
+  assert.deepEqual((await readVisibleUpload(path.basename(site.url), reader.id)).bytes, pixel);
+  await denied(() => readVisibleUpload(path.basename(site.url), staff.id), 404);
+  await publish(publisher, retained);
+  assert.deepEqual((await readVisibleUpload(path.basename(site.url), null)).bytes, pixel);
 });

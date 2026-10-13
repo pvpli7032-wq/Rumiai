@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, writeFile, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { db, pragmasReady } from '@/lib/db';
+import type {Prisma} from '@prisma/client';
 
 import { uploadDirectory } from './storage-location.mjs';
 export { uploadDirectory } from './storage-location.mjs';
@@ -12,6 +13,14 @@ export async function listOwnedUploadFiles(userId: string) {
   const prefix = uploadOwnerPrefix(userId);
   try { return (await readdir(uploadDirectory())).filter(name => name.startsWith(prefix) && /^[a-f0-9]+-[a-f0-9]+\.(jpg|png|webp)$/.test(name)).map(name => `/uploads/${name}`); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []; throw error; }
+}
+
+/** Promote only validated uploads attached to a system-owned character. */
+export async function retainCharacterUploadsForSite(tx: Prisma.TransactionClient, ownerId: string, urls: string[]) {
+  const ownedUrls = [...new Set(urls.filter(url => /^\/uploads\/[A-Za-z0-9_-]{1,160}\.(?:jpg|png|webp)$/.test(url)))];
+  if (!ownedUrls.length) return 0;
+  const result = await tx.uploadAsset.updateMany({where: {ownerId, url: {in: ownedUrls}, siteOwned: false}, data: {siteOwned: true}});
+  return result.count;
 }
 
 export async function saveAccountUpload(userId: string, file: File) {

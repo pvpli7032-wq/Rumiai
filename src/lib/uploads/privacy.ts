@@ -26,7 +26,8 @@ export async function finishClosureFileCleanup(id: string): Promise<'COMPLETED' 
       if (!/^\/uploads\/[A-Za-z0-9_-]+\.(?:jpg|png|webp)$/.test(url)) { remaining.push(url); continue; }
       const name = url.slice('/uploads/'.length), target = path.resolve(uploadDirectory(), name);
       if (path.dirname(target) !== uploadDirectory()) { remaining.push(url); continue; }
-      const ownership = await db.uploadAsset.findUnique({ where: { url }, select: { ownerId: true } });
+      const ownership = await db.uploadAsset.findUnique({ where: { url }, select: { ownerId: true, siteOwned: true } });
+      if (ownership?.siteOwned) continue;
       if (ownership && ownership.ownerId !== closure.userId) continue;
       const owned = ownership?.ownerId === closure.userId || name.startsWith(uploadOwnerPrefix(closure.userId));
       if (!owned && await hasSurvivingReference(url)) { remaining.push(url); continue; }

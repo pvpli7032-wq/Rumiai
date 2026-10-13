@@ -42,6 +42,7 @@ try {
   await editor.page.getByLabel('操作理由', {exact: true}).fill('浏览器创建结构化角色');
   const created = editor.page.waitForResponse(response => response.url().endsWith('/api/characters/management') && response.request().method() === 'POST');
   await editor.page.getByRole('button', {name: '保存角色内容', exact: true}).click(); const createdResponse = await created; assert.equal(createdResponse.status(), 201); const role = await createdResponse.json();
+  assert.equal(role.creatorId, null);
   await editor.page.getByRole('heading', {name: '角色详情 · 运营测试角色', exact: true}).waitFor();
   assert.equal(await editor.page.getByRole('button', {name: '发布角色', exact: true}).count(), 0); assert.equal(await db.characterImage.count({where: {characterId: role.id}}), 1);
   checks.push('页面创建草稿、关系值、画廊、表情和配角实际入库');

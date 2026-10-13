@@ -158,7 +158,9 @@ model AccountClosure {
 
 model UploadAsset {
   id String @id @default(cuid())
+  /// Original uploading account; `siteOwned` records the asset's current business owner.
   ownerId String @map("owner_id")
+  siteOwned Boolean @default(false) @map("site_owned")
   url String @unique
   createdAt DateTime @default(now()) @map("created_at")
   owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)

@@ -34,7 +34,7 @@ export async function closeAccount(userId: string, input: unknown) {
     const pending = await tx.paymentOrder.count({ where: { userId, status: { in: ['CREATING', 'PENDING', 'UNKNOWN', 'REFUND_PENDING'] } } });
     if (pending) throw new AccountClosureError('有待核对的支付或退款，请先处理完再注销。', 409);
     if (await tx.aiCall.count({ where: { userId, status: 'STARTED' } })) throw new AccountClosureError('有尚未结束的 AI 请求，请等待完成后再注销。', 409);
-    const ownedFiles = await tx.uploadAsset.findMany({ where: { ownerId: userId }, select: { url: true } });
+    const ownedFiles = await tx.uploadAsset.findMany({ where: { ownerId: userId, siteOwned: false }, select: { url: true } });
     const urls = [current.avatarUrl, ...ownedFiles.map(row => row.url), ...await listOwnedUploadFiles(userId),
       ...await eraseAccountConversations(tx, userId),
       ...await withdrawAccountCharacters(tx, userId),

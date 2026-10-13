@@ -25,19 +25,21 @@ async function privateLegacyReference(url: string, userId: string) {
 }
 
 /** A new attachment must belong to its author; existing legacy references remain editable. */
-export async function mayAttachAccountUpload(userId: string, url: string) {
+export async function mayAttachAccountUpload(userId: string, url: string, options: {allowSiteOwned?: boolean} = {}) {
   if (!/^\/uploads\/[A-Za-z0-9_-]{1,160}\.(?:jpg|png|webp)$/.test(url)) return false;
-  const asset = await db.uploadAsset.findUnique({ where: { url }, select: { ownerId: true, owner: { select: { deletedAt: true } } } });
-  return asset ? asset.ownerId === userId && !asset.owner.deletedAt : privateLegacyReference(url, userId);
+  const asset = await db.uploadAsset.findUnique({ where: { url }, select: { ownerId: true, siteOwned: true, owner: { select: { deletedAt: true } } } });
+  return asset ? asset.siteOwned ? options.allowSiteOwned === true : asset.ownerId === userId && !asset.owner.deletedAt : options.allowSiteOwned ? false : privateLegacyReference(url, userId);
 }
 
 export async function readVisibleUpload(name: string, userId: string | null) {
   if (!/^[A-Za-z0-9_-]{1,160}\.(?:jpg|png|webp)$/.test(name)) throw new UploadError('图片不存在。', 404);
   const url = `/uploads/${name}`;
-  const asset = await db.uploadAsset.findUnique({ where: { url }, select: { ownerId: true, owner: { select: { deletedAt: true } } } });
-  if (asset?.owner.deletedAt) throw new UploadError('图片不存在。', 404);
-  const administrativePreview = asset && userId !== null && await hasAdminPermission(userId, 'characters.read') && await db.character.count({where: {AND: [{OR: [{creatorId: asset.ownerId}, {creatorId: null}]}], reviewStatus: {not: 'DELETED'}, OR: [{avatarUrl: url}, {images: {some: {url}}}, {emojis: {some: {url}}}, {supportCast: {some: {avatarUrl: url}}}]}}) > 0;
-  const allowed = administrativePreview || (asset ? asset.ownerId === userId || await publicReference(url, asset.ownerId) : await publicReference(url) || (userId !== null && await privateLegacyReference(url, userId)));
+  const asset = await db.uploadAsset.findUnique({ where: { url }, select: { ownerId: true, siteOwned: true, owner: { select: { deletedAt: true } } } });
+  if (asset?.owner.deletedAt && !asset.siteOwned) throw new UploadError('图片不存在。', 404);
+  const characterReference = {OR: [{avatarUrl: url}, {images: {some: {url}}}, {emojis: {some: {url}}}, {supportCast: {some: {avatarUrl: url}}}]};
+  const administrativePreview = asset && userId !== null && await hasAdminPermission(userId, 'characters.read') && await db.character.count({where: {...(asset.siteOwned ? {creatorId: null} : {AND: [{OR: [{creatorId: asset.ownerId}, {creatorId: null}]}]}), reviewStatus: {not: 'DELETED'}, ...characterReference}}) > 0;
+  const publicSiteCharacter = asset?.siteOwned ? await db.character.count({where: {creatorId: null, isPublic: true, reviewStatus: 'APPROVED', ...characterReference}}) > 0 : false;
+  const allowed = administrativePreview || publicSiteCharacter || (asset ? !asset.siteOwned && (asset.ownerId === userId || await publicReference(url, asset.ownerId)) : await publicReference(url) || (userId !== null && await privateLegacyReference(url, userId)));
   if (!allowed) throw new UploadError('图片不存在。', 404);
   try {
     const bytes = await readFile(path.join(uploadDirectory(), name));
