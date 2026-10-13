@@ -55,7 +55,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
     <div className="relative w-full max-w-md">
       <div className="rounded-3xl border border-white/10 bg-zinc-900 p-8 shadow-2xl">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shadow-xl shadow-purple-500/30">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 shadow-xl shadow-purple-500/30">
             <LogIn className="h-7 w-7 text-white" />
           </div>
           <h1 className="font-athiti text-2xl font-bold text-white">{copy.heading}</h1>
@@ -94,7 +94,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30"
+                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
               />
             </div>
           )}
@@ -109,7 +109,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
               onChange={(e) => setEmail(e.target.value)}
               required
               placeholder="your@email.com"
-              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30"
+              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
             />
           </div>
 
@@ -124,7 +124,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 pr-11 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30"
+                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 pr-11 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
               />
               <button
                 type="button"
@@ -140,7 +140,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 py-3 font-athiti font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full rounded-xl bg-linear-to-r/srgb from-purple-600 to-pink-600 py-3 font-athiti font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? copy.submitting : mode === 'signIn' ? copy.signIn : copy.signUp}
           </button>

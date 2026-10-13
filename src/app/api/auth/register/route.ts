@@ -13,7 +13,16 @@ const MAX_PASSWORD_BYTES = 72;
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      const input: unknown = await request.json();
+      if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        return NextResponse.json({ error: '注册数据格式不正确。' }, { status: 400 });
+      }
+      body = input as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: '注册数据格式不正确。' }, { status: 400 });
+    }
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const password = body.password;
     // An explicit `username` is a handle the user picked; `name` is a display name.

@@ -74,7 +74,7 @@ export function UniverseTab() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={zhText("ค้นหาจักรวาล")}
-            className="h-12 w-full rounded-lg bg-zinc-100 pl-10 pr-4 text-sm outline-none dark:bg-[#27272A]"
+            className="h-12 w-full rounded-lg bg-zinc-100 pl-10 pr-4 text-sm outline-hidden dark:bg-[#27272A]"
           />
         </div>
       </div>
@@ -92,7 +92,7 @@ export function UniverseTab() {
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`flex h-[52px] flex-shrink-0 items-center justify-center gap-1 px-4 font-athiti text-sm font-semibold transition-all ${
+                  className={`flex h-[52px] shrink-0 items-center justify-center gap-1 px-4 font-athiti text-sm font-semibold transition-all ${
                     active ? 'text-[#F2572B]' : 'text-[#8A8A8A]'
                   }`}
                   style={{ borderBottom: `2px solid ${active ? '#F2572B' : 'transparent'}`, marginBottom: -1 }}
@@ -112,7 +112,7 @@ export function UniverseTab() {
             </div>
             {grid.length === 0 && (
               <p className="py-16 text-center font-athiti text-sm text-muted-foreground">
-                {zhText("ยังไม่มีจักรวาล — ลองรัน")}<code className="rounded bg-muted px-1">npm run db:seed:universes</code>
+                {zhText("ยังไม่มีจักรวาล — ลองรัน")}<code className="rounded-sm bg-muted px-1">npm run db:seed:universes</code>
               </p>
             )}
           </div>
@@ -144,7 +144,7 @@ function Rail({ emoji, title, items }: { emoji: string; title: string; items: Un
                 active ? 'border border-zinc-200 font-bold dark:border-none dark:bg-zinc-800' : 'font-medium text-neutral-500'
               }`}
             >
-              <span className={active ? 'bg-gradient-to-r from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent' : ''}>
+              <span className={active ? 'bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent' : ''}>
                 {r}
               </span>
             </button>
@@ -155,7 +155,7 @@ function Rail({ emoji, title, items }: { emoji: string; title: string; items: Un
       <div className="w-full overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex gap-[10px]">
           {items.map((u, i) => (
-            <div key={u.id} className="w-[140px] flex-shrink-0">
+            <div key={u.id} className="w-[140px] shrink-0">
               <UniverseCard universe={u} index={i} />
             </div>
           ))}

@@ -74,6 +74,19 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Focused safety, payments and recovery checks
+        run: |
+          npm run test:m0
+          npm run test:auth-config
+          npm run test:m2:context
+          npm run test:m4:ezfp
+          npm run test:m4:budget
+          npm run test:m4:metrics
+          npm run test:m5:export
+          npm run test:m5:closure
+          npm run test:m5:backup
+          npm run test:m5:state-backup
+
       - name: Build
         run: npm run build
 

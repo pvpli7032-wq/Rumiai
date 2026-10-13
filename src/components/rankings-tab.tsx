@@ -64,10 +64,10 @@ export function RankingsTab() {
             </linearGradient>
           </defs>
         </svg>
-        <div className="absolute left-[7px] top-[4px] z-20 flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-[#F1DD80] bg-gradient-to-r from-[#FF3B01] to-[#FE9002] shadow-[4px_0_4px_rgba(0,0,0,0.25)]">
+        <div className="absolute left-[7px] top-[4px] z-20 flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-[#F1DD80] bg-linear-to-r/srgb from-[#FF3B01] to-[#FE9002] shadow-[4px_0_4px_rgba(0,0,0,0.25)]">
           <span className="text-lg text-white">#</span>
         </div>
-        <div className="absolute left-[22px] right-0 top-[8px] h-[29px] rounded-r-[9px] bg-gradient-to-r from-orange-100 via-amber-50 to-orange-200/80 dark:from-[rgba(255,162,2,0.5)] dark:via-[rgba(255,90,0,0.45)] dark:to-[rgba(255,19,0,0.5)]" />
+        <div className="absolute left-[22px] right-0 top-[8px] h-[29px] rounded-r-[9px] bg-linear-to-r/srgb from-orange-100 via-amber-50 to-orange-200/80 dark:from-[rgba(255,162,2,0.5)] dark:via-[rgba(255,90,0,0.45)] dark:to-[rgba(255,19,0,0.5)]" />
         <span className="absolute left-[51px] right-2 top-[13px] truncate text-center font-athiti text-sm font-semibold leading-5">
           {zhText("จัดอันดับสัปดาห์ที่แล้ว วันที่")}{data.weekLabel}
         </span>
@@ -105,7 +105,7 @@ export function RankingsTab() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground md:text-sm">💬 {compact(c.chatCount)}</span>
                       {c.isNew && (
-                        <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{zhText("ใหม่")}</span>
+                        <span className="rounded-sm bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{zhText("ใหม่")}</span>
                       )}
                     </div>
                   </div>
@@ -122,7 +122,7 @@ export function RankingsTab() {
             <div className="-mx-4 flex flex-wrap gap-3 px-4">
               {data.newCreators.map((u) => (
                 <div key={u.id} className="flex w-fit items-center gap-2 rounded-[43px] bg-muted py-1 pl-1 pr-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#EE4036] to-[#FAAF40] text-xs font-bold text-white">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] text-xs font-bold text-white">
                     {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="h-full w-full object-cover" /> : u.username.slice(0, 1)}
                   </span>
                   <span className="whitespace-nowrap font-athiti text-sm font-semibold leading-5">@{u.username}</span>
@@ -151,7 +151,7 @@ export function RankingsTab() {
                         {c.rank}
                       </span>
                     </div>
-                    <span className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#EE4036] to-[#FAAF40] text-lg font-bold text-white ring-2 ring-border md:h-[72px] md:w-[72px]">
+                    <span className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] text-lg font-bold text-white ring-2 ring-border md:h-[72px] md:w-[72px]">
                       {c.avatarUrl ? <img src={c.avatarUrl} alt="" className="h-full w-full object-cover" /> : c.username.slice(0, 1)}
                     </span>
                     <div className="flex min-h-0 flex-1 flex-col items-center gap-1">

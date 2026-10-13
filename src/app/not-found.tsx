@@ -20,7 +20,7 @@ export default function NotFound() {
       <div className="mt-2 flex gap-3">
         <Link
           href={`/${DEFAULT_LOCALE}`}
-          className="rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-2.5 font-athiti font-semibold text-white"
+          className="rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-6 py-2.5 font-athiti font-semibold text-white"
         >
           {dict.chatNow}
         </Link>

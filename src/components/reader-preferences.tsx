@@ -113,7 +113,7 @@ export function ReaderPreferences() {
           onChange={(e) => setBannedWords(e.target.value.slice(0, 4000))}
           rows={4}
           placeholder={zhText("เลือด\nความรุนแรง")}
-          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-none"
+          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
         />
       </div>
 
@@ -139,7 +139,7 @@ export function ReaderPreferences() {
                   )
                 }
                 placeholder={zhText("ชื่อปุ่ม")}
-                className="w-28 shrink-0 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-none"
+                className="w-28 shrink-0 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
               />
               <input
                 value={s.text}
@@ -151,7 +151,7 @@ export function ReaderPreferences() {
                   )
                 }
                 placeholder={zhText("ข้อความที่จะเติม")}
-                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-none"
+                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
               />
               <button
                 onClick={() => setShortcuts((list) => list.filter((_, j) => j !== i))}
@@ -177,7 +177,7 @@ export function ReaderPreferences() {
       <button
         onClick={save}
         disabled={saving}
-        className="mt-5 w-full rounded-xl bg-gradient-to-r from-[#EE4036] to-[#FAAF40] py-3 font-athiti text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="mt-5 w-full rounded-xl bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] py-3 font-athiti text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {saving ? zhText("กำลังบันทึก...") : zhText("บันทึกการตั้งค่า")}
       </button>

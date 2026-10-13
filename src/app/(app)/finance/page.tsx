@@ -29,7 +29,7 @@ export default function FinancePage() {
   return <main className="mx-auto max-w-3xl space-y-4 p-4">
     <h1 className="text-xl font-bold">财务对账与 AI 成本</h1>
     <p className="text-sm text-muted-foreground">本地订单与金币流水核对。支付渠道账单与真实退款需另行核验。</p>
-    <div className="flex flex-wrap gap-3"><label>统计范围 <select className="min-h-11 rounded border bg-background px-2" value={days} onChange={e => setDays(Number(e.target.value))}>{[1, 7, 30, 90].map(n => <option key={n} value={n}>近 {n} 天</option>)}</select></label><button className="min-h-11 rounded border px-4" disabled={!token || loading} onClick={() => setRefresh(n => n + 1)}>刷新</button></div>
+    <div className="flex flex-wrap gap-3"><label>统计范围 <select className="min-h-11 rounded-sm border bg-background px-2" value={days} onChange={e => setDays(Number(e.target.value))}>{[1, 7, 30, 90].map(n => <option key={n} value={n}>近 {n} 天</option>)}</select></label><button className="min-h-11 rounded-sm border px-4" disabled={!token || loading} onClick={() => setRefresh(n => n + 1)}>刷新</button></div>
     {error && <p role="alert" className="text-red-400">{error}</p>}{loading && <p role="status">正在核对…</p>}
     {report && <>
       <FinancePackages token={token!} />

@@ -36,7 +36,7 @@ function ExclusiveBadge() {
     <span className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-[#1A1A1A]/90 py-0.5 pl-2 pr-1 text-[9px] font-semibold text-white ring-1 ring-[#2A2A2A]">
       <span>Only on</span>
       <span className="text-[#F2572B]">Khui AI</span>
-      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-gradient-to-br from-[#FFA202] to-[#FF1300] text-[7px] font-bold">
+      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-linear-to-br/srgb from-[#FFA202] to-[#FF1300] text-[7px] font-bold">
         K
       </span>
     </span>
@@ -75,9 +75,9 @@ export function CharacterCard({
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
+          <div className={`absolute inset-0 bg-linear-to-br/srgb ${gradient}`} />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+        <div className="absolute inset-0 bg-linear-to-t/srgb from-black/60 via-transparent to-black/20" />
 
         {character.isExclusive && <ExclusiveBadge />}
 

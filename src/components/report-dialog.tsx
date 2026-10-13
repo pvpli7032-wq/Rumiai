@@ -155,7 +155,7 @@ export function ReportDialog({
             <input
               value={workTitle}
               onChange={(e) => setWorkTitle(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-none"
+              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-hidden"
               placeholder={zhText("ผลงานที่ถูกละเมิด")}
             />
           </div>
@@ -183,7 +183,7 @@ export function ReportDialog({
             <input
               value={sourceLink}
               onChange={(e) => setSourceLink(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-none"
+              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-hidden"
               placeholder="https://..."
             />
           </div>
@@ -195,7 +195,7 @@ export function ReportDialog({
         value={details}
         onChange={(e) => setDetails(e.target.value.slice(0, MAX_DETAILS))}
         rows={4}
-        className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-none"
+        className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-hidden"
         placeholder={zhText("เล่าให้ทีมงานฟังว่าเกิดอะไรขึ้น")}
       />
       <p className="mt-1 text-right font-barlow text-[11px] text-zinc-500">

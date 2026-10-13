@@ -2,6 +2,10 @@
 
 基于 Khui AI 的 MIT 源码维护，技术栈为 Next.js 15、React 19、TypeScript、Prisma 5 与 SQLite。原许可和版权保留在 [LICENSE](LICENSE)。项目目前用于本机研发；真实商户支付与真机 PWA 验收尚未完成。
 
+界面构建已迁移到 Tailwind 4；按用户确认，支持 Safari 16.4、Chrome 111、Firefox 128 及更新浏览器。
+
+当前源码已通过 Node 24 生产构建、类型检查、全依赖审计（零漏洞）、160 项本地 HTTP/SSE 回归及核心生产浏览器验证；范围与尚未完成的真实上线事项见 [任务进度](docs/任务进度.md)。旧调色板的上游声明见 [第三方许可](THIRD_PARTY_NOTICES.md)。
+
 ## 本地运行
 
 推荐 Node.js 24；Node 24.21.0 的独立安装、迁移和生产构建已验证，本机系统 Node 22 保持原样。将 `.env.example` 复制为不提交的 `.env`，设置数据库地址、至少 32 字符的随机 `JWT_SECRET`，需要真实 AI 时再配置模型密钥。
@@ -24,6 +28,8 @@ npm start -- --hostname 127.0.0.1 --port 18781
 构建与启动使用 `.next-build`，开发服务使用 `.next`。直接调用 Next CLI 时需显式设置 `NEXT_DIST_DIR=.next-build`。隔离数据库和关闭模型/支付的完整启动步骤见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
 ## 已实现功能
+
+数据库与上传联合备份：停写后 `npm run state:backup -- <标签>`；`npm run state:restore -- <备份目录> <全新目录>` 恢复并核验文件引用和完整性。恢复时同时设置 `DATABASE_URL` 和 `UPLOADS_DIRECTORY`；密钥独立保管，具体切换步骤见部署说明。
 
 - 注册、登录、账户资料、原创角色创建和编辑、审核公开、收藏、点赞、评论与举报。
 - AI 流式聊天、模型白名单、超时和有限重试、每日调用上限、用量与可选成本估算、会话归档/导出/删除、消息举报。

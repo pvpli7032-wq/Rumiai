@@ -1,7 +1,8 @@
 import type { Config } from 'tailwindcss';
+import legacyColors from './tailwind-legacy-colors.json';
 
 const config: Config = {
-  darkMode: ['class'],
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -18,6 +19,7 @@ const config: Config = {
         barlow: ['var(--font-barlow)', 'sans-serif'],
       },
       colors: {
+        ...legacyColors,
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -61,6 +63,7 @@ const config: Config = {
         },
       },
       borderRadius: {
+        xs: 'calc(var(--radius) - 4px)',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',

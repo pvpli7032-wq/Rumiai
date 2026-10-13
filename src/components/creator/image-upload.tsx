@@ -226,7 +226,7 @@ export function ImageUpload({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={zhText("https://… หรือ /characters/xxxx.jpeg")}
-            className="w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-sm shadow-sm focus-visible:border-[#F2572B] focus-visible:outline-none"
+            className="w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-sm shadow-xs focus-visible:border-[#F2572B] focus-visible:outline-hidden"
           />
           <button
             type="button"

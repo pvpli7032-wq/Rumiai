@@ -60,7 +60,7 @@ function CharacterAvatar({
         style={box}
         draggable={false}
         onError={() => setFailed(true)}
-        className={`rounded-full object-cover bg-zinc-800 shadow-lg flex-shrink-0 ${className}`}
+        className={`rounded-full object-cover bg-zinc-800 shadow-lg shrink-0 ${className}`}
       />
     );
   }
@@ -68,7 +68,7 @@ function CharacterAvatar({
   return (
     <div
       style={{ ...box, fontSize: Math.round(size * 0.5) }}
-      className={`rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg flex-shrink-0 ${className}`}
+      className={`rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shrink-0 ${className}`}
     >
       {getCharEmoji(character.id)}
     </div>
@@ -347,7 +347,7 @@ function ChatContent() {
     <div className="flex h-full min-h-0 bg-zinc-950">
     <div className="flex min-w-0 flex-1 flex-col">
       {/* Header */}
-      <div className="bg-zinc-900/80 border-b border-white/10 backdrop-blur-sm px-4 py-3 flex items-center gap-3">
+      <div className="bg-zinc-900/80 border-b border-white/10 backdrop-blur-xs px-4 py-3 flex items-center gap-3">
         <Link href="/discover" className="p-2 rounded-full hover:bg-white/5 transition-colors text-zinc-400 hover:text-white">
           <ArrowLeft className="w-5 h-5" />
         </Link>
@@ -399,7 +399,7 @@ function ChatContent() {
                     onChange={e => setEditDraft(e.target.value)}
                     rows={3}
                     autoFocus
-                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 font-athiti text-sm text-white focus:border-purple-500/50 focus:outline-none"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 font-athiti text-sm text-white focus:border-purple-500/50 focus:outline-hidden"
                   />
                   <p className="mt-1 font-athiti text-[11px] text-zinc-500">
                     {zhText("แก้แล้วคำตอบเดิมจะถูกแทนที่ด้วยคำตอบใหม่")}</p>
@@ -422,7 +422,7 @@ function ChatContent() {
                 <>
                   <div className={`max-w-xs break-words md:max-w-md lg:max-w-lg rounded-2xl px-4 py-3 ${
                     msg.role === 'USER'
-                      ? 'bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-br-sm'
+                      ? 'bg-linear-to-br/srgb from-purple-600 to-pink-600 text-white rounded-br-sm'
                       : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                   }`}>
                     {msg.role === 'USER' ? (
@@ -467,7 +467,7 @@ function ChatContent() {
       {conversationId&&token&&<div className="border-t border-white/10 px-4 py-2"><ConversationTools conversationId={conversationId} token={token} title={character?.name} disabled={streaming} onDeleted={()=>router.push('/chat')}/></div>}
 
       {/* Input */}
-      <div className="bg-zinc-900/80 border-t border-white/10 backdrop-blur-sm px-4 py-4">
+      <div className="bg-zinc-900/80 border-t border-white/10 backdrop-blur-xs px-4 py-4">
         {chatError && (
           <div role="alert" className="mx-auto mb-3 max-w-3xl rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
             {chatError}
@@ -500,10 +500,10 @@ function ChatContent() {
             disabled={streaming}
             maxLength={5000}
             placeholder={zhText("พิมพ์ข้อความถึง") + (character?.name || '角色') + zhText("...")}
-            className="flex-1 px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti disabled:opacity-50"
+            className="flex-1 px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti disabled:opacity-50"
           />
           <button type="submit" disabled={streaming || !input.trim()}
-            className="p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20">
+            className="p-3 bg-linear-to-br/srgb from-purple-600 to-pink-600 rounded-xl text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20">
             {streaming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           </button>
         </form>

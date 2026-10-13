@@ -3,7 +3,8 @@ import { mkdir, writeFile, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { db, pragmasReady } from '@/lib/db';
 
-export const uploadDirectory = () => path.resolve(process.cwd(), 'public/uploads');
+import { uploadDirectory } from './storage-location.mjs';
+export { uploadDirectory } from './storage-location.mjs';
 export const uploadOwnerPrefix = (userId: string) => createHash('sha256').update(userId).digest('hex') + '-';
 export class UploadError extends Error { constructor(message: string, public status: number) { super(message); } }
 

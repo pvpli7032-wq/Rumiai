@@ -23,11 +23,11 @@ export function AccountClosure({ token, onClosed }: { token: string; onClosed: (
       <p>支付订单、金币余额与流水、AI 成本、举报证据及处理记录保留用于核对；账号身份改为匿名记录。注销后不能继续使用金币，请先处理需要退款的充值。有未结束的支付、退款或 AI 请求时会暂缓注销。</p>
       <p>本人新上传文件会清理。无法确认归属的旧共享图片需核查；备份和模型服务商保存的数据须由运营方按实际保留规则处理。</p>
       <form className="space-y-3" onSubmit={close}>
-        <label className="block">当前密码<input required type="password" autoComplete="current-password" maxLength={200} value={password} onChange={e => setPassword(e.target.value)} className="mt-1 min-h-11 w-full rounded border bg-background px-3" /></label>
-        <label className="block">输入“注销我的账号”<input required value={confirmation} onChange={e => setConfirmation(e.target.value)} className="mt-1 min-h-11 w-full rounded border bg-background px-3" /></label>
+        <label className="block">当前密码<input required type="password" autoComplete="current-password" maxLength={200} value={password} onChange={e => setPassword(e.target.value)} className="mt-1 min-h-11 w-full rounded-sm border bg-background px-3" /></label>
+        <label className="block">输入“注销我的账号”<input required value={confirmation} onChange={e => setConfirmation(e.target.value)} className="mt-1 min-h-11 w-full rounded-sm border bg-background px-3" /></label>
         <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)} />我已了解删除范围和账务、举报、备份等记录的保留说明，确认注销。</label>
         {error && <p role="alert" className="text-red-400">{error}</p>}
-        <button disabled={busy || !password || confirmation !== '注销我的账号' || !acknowledged} className="min-h-11 rounded border border-red-500/40 px-4 text-red-400 disabled:opacity-50">{busy ? '正在注销…' : '确认注销账号'}</button>
+        <button disabled={busy || !password || confirmation !== '注销我的账号' || !acknowledged} className="min-h-11 rounded-sm border border-red-500/40 px-4 text-red-400 disabled:opacity-50">{busy ? '正在注销…' : '确认注销账号'}</button>
       </form>
     </div>
   </details>;

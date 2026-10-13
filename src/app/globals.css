@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source(none);
+@config "../../tailwind.config.ts";
+@source "../";
 
 @layer base {
   :root {
@@ -69,3 +69,9 @@ html[data-keyboard="true"] .mobile-primary-nav { display: none; }
 html[data-keyboard="true"] .app-content { padding-bottom: env(safe-area-inset-bottom); }
 @media (min-width: 1024px) { .app-content { padding-bottom: 0; } }
 @media (max-width: 767px) { input, textarea, select { font-size: 16px !important; } input, textarea { min-width: 0; } }
+
+/* Preserve v3 controls while migrating the build engine. */
+@layer base {
+  button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+  input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
+}

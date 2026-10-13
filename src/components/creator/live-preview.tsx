@@ -25,12 +25,12 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
           {data.avatarUrl ? (
             <img src={data.avatarUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#3b1d4d] to-[#141428] text-white/40">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-linear-to-br/srgb from-[#3b1d4d] to-[#141428] text-white/40">
               <User className="h-8 w-8" />
               <span className="text-[11px]">{zhText("ยังไม่มีรูป")}</span>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+          <div className="absolute inset-0 bg-linear-to-t/srgb from-black/60 via-transparent to-black/20" />
 
           {data.isExclusive && (
             <span className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-[#1A1A1A]/90 py-0.5 pl-2 pr-1 text-[9px] font-semibold text-white ring-1 ring-[#2A2A2A]">
@@ -76,7 +76,7 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-[#2A2A2A] dark:bg-[#141414]">
         <p className="mb-2 font-athiti text-xs font-bold text-muted-foreground">{zhText("ข้อความแรกในห้องแชท")}</p>
         <div className="flex gap-2">
-          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-[#EE4036] to-[#FAAF40]">
+          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40]">
             {data.avatarUrl && <img src={data.avatarUrl} alt="" className="h-full w-full object-cover" />}
           </div>
           <div className="min-w-0 rounded-2xl rounded-tl-sm bg-white px-3 py-2 text-sm leading-relaxed dark:bg-[#1F1F1F]">

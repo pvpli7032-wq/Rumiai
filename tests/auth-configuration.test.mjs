@@ -13,7 +13,20 @@ assert.equal(migrated.status, 0, migrated.stdout + migrated.stderr);
 const { db, pragmasReady } = await import('../src/lib/db.ts'); await pragmasReady;
 const { ensureAuthSigningConfiguration, signToken } = await import('../src/lib/auth.ts');
 const { POST: register } = await import('../src/app/api/auth/register/route.ts');
+const { POST: login } = await import('../src/app/api/auth/login/route.ts');
 test.after(async () => { await db.$disconnect(); for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), { force: true }); });
+
+test('malformed auth transport returns 400 and does not create accounts', async () => {
+  const before = await db.user.count();
+  const invalid = ['{', 'null', '[]', '"text"', '1', JSON.stringify({ email: 'transport@example.invalid', username: 'transport_fixture', password: { invalid: true } })];
+  for (const handler of [login, register]) {
+    for (const body of invalid) {
+      const response = await handler(new Request('http://localhost/api/auth/fixture', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }));
+      assert.equal(response.status, 400);
+      assert.equal(await db.user.count(), before);
+    }
+  }
+});
 
 test('production refuses published/blank/short signing secrets before signup writes', async () => {
   const originalMode = process.env.NODE_ENV, originalSecret = process.env.JWT_SECRET;

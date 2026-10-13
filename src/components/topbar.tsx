@@ -10,16 +10,16 @@ export function Topbar() {
   const { user, isLoading } = useAuth();
 
   return (
-    <div className="sticky top-0 z-50 border-b border-transparent bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <div className="sticky top-0 z-50 border-b border-transparent bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
       <div className="flex h-16 w-full items-center gap-2 p-4">
         <Link href="/" className="font-athiti text-xl font-bold desktop:hidden">
-          <span className="bg-gradient-to-r from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent">{zhText("Khui AI")}</span>
+          <span className="bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent">{zhText("Khui AI")}</span>
         </Link>
 
         <div className="ml-auto flex items-center gap-2">
           <Link
             href="/shop"
-            className="flex h-9 items-center rounded-full bg-white px-4 shadow transition-colors hover:border hover:border-zinc-200 dark:bg-[#F4B208]/10 dark:hover:bg-[#F4B208]/20"
+            className="flex h-9 items-center rounded-full bg-white px-4 shadow-sm transition-colors hover:border hover:border-zinc-200 dark:bg-[#F4B208]/10 dark:hover:bg-[#F4B208]/20"
           >
             <span className="mr-1">🪙</span>
             <span className="font-athiti font-bold">{user?.coins ?? 0}</span>
@@ -35,7 +35,7 @@ export function Topbar() {
           {!isLoading &&
             (user ? (
               <Link href="/profile" aria-label={zhText("โปรไฟล์")}>
-                <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-zinc-200 bg-gradient-to-br from-[#EE4036] to-[#FAAF40] text-sm font-bold text-white dark:border-zinc-800">
+                <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-zinc-200 bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] text-sm font-bold text-white dark:border-zinc-800">
                   {user.avatarUrl ? (
                     <img src={user.avatarUrl} alt={user.username} className="h-full w-full object-cover" draggable={false} />
                   ) : (
@@ -46,7 +46,7 @@ export function Topbar() {
             ) : (
               <Link
                 href="/login"
-                className="flex h-9 items-center rounded-full bg-gradient-to-r from-[#EE4036] to-[#FAAF40] px-4 font-athiti text-sm font-bold text-white"
+                className="flex h-9 items-center rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] px-4 font-athiti text-sm font-bold text-white"
               >
                 {zhText("เข้าสู่ระบบ")}</Link>
             ))}

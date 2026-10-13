@@ -113,13 +113,13 @@ export default function ProfilePage() {
         {/* Profile Card */}
         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
           <div className="flex items-center gap-4">
-            <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${tierColor} flex items-center justify-center text-2xl font-bold text-white shadow-xl`}>
+            <div className={`w-16 h-16 rounded-full bg-linear-to-br/srgb ${tierColor} flex items-center justify-center text-2xl font-bold text-white shadow-xl`}>
               {user.username[0]?.toUpperCase()}
             </div>
             <div>
               <h1 className="text-xl font-bold font-athiti text-white">{user.username}</h1>
               <p className="text-zinc-400 font-athiti text-sm">{user.email}</p>
-              <div className={`inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full bg-gradient-to-r ${tierColor} text-white text-xs font-bold font-athiti`}>
+              <div className={`inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full bg-linear-to-r/srgb ${tierColor} text-white text-xs font-bold font-athiti`}>
                 ⭐ {user.tier}
               </div>
             </div>
@@ -157,7 +157,7 @@ export default function ProfilePage() {
               <button
                 onClick={handleCheckin}
                 disabled={checkinStatus.checkedInToday || checkinLoading}
-                className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-orange-500/20 text-sm"
+                className="px-5 py-2.5 bg-linear-to-r/srgb from-orange-500 to-amber-500 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-orange-500/20 text-sm"
               >
                 {checkinLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : checkinStatus.checkedInToday ? zhText("✅ เช็คอินแล้ว") : zhText("🎁 เช็คอิน")}
               </button>
@@ -172,12 +172,12 @@ export default function ProfilePage() {
           <div className="space-y-3">
             {missions.map(m => (
               <div key={m.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${m.isCompleted ? 'border-green-500/20 bg-green-500/5' : 'border-white/10 bg-zinc-800 hover:border-white/20'}`}>
-                {m.isCompleted ? <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" /> : <Circle className="w-5 h-5 text-zinc-500 flex-shrink-0" />}
+                {m.isCompleted ? <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" /> : <Circle className="w-5 h-5 text-zinc-500 shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-semibold font-athiti ${m.isCompleted ? 'text-zinc-500 line-through' : 'text-white'}`}>{m.title}</p>
                   {m.description && <p className="text-xs text-zinc-500 font-athiti">{m.description}</p>}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs text-yellow-400 font-bold">+{m.rewardCoins}🪙</span>
                   {!m.isCompleted && (
                     <button onClick={() => handleMission(m.id)} disabled={loading} className="px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-athiti hover:bg-purple-600/30 transition-all disabled:opacity-50">

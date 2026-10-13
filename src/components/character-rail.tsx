@@ -39,7 +39,7 @@ export function CharacterRail({
                   : 'font-medium text-neutral-500 hover:bg-accent'
               }`}
             >
-              <span className={active ? 'bg-gradient-to-r from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent' : ''}>
+              <span className={active ? 'bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent' : ''}>
                 {r}
               </span>
             </button>

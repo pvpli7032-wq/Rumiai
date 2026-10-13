@@ -65,7 +65,7 @@ export default async function ExplorePage({ params: paramsPromise }: { params: P
           <p className="mx-auto mt-3 max-w-xl font-athiti text-zinc-400">{dict.exploreSubhead}</p>
           <Link
             href={`/${locale}/auth`}
-            className="mt-6 inline-block rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-3 font-athiti font-semibold text-white shadow-lg transition-transform hover:scale-105"
+            className="mt-6 inline-block rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-8 py-3 font-athiti font-semibold text-white shadow-lg transition-transform hover:scale-105"
           >
             {dict.chatNow}
           </Link>

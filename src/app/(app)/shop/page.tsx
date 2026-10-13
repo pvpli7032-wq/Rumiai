@@ -129,7 +129,7 @@ export default function ShopPage() {
     <div className="min-h-screen bg-zinc-950 px-4 py-8 text-white">
       <div className="mx-auto max-w-3xl">
         <div className="mb-10 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-amber-500 shadow-xl shadow-yellow-500/30">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br/srgb from-yellow-500 to-amber-500 shadow-xl shadow-yellow-500/30">
             <ShoppingBag className="h-8 w-8 text-white" />
           </div>
           <h1 className="mb-2 text-3xl font-bold text-white">金币充值</h1>
@@ -165,7 +165,7 @@ export default function ShopPage() {
                     className={`w-full rounded-xl py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                       successId === pkg.id
                         ? 'border border-green-500/40 bg-green-500/20 text-green-400'
-                        : 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg shadow-yellow-500/20 hover:opacity-90'
+                        : 'bg-linear-to-r/srgb from-yellow-500 to-amber-500 text-white shadow-lg shadow-yellow-500/20 hover:opacity-90'
                     }`}
                   >
                     {purchasing === pkg.id ? (

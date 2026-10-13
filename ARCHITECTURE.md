@@ -55,4 +55,6 @@ payments/validation-metrics.ts 负责同期新注册用户付费率及同期付�
 
 运维备份/恢复基础设施在 `lib/operations/sqlite-backup.mjs`，脚本 `backup-db.mjs` 与 `restore-db.mjs` 只解析参数和展示检查结果。备份使用 VACUUM INTO，检查取自快照；恢复仅创建新文件并复验，不替业务域改账、不切换服务、不修改模型或支付配置。上传文件与密钥独立保存。
 
+联合备份编排在 `operations/state-backup.mjs`，复用 SQLite 快照并调用上传域的 `backup-references.mjs` 获取持久引用。上传路径统一由 `uploads/storage-location.mjs` 解析，保存、读取、帖子附件校验和注销清理共享该位置；默认 `public/uploads`，可通过服务端 `UPLOADS_DIRECTORY` 指向恢复文件。`backup-state.mjs` / `restore-state.mjs` 仅处理命令行输入和结果。停写后备份数据库与上传，密钥独立保管，不替业务域更改余额或支付状态。
+
 当前 SQLite 使用 WAL 与 busy_timeout，迁移不能删除或折叠历史。分钟限流在单进程 Map 中，多实例前须替换共享存储；SQLite 部署需持久化数据库与用户上传，不直接改 provider 就宣称完成 PostgreSQL 迁移。

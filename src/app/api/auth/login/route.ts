@@ -8,12 +8,21 @@ import { setMediaSessionCookie } from '@/lib/auth-cookies';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      const input: unknown = await request.json();
+      if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        return NextResponse.json({ error: '登录数据格式不正确。' }, { status: 400 });
+      }
+      body = input as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: '登录数据格式不正确。' }, { status: 400 });
+    }
     const password = body.password;
     // Registration stores emails lowercased, so match that here or a user who
     // capitalises anything while typing cannot log in.
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    if (!email || !password) {
+    if (!email || typeof password !== 'string' || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 

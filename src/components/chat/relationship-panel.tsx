@@ -172,14 +172,14 @@ export function RelationshipPanel({
             label={zhText("ค่าความโรแมนติก")}
             raw={state.romance}
             tier={romance}
-            barClass="bg-gradient-to-r from-pink-500 to-rose-400"
+            barClass="bg-linear-to-r/srgb from-pink-500 to-rose-400"
           />
           <Meter
             icon={<Flame className="h-3.5 w-3.5 text-orange-400" />}
             label={zhText("ค่าความสนิทสนม")}
             raw={state.intimacy}
             tier={intimacy}
-            barClass="bg-gradient-to-r from-orange-500 to-amber-400"
+            barClass="bg-linear-to-r/srgb from-orange-500 to-amber-400"
           />
         </div>
 
@@ -242,7 +242,7 @@ export function RelationshipPanel({
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
             placeholder={zhText("จดอะไรก็ได้เกี่ยวกับแชทนี้")}
-            className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-none"
+            className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
           />
           <button
             onClick={async () => {

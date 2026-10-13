@@ -16,7 +16,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
         <button
           type="button"
           onClick={() => reset()}
-          className="rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-2.5 font-semibold text-white"
+          className="rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-6 py-2.5 font-semibold text-white"
         >
           ลองอีกครั้ง
         </button>

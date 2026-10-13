@@ -106,7 +106,7 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
               className="h-40 w-40 rounded-full object-cover shadow-xl"
             />
           ) : (
-            <div className="h-40 w-40 rounded-full bg-gradient-to-br from-purple-500 to-pink-500" />
+            <div className="h-40 w-40 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500" />
           )}
 
           <h1 className="mt-5 font-athiti text-2xl font-bold text-white">{character.name}</h1>
@@ -134,7 +134,7 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
 
           <Link
             href={`/${locale}/auth`}
-            className="mt-7 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-10 py-3 font-athiti text-lg font-semibold text-white shadow-lg transition-transform hover:scale-105"
+            className="mt-7 rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-10 py-3 font-athiti text-lg font-semibold text-white shadow-lg transition-transform hover:scale-105"
           >
             {dict.chatNow}
           </Link>

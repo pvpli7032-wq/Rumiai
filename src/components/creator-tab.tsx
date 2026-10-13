@@ -70,7 +70,7 @@ export function CreatorTab() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={zhText("ค้นหาครีเอเตอร์")}
-            className="h-12 w-full rounded-lg bg-zinc-100 pl-10 pr-4 text-sm outline-none dark:bg-[#27272A]"
+            className="h-12 w-full rounded-lg bg-zinc-100 pl-10 pr-4 text-sm outline-hidden dark:bg-[#27272A]"
           />
         </div>
       </div>
@@ -190,7 +190,7 @@ function metricLabel(c: Creator, sort: string) {
 
 function Avatar({ creator, className }: { creator: Creator; className: string }) {
   return (
-    <span className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#EE4036] to-[#FAAF40] font-bold text-white ${className}`}>
+    <span className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] font-bold text-white ${className}`}>
       {creator.avatarUrl ? (
         <img src={creator.avatarUrl} alt="" className="aspect-square h-full w-full object-cover" draggable={false} />
       ) : (
@@ -238,7 +238,7 @@ function Podium({ creator, place, sort }: { creator: Creator; place: 1 | 2 | 3; 
         <div className="truncate text-[10px] text-muted-foreground md:text-xs">{metricLabel(creator, sort)}</div>
       </div>
 
-      <div className={`relative w-20 overflow-visible bg-gradient-to-l shadow-[0_8px_20px_rgba(0,0,0,0.15)] sm:w-28 md:w-44 lg:w-48 ${p.grad} ${p.h}`}>
+      <div className={`relative w-20 overflow-visible bg-linear-to-l/srgb shadow-[0_8px_20px_rgba(0,0,0,0.15)] sm:w-28 md:w-44 lg:w-48 ${p.grad} ${p.h}`}>
         <div className="flex h-full flex-col items-center justify-center">
           <div className="relative z-20 text-center font-athiti font-extrabold text-black">
             <span className={place === 1 ? 'text-lg md:text-xl lg:text-[28px]' : 'text-sm md:text-base lg:text-xl'}>{p.label}</span>

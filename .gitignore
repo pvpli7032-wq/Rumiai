@@ -51,6 +51,7 @@ prisma/*.db-shm
 .next-verify-*
 
 prisma/backups/
+prisma/restores/
 screens/
 
 

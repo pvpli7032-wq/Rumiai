@@ -29,7 +29,7 @@ export default function LeaderboardPage() {
     <div className="min-h-screen bg-zinc-950 text-white px-4 py-8">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-yellow-500/30">
+          <div className="w-16 h-16 rounded-full bg-linear-to-br/srgb from-yellow-500 to-amber-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-yellow-500/30">
             <Trophy className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold font-athiti text-white mb-2">{zhText("อันดับตัวละคร")}</h1>
@@ -54,17 +54,17 @@ export default function LeaderboardPage() {
                   i === 2 ? 'bg-amber-600/10 border-amber-600/30' :
                   'bg-zinc-900 border-white/10 hover:border-white/20'
                 }`}>
-                <div className="w-8 text-center flex-shrink-0">
+                <div className="w-8 text-center shrink-0">
                   {i < 3 ? RANK_ICONS[i] : <span className="text-zinc-500 font-bold text-sm">#{entry.rank}</span>}
                 </div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-xl flex-shrink-0 shadow">
+                <div className="w-10 h-10 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 flex items-center justify-center text-xl shrink-0 shadow-sm">
                   {CHAR_EMOJIS[i % CHAR_EMOJIS.length]}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold font-athiti text-white truncate">{entry.name}</p>
                   <p className="text-xs text-zinc-500 font-athiti">{entry.giftCount} {zhText("ครั้ง")}</p>
                 </div>
-                <div className="flex items-center gap-1 text-yellow-400 flex-shrink-0">
+                <div className="flex items-center gap-1 text-yellow-400 shrink-0">
                   <Gift className="w-4 h-4" />
                   <span className="font-bold text-sm">{entry.giftAmount.toLocaleString()}</span>
                 </div>

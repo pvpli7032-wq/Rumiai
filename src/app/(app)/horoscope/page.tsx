@@ -39,7 +39,7 @@ export default function HoroscopePage() {
     <div className="min-h-screen bg-zinc-950 text-white px-4 py-8">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-violet-500/30">
+          <div className="w-16 h-16 rounded-full bg-linear-to-br/srgb from-violet-500 to-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-violet-500/30">
             <Star className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold font-athiti text-white mb-2">{zhText("ดวงชะตาประจำวัน")}</h1>

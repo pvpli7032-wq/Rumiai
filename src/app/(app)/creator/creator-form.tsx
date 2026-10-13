@@ -239,12 +239,12 @@ export default function CreatorForm({ editId }: { editId?: string }) {
   const labelOf = (key: string) => allTags.find((t) => t.key === key)?.label ?? key;
 
   const inputCls =
-    'w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-base shadow-sm transition-colors placeholder:text-muted-foreground/70 focus-visible:border-[#F2572B] focus-visible:outline-none';
+    'w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-base shadow-xs transition-colors placeholder:text-muted-foreground/70 focus-visible:border-[#F2572B] focus-visible:outline-hidden';
 
   return (
     <div ref={scrollRoot} className="min-h-screen bg-background pb-40 desktop:pb-24">
       {/* Toolbar */}
-      <div className="sticky top-16 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="sticky top-16 z-30 border-b bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 md:px-8">
           <Link href="/" aria-label={zhText("กลับหน้าหลัก")} className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-accent">
             <ArrowLeft className="h-4 w-4" />
@@ -259,7 +259,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
           <div className="hidden items-center gap-2 md:flex">
             <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#EE4036] to-[#FAAF40] transition-all duration-300"
+                className="h-full rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -291,7 +291,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               key={s.id}
               onClick={() => goTo(s.id)}
               className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 font-athiti text-sm font-semibold transition-all ${
-                active === s.id ? 'bg-gradient-to-r from-[#EE4036] to-[#FAAF40] text-white' : 'border border-zinc-200 dark:border-[#2A2A2A]'
+                active === s.id ? 'bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] text-white' : 'border border-zinc-200 dark:border-[#2A2A2A]'
               }`}
             >
               {done[s.id as keyof typeof done] && <Check className="h-3 w-3" />}
@@ -471,7 +471,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                   <button
                     key={t}
                     onClick={() => toggleIn('tags', t)}
-                    className="flex h-8 items-center gap-1 rounded-full bg-gradient-to-r from-[#EE4036] to-[#FAAF40] px-3 font-athiti text-sm font-semibold text-white"
+                    className="flex h-8 items-center gap-1 rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] px-3 font-athiti text-sm font-semibold text-white"
                   >
                     {labelOf(t)}
                     <X className="h-3 w-3" />
@@ -570,11 +570,11 @@ export default function CreatorForm({ editId }: { editId?: string }) {
       </div>
 
       {/* Mobile submit bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t bg-background/95 pb-[calc(68px+env(safe-area-inset-bottom))] backdrop-blur desktop:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t bg-background/95 pb-[calc(68px+env(safe-area-inset-bottom))] backdrop-blur-sm desktop:hidden">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-gradient-to-r from-[#EE4036] to-[#FAAF40] transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-full rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] transition-all" style={{ width: `${progress}%` }} />
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">{zhText("กรอกแล้ว")}{progress}%</p>
           </div>

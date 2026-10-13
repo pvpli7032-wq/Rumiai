@@ -98,7 +98,7 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
             className="h-20 w-20 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-2xl font-bold text-white">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 text-2xl font-bold text-white">
             {name[0]?.toUpperCase()}
           </div>
         )}

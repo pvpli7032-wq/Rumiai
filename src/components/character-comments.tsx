@@ -169,7 +169,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
           rows={2}
           placeholder={token ? zhText("เขียนคอมเมนต์...") : zhText("เข้าสู่ระบบเพื่อคอมเมนต์")}
           onFocus={() => { if (!token) router.push(loginWithNext()); }}
-          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-none"
+          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
         />
         <div className="mt-1 flex items-center justify-between">
           <span className="font-barlow text-[11px] text-zinc-600">{draft.length}/{MAX_BODY}</span>
@@ -215,7 +215,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                     rows={2}
                     autoFocus
                     placeholder={zhText("ตอบ") + (c.author.name || c.author.username) + zhText("")}
-                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-none"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
                   />
                   <div className="mt-1 flex justify-end gap-2">
                     <button
@@ -333,7 +333,7 @@ function CommentRow({
         {node.author.avatarUrl ? (
           <img src={node.author.avatarUrl} alt={name} className={`${size} rounded-full object-cover`} />
         ) : (
-          <span className={`${size} flex items-center justify-center rounded-full bg-gradient-to-br from-[#EE4036] to-[#FAAF40] font-athiti text-xs font-bold text-white`}>
+          <span className={`${size} flex items-center justify-center rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] font-athiti text-xs font-bold text-white`}>
             {name[0]?.toUpperCase()}
           </span>
         )}
@@ -357,7 +357,7 @@ function CommentRow({
               onChange={(e) => onEditDraft(e.target.value.slice(0, MAX_BODY))}
               rows={2}
               autoFocus
-              className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-1.5 font-athiti text-xs text-white focus:border-[#F2572B]/50 focus:outline-none"
+              className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-1.5 font-athiti text-xs text-white focus:border-[#F2572B]/50 focus:outline-hidden"
             />
             <div className="mt-1 flex justify-end gap-2">
               <button

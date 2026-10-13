@@ -72,9 +72,9 @@ export function Sidebar() {
       {/* Brand */}
       <div className="flex h-16 items-center gap-3 p-4">
         <Link href="/" className="font-athiti text-xl font-bold">
-          <span className="bg-gradient-to-r from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent">{zhText("Khui AI")}</span>
+          <span className="bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent">{zhText("Khui AI")}</span>
         </Link>
-        <button className="ml-auto flex h-8 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs shadow-sm transition-colors hover:bg-accent">
+        <button className="ml-auto flex h-8 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs shadow-xs transition-colors hover:bg-accent">
           <Code className="h-3 w-3" />
           <span className="font-athiti font-medium">{zhText("กรอกโค้ด")}</span>
         </button>
@@ -114,7 +114,7 @@ export function Sidebar() {
 
         {/* Coin balance */}
         <Link href="/shop" className="block">
-          <div className="flex h-12 w-full items-center justify-between gap-4 rounded-full bg-white px-4 shadow transition-colors hover:border hover:border-zinc-200 dark:bg-[#F4B208]/10 dark:hover:bg-[#F4B208]/20">
+          <div className="flex h-12 w-full items-center justify-between gap-4 rounded-full bg-white px-4 shadow-sm transition-colors hover:border hover:border-zinc-200 dark:bg-[#F4B208]/10 dark:hover:bg-[#F4B208]/20">
             <div className="flex items-center font-athiti">
               <span className="mr-1">🪙</span>
               <span className="font-bold">{user?.coins ?? 0} {zhText("คอยน์")}</span>
@@ -128,13 +128,13 @@ export function Sidebar() {
         {/* Quick actions */}
         <div className="flex flex-col gap-2">
           <Link href="/discover">
-            <button className="flex h-9 w-full items-center justify-center rounded-sm border bg-secondary px-4 text-secondary-foreground shadow-sm transition-colors hover:bg-secondary/80">
+            <button className="flex h-9 w-full items-center justify-center rounded-xs border bg-secondary px-4 text-secondary-foreground shadow-xs transition-colors hover:bg-secondary/80">
               <Compass className="mr-1 h-4 w-4" />
               <span className="font-athiti text-sm font-bold">{zhText("ไปหน้าหลัก")}</span>
             </button>
           </Link>
           <Link href="/creator">
-            <button className="flex h-9 w-full items-center justify-center rounded-sm bg-primary px-4 text-primary-foreground shadow transition-colors hover:bg-primary/90">
+            <button className="flex h-9 w-full items-center justify-center rounded-xs bg-primary px-4 text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
               <Plus className="mr-1 h-4 w-4" />
               <span className="font-athiti text-sm font-bold">{zhText("สร้างตัวละคร")}</span>
             </button>
@@ -167,12 +167,12 @@ export function Sidebar() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={zhText("ค้นหาแชท")}
-                  className="h-10 w-full rounded-full border border-border bg-transparent pl-8 pr-3 text-sm shadow-sm placeholder:font-athiti placeholder:font-bold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:border-transparent dark:bg-[#1C1D1F]"
+                  className="h-10 w-full rounded-full border border-border bg-transparent pl-8 pr-3 text-sm shadow-xs placeholder:font-athiti placeholder:font-bold focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring dark:border-transparent dark:bg-[#1C1D1F]"
                 />
               </div>
               <button
                 title={zhText("แชทที่จัดเก็บ")}
-                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-border bg-background shadow-sm transition-colors hover:bg-accent dark:border-transparent dark:bg-[#1C1D1F]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-background shadow-xs transition-colors hover:bg-accent dark:border-transparent dark:bg-[#1C1D1F]"
               >
                 <Archive className="h-4 w-4" />
               </button>
@@ -186,7 +186,7 @@ export function Sidebar() {
                     href={`/chat?conversation=${c.id}`}
                     className="my-1 flex w-full items-center gap-2 rounded-md p-1 transition-colors hover:bg-accent"
                   >
-                    <span className="mr-1 flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#EE4036] to-[#FAAF40] text-sm font-bold text-white">
+                    <span className="mr-1 flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] text-sm font-bold text-white">
                       {c.avatarUrl ? (
                         <img src={c.avatarUrl} alt={c.title} className="h-full w-full object-cover" draggable={false} />
                       ) : (

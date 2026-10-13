@@ -198,9 +198,9 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             {gallery[slide] ? (
               <img src={gallery[slide]} alt={character.name} className="h-full w-full object-cover" />
             ) : (
-              <div className="h-full w-full bg-gradient-to-br from-purple-900/40 to-zinc-900" />
+              <div className="h-full w-full bg-linear-to-br/srgb from-purple-900/40 to-zinc-900" />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/20 to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-t/srgb from-zinc-900 via-zinc-900/20 to-transparent" />
 
             {gallery.length > 1 && (
               <>
@@ -271,7 +271,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => startChat(false)}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#EE4036] to-[#FAAF40] py-3 font-athiti text-sm font-bold text-white transition-opacity hover:opacity-90"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] py-3 font-athiti text-sm font-bold text-white transition-opacity hover:opacity-90"
               >
                 <MessageSquare className="h-4 w-4" />
                 {zhText("เริ่มคุย")}</button>

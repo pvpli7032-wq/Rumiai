@@ -4,6 +4,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { mayAttachAccountUpload } from '@/lib/uploads/read-service';
+import { uploadDirectory } from '@/lib/uploads/storage-service';
 
 export const POST_MAX_CHARS = 5_000;
 export const POST_COMMENT_MAX_CHARS = 2_000;
@@ -28,7 +29,7 @@ export async function validatePostImages(value: unknown, userId: string) {
     return { error: `图片仅支持站内 JPG、PNG、WebP 上传，最多 ${POST_MAX_IMAGES} 张。` };
   }
   if (new Set(value).size !== value.length) return { error: '不能重复添加同一张图片。' };
-  if ((value as string[]).some(url => !existsSync(path.join(process.cwd(), 'public', url.slice(1))))) return { error: '图片上传文件不存在，请重新上传。' };
+  if ((value as string[]).some(url => !existsSync(path.join(uploadDirectory(), url.slice('/uploads/'.length))))) return { error: '图片上传文件不存在，请重新上传。' };
   if ((await Promise.all((value as string[]).map(url => mayAttachAccountUpload(userId, url)))).some(allowed => !allowed)) return { error: '只能使用自己上传的图片。' };
   return { urls: value as string[] };
 }

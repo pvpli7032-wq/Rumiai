@@ -45,7 +45,7 @@ export default async function LocaleHome({ params: paramsPromise }: { params: Pr
 
         <Link
           href={`/${locale}/auth`}
-          className="rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-10 py-3 font-athiti text-lg font-semibold text-white shadow-lg transition-transform hover:scale-105"
+          className="rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-10 py-3 font-athiti text-lg font-semibold text-white shadow-lg transition-transform hover:scale-105"
         >
           {dict.chatNow}
         </Link>

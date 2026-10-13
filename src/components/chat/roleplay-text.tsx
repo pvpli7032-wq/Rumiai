@@ -33,7 +33,7 @@ function Piece({ node }: { node: Node }) {
       return <span className="text-zinc-50">“{node.value}”</span>;
     case 'gradient':
       return (
-        <span className="bg-gradient-to-r from-[#FAAF40] to-[#EE4036] bg-clip-text font-semibold text-transparent">
+        <span className="bg-linear-to-r/srgb from-[#FAAF40] to-[#EE4036] bg-clip-text font-semibold text-transparent">
           {node.value}
         </span>
       );

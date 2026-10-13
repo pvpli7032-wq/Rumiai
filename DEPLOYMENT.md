@@ -17,7 +17,19 @@ npm run db:restore -- "prisma/backups/m4-03-validation-before-release.db" "prism
 npm run test:m5:backup
 ```
 
-恢复前检查备份，复制后再次检查完整性与各表计数；源文件损坏、缺失迁移历史或有未完成迁移时失败。恢复源须为单文件快照，不能拿仍有附属文件的运行库代替。命令只处理数据库；`public/uploads`、环境密钥和部署配置须分别保存。恢复数据库不会自动恢复图片。
+恢复前检查备份，复制后再次检查完整性与各表计数；源文件损坏、缺失迁移历史或有未完成迁移时失败。恢复源须为单文件快照，不能拿仍有附属文件的运行库代替。`db:backup` / `db:restore` 只处理数据库，联合恢复使用下述命令。
+
+联合备份前停止所有业务写入和上传清理任务；工具不会自动停服，数据库与文件不具备跨资源原子快照保证：
+
+```powershell
+npm run state:backup -- before-release
+npm run state:restore -- "prisma/backups/dev-before-release" "prisma/restores/before-release"
+$env:DATABASE_URL = 'file:C:/Users/42422/Desktop/ai-role-community/prisma/restores/before-release/database.db'
+$env:UPLOADS_DIRECTORY = 'C:/Users/42422/Desktop/ai-role-community/prisma/restores/before-release/uploads'
+npm run test:m5:state-backup
+```
+
+示例路径须换成实际部署路径。恢复只创建全新目录，检查数据库、持久引用和上传文件大小/SHA256；默认上传位置为 `public/uploads`。同时切换数据库与上传配置，人工更换随机 JWT 密钥后再启动，避免恢复旧凭据后旧令牌重新有效；脚本不会自动修改 `.env`。恢复目录的清单只记录恢复时间点，重新写入后不作为未改动的备份校验。来源须可信，敏感备份限制访问并保护异地副本；环境密钥、部署配置独立保管，脚本不复制根目录 `.env`。失败的部分目标保留检查，重试用新标签/新目录。
 
 服务切换步骤：停止当前实例并暂停写入 → 另存当前数据库与上传 → 恢复到新文件 → 配置 DATABASE_URL 指向恢复库 → 检查应用版本与迁移历史匹配 → 在关闭真实 AI/支付的本机实例检查登录、角色、聊天及财务流水 → 核验后恢复访问。出错时停实例，将 DATABASE_URL 指回保留的旧库并恢复相应应用版本；恢复后已有新写入时先保存两份数据再人工核对，不直接切回丢弃新增记录。当前脚本不自动停止服务、修改 .env、覆盖旧库或执行数据回滚。
 
@@ -91,7 +103,7 @@ EZFP_ENABLED 默认关闭。启用前配置商户 PID、商户私钥、平台公
 
 ## 部署与排错
 
-Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的锁文件安装、迁移和当前源码生产构建已验证。生产依赖审计为零；Tailwind 3 开发构建工具链仍有告警，详见 `docs/P0-依赖安全升级.md`。保留修复前源码快照作排错，不部署旧漏洞版本。
+Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和当前主项目生产构建已验证。Tailwind 4.3.3 已合入，支持 Safari 16.4、Chrome 111、Firefox 128 及更新版本；主项目全依赖在线审计零告警，实际生产浏览器和恢复实例验证通过，详细范围见 `docs/P0-依赖安全升级.md`。保留修复前源码快照作排错，不部署旧漏洞版本。
 
 社区回归支持 `TEST_BASE_URL` 和 `TEST_DATABASE_URL`，后者必须与服务实际数据库一致；还须设置 `TEST_ISOLATED_DB=true`。测试会创建账号、内容及审核动作，只用于本机隔离数据库。M3 证据默认保存在 `artifacts/m3-*`，不发布测试用户数据。限流应在稳定实例验证，开发热编译可能重新加载内存窗口。
 

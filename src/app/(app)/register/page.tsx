@@ -41,7 +41,7 @@ export default function RegisterPage() {
       <div className="relative w-full max-w-md">
         <div className="bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-purple-500/30">
+            <div className="w-14 h-14 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-purple-500/30">
               <UserPlus className="w-7 h-7 text-white" />
             </div>
             <h1 className="text-2xl font-bold font-athiti text-white">{zhText("สมัครสมาชิก")}</h1>
@@ -63,7 +63,7 @@ export default function RegisterPage() {
                 onChange={e => setUsername(e.target.value)}
                 required
                 placeholder="username123"
-                className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti"
+                className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti"
               />
             </div>
             <div>
@@ -74,7 +74,7 @@ export default function RegisterPage() {
                 onChange={e => setEmail(e.target.value)}
                 required
                 placeholder="your@email.com"
-                className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti"
+                className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti"
               />
             </div>
             <div>
@@ -86,7 +86,7 @@ export default function RegisterPage() {
                   onChange={e => setPassword(e.target.value)}
                   required
                   placeholder={zhText("อย่างน้อย 6 ตัวอักษร")}
-                  className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all pr-12 font-athiti"
+                  className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all pr-12 font-athiti"
                 />
                 <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors">
                   {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -96,7 +96,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 mt-2"
+              className="w-full py-3 bg-linear-to-r/srgb from-purple-600 to-pink-600 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 mt-2"
             >
               {loading ? zhText("กำลังสมัคร...") : zhText("สมัครสมาชิกฟรี 🎉")}
             </button>

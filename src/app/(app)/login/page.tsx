@@ -44,7 +44,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         <div className="bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-purple-500/30">
+            <div className="w-14 h-14 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-purple-500/30">
               <LogIn className="w-7 h-7 text-white" />
             </div>
             <h1 className="text-2xl font-bold font-athiti text-white">{zhText("เข้าสู่ระบบ")}</h1>
@@ -56,7 +56,7 @@ export default function LoginPage() {
               {error}
             </div>
           )}
-          {closed && <p role="status" className="mb-4 rounded border border-border p-3 text-sm">账号已注销，原登录凭据已失效。{closed === 'pending' ? '部分文件仍在清理或等待共享归属核查。' : '本次文件清理已完成。'}订单与审计记录按注销说明保留。</p>}
+          {closed && <p role="status" className="mb-4 rounded-sm border border-border p-3 text-sm">账号已注销，原登录凭据已失效。{closed === 'pending' ? '部分文件仍在清理或等待共享归属核查。' : '本次文件清理已完成。'}订单与审计记录按注销说明保留。</p>}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -67,7 +67,7 @@ export default function LoginPage() {
                 onChange={e => setEmail(e.target.value)}
                 required
                 placeholder="your@email.com"
-                className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti"
+                className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti"
               />
             </div>
             <div>
@@ -79,7 +79,7 @@ export default function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all pr-12 font-athiti"
+                  className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all pr-12 font-athiti"
                 />
                 <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors">
                   {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -89,7 +89,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 mt-2"
+              className="w-full py-3 bg-linear-to-r/srgb from-purple-600 to-pink-600 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 mt-2"
             >
               {loading ? zhText("กำลังเข้าสู่ระบบ...") : zhText("เข้าสู่ระบบ")}
             </button>
