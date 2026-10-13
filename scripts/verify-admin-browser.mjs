@@ -16,7 +16,9 @@ const migration=spawnSync(process.execPath,['node_modules/prisma/build/index.js'
 assert.equal(migration.status,0,'isolated migration failed');
 const db=new PrismaClient({datasources:{db:{url:`file:${dbPath.split(path.sep).join('/')}`}},log:[]});
 const password=randomBytes(24).toString('hex'),actors=[];
-try{for(let i=0;i<4;i++)actors.push(await db.user.create({data:{username:`admin_browser_${i}_${stamp}`,email:`admin-${i}-${stamp}@example.invalid`,passwordHash:await bcrypt.hash(password,10)}}));}finally{await db.$disconnect();}
+try{for(let i=0;i<4;i++)actors.push(await db.user.create({data:{username:`admin_browser_${i}_${stamp}`,email:`admin-${i}-${stamp}@example.invalid`,passwordHash:await bcrypt.hash(password,10)}}));
+ await db.character.create({data:{creatorId:actors[0].id,name:'布局验收角色',personality:'合成角色',background:'用于后台布局验收。'.repeat(50),avatarUrl:'/brand/'+ 'long-avatar-reference-'.repeat(12)+'.svg',publicationRequested:true,reviewStatus:'PENDING',copyrightStatement:'合成测试内容'}});
+}finally{await db.$disconnect();}
 env.MODERATOR_USER_IDS=[actors[1].id,actors[3].id].join(',');env.PAYMENT_ADMIN_USER_IDS=[actors[2].id,actors[3].id].join(',');
 let app,browser;const checks=[],errors=[];
 try{
@@ -52,7 +54,24 @@ try{
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
    await page.screenshot({path:path.join(out,`admin-${i}.png`)});
    await page.getByRole('link',{name:new RegExp(first)}).click();await page.waitForURL(expected.moderation?'**/moderation':'**/finance');
-   if(i===3){await page.setViewportSize({width:1280,height:800});await page.goto(base+'/admin');await page.getByRole('link',{name:/财务与充值/}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(out,'admin-desktop.png')});}
+   if(i===3){
+    for(const width of [360,390,768,1280]){
+     await page.setViewportSize({width,height:900});
+     for(const route of ['/admin','/finance','/moderation']){
+      await page.goto(base+route);await page.waitForLoadState('networkidle');
+      if(route==='/admin')await page.getByRole('link',{name:/财务与充值/}).waitFor();
+      if(route==='/finance')await page.getByRole('heading',{name:'充值套餐与赠送活动'}).waitFor();
+      if(route==='/moderation')await page.getByRole('heading',{name:'布局验收角色'}).waitFor();
+      const region=page.getByRole('region',{name:'后台工作区'});
+      const size=await region.evaluate(e=>({client:e.clientWidth,scroll:e.scrollWidth}));assert(size.scroll<=size.client+1,`${route} content overflow at ${width}`);
+      assert.equal(await page.getByRole('navigation',{name:'主导航'}).count(),0,'public navigation must not surround admin pages');
+      const nav=page.getByRole('navigation',{name:width>=1024?'后台导航':'后台手机导航'});assert(await nav.isVisible());
+      for(const box of await nav.locator('a').evaluateAll(items=>items.map(e=>e.getBoundingClientRect().toJSON())))assert(box.height>=44&&box.width>=44);
+      await page.screenshot({path:path.join(out,`${route.slice(1)}-${width}.png`)});
+     }
+    }
+    checks.push('后台三页四种宽度、独立导航及长内容无工作区溢出');
+   }
   }
   checks.push(`实际账号权限和后台导航 ${i}`);await context.close();
  }

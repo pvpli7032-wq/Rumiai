@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { MobileNav } from './mobile-nav';
+import { AdminShell } from './admin/admin-shell';
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -63,6 +64,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     };
   }, [pathname]);
 
+  if (['/admin','/finance','/moderation'].includes(pathname)) return <AdminShell>{children}</AdminShell>;
   return (
     <div className={`app-frame flex w-full min-w-0 desktop:flex-row ${chat ? 'is-chat' : ''}`}>
       <Sidebar />
