@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { ReaderPreferences } from '@/components/reader-preferences';
 import { AccountClosure } from '@/components/account-closure';
+import { AdminEntry } from '@/components/admin/admin-entry';
 import { loginWithNext } from '@/lib/next-path';
 import { User, Flame, Coins, CheckCircle2, Circle, Gift, Loader2, LogOut, Download } from 'lucide-react';
 
@@ -100,6 +101,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white px-4 py-8">
       <div className="max-w-2xl mx-auto space-y-6">
+        <AdminEntry />
         <Link href="/my-characters" className="flex min-h-12 items-center justify-between rounded-xl border border-border p-4">我的角色与收藏 <span>管理作品 →</span></Link>
         <Link href="/ai-usage" className="flex min-h-12 items-center justify-between rounded-xl border border-border p-4">AI 用量与额度 <span>查看 →</span></Link>
         <Link href="/my-reports" className="flex min-h-12 items-center justify-between rounded-xl border border-border p-4">我的举报 <span>查看处理状态 →</span></Link>

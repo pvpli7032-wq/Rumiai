@@ -28,6 +28,8 @@
     "test:m5:export": "node --import tsx --test tests/account-data-export.test.mjs",
     "test:m5:closure": "node --import tsx --test tests/account-closure.test.mjs tests/logger-privacy.test.mjs",
     "test:auth-config": "node --import tsx --test tests/auth-configuration.test.mjs",
+    "test:admin:access": "node --import tsx --test tests/admin-access.test.mjs",
+    "test:admin:browser": "node scripts/verify-admin-browser.mjs",
     "test:m5:closure:browser": "node scripts/verify-account-closure-browser.mjs",
     "test:m5:export:browser": "node scripts/verify-account-export-browser.mjs",
     "typecheck": "tsc --noEmit",

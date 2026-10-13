@@ -78,6 +78,7 @@ jobs:
         run: |
           npm run test:m0
           npm run test:auth-config
+          npm run test:admin:access
           npm run test:m2:context
           npm run test:m4:ezfp
           npm run test:m4:budget
