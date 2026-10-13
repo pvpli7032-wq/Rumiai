@@ -80,6 +80,7 @@ jobs:
           npm run test:auth-config
           npm run test:admin:access
           npm run test:admin:management
+          npm run test:accounts:management
           npm run test:m2:context
           npm run test:m4:ezfp
           npm run test:m4:budget

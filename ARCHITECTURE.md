@@ -68,3 +68,9 @@ src按页面、展示组件及业务领域分工；prisma保存模型与完整�
 ## 管理权限
 
 lib/admin拥有角色、权限、管理身份及审计事务。数据库管理身份优先于兼容的环境名单，所有者由服务器命令显式初始化到已注册账号。系统角色固定，自定义角色可以撤销全部权限；操作权限必须包含所属领域的查看权限。后台页面位于app/admin，复用审核和财务页面；展示组件按admin/finance和admin/moderation分组。停用身份撤销已有会话，最后所有者不可降权、停用或注销。
+
+## 用户管理
+
+accounts/management-service.ts拥有查询投影、分页、账号停用/恢复、会话撤销及乐观版本事务；login-service.ts处理密码登录和登录时间。User中的suspendedAt与社区禁言、注销分别管理，停用递增tokenVersion，认证及私有媒体读取拒绝旧会话；恢复不复活旧令牌。最后有效所有者及管理账号会话由admin服务保护。
+
+community/restriction-service.ts维护禁言状态与accountVersion，用户后台、举报和申诉共同调用；community/moderation-service.ts拥有举报/申诉的状态转换、处置及审核审计。相关HTTP路由不再直接写用户封禁字段。后台accounts展示按列表、详情和页面组合分开；只展示角色/订单摘要，金币流水需要财务查看权限，不读取私有对话或人设。

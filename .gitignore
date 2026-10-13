@@ -37,6 +37,7 @@ public/creators/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+~$*.docx
 
 # claude code — local overrides only, ส่วนที่แชร์ทีมได้ commit ปกติ
 .claude/settings.local.json

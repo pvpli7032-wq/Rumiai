@@ -9,6 +9,7 @@ export async function exportAccountData(userId: string) {
       id: true, username: true, email: true, displayName: true, avatarUrl: true,
       createdAt: true, coins: true, bannedWords: true, readingMode: true, shortcuts: true,
       tier: true, updatedAt: true, streakCount: true, lastCheckin: true,
+      suspendedAt: true, suspensionReason: true, lastLoginAt: true, lastActiveAt: true,
     } });
     if (!account) return null;
     const conversations = await tx.conversation.findMany({ where: { userId }, select: {

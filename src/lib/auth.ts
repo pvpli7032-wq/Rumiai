@@ -122,11 +122,13 @@ export async function getAuthUser(request: Request): Promise<JWTPayload | null> 
 
     const user = await db.user.findUnique({
       where: { id: payload.userId },
-      select: { tokenVersion: true, deletedAt: true },
+      select: { tokenVersion: true, deletedAt: true, suspendedAt: true, lastActiveAt: true },
     });
-    if (!user || user.deletedAt) return null;
+    if (!user || user.deletedAt || user.suspendedAt) return null;
     if ((payload.tv ?? 0) !== user.tokenVersion) return null;
 
+    const cutoff = new Date(Date.now() - 300000);
+    if (!user.lastActiveAt || user.lastActiveAt < cutoff) await db.user.updateMany({where: {id: payload.userId, tokenVersion: user.tokenVersion, deletedAt: null, suspendedAt: null, OR: [{lastActiveAt: null}, {lastActiveAt: {lt: cutoff}}]}, data: {lastActiveAt: new Date()}});
     return payload;
   } catch {
     return null;

@@ -26,7 +26,7 @@ function useSessionState(enabled = true) {
   }, [token, enabled, refresh]);
   const current = result?.token === token ? result : null;
   const permissions = current?.session?.permissions ?? [];
-  const access = current?.session ? {moderation: permissions.includes('moderation.read'), finance: permissions.includes('finance.read'), staff: permissions.includes('admin.staff.read'), audit: permissions.includes('admin.audit.read')} : undefined;
+  const access = current?.session ? {moderation: permissions.includes('moderation.read'), finance: permissions.includes('finance.read'), accounts: permissions.includes('accounts.read'), staff: permissions.includes('admin.staff.read'), audit: permissions.includes('admin.audit.read')} : undefined;
   return {token, access, permissions, session: current?.session, error: current?.error, loading: isLoading || Boolean(enabled && token && !current), refreshAccess: () => {setResult(null); setRefresh(value => value + 1);}};
 }
 

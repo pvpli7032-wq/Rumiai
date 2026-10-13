@@ -58,7 +58,9 @@
     "test:m4:budget-guard:browser": "node scripts/verify-ai-budget-browser.mjs",
     "test:m4:metrics": "node --import tsx --test tests/ai-cost-report.test.mjs",
     "test:admin:management": "node --import tsx --test tests/admin-management.test.mjs",
-    "test:admin:management:browser": "node --import tsx scripts/verify-admin-management-browser.mjs"
+    "test:admin:management:browser": "node --import tsx scripts/verify-admin-management-browser.mjs",
+    "test:accounts:management": "node --import tsx --test tests/account-management.test.mjs tests/account-management-migration.test.mjs",
+    "test:accounts:browser": "node --import tsx scripts/verify-account-management-browser.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

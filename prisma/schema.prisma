@@ -36,6 +36,11 @@ model User {
   /// value, so a leaked one stops working as soon as the user signs out.
   tokenVersion Int       @default(0) @map("token_version")
   deletedAt DateTime? @map("deleted_at")
+  suspendedAt DateTime? @map("suspended_at")
+  suspensionReason String? @map("suspension_reason")
+  accountVersion Int @default(0) @map("account_version")
+  lastLoginAt DateTime? @map("last_login_at")
+  lastActiveAt DateTime? @map("last_active_at")
   communityBannedAt DateTime? @map("community_banned_at")
   communityBanReason String? @map("community_ban_reason")
   /// Reader preferences from the chat panel. bannedWords is a newline-separated list
@@ -78,6 +83,8 @@ model User {
   adminOperator AdminOperator?
 
   @@map("users")
+  @@index([createdAt, id])
+  @@index([suspendedAt, deletedAt])
   comments     Comment[]
   commentLikes CommentLike[]
 }

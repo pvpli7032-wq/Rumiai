@@ -6,8 +6,8 @@ type Reader = Pick<Prisma.TransactionClient, 'user' | 'adminOperator'>;
 const listed = (value: string | undefined, id: string) => (value ?? '').split(',').map(item => item.trim()).filter(Boolean).includes(id);
 
 export async function readAdminAuthorization(userId: string, reader: Reader = db) {
-  const user = await reader.user.findUnique({where: {id: userId}, select: {deletedAt: true}});
-  if (!user || user.deletedAt) return {managed: false, enabled: false, owner: false, roles: [] as string[], permissions: [] as AdminPermission[]};
+  const user = await reader.user.findUnique({where: {id: userId}, select: {deletedAt: true, suspendedAt: true}});
+  if (!user || user.deletedAt || user.suspendedAt) return {managed: false, enabled: false, owner: false, roles: [] as string[], permissions: [] as AdminPermission[]};
   const operator = await reader.adminOperator.findUnique({where: {userId}, include: {assignments: {include: {role: {include: {permissions: true}}}}}});
   if (operator) {
     const roles = operator.enabled ? operator.assignments.map(item => item.role) : [];

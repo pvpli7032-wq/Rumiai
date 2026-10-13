@@ -46,6 +46,7 @@ export async function closeAccount(userId: string, input: unknown) {
       displayName: '已注销用户', avatarUrl: null, bannedWords: null, shortcuts: null, readingMode: false,
       followerCount: 0, characterCount: 0, messageCount: 0, chatCount: 0, universeMessageCount: 0, universeChatCount: 0, weeklyFollowerGain: 0,
       deletedAt: new Date(),
+      suspendedAt: null, suspensionReason: null, lastLoginAt: null, lastActiveAt: null, accountVersion: {increment: 1},
     } });
     return tx.accountClosure.create({ data: { userId, fileUrlsJson: JSON.stringify([...new Set(urls.filter((value): value is string => typeof value === 'string' && /^\/uploads\/[A-Za-z0-9_-]+\.(?:jpg|png|webp)$/.test(value)))]) } });
   }, { timeout: 15000 });
