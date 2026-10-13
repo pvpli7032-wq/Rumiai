@@ -63,7 +63,8 @@
     "test:accounts:browser": "node --import tsx scripts/verify-account-management-browser.mjs",
     "test:characters:review": "node --import tsx --test tests/character-review.test.mjs",
     "test:characters:management": "node --import tsx --test tests/character-management.test.mjs",
-    "test:characters:browser": "node --import tsx scripts/verify-character-management-browser.mjs"
+    "test:characters:browser": "node --import tsx scripts/verify-character-management-browser.mjs",
+    "test:circles:service": "node --import tsx --test tests/circle-service.test.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

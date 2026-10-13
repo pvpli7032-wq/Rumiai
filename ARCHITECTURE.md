@@ -9,7 +9,7 @@ HTTP 入口在 src/app/api，页面在 src/app，交互组件在 src/components�
 | 对话 | lib/conversations：提示词、模型流、SSE、列表事件 | Conversation、Message |
 | 角色与创作 | lib/characters/validation.ts、creator 组件与角色 API | Character、图片、任务、评论 |
 | 金币与支付 | lib/coins、lib/payments | CoinPackage、PaymentOrder、CoinTransaction |
-| 社区 | circles.ts、community-posts.ts 与圈子/帖子/关注 API | Circle、Post、PostComment、Follow |
+| 社区 | circles/service.ts 拥有圈子创建/查询/成员订阅；community-posts.ts 与帖子/关注 API | Circle、Post、PostComment、Follow |
 | 治理 | reports.ts、community-moderation.ts、moderator.ts | Report、ModerationAction、CommunityAppeal |
 | 发现与站点 | i18n.ts、sitemap.ts、use-site-content.ts | Banner、Tag、HomeSection、Universe |
 
