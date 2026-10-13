@@ -1,23 +1,10 @@
 import type { Prisma } from '@prisma/client';
+import { budgetCircuitBreakerMode, parseDailyBudgets, type DailyCostBudget } from './budget-config';
+import { classifyAiCostGroup, readAiPriceConfiguration } from './cost-accounting';
+export { parseDailyBudgets } from './budget-config';
 
-type Budget = { site?: number; user?: number };
+type Budget = DailyCostBudget;
 type Usage = { userId: string; currency: string; knownCost: number; unknownCalls: number };
-
-/** Operator-defined amounts in each currency; no exchange rates or invented prices. */
-export function parseDailyBudgets(raw: string | undefined): Record<string, Budget> | null {
-  if (!raw?.trim()) return null;
-  const value: unknown = JSON.parse(raw);
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('预算配置必须为币种对象。');
-  const budgets: Record<string, Budget> = {};
-  for (const [currency, limits] of Object.entries(value)) {
-    if (!/^[A-Z]{3}$/.test(currency) || !limits || typeof limits !== 'object' || Array.isArray(limits)) throw Error('预算币种或额度格式错误。');
-    const entries = Object.entries(limits);
-    if (!entries.length || entries.some(([key, amount]) => !['site', 'user'].includes(key) || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0)) throw Error('预算额度必须为正数，仅支持 site 和 user。');
-    budgets[currency] = limits as Budget;
-  }
-  if (!Object.keys(budgets).length) throw Error('预算配置不能为空对象。');
-  return budgets;
-}
 
 export function evaluateDailyBudgets(budgets: Record<string, Budget>, usage: Usage[]) {
   const alerts: { scope: 'site' | 'user'; currency: string; userId: string | null; knownCost: number; budget: number }[] = [];
@@ -40,18 +27,24 @@ export function evaluateDailyBudgets(budgets: Record<string, Budget>, usage: Usa
 
 export async function readDailyBudgetReport(tx: Prisma.TransactionClient, now: Date) {
   const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const period = { since: since.toISOString(), timezone: 'UTC' as const };
+  const period = { since: since.toISOString(), timezone: 'UTC' as const, circuitBreaker: budgetCircuitBreakerMode(), pricingConfigured: Boolean(readAiPriceConfiguration()) };
   let budgets: Record<string, Budget> | null;
   try { budgets = parseDailyBudgets(process.env.AI_DAILY_COST_BUDGETS); }
   catch { return { ...period, status: 'invalid' as const }; }
   if (!budgets) return { ...period, status: 'disabled' as const };
   const groups = await tx.aiCall.groupBy({
-    by: ['userId', 'currency'],
+    by: ['userId', 'currency', 'attempts'],
     where: { startedAt: { gte: since, lte: now }, status: { not: 'MOCK' } },
     _count: { _all: true, estimatedCost: true }, _sum: { estimatedCost: true },
   });
-  return { ...period, status: 'enabled' as const, budgets, ...evaluateDailyBudgets(budgets, groups.map(row => ({
-    userId: row.userId, currency: row.currency, knownCost: row._sum.estimatedCost ?? 0,
-    unknownCalls: row._count._all - row._count.estimatedCost,
-  }))) };
+  const usage = new Map<string, Usage>();
+  for (const group of groups) {
+    const key = JSON.stringify([group.userId, group.currency]);
+    const row = usage.get(key) ?? { userId: group.userId, currency: group.currency, knownCost: 0, unknownCalls: 0 };
+    const cost = classifyAiCostGroup(group);
+    row.knownCost += cost.knownCost;
+    row.unknownCalls += cost.unknownCostCalls;
+    usage.set(key, row);
+  }
+  return { ...period, status: 'enabled' as const, budgets, ...evaluateDailyBudgets(budgets, [...usage.values()]) };
 }

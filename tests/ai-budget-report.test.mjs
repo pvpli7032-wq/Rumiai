@@ -54,3 +54,24 @@ test('daily report uses UTC midnight, excludes mock and future calls, and preser
     else process.env.AI_DAILY_COST_BUDGETS = previous;
   }
 });
+
+test('daily report combines attempt groups per account and excludes partial retry estimates', async () => {
+  const original = process.env.AI_DAILY_COST_BUDGETS;
+  process.env.AI_DAILY_COST_BUDGETS = '{"USD":{"site":1,"user":1}}';
+  try {
+    const tx = { aiCall: { groupBy: async query => {
+      assert(query.by.includes('attempts'));
+      return [
+        { userId: 'a', currency: 'USD', attempts: 0, _count: { _all: 1, estimatedCost: 1 }, _sum: { estimatedCost: 0.4 } },
+        { userId: 'a', currency: 'USD', attempts: 1, _count: { _all: 1, estimatedCost: 1 }, _sum: { estimatedCost: 0.6 } },
+        { userId: 'a', currency: 'USD', attempts: 2, _count: { _all: 1, estimatedCost: 1 }, _sum: { estimatedCost: 0.9 } },
+      ];
+    } } };
+    const report = await readDailyBudgetReport(tx, new Date());
+    assert.equal(report.unknownCostCalls, 1);
+    assert.equal(report.alerts.length, 2);
+    assert(report.alerts.every(row => row.knownCost === 1));
+  } finally {
+    if (original === undefined) delete process.env.AI_DAILY_COST_BUDGETS; else process.env.AI_DAILY_COST_BUDGETS = original;
+  }
+});

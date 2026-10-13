@@ -1,38 +1,55 @@
 import { db, pragmasReady } from '@/lib/db';
 import { CHAT_DAILY_LIMIT } from '@/lib/ai/config';
 import type { AiStreamMetrics } from '@/lib/ai/types';
+import { readCostBudgetBlock, type AiBudgetBlock } from './budget-guard';
+import { estimateAiCallCost } from './cost-accounting';
+import { logWarning } from '@/lib/logger';
+import { budgetCircuitBreakerMode } from './budget-config';
 
 export const quotaDay = (now = new Date()) => now.toISOString().slice(0,10);
 export const quotaReset = (now = new Date()) => new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1));
 export class AiQuotaError extends Error {
-  constructor(public retryAfter:number){super('今日 AI 调用额度已用完，请在重置后继续。');this.name='AiQuotaError';}
+  public status: 429 | 503;
+  constructor(public retryAfter:number, public block?:AiBudgetBlock){super(block?.message ?? '今日 AI 调用额度已用完，请在重置后继续。');this.name='AiQuotaError';this.status=block?.status ?? 429;}
 }
 const currency = () => process.env.AI_PRICE_CURRENCY?.trim() || 'USD';
-function price(value:string|undefined):number|null{
-  if(value===undefined||!value.trim())return null;
-  const number=Number(value);return Number.isFinite(number)&&number>=0?number:null;
-}
+const logBudgetBlock = (event:string,block:AiBudgetBlock,callId?:string) => logWarning(event,{code:block.code,scope:block.scope,currency:block.currency,...(callId?{callId}:{})});
 /** One accepted user action spends one slot, even if its upstream later fails.
  * The conditional write and call record share a transaction, so concurrent requests
  * and process restarts cannot mint extra daily slots.
  */
 export async function reserveAiCall(userId:string,conversationId:string,operation:'SEND'|'REGENERATE'){
   await pragmasReady;
-  const now=new Date(),day=quotaDay(now);
+  const now=new Date();
   if(CHAT_DAILY_LIMIT===0)throw new AiQuotaError(Math.ceil((quotaReset(now).getTime()-now.getTime())/1000));
-  return db.$transaction(async tx=>{
+  try { return await db.$transaction(async tx=>{
+    // Claim the quota writer before choosing the UTC day or inspecting completed costs.
+    // A request queued behind another completion must evaluate that completion, too.
+    await tx.$executeRaw`UPDATE ai_daily_usage SET count=count WHERE user_id=${userId}`;
+    const now=new Date(),day=quotaDay(now);
     const changed=await tx.$executeRaw`INSERT INTO ai_daily_usage (user_id,day,count) VALUES (${userId},${day},1)
       ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < ${CHAT_DAILY_LIMIT}`;
     if(!changed)throw new AiQuotaError(Math.ceil((quotaReset(now).getTime()-now.getTime())/1000));
-    return tx.aiCall.create({data:{userId,conversationId,operation,currency:currency()}});
-  });
+    const callCurrency=currency();
+    const block=await readCostBudgetBlock(tx,userId,now,callCurrency);
+    if(block)throw new AiQuotaError(block.status===429?Math.ceil((quotaReset(now).getTime()-now.getTime())/1000):0,block);
+    return tx.aiCall.create({data:{userId,conversationId,operation,currency:callCurrency,startedAt:now}});
+  }); } catch(error) {
+    if(error instanceof AiQuotaError && error.block)logBudgetBlock('ai_budget_blocked',error.block);
+    throw error;
+  }
 }
 export async function finishAiCall(id:string,startedAt:Date,status:'SUCCEEDED'|'FAILED'|'CANCELLED'|'MOCK',metrics:AiStreamMetrics={},errorCode?:string){
   const input=metrics.inputTokens??null,output=metrics.outputTokens??null;
-  const inputPrice=price(process.env.AI_INPUT_PRICE_PER_MILLION),outputPrice=price(process.env.AI_OUTPUT_PRICE_PER_MILLION);
-  const pricedModel=process.env.AI_PRICE_MODEL||process.env.AI_MODEL||'gpt-4o-mini';
-  const estimatedCost=status==='MOCK'?0:metrics.model===pricedModel&&input!==null&&output!==null&&inputPrice!==null&&outputPrice!==null?(input*inputPrice+output*outputPrice)/1_000_000:null;
-  return db.aiCall.update({where:{id},data:{status,model:metrics.model??null,attempts:metrics.attempts??0,inputTokens:input,outputTokens:output,estimatedCost,errorCode:errorCode??null,finishedAt:new Date(),durationMs:Date.now()-startedAt.getTime()}});
+  const estimatedCost=estimateAiCallCost(status,metrics);
+  const call=await db.aiCall.update({where:{id},data:{status,model:metrics.model??null,attempts:metrics.attempts??0,inputTokens:input,outputTokens:output,estimatedCost,errorCode:errorCode??null,finishedAt:new Date(),durationMs:Date.now()-startedAt.getTime()}});
+  if(budgetCircuitBreakerMode()==='disabled')return call;
+  // A monitoring failure must not roll back an already completed cost record.
+  try {
+    const block=await db.$transaction(tx=>readCostBudgetBlock(tx,call.userId,new Date(),call.currency));
+    if(block)logBudgetBlock('ai_budget_alert',block,id);
+  } catch { logWarning('ai_budget_monitor_failed',{callId:id}); }
+  return call;
 }
 export async function readAiUsage(userId:string){
   const now=new Date();const [daily,calls]=await Promise.all([

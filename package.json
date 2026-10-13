@@ -51,6 +51,8 @@
     "test:m4:ezfp:browser": "node scripts/verify-m4-payment-browser.mjs",
     "test:m4:finance:browser": "node scripts/verify-m4-finance-browser.mjs",
     "test:m4:budget": "node --import tsx --test tests/ai-budget-report.test.mjs",
+    "test:m4:budget-guard": "node --import tsx --test tests/ai-budget-guard.test.mjs",
+    "test:m4:budget-guard:browser": "node scripts/verify-ai-budget-browser.mjs",
     "test:m4:metrics": "node --import tsx --test tests/ai-cost-report.test.mjs"
   },
   "prisma": {

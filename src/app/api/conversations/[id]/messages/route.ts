@@ -144,7 +144,7 @@ export async function POST(request: Request, { params: paramsPromise }: { params
       },
     });
   } catch (error) {
-    if(error instanceof AiQuotaError)return NextResponse.json({error:error.message},{status:429,headers:{'Retry-After':String(error.retryAfter)}});
+    if(error instanceof AiQuotaError)return NextResponse.json({error:error.message},{status:error.status ?? 429,headers:error.retryAfter>0?{'Retry-After':String(error.retryAfter)}:{}});
     if(reservedCall)await finishAiCall(reservedCall.id,reservedCall.startedAt,'FAILED',{},'PERSISTENCE_ERROR').catch(()=>{});
     logRouteError('POST /api/conversations/[id]/messages', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

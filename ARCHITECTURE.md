@@ -41,7 +41,9 @@ coins/package-service.ts 统一计算活动生效时的赠送金币，供商城�
 
 财务报告入口为 `/api/finance/report` 和 `/finance`，单独使用 PAYMENT_ADMIN_USER_IDS 白名单。payments/reconciliation-service.ts 负责订单/流水一致性、负余额和只读事务；ai/cost-report.ts 负责按币种成本汇总，未知成本与模拟调用分别统计。浏览器只展示报告，不写库。
 
-ai/budget-report.ts 在同一只读事务中核对 UTC 当日全站/每账号成本预算，排除模拟调用，保留未知成本和未配置币种提示。预算配置验证及比较归 AI 域；components/ai-budget-report.tsx 只展示。提示在财务页加载/刷新时生成，不自动熔断或发送外部通知。
+ai/budget-report.ts 在同一只读事务中核对 UTC 当日全站/每账号成本预算，排除模拟调用，保留未知成本和未配置币种提示。预算配置验证及比较归 AI 域；components/ai-budget-report.tsx 只展示。默认仅提示，财务页加载/刷新读取状态；自动熔断由下述调用接纳服务执行，不由 UI 决定，也不自动发送外部通知。
+
+可选自动熔断由 `ai/budget-config.ts` 验证开关/预算、`cost-accounting.ts` 统一单价估算与多次尝试费用完整性、`budget-guard.ts` 在额度写事务内读取对应币种/范围费用。`ai-usage.ts` 先占用本域额度表的写事务，再取 UTC 日期、核对阈值并建立调用；拒绝回滚额度，路由只映射 429/503。完成费用先持久化，再核对并输出结构化告警，监控失败不删除费用记录。默认关闭，不涉及金币结算；在途费用不预留，不能作为精确账单硬上限。看板只显示状态，外部通知仍由部署阶段处理。
 
 payments/validation-metrics.ts 负责同期新注册用户付费率及同期付款订单退款率，使用匹配的分子/分母；同一用户多笔付款只计一个付费用户。ai/cost-report.ts 提供按非模拟调用计算的每千次成本，未知成本时为 null。components/payment-validation-metrics.tsx 负责展示，不决定统计结果或币种换算。无完整成本与渠道费用时不计算毛利率。
 

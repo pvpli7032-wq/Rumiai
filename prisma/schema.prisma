@@ -721,6 +721,7 @@ model AiCall {
   durationMs Int? @map("duration_ms")
   user User @relation(fields:[userId],references:[id],onDelete:Cascade)
   @@index([userId,startedAt])
+  @@index([currency,startedAt])
   @@map("ai_calls")
 }
 

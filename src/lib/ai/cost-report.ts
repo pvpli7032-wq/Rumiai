@@ -1,9 +1,10 @@
 import type { Prisma } from '@prisma/client';
+import { classifyAiCostGroup } from './cost-accounting';
 
 /** Keep currencies separate and unknown upstream costs explicit. */
 export async function readAiCostReport(tx: Prisma.TransactionClient, since: Date, until = new Date()) {
   const groups = await tx.aiCall.groupBy({
-    by: ['currency', 'status'], where: { startedAt: { gte: since, lte: until } },
+    by: ['currency', 'status', 'attempts'], where: { startedAt: { gte: since, lte: until } },
     _count: { _all: true, estimatedCost: true }, _sum: { estimatedCost: true },
   });
   const currencies = new Map<string, { currency: string; calls: number; knownCostCalls: number; unknownCostCalls: number; estimatedCost: number; failedCalls: number; mockCalls: number }>();
@@ -12,9 +13,10 @@ export async function readAiCostReport(tx: Prisma.TransactionClient, since: Date
     row.calls += group._count._all;
     if (group.status === 'MOCK') row.mockCalls += group._count._all;
     else {
-      row.knownCostCalls += group._count.estimatedCost;
-      row.unknownCostCalls += group._count._all - group._count.estimatedCost;
-      row.estimatedCost += group._sum.estimatedCost ?? 0;
+      const cost = classifyAiCostGroup(group);
+      row.knownCostCalls += cost.knownCostCalls;
+      row.unknownCostCalls += cost.unknownCostCalls;
+      row.estimatedCost += cost.knownCost;
     }
     if (['FAILED', 'CANCELLED'].includes(group.status)) row.failedCalls += group._count._all;
     currencies.set(group.currency, row);

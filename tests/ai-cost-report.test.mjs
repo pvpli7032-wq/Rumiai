@@ -24,3 +24,16 @@ test('per-thousand cost excludes mock calls, includes failed cost and keeps curr
 test('no sample returns no invented cost', async () => {
   assert.deepEqual(await readAiCostReport({ aiCall: { groupBy: async () => [] } }, new Date()), []);
 });
+
+test('historic multi-attempt partial estimates remain unknown and suppress per-thousand claims', async () => {
+  const tx = { aiCall: { groupBy: async query => {
+    assert(query.by.includes('attempts'));
+    return [
+      { currency: 'USD', status: 'SUCCEEDED', attempts: 1, _count: { _all: 1, estimatedCost: 1 }, _sum: { estimatedCost: 0.4 } },
+      { currency: 'USD', status: 'SUCCEEDED', attempts: 2, _count: { _all: 1, estimatedCost: 1 }, _sum: { estimatedCost: 0.1 } },
+    ];
+  } } };
+  const [row] = await readAiCostReport(tx, new Date());
+  assert.equal(row.knownCostCalls, 1); assert.equal(row.unknownCostCalls, 1);
+  assert.equal(row.estimatedCost, 0.4); assert.equal(row.costPerThousandCalls, null);
+});
