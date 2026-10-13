@@ -1,3 +1,4 @@
+import {countOpenCharacterReports} from '@/lib/characters/report-summary';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logRouteError } from '@/lib/logger';
@@ -28,8 +29,8 @@ export async function GET(request: Request) {
       select: { id: true, name: true, tagline: true, personality: true, background: true, greeting: true, avatarUrl: true, creatorId: true, isPublic: true, publicationRequested: true, reviewStatus: true, reviewReason: true, copyrightStatement: true, chatCount: true, isExclusive: true, badges: true, tags: true, createdAt: true },
     });
     if(scope==='mine'){
-      const reports=await db.report.groupBy({by:['targetId'],where:{targetType:'CHARACTER',status:{in:['OPEN','REVIEWING']},targetId:{in:characters.map(c=>c.id)}},_count:true});
-      return NextResponse.json(characters.map(c=>({...c,openReportCount:reports.find(row=>row.targetId===c.id)?._count||0})));
+      const reports = await countOpenCharacterReports(db, characters.map(character => character.id));
+      return NextResponse.json(characters.map(character => ({...character, openReportCount: reports.get(character.id) ?? 0})));
     }
     return NextResponse.json(characters);
   } catch (error) {

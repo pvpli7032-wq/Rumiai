@@ -76,3 +76,5 @@ accounts/management-service.ts拥有查询投影、分页、账号停用/恢复�
 community/restriction-service.ts维护禁言状态与accountVersion，用户后台、举报和申诉共同调用；community/moderation-service.ts拥有举报/申诉的状态转换、处置及审核审计。相关HTTP路由不再直接写用户封禁字段。后台accounts展示按列表、详情和页面组合分开；只展示角色/订单摘要，金币流水需要财务查看权限，不读取私有对话或人设。
 
 角色审核由characters/review-service拥有事务，单条及批量HTTP入口调用同一服务；事务内重新校验审核能力，按最新版权、公开申请状态及更新版本执行，审计只保存状态与版本，不保存私有人设。批量审核展示在admin/moderation/bulk-character-review，数据检查与公开决定由服务器负责。
+
+角色后台由characters/management-service拥有列表、内容与发布事务，managed-assets维护相关素材/配角记录且保留ID。编辑与发布能力分离，内容保存不直接公开；私有预览经characters.read并限定关联素材，不能访问其他聊天图片。列表、编辑、素材编辑、批量操作分布在components/admin/characters，HTTP入口位于api/characters/management。

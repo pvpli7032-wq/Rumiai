@@ -4,7 +4,7 @@ import {auditLabels} from './accounts/types';
 import {useAdminAccess} from './use-admin-access';
 
 type Audit = {id: string; actorId: string; action: string; targetId: string; reason: string; changes: string; createdAt: string};
-const actionNames: Record<string, string> = {...auditLabels, BOOTSTRAP_OWNER: '初始化所有者', SAVE_OPERATOR: '修改管理身份', CREATE_ROLE: '新增角色', UPDATE_ROLE: '修改角色', ACCOUNT_CLOSED: '注销管理账号', CHARACTER_APPROVED: '角色审核通过', CHARACTER_REJECTED: '角色退回或下架'};
+const actionNames: Record<string, string> = {...auditLabels, BOOTSTRAP_OWNER: '初始化所有者', SAVE_OPERATOR: '修改管理身份', CREATE_ROLE: '新增角色', UPDATE_ROLE: '修改角色', ACCOUNT_CLOSED: '注销管理账号', CHARACTER_CREATED: '新增角色', CHARACTER_EDITED: '修改角色内容', CHARACTER_APPROVED: '角色审核通过', CHARACTER_REJECTED: '角色退回或下架'};
 export function AdminAudit() {
   const {token, access, loading, error: accessError} = useAdminAccess();
   const [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);

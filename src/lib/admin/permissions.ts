@@ -7,6 +7,9 @@ export const PERMISSIONS = {
   'accounts.manage': '停用和恢复网站账号',
   'accounts.sessions.revoke': '撤销用户登录会话',
   'accounts.community.manage': '管理用户社区禁言',
+  'characters.read': '查看全部角色与管理预览',
+  'characters.write': '创建和编辑角色内容',
+  'characters.publish': '发布和下架角色',
   'moderation.read': '查看审核与举报队列',
   'moderation.write': '处理审核、举报与申诉',
   'finance.read': '查看财务、套餐与订单',
@@ -22,4 +25,5 @@ export const SYSTEM_ROLES = [
   {code: 'FINANCE_MANAGER', name: '财务管理员', permissions: ['finance.read', 'finance.packages.write', 'finance.refunds.execute'] as AdminPermission[]},
   {code: 'AUDITOR', name: '管理审计员', permissions: ['admin.staff.read', 'admin.audit.read'] as AdminPermission[]},
   {code: 'SUPPORT_AGENT', name: '用户客服', permissions: ['accounts.read', 'accounts.community.manage'] as AdminPermission[]},
+  {code: 'CHARACTER_MANAGER', name: '角色管理员', permissions: ['characters.read', 'characters.write', 'characters.publish'] as AdminPermission[]},
 ];

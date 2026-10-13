@@ -233,6 +233,7 @@ model Character {
   @@index([creatorId])
   @@index([isPublic])
   @@map("characters")
+  @@index([reviewStatus, updatedAt, id])
   comments      Comment[]
 }
 

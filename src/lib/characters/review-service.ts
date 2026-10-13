@@ -2,6 +2,7 @@ import type {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
 import {recordAdminAudit} from '@/lib/admin/management-service';
+import {countOpenCharacterReports} from './report-summary';
 
 export class CharacterReviewError extends Error {
   constructor(message: string, public status = 400) {super(message);}
@@ -44,4 +45,13 @@ export async function reviewCharacter(actorId: string, characterId: string, inpu
   const body = input as Record<string, unknown>;
   await reviewCharacters(actorId, {status: body.status, reason: body.reason, items: [{id: characterId, updatedAt: body.updatedAt}]});
   return {success: true};
+}
+
+export async function readCharacterReviewQueue(actorId: string) {
+  return db.$transaction(async tx => {
+    if (!await hasAdminPermission(actorId, 'moderation.read', tx)) throw new CharacterReviewError('此页面仅限审核人员访问。', 403);
+    const characters = await tx.character.findMany({where: {publicationRequested: true, reviewStatus: {in: ['PENDING', 'APPROVED']}}, orderBy: [{reviewStatus: 'desc'}, {updatedAt: 'desc'}], take: 100, include: {creator: {select: {username: true}}}});
+    const reports = await countOpenCharacterReports(tx, characters.map(character => character.id));
+    return characters.map(character => ({...character, openReportCount: reports.get(character.id) ?? 0}));
+  });
 }

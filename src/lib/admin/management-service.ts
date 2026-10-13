@@ -113,6 +113,7 @@ export async function saveRole(actorId: string, input: unknown) {
   const body = object(input), explanation = reason(body.reason);
   if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 60 || !Array.isArray(body.permissions) || body.permissions.length > Object.keys(PERMISSIONS).length || body.permissions.some(key => typeof key !== 'string' || !Object.hasOwn(PERMISSIONS, key) || OWNER_ONLY.includes(key as AdminPermission)) || new Set(body.permissions).size !== body.permissions.length) throw new AdminManagementError('角色名称或权限无效；所有者专属权限不可添加到自定义角色。');
   const name = body.name.trim(), permissions = body.permissions as AdminPermission[];
+  if (permissions.some(key => key.startsWith('characters.') && key !== 'characters.read') && !permissions.includes('characters.read')) throw new AdminManagementError('角色操作权限必须同时包含角色查看权限。');
   if (permissions.some(key => key.startsWith('accounts.') && key !== 'accounts.read') && !permissions.includes('accounts.read')) throw new AdminManagementError('用户操作权限必须同时包含用户查看权限。');
   if (permissions.includes('moderation.write') && !permissions.includes('moderation.read') || (permissions.includes('finance.packages.write') || permissions.includes('finance.refunds.execute')) && !permissions.includes('finance.read')) throw new AdminManagementError('操作权限必须同时包含对应的查看权限。');
   const id = body.id === undefined ? undefined : body.id;
