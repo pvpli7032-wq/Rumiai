@@ -130,3 +130,5 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 2026-10-13当前应用发布目录为 `/www/wwwroot/khui-ai/releases/6e93498`；独立PM2与systemd保持启用，数据库与上传继续使用shared目录。第17条迁移新增管理身份、角色、权限关联和审计表，旧业务表迁移及所有者初始化前后内容一致，完整性/外键检查通过。上线前已原生构建并在数据库副本预启动验证，Linux33项隔离测试通过。
 
 迁移前联合备份为 `releases/c4d8346/prisma/backups/database-before-admin-6e93498`，仅保留服务器。回退应用代码可使用原c4d8346发布目录，不删新管理表，不覆盖数据库；恢复数据库与完整业务回滚仍按前述停写/新目录恢复流程另行验收。首位所有者通过服务器 `npm run admin:bootstrap -- <已注册邮箱>` 显式指定，后续通过后台分配身份；不在HTTP接口暴露初始化命令。
+
+2026-10-13用户管理发布：当前运行目录为 `/www/wwwroot/khui-ai/releases/a26f7bb`，生产迁移18条。迁移前联合备份为 `releases/6e93498/prisma/backups/database-before-accounts-a26f7bb`。原各表字段与记录校验保留；仅新增账户状态/时间字段、支持角色及系统所有者4项用户能力，保留已有自定义权限。服务器50项检查和预启动通过，健康服务及定时器active，HTTPS实际检查成功。验证命令必须同时显式配置隔离DATABASE_URL及UPLOADS_DIRECTORY；账户测试自行使用唯一库及artifacts上传目录。
