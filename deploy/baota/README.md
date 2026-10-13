@@ -20,6 +20,8 @@
 
 ## 应用安装步骤
 
+后台布局更新后当前运行发布为 `/www/wwwroot/khui-ai/releases/c4d8346`，63063bb 保留。新后台已在 Linux 构建、预启动及切换后验证，管理员账号权限和 shared/app.env 保持；实际公网 admin 登录及工作台/财务/审核在 390/1280px 的独立导航和工作区溢出检查通过，零页面错误，健康检查成功。下文 63063bb 为此前发布记录，日常进程以当前 PM2 工作目录为准。
+
 2026-10-13 A1 后台更新后，当前运行代码为 `/www/wwwroot/khui-ai/releases/63063bb`，`/www/wwwroot/khui-ai/app` 为保留的上一版及依赖目录，不应删除。当前发布复用该 Linux node_modules（锁文件未变），运行配置链接到受保护的 `shared/app.env`；以后调整管理员或供应商配置以该共享文件为准，修改后重启服务。数据库、上传路径和 JWT 值保持，旧应用及数据未覆盖。健康检查脚本仍在原 app/scripts 路径，功能相同且自动定时执行已验证。新版本 Linux 构建、预启动及切换后公网 /admin 200、匿名 /api/admin/access 401 通过。
 
 建议代码目录 `/www/wwwroot/khui-ai/app`，持久数据目录 `/www/wwwroot/khui-ai/shared`。部署前核实目录是否存在并保留现有站点、数据库、上传及配置。新项目的 `.env` 设置：
