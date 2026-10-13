@@ -5,7 +5,6 @@ node_modules/
 .next/
 .next-build/
 .next-*/
-.next-finance-validation/
 out/
 next-env.d.ts
 
@@ -46,30 +45,7 @@ Thumbs.db
 prisma/*.db-wal
 prisma/*.db-shm
 
-# per-process next build dirs used by the verify scripts
-.next-verify
-.next-verify-*
-
 prisma/backups/
 prisma/restores/
 screens/
-
-
-.next-m1-tests/
-
-.next-m2-tests/
-
-.next-ai-tests/
-
-.next-chat-tests/
-.next-circle-tests/
-.next-m3-posts-tests/
-.next-m3-follow-tests/
-.next-m3-moderation-tests/
-.next-m3-content-tests/
-
-.next-goal-validation/
-.next-final/
-.next-account-ui/
-.next-m3-circles-validation/
 artifacts/

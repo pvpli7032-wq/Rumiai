@@ -31,22 +31,9 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".next-account-ui/types/**/*.ts",
-    ".next-ai-tests/types/**/*.ts",
     ".next-build/types/**/*.ts",
-    ".next-chat-tests/types/**/*.ts",
-    ".next-circle-tests/types/**/*.ts",
-    ".next-finance-validation/types/**/*.ts",
-    ".next-goal-validation/types/**/*.ts",
-    ".next-m1-tests/types/**/*.ts",
-    ".next-m2-tests/types/**/*.ts",
-    ".next-m3-posts-tests/types/**/*.ts",
-    ".next-verify-context/types/**/*.ts",
-    ".next-verify-ratelimit/types/**/*.ts",
-    ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
-    ".next-next15-regression/types/**/*.ts"
+    "next-env.d.ts"
   ],
   "exclude": [
     "node_modules",

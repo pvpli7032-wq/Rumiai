@@ -25,7 +25,7 @@ npm run build
 npm start -- --hostname 127.0.0.1 --port 18781
 ```
 
-构建与启动使用 `.next-build`，开发服务使用 `.next`。直接调用 Next CLI 时需显式设置 `NEXT_DIST_DIR=.next-build`。隔离数据库和关闭模型/支付的完整启动步骤见 [DEPLOYMENT.md](DEPLOYMENT.md)。
+构建与启动使用 `.next-build`，开发服务使用 `.next`，自行启动的隔离测试使用 `artifacts/next-cache`。直接调用 Next CLI 时需显式设置 `NEXT_DIST_DIR=.next-build`。目录用途、生成产物与交付范围见 [目录与交付说明](docs/目录与交付说明.md)，隔离数据库和关闭模型/支付的完整启动步骤见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
 ## 已实现功能
 

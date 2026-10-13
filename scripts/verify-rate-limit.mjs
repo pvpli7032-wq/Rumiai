@@ -58,7 +58,7 @@ const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '
     ...process.env,
     // Its own build directory: sharing .next with a server already running in this
     // directory corrupts that server's route manifest.
-    NEXT_DIST_DIR: '.next-verify-ratelimit',
+    NEXT_DIST_DIR: 'artifacts/next-cache/verify-ratelimit',
     OPENAI_API_KEY: 'stub-key',
     OPENAI_BASE_URL: `http://127.0.0.1:${STUB_PORT}`,
     AI_FALLBACK_MODELS: '',
