@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import {readOwnAdminIdentity} from '@/lib/admin/management-service';
 
 // Explicit projections keep credentials and other users' private character data out
 // of the archive. All sections are read from one database transaction snapshot.
@@ -55,7 +56,8 @@ export async function exportAccountData(userId: string) {
       tx.aiCall.findMany({ where: { userId }, select: { id: true, conversationId: true, operation: true, status: true, model: true, attempts: true, inputTokens: true, outputTokens: true, estimatedCost: true, currency: true, startedAt: true, finishedAt: true } }),
       tx.aiDailyUsage.findMany({ where: { userId }, select: { day: true, count: true } }),
     ]);
-    return { version: 2, generatedAt: new Date().toISOString(), account,
+    const adminIdentity = await readOwnAdminIdentity(tx, userId);
+    return { version: 2, generatedAt: new Date().toISOString(), account, adminIdentity,
       conversations, characters, posts, postComments, comments, transactions, orders, uploads,
       reports, appeals, following, followers, memberships, circles, bookmarks, characterLikes, postLikes, commentLikes, checkins, gifts, missions, questProgress, aiCalls, aiDailyUsage };
   });

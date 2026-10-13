@@ -5,6 +5,7 @@ import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { MobileNav } from './mobile-nav';
 import { AdminShell } from './admin/admin-shell';
+import {AdminAccessProvider} from './admin/use-admin-access';
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -64,7 +65,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     };
   }, [pathname]);
 
-  if (['/admin','/finance','/moderation'].includes(pathname)) return <AdminShell>{children}</AdminShell>;
+  if (pathname === '/admin' || pathname.startsWith('/admin/') || ['/finance','/moderation'].includes(pathname)) return <AdminAccessProvider><AdminShell>{children}</AdminShell></AdminAccessProvider>;
   return (
     <div className={`app-frame flex w-full min-w-0 desktop:flex-row ${chat ? 'is-chat' : ''}`}>
       <Sidebar />

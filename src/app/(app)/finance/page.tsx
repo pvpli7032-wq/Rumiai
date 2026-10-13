@@ -2,13 +2,15 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import type { FinanceReport } from '@/lib/payments/reconciliation-service';
-import { FinanceRefunds } from '@/components/finance-refunds';
-import { AiBudgetReport } from '@/components/ai-budget-report';
-import { PaymentValidationMetrics } from '@/components/payment-validation-metrics';
-import { FinancePackages } from '@/components/finance-packages';
+import { FinanceRefunds } from '@/components/admin/finance/finance-refunds';
+import { AiBudgetReport } from '@/components/admin/finance/ai-budget-report';
+import { PaymentValidationMetrics } from '@/components/admin/finance/payment-validation-metrics';
+import { FinancePackages } from '@/components/admin/finance/finance-packages';
+import {useAdminAccess} from '@/components/admin/use-admin-access';
 
 export default function FinancePage() {
   const { token, isLoading } = useAuth();
+  const {permissions} = useAdminAccess();
   const [days, setDays] = useState(7);
   const [report, setReport] = useState<FinanceReport | null>(null);
   const [error, setError] = useState('');
@@ -32,7 +34,7 @@ export default function FinancePage() {
     <div className="flex flex-wrap gap-3"><label>统计范围 <select className="min-h-11 rounded-sm border bg-background px-2" value={days} onChange={e => setDays(Number(e.target.value))}>{[1, 7, 30, 90].map(n => <option key={n} value={n}>近 {n} 天</option>)}</select></label><button className="min-h-11 rounded-sm border px-4" disabled={!token || loading} onClick={() => setRefresh(n => n + 1)}>刷新</button></div>
     {error && <p role="alert" className="text-red-400">{error}</p>}{loading && <p role="status">正在核对…</p>}
     {report && <>
-      <FinancePackages token={token!} />
+      <FinancePackages token={token!} canEdit={permissions.includes('finance.packages.write')} />
       <div className="grid min-w-0 gap-4 xl:grid-cols-2"><div className="min-w-0"><AiBudgetReport report={report.aiBudget} /></div>
       <div className="min-w-0"><PaymentValidationMetrics metrics={report.validationMetrics} costs={report.aiCosts} /></div></div>
       <section className="space-y-2 rounded-xl border p-4"><h2 className="font-bold">本地订单金额</h2><p>已付款 {report.paidOrders} 笔 · ¥{(report.paidAmountCnyCents / 100).toFixed(2)}</p><p>已完成退款 {report.completedRefunds} 笔 · ¥{(report.refundedAmountCnyCents / 100).toFixed(2)}</p><p>退款后金额 ¥{(report.netAfterRefundsCnyCents / 100).toFixed(2)}</p><p className="text-sm text-muted-foreground">退款后金额不含通道手续费、结算费用和 AI 成本，也未与渠道账单核实。</p></section>
@@ -40,6 +42,6 @@ export default function FinancePage() {
       <section className="space-y-3 rounded-xl border p-4"><h2 className="font-bold">AI 成本估算</h2>{!report.aiCosts.length && <p>此时间范围暂无调用记录。</p>}{report.aiCosts.map(row => <div key={row.currency} className="break-words"><p>{row.currency} · 已知成本 {row.estimatedCost.toFixed(6)}</p><p className="text-sm">共 {row.calls} 次；有成本记录 {row.knownCostCalls} 次，未知成本 {row.unknownCostCalls} 次，模拟 {row.mockCalls} 次，失败或取消 {row.failedCalls} 次</p></div>)}<p className="text-sm text-muted-foreground">各币种分别统计，未知成本不能视为零；模拟调用不计真实成本。这不是供应商账单。</p></section>
       <p className="text-xs text-muted-foreground">报告时间：{new Date(report.generatedAt).toLocaleString('zh-CN')}</p>
     </>}
-    {token && !error && <FinanceRefunds token={token} />}
+    {token && !error && <FinanceRefunds token={token} canRefund={permissions.includes('finance.refunds.execute')} />}
   </main>;
 }

@@ -7,7 +7,7 @@ export async function PUT(request: Request, { params: paramsPromise }: { params:
   const params = await paramsPromise;
 
   try {
-    const access = await getFinanceAdmin(request);
+    const access = await getFinanceAdmin(request, 'finance.packages.write');
     if (!access.user) return NextResponse.json({ error: access.error }, { status: access.status });
     if (!/^[A-Za-z0-9_-]{1,100}$/.test(params.id)) return NextResponse.json({ error: '套餐编号无效。' }, { status: 400 });
     let body: unknown;

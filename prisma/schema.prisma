@@ -75,10 +75,67 @@ model User {
   aiDailyUsage       AiDailyUsage[]
   accountClosure AccountClosure?
   uploadAssets UploadAsset[]
+  adminOperator AdminOperator?
 
   @@map("users")
   comments     Comment[]
   commentLikes CommentLike[]
+}
+
+model AdminOperator {
+  userId String @id @map("user_id")
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  enabled Boolean @default(true)
+  version Int @default(0)
+  assignments AdminRoleAssignment[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@map("admin_operators")
+}
+
+model AdminRole {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  system Boolean @default(false)
+  version Int @default(0)
+  permissions AdminRolePermission[]
+  assignments AdminRoleAssignment[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@map("admin_roles")
+}
+
+model AdminRolePermission {
+  roleId String @map("role_id")
+  permission String
+  role AdminRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([roleId, permission])
+  @@map("admin_role_permissions")
+}
+
+model AdminRoleAssignment {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+  operator AdminOperator @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  role AdminRole @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now()) @map("created_at")
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("admin_role_assignments")
+}
+
+model AdminAuditLog {
+  id String @id @default(cuid())
+  actorId String @map("actor_id")
+  action String
+  targetId String @map("target_id")
+  reason String
+  changes String
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([createdAt])
+  @@index([targetId, createdAt])
+  @@map("admin_audit_logs")
 }
 
 model AccountClosure {

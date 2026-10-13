@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    const access = await getFinanceAdmin(request);
+    const access = await getFinanceAdmin(request, 'finance.packages.write');
     if (!access.user) return NextResponse.json({ error: access.error }, { status: access.status });
     let body: unknown;
     try { body = await request.json(); } catch { return NextResponse.json({ error: '套餐数据格式错误。' }, { status: 400 }); }

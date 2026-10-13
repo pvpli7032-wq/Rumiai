@@ -6,7 +6,7 @@ import { logRouteError } from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request, context: { params: Promise<{ orderNo: string }> }) {
-  const access = await getFinanceAdmin(request);
+  const access = await getFinanceAdmin(request, 'finance.refunds.execute');
   if (!access.user) return NextResponse.json({ error: access.error }, { status: access.status });
   const orderNo = (await context.params).orderNo;
   if (!/^[A-Z0-9]{20,40}$/.test(orderNo)) return NextResponse.json({ error: '订单号格式不正确。' }, { status: 400 });

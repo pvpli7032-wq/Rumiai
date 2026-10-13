@@ -5,7 +5,7 @@ import { logRouteError } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
-  if (!await getModerator(request)) return NextResponse.json({ error: '此队列仅限审核人员访问。' }, { status: 403 });
+  if (!await getModerator(request, 'moderation.read')) return NextResponse.json({ error: '此队列仅限审核人员访问。' }, { status: 403 });
   try {
     const status = new URL(request.url).searchParams.get('status') || 'OPEN';
     if (!['OPEN', 'ACCEPTED', 'REJECTED', 'ALL'].includes(status)) return NextResponse.json({ error: '申诉状态不正确。' }, { status: 400 });

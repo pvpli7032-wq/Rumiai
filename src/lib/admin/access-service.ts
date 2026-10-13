@@ -1,7 +1,7 @@
-import {isModerator} from '@/lib/moderator';
-import {isFinanceAdmin} from '@/lib/payments/finance-auth';
+import {readAdminAuthorization} from './authorization';
 
 /** Each domain remains the authority for its own permissions. */
-export function readAdminAccess(userId: string) {
-  return {moderation: isModerator(userId), finance: isFinanceAdmin(userId)};
+export async function readAdminAccess(userId: string) {
+  const {permissions} = await readAdminAuthorization(userId);
+  return {moderation: permissions.includes('moderation.read'), finance: permissions.includes('finance.read')};
 }

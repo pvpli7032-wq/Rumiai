@@ -30,6 +30,7 @@
     "test:auth-config": "node --import tsx --test tests/auth-configuration.test.mjs",
     "test:admin:access": "node --import tsx --test tests/admin-access.test.mjs",
     "test:admin:browser": "node scripts/verify-admin-browser.mjs",
+    "admin:bootstrap": "node --import tsx scripts/bootstrap-admin.mjs",
     "test:m5:closure:browser": "node scripts/verify-account-closure-browser.mjs",
     "test:m5:export:browser": "node scripts/verify-account-export-browser.mjs",
     "typecheck": "tsc --noEmit",
@@ -55,7 +56,9 @@
     "test:m4:budget": "node --import tsx --test tests/ai-budget-report.test.mjs",
     "test:m4:budget-guard": "node --import tsx --test tests/ai-budget-guard.test.mjs",
     "test:m4:budget-guard:browser": "node scripts/verify-ai-budget-browser.mjs",
-    "test:m4:metrics": "node --import tsx --test tests/ai-cost-report.test.mjs"
+    "test:m4:metrics": "node --import tsx --test tests/ai-cost-report.test.mjs",
+    "test:admin:management": "node --import tsx --test tests/admin-management.test.mjs",
+    "test:admin:management:browser": "node --import tsx scripts/verify-admin-management-browser.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

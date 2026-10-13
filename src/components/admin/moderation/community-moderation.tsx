@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import {useAdminAccess} from '@/components/admin/use-admin-access';
 import { useAuth } from '@/lib/auth-context';
 
 type ReportRow = { id: string; targetType: string; targetId: string; category: string; details: string; evidenceContent: string | null; status: string; target: any; reporter: { username: string } };
@@ -10,6 +11,8 @@ type Tab = 'reports' | 'appeals' | 'audit';
 
 export function CommunityModeration() {
   const { token, isLoading } = useAuth();
+  const {permissions} = useAdminAccess();
+  const canModerate = permissions.includes('moderation.write');
   const [tab, setTab] = useState<Tab>('reports');
   const [reportStatus, setReportStatus] = useState('OPEN');
   const [reports, setReports] = useState<ReportRow[]>([]);
@@ -36,6 +39,7 @@ export function CommunityModeration() {
   useEffect(() => { if (!isLoading) void load(); }, [isLoading, load]);
 
   async function moderateReport(report: ReportRow, action: string) {
+    if (!canModerate || busy) return;
     const reason = reasons[report.id]?.trim() || (action === 'REVIEWING' ? '开始核查' : '根据举报完成复核');
     setBusy(report.id); setError('');
     try {
@@ -46,6 +50,7 @@ export function CommunityModeration() {
     finally { setBusy(''); }
   }
   async function reviewAppeal(appeal: AppealRow, status: 'ACCEPTED' | 'REJECTED') {
+    if (!canModerate || busy) return;
     const resolution = resolutions[appeal.id]?.trim();
     if (!resolution) { setError('请先填写申诉复核说明。'); return; }
     setBusy(appeal.id); setError('');
@@ -67,9 +72,9 @@ export function CommunityModeration() {
       {report.details && <p className="text-sm text-muted-foreground">补充说明：{report.details}</p>}
       {report.targetType === 'USER' && report.target?.communityBannedAt && <p className="text-sm text-amber-400">已封禁：{report.target.communityBanReason}</p>}
       <label className="block text-sm">处置记录说明<textarea maxLength={1000} value={reasons[report.id] || ''} onChange={event => setReasons(value => ({ ...value, [report.id]: event.target.value }))} className="mt-1 min-h-20 w-full rounded-sm border border-border bg-background p-2" /></label>
-      <div className="flex flex-wrap gap-2">{['OPEN', 'REVIEWING'].includes(report.status) && <><button disabled={!!busy} onClick={() => void moderateReport(report, 'REVIEWING')} className="min-h-11 rounded-sm border border-border px-3">标记处理中</button><button disabled={!!busy} onClick={() => void moderateReport(report, 'DISMISS')} className="min-h-11 rounded-sm border border-border px-3">驳回举报</button>{(report.targetType === 'POST' || report.targetType === 'POST_COMMENT') && <button disabled={!!busy} onClick={() => void moderateReport(report, 'HIDE')} className="min-h-11 rounded-sm bg-orange-700 px-3 text-white">隐藏内容</button>}{report.targetType === 'USER' && !report.target?.communityBannedAt && <button disabled={!!busy} onClick={() => void moderateReport(report, 'BAN')} className="min-h-11 rounded-sm bg-red-700 px-3 text-white">封禁社区发言</button>}</>}{report.targetType === 'USER' && report.target?.communityBannedAt && <button disabled={!!busy} onClick={() => void moderateReport(report, 'UNBAN')} className="min-h-11 rounded-sm border border-border px-3">解除封禁</button>}</div>
+      <div className="flex flex-wrap gap-2">{['OPEN', 'REVIEWING'].includes(report.status) && <><button disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'REVIEWING')} className="min-h-11 rounded-sm border border-border px-3">标记处理中</button><button disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'DISMISS')} className="min-h-11 rounded-sm border border-border px-3">驳回举报</button>{(report.targetType === 'POST' || report.targetType === 'POST_COMMENT') && <button disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'HIDE')} className="min-h-11 rounded-sm bg-orange-700 px-3 text-white">隐藏内容</button>}{report.targetType === 'USER' && !report.target?.communityBannedAt && <button disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'BAN')} className="min-h-11 rounded-sm bg-red-700 px-3 text-white">封禁社区发言</button>}</>}{report.targetType === 'USER' && report.target?.communityBannedAt && <button disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'UNBAN')} className="min-h-11 rounded-sm border border-border px-3">解除封禁</button>}</div>
     </article>) : <p className="py-4 text-sm text-muted-foreground">暂无待处理举报。</p>)}
-    {tab === 'appeals' && (appeals.length ? appeals.map(appeal => <article key={appeal.id} className="space-y-3 rounded-xl border border-border p-4"><h3 className="font-semibold">@{appeal.user.username} 的社区申诉</h3><p className="whitespace-pre-wrap text-sm">{appeal.reason}</p><p className="text-xs text-muted-foreground">封禁原因：{appeal.user.communityBanReason || '未提供'}</p><label className="block text-sm">复核说明<textarea maxLength={1000} value={resolutions[appeal.id] || ''} onChange={event => setResolutions(value => ({ ...value, [appeal.id]: event.target.value }))} className="mt-1 min-h-20 w-full rounded-sm border border-border bg-background p-2" /></label><div className="flex gap-2"><button disabled={!!busy} onClick={() => void reviewAppeal(appeal, 'ACCEPTED')} className="min-h-11 rounded-sm bg-green-700 px-3 text-white">接受申诉并解封</button><button disabled={!!busy} onClick={() => void reviewAppeal(appeal, 'REJECTED')} className="min-h-11 rounded-sm border border-border px-3">驳回申诉</button></div></article>) : <p className="py-4 text-sm text-muted-foreground">暂无待复核申诉。</p>)}
+    {tab === 'appeals' && (appeals.length ? appeals.map(appeal => <article key={appeal.id} className="space-y-3 rounded-xl border border-border p-4"><h3 className="font-semibold">@{appeal.user.username} 的社区申诉</h3><p className="whitespace-pre-wrap text-sm">{appeal.reason}</p><p className="text-xs text-muted-foreground">封禁原因：{appeal.user.communityBanReason || '未提供'}</p><label className="block text-sm">复核说明<textarea maxLength={1000} value={resolutions[appeal.id] || ''} onChange={event => setResolutions(value => ({ ...value, [appeal.id]: event.target.value }))} className="mt-1 min-h-20 w-full rounded-sm border border-border bg-background p-2" /></label><div className="flex gap-2"><button disabled={!!busy || !canModerate} onClick={() => void reviewAppeal(appeal, 'ACCEPTED')} className="min-h-11 rounded-sm bg-green-700 px-3 text-white">接受申诉并解封</button><button disabled={!!busy || !canModerate} onClick={() => void reviewAppeal(appeal, 'REJECTED')} className="min-h-11 rounded-sm border border-border px-3">驳回申诉</button></div></article>) : <p className="py-4 text-sm text-muted-foreground">暂无待复核申诉。</p>)}
     {tab === 'audit' && (audit.length ? <ul className="divide-y divide-border">{audit.map(row => <li key={row.id} className="py-3 text-sm"><p className="font-medium">{row.action} · {row.targetType} · {row.targetId}</p><p className="text-muted-foreground">审核人 @{row.actor.username} · {new Date(row.createdAt).toLocaleString('zh-CN')}</p><p className="whitespace-pre-wrap">{row.reason}</p></li>)}</ul> : <p className="py-4 text-sm text-muted-foreground">暂无审计记录。</p>)}
   </section>;
 }

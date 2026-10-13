@@ -1,0 +1,9 @@
+export type ReviewCharacter = {id: string; name: string; tagline: string; personality: string; background: string; greeting: string; scenario: string; roleTemplate: string; tags: string; avatarUrl: string; copyrightStatement: string; reviewStatus: string; updatedAt: string; openReportCount: number; creator?: {username: string}};
+
+export function CharacterReviewCard({character, reason, onReason, onReview, canReview, busy}: {character: ReviewCharacter; reason: string; onReason: (value: string) => void; onReview: (status: string) => void; canReview: boolean; busy: boolean}) {
+  return <article className="space-y-3 break-words rounded-xl border border-border p-4"><h2 className="font-bold">{character.name}</h2>
+    <p>{character.reviewStatus === 'PENDING' ? '待审核' : '已公开'} · 创作者：{character.creator?.username || '系统'} · 未处理举报：{character.openReportCount}</p>
+    {[['简介', character.tagline], ['人设', character.personality], ['背景', character.background], ['开场白', character.greeting], ['场景', character.scenario], ['扮演指引', character.roleTemplate], ['标签', character.tags], ['头像地址', character.avatarUrl], ['版权声明', character.copyrightStatement]].map(([label, value]) => <div key={label}><h3 className="text-sm font-semibold">{label}</h3><p className="whitespace-pre-wrap break-all text-sm text-muted-foreground">{value || '未填写'}</p></div>)}
+    {canReview && <><label className="block">审核说明（退回必填）<textarea className="mt-2 w-full rounded-lg border bg-transparent p-2" maxLength={1000} value={reason} onChange={event => onReason(event.target.value)} /></label><div className="flex flex-wrap gap-3"><button disabled={busy || character.reviewStatus === 'APPROVED'} className="min-h-11 rounded-lg bg-orange-600 px-4 text-white disabled:opacity-50" onClick={() => onReview('APPROVED')}>通过公开</button><button disabled={busy} className="min-h-11 rounded-lg border px-4" onClick={() => onReview('REJECTED')}>退回 / 下架</button></div></>}
+  </article>;
+}

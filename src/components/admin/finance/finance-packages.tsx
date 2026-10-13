@@ -11,7 +11,7 @@ function localTime(value: string | null) {
   return new Date(time.getTime() - time.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
-export function FinancePackages({ token }: { token: string }) {
+export function FinancePackages({ token, canEdit }: { token: string; canEdit: boolean }) {
   const [packages, setPackages] = useState<Package[]>([]), [changes, setChanges] = useState<Change[]>([]);
   const [editing, setEditing] = useState<Package | null>(null), [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(''), [message, setMessage] = useState('');
@@ -31,7 +31,7 @@ export function FinancePackages({ token }: { token: string }) {
     setForm({ label: pkg.label, coins: String(pkg.coins), bonus: String(pkg.bonus), price: pkg.priceCnyCents === null ? '' : (pkg.priceCnyCents / 100).toFixed(2), sortOrder: String(pkg.sortOrder), isActive: pkg.isActive, start: localTime(pkg.bonusStartsAt), end: localTime(pkg.bonusEndsAt) });
   }
   async function save(e: React.FormEvent) {
-    e.preventDefault(); if (busy) return;
+    e.preventDefault(); if (busy || !canEdit) return;
     setBusy(true); setError(''); setMessage('');
     try {
       if (!/^\d+(?:\.\d{1,2})?$/.test(form.price)) throw Error('人民币价格最多两位小数。');
@@ -50,9 +50,9 @@ export function FinancePackages({ token }: { token: string }) {
     {loading && <p role="status">正在读取套餐…</p>}
     <div className="space-y-2">{packages.map(pkg => <article key={pkg.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border p-3">
       <div className="min-w-0 break-words"><p>{pkg.label} · {pkg.isActive ? '已上架' : '已下架'} · {pkg.priceCnyCents === null ? '价格待配置' : `¥${(pkg.priceCnyCents / 100).toFixed(2)}`}</p><p className="text-sm">基础 {pkg.coins} · 当前赠送 {pkg.effectiveBonus} · 设置赠送 {pkg.bonus}</p>{pkg.bonusStartsAt && <p className="text-xs">{new Date(pkg.bonusStartsAt).toLocaleString('zh-CN')} 至 {new Date(pkg.bonusEndsAt!).toLocaleString('zh-CN')}</p>}</div>
-      <button type="button" className="min-h-11 rounded-sm border px-3" disabled={busy} onClick={() => edit(pkg)}>编辑 {pkg.label}</button>
+      {canEdit && <button type="button" className="min-h-11 rounded-sm border px-3" disabled={busy} onClick={() => edit(pkg)}>编辑 {pkg.label}</button>}
     </article>)}</div>
-    <form className="space-y-3 border-t pt-4" onSubmit={save}>
+    {canEdit && <form className="space-y-3 border-t pt-4" onSubmit={save}>
       <h3 className="font-medium">{editing ? `编辑套餐：${editing.label}` : '新增套餐'}</h3>
       <div className="grid gap-3 sm:grid-cols-2">
         <label>套餐名称<input required maxLength={32} className="mt-1 min-h-11 w-full rounded-sm border bg-background px-2" value={form.label} onChange={e => field('label', e.target.value)} /></label>
@@ -65,7 +65,7 @@ export function FinancePackages({ token }: { token: string }) {
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={form.isActive} onChange={e => field('isActive', e.target.checked)} />上架套餐</label>
       </div>
       <div className="flex flex-wrap gap-2"><button disabled={busy} className="min-h-11 rounded-sm bg-orange-600 px-4 text-white disabled:opacity-50">{busy ? '保存中…' : '保存套餐'}</button><button disabled={busy} type="button" className="min-h-11 rounded-sm border px-4" onClick={() => { setEditing(null); setForm(empty); setError(''); }}>取消编辑</button></div>
-    </form>
+    </form>}
     <details className="border-t pt-3"><summary className="cursor-pointer">最近修改记录（{changes.length} 条）</summary>{changes.map(change => <div key={change.id} className="space-y-1 break-all border-t py-2 text-xs"><p>{new Date(change.createdAt).toLocaleString('zh-CN')} · 操作人 {change.actorId} · 套餐 {change.packageId}</p><p>修改前：{change.beforeJson || '新增'}</p><p>修改后：{change.afterJson}</p></div>)}</details>
   </section>;
 }

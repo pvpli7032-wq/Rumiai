@@ -238,10 +238,10 @@ test('EZFP order creation and signed callback credit a package exactly once', as
       } });
       const negative = await db.user.create({ data: { username: `negative_${now}`, email: `negative_${now}@example.invalid`, passwordHash: 'test-only', coins: -1 } });
       await db.aiCall.createMany({ data: [
-        { userId: user.id, conversationId: 'fixture', operation: 'SEND', status: 'SUCCEEDED', currency: 'USD', estimatedCost: 0.2 },
-        { userId: user.id, conversationId: 'fixture', operation: 'SEND', status: 'FAILED', currency: 'USD', estimatedCost: null },
-        { userId: user.id, conversationId: 'fixture', operation: 'SEND', status: 'MOCK', currency: 'USD', estimatedCost: 0 },
-        { userId: user.id, conversationId: 'fixture', operation: 'SEND', status: 'SUCCEEDED', currency: 'CNY', estimatedCost: 1.5 },
+        { userId: user.id, conversationId: 'fixture', operation: 'SEND', startedAt: new Date(), status: 'SUCCEEDED', currency: 'USD', estimatedCost: 0.2 },
+        { userId: user.id, conversationId: 'fixture', operation: 'SEND', startedAt: new Date(), status: 'FAILED', currency: 'USD', estimatedCost: null },
+        { userId: user.id, conversationId: 'fixture', operation: 'SEND', startedAt: new Date(), status: 'MOCK', currency: 'USD', estimatedCost: 0 },
+        { userId: user.id, conversationId: 'fixture', operation: 'SEND', startedAt: new Date(), status: 'SUCCEEDED', currency: 'CNY', estimatedCost: 1.5 },
       ] });
       const rowsBefore = await db.coinTransaction.count();
       process.env.AI_DAILY_COST_BUDGETS = '{"USD":{"site":0.1,"user":0.2}}';

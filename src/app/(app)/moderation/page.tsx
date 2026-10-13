@@ -1,12 +1,37 @@
 'use client';
-import { useEffect,useState } from 'react';
-import { useAuth } from '@/lib/auth-context';
-import { CommunityModeration } from '@/components/community-moderation';
-type Role={id:string;name:string;tagline:string;personality:string;background:string;greeting:string;scenario:string;roleTemplate:string;tags:string;avatarUrl:string;copyrightStatement:string;reviewStatus:string;updatedAt:string;openReportCount:number;creator?:{username:string}};
-export default function Moderation(){
- const {token,isLoading}=useAuth();const [roles,setRoles]=useState<Role[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true),[busy,setBusy]=useState(''),[reasons,setReasons]=useState<Record<string,string>>({});
- async function load(){setRoles([]);setLoading(true);try{const res=await fetch('/api/moderation/characters',{headers:{Authorization:'Bearer '+token}});const data=await res.json();if(!res.ok)throw Error(data.error);setRoles(data);setError('')}catch(e){setError((e as Error).message)}finally{setLoading(false)}}
- useEffect(()=>{if(token)load();else if(!isLoading){setRoles([]);setLoading(false);setError('请先登录审核账号。')}},[token,isLoading]);
- async function review(role:Role,status:string){setBusy(role.id);try{const res=await fetch('/api/moderation/characters/'+role.id,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({status,reason:reasons[role.id]||'',updatedAt:role.updatedAt})});const data=await res.json();if(!res.ok)throw Error(data.error);await load()}catch(e){setError((e as Error).message)}finally{setBusy('')}}
- return <main className="mx-auto max-w-3xl space-y-4 p-4"><h1 className="text-xl font-bold">角色审核</h1>{error&&<p role="alert" className="text-red-400">{error}</p>}<button className="min-h-11 rounded-lg border px-4" onClick={load} disabled={!token||!!busy}>刷新列表</button>{loading?<p>正在加载…</p>:!error&&!roles.length?<p>暂无待处理角色。</p>:roles.map(role=><article key={role.id} className="space-y-3 break-words rounded-xl border border-border p-4"><h2 className="font-bold">{role.name}</h2><p>{role.reviewStatus==='PENDING'?'待审核':'已公开'} · 创作者：{role.creator?.username||'系统'} · 未处理举报：{role.openReportCount}</p>{[['简介',role.tagline],['人设',role.personality],['背景',role.background],['开场白',role.greeting],['场景',role.scenario],['扮演指引',role.roleTemplate],['标签',role.tags],['头像地址',role.avatarUrl],['版权声明',role.copyrightStatement]].map(([label,value])=><div key={label}><h3 className="text-sm font-semibold">{label}</h3><p className="whitespace-pre-wrap text-sm text-muted-foreground">{value||'未填写'}</p></div>)}<label className="block">审核说明（退回必填）<textarea className="mt-2 w-full rounded-lg border bg-transparent p-2" maxLength={1000} value={reasons[role.id]||''} onChange={e=>setReasons({...reasons,[role.id]:e.target.value})}/></label><div className="flex gap-3"><button disabled={!!busy||role.reviewStatus==='APPROVED'} className="min-h-11 rounded-lg bg-orange-600 px-4 text-white disabled:opacity-50" onClick={()=>review(role,'APPROVED')}>通过公开</button><button disabled={!!busy} className="min-h-11 rounded-lg border px-4" onClick={()=>review(role,'REJECTED')}>退回 / 下架</button></div></article>)}<CommunityModeration /></main>
+import {useCallback, useEffect, useState} from 'react';
+import {useAuth} from '@/lib/auth-context';
+import {useAdminAccess} from '@/components/admin/use-admin-access';
+import {CommunityModeration} from '@/components/admin/moderation/community-moderation';
+import {CharacterReviewCard, type ReviewCharacter} from '@/components/admin/moderation/character-review-card';
+
+export default function Moderation() {
+  const {token, isLoading} = useAuth();
+  const {permissions} = useAdminAccess();
+  const canReview = permissions.includes('moderation.write');
+  const [characters, setCharacters] = useState<ReviewCharacter[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [busy, setBusy] = useState(''), [reasons, setReasons] = useState<Record<string, string>>({});
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (!token) return;
+    setCharacters([]); setLoading(true);
+    try {const response = await fetch('/api/moderation/characters', {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store', signal}); const data = await response.json(); if (!response.ok) throw Error(data.error); if (!signal?.aborted) {setCharacters(data); setError('');}}
+    catch (value) {if (!signal?.aborted) setError((value as Error).message);}
+    finally {if (!signal?.aborted) setLoading(false);}
+  }, [token]);
+  useEffect(() => {
+    const controller = new AbortController();
+    if (token) void load(controller.signal);
+    else if (!isLoading) {setCharacters([]); setLoading(false); setError('请先登录审核账号。');}
+    return () => controller.abort();
+  }, [token, isLoading, load]);
+  async function review(character: ReviewCharacter, status: string) {
+    if (!canReview || busy) return;
+    setBusy(character.id);
+    try {const response = await fetch(`/api/moderation/characters/${character.id}`, {method: 'PUT', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({status, reason: reasons[character.id] || '', updatedAt: character.updatedAt})}); const data = await response.json(); if (!response.ok) throw Error(data.error); await load();}
+    catch (value) {setError((value as Error).message);} finally {setBusy('');}
+  }
+  return <main className="mx-auto max-w-3xl space-y-4 p-4"><h1 className="text-xl font-bold">角色审核</h1>
+    {error && <p role="alert" className="text-red-400">{error}</p>}<button className="min-h-11 rounded-lg border px-4" onClick={() => void load()} disabled={!token || !!busy}>刷新列表</button>
+    {loading ? <p role="status">正在加载…</p> : !error && !characters.length ? <p>暂无待处理角色。</p> : characters.map(character => <CharacterReviewCard key={character.id} character={character} reason={reasons[character.id] || ''} onReason={value => setReasons(previous => ({...previous, [character.id]: value}))} onReview={status => void review(character, status)} canReview={canReview} busy={!!busy} />)}
+    <CommunityModeration />
+  </main>;
 }

@@ -29,9 +29,9 @@ accounts/data-export.ts 在同一读取事务中导出本人数据，显式投�
 
 ## 角色、社区与治理
 
-公开可见要求 isPublic 且 APPROVED，编辑已公开内容撤销公开并重新审核。管理员由服务端用户 ID 白名单指定。作者与读者的私有/下架角色权限不同，读者自己的历史仍可查看和导出。
+公开可见要求 isPublic 且 APPROVED，编辑已公开内容撤销公开并重新审核。管理权限由 admin 领域判断。作者与读者的私有/下架角色权限不同，读者自己的历史仍可查看和导出。
 
-帖子和评论验证订阅、作者、可见性、输入限额和站内上传图片；角色评论与社区评论分开。举报保存服务端读取的证据，目标删除不会删除举报证据。人工处置、申诉与审计保留业务边界。内容来源登记见 [登记表](docs/M3-06-content-source-register.md)。
+帖子和评论验证订阅、作者、可见性、输入限额和站内上传图片；角色评论与社区评论分开。举报保存服务端读取的证据，目标删除不会删除举报证据。人工处置、申诉与审计保留业务边界。内容来源登记见 [登记表](docs/content/内容来源登记.md)。
 
 ## 金币与支付
 
@@ -39,13 +39,13 @@ coins/package-service.ts 统一计算活动生效时的赠送金币，供商城�
 
 签到、任务奖励和礼物扣款在事务内维护余额与流水。EZFP V2 使用 RSA-SHA256；订单从数据库读取人民币价格并快照金额和金币数量，按用户幂等键建单。通知校验签名、商户、状态、金额、订单与平台流水，在同一事务中更新状态、余额与唯一订单流水；重复/并发回调只入账一次。浏览器返回不发币。
 
-财务报告入口为 `/api/finance/report` 和 `/finance`，单独使用 PAYMENT_ADMIN_USER_IDS 白名单。payments/reconciliation-service.ts 负责订单/流水一致性、负余额和只读事务；ai/cost-report.ts 负责按币种成本汇总，未知成本与模拟调用分别统计。浏览器只展示报告，不写库。
+财务报告入口为 `/api/finance/report` 和 `/finance`，需要 finance.read 权限，未迁入的环境名单暂作兼容。payments/reconciliation-service.ts 负责订单/流水一致性、负余额和只读事务；ai/cost-report.ts 负责按币种成本汇总，未知成本与模拟调用分别统计。浏览器只展示报告，不写库。
 
-ai/budget-report.ts 在同一只读事务中核对 UTC 当日全站/每账号成本预算，排除模拟调用，保留未知成本和未配置币种提示。预算配置验证及比较归 AI 域；components/ai-budget-report.tsx 只展示。默认仅提示，财务页加载/刷新读取状态；自动熔断由下述调用接纳服务执行，不由 UI 决定，也不自动发送外部通知。
+ai/budget-report.ts 在同一只读事务中核对 UTC 当日全站/每账号成本预算，排除模拟调用，保留未知成本和未配置币种提示。预算配置验证及比较归 AI 域；components/admin/finance/ai-budget-report.tsx 只展示。默认仅提示，财务页加载/刷新读取状态；自动熔断由下述调用接纳服务执行，不由 UI 决定，也不自动发送外部通知。
 
 可选自动熔断由 `ai/budget-config.ts` 验证开关/预算、`cost-accounting.ts` 统一单价估算与多次尝试费用完整性、`budget-guard.ts` 在额度写事务内读取对应币种/范围费用。`ai-usage.ts` 先占用本域额度表的写事务，再取 UTC 日期、核对阈值并建立调用；拒绝回滚额度，路由只映射 429/503。完成费用先持久化，再核对并输出结构化告警，监控失败不删除费用记录。默认关闭，不涉及金币结算；在途费用不预留，不能作为精确账单硬上限。看板只显示状态，外部通知仍由部署阶段处理。
 
-payments/validation-metrics.ts 负责同期新注册用户付费率及同期付款订单退款率，使用匹配的分子/分母；同一用户多笔付款只计一个付费用户。ai/cost-report.ts 提供按非模拟调用计算的每千次成本，未知成本时为 null。components/payment-validation-metrics.tsx 负责展示，不决定统计结果或币种换算。无完整成本与渠道费用时不计算毛利率。
+payments/validation-metrics.ts 负责同期新注册用户付费率及同期付款订单退款率，使用匹配的分子/分母；同一用户多笔付款只计一个付费用户。ai/cost-report.ts 提供按非模拟调用计算的每千次成本，未知成本时为 null。components/admin/finance/payment-validation-metrics.tsx 负责展示，不决定统计结果或币种换算。无完整成本与渠道费用时不计算毛利率。
 
 整单退款通过 Ezfp V2 refund/query adapter。财务用户提交后在事务中冻结这笔充值的全部金币并创建唯一退款单号；平台签名确认退款完成才把订单设为 REFUNDED。明确拒绝时以一条新的返还流水释放金币；网络/验签状态未知时保持冻结并用原退款单号查单或重试。退款记录、人工操作人、理由及不可变扣币/返还流水单独保留。部分退款暂不提供。
 
@@ -60,3 +60,11 @@ payments/validation-metrics.ts 负责同期新注册用户付费率及同期付�
 联合备份编排在 `operations/state-backup.mjs`，复用 SQLite 快照并调用上传域的 `backup-references.mjs` 获取持久引用。上传路径统一由 `uploads/storage-location.mjs` 解析，保存、读取、帖子附件校验和注销清理共享该位置；默认 `public/uploads`，可通过服务端 `UPLOADS_DIRECTORY` 指向恢复文件。`backup-state.mjs` / `restore-state.mjs` 仅处理命令行输入和结果。停写后备份数据库与上传，密钥独立保管，不替业务域更改余额或支付状态。
 
 当前 SQLite 使用 WAL 与 busy_timeout，迁移不能删除或折叠历史。分钟限流在单进程 Map 中，多实例前须替换共享存储；SQLite 部署需持久化数据库与用户上传，不直接改 provider 就宣称完成 PostgreSQL 迁移。
+
+## 源码与交付目录
+
+src按页面、展示组件及业务领域分工；prisma保存模型与完整有序迁移，deploy保存脱敏运维配置，scripts和tests保存仍在使用的运维及隔离验证入口。docs只维护业务规则、实施范围和内容来源。数据库、上传、备份、环境配置不进入源码归档。node_modules、.next、.next-build与artifacts为依赖或生成资料，按用途清理，不以删除目录代替业务核查。开发工具配置与AGENTS仅影响维护，不属于产品权限。
+
+## 管理权限
+
+lib/admin拥有角色、权限、管理身份及审计事务。数据库管理身份优先于兼容的环境名单，所有者由服务器命令显式初始化到已注册账号。系统角色固定，自定义角色可以撤销全部权限；操作权限必须包含所属领域的查看权限。后台页面位于app/admin，复用审核和财务页面；展示组件按admin/finance和admin/moderation分组。停用身份撤销已有会话，最后所有者不可降权、停用或注销。

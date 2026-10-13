@@ -1,12 +1,13 @@
 import { getAuthUser } from '@/lib/auth';
+import {hasAdminPermission} from '@/lib/admin/authorization';
 
 export function isFinanceAdmin(userId: string) {
-  return (process.env.PAYMENT_ADMIN_USER_IDS ?? '').split(',').map(id => id.trim()).filter(Boolean).includes(userId);
+  return hasAdminPermission(userId, 'finance.read');
 }
 
-export async function getFinanceAdmin(request: Request) {
+export async function getFinanceAdmin(request: Request, permission: 'finance.read' | 'finance.packages.write' | 'finance.refunds.execute' = 'finance.read') {
   const user = await getAuthUser(request);
   if (!user) return { user: null, status: 401, error: '请先登录。' } as const;
-  if (!isFinanceAdmin(user.userId)) return { user: null, status: 403, error: '仅财务管理员可操作。' } as const;
+  if (!await hasAdminPermission(user.userId, permission)) return { user: null, status: 403, error: '当前账号没有此财务操作权限。' } as const;
   return { user, status: 200, error: '' } as const;
 }

@@ -1,32 +1,20 @@
-# Security Policy
+# 安全维护
 
-## 🛡️ Supported Versions
+维护当前开发版本及实际发布版本。使用锁文件安装依赖，应用安全补丁前核对受影响流程；Next.js 15.5.27、React 19.3.0和Tailwind 4.3.3已完成迁移。历史零漏洞审计仅代表当时同一锁文件的检查结果，发布时仍需复核。
 
-We provide active security updates for the following releases:
+漏洞通过项目维护者的私有渠道报告，附复现步骤和影响范围。不要在公开问题、源码、截图或日志中提交凭据和用户数据。正式安全联络邮箱尚未配置，不使用上游项目邮箱接收本项目报告。
 
-| Version | Supported | Status |
-| :--- | :--- | :--- |
-| `1.0.x` / `master` | ✅ | Actively Maintained |
-| `< 1.0.0` | ❌ | End of Life |
+## 已有控制
 
----
+- 每次认证核对数据库中的tokenVersion；停用管理身份和注销使已有会话失效。
+- 管理能力由服务器判断，数据库管理身份优先；最后所有者不可被停用、降权或注销。
+- 用户数据查询限定本人或明确公开范围；图片归属、格式及访问权限在服务端检查。
+- 支付校验签名、商户、金额及订单；余额和流水以事务维护，未知退款结果保留冻结状态。
+- 角色文本显示经转义，人工审核、举报及申诉保留证据和理由。
+- 环境密钥、数据库、上传及备份不提交或打入源码归档；日志只记录脱敏错误和事件。
 
-## 🚨 Reporting a Vulnerability
+单进程内存限流、多节点扩展、正式年龄准入、隐私政策及真实支付渠道验收分别按实施计划处理，不能将现有举报功能视为这些事项已经完成。
 
-If you discover a security vulnerability or exploit within Khui AI, please disclose it responsibly:
+## 验证范围
 
-1. **Do NOT open a public GitHub issue.**
-2. Send a detailed report to **`security@khuiai.com`** or contact the repository maintainers directly.
-3. Include:
-   - Nature of the vulnerability (e.g., Auth Bypass, SQLi, Prompt Injection, Rate Limit Evasion)
-   - Step-by-step reproduction instructions or Proof of Concept (PoC)
-   - Impact assessment
-
----
-
-## 🔒 Security Architecture Highlights
-
-- **Token Version Invalidation:** Sessions carry a `token_version` claim that is verified against the database on every authenticated request, enabling instantaneous session revocation.
-- **Strict Roleplay Content Sanitization:** Roleplay text is safely escaped prior to formatting to prevent stored XSS attacks.
-- **In-Memory Rate Limiting:** Sliding-window rate limiters prevent API exhaustion and automated brute-force attempts.
-- **Content Moderation & 18+ Protection:** 15-category UGC reporting system and adult content filters protect users from inappropriate material.
+权限、账户隐私、支付和数据库迁移测试使用隔离数据库。支付测试仅用生成的本地密钥及模拟提供方，不进行真实扣款。真实渠道或模型验证需使用已明确配置和授权的环境；测试数据不能作为生产账单或实际收入证据。

@@ -6,6 +6,7 @@ import { withdrawAccountCharacters } from '@/lib/characters/privacy';
 import { eraseAccountCommunityContent } from '@/lib/community/privacy';
 import { finishClosureFileCleanup } from '@/lib/uploads/privacy';
 import { listOwnedUploadFiles } from '@/lib/uploads/storage-service';
+import {closeAdminIdentity, AdminManagementError} from '@/lib/admin/management-service';
 
 export class AccountClosureError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -25,6 +26,10 @@ export async function closeAccount(userId: string, input: unknown) {
     // Claim the writer before reads; concurrent closure or late writes cannot race erasure.
     const claimed = await tx.user.updateMany({ where: { id: userId, deletedAt: null, tokenVersion: user.tokenVersion }, data: { tokenVersion: { increment: 1 } } });
     if (!claimed.count) throw new AccountClosureError('账号状态已变化，请重新登录。', 409);
+    try {await closeAdminIdentity(tx, userId);} catch (error) {
+      if (error instanceof AdminManagementError) throw new AccountClosureError(error.message, error.status);
+      throw error;
+    }
     const current = await tx.user.findUniqueOrThrow({ where: { id: userId } });
     const pending = await tx.paymentOrder.count({ where: { userId, status: { in: ['CREATING', 'PENDING', 'UNKNOWN', 'REFUND_PENDING'] } } });
     if (pending) throw new AccountClosureError('有待核对的支付或退款，请先处理完再注销。', 409);
