@@ -60,7 +60,8 @@
     "test:admin:management": "node --import tsx --test tests/admin-management.test.mjs",
     "test:admin:management:browser": "node --import tsx scripts/verify-admin-management-browser.mjs",
     "test:accounts:management": "node --import tsx --test tests/account-management.test.mjs tests/account-management-migration.test.mjs",
-    "test:accounts:browser": "node --import tsx scripts/verify-account-management-browser.mjs"
+    "test:accounts:browser": "node --import tsx scripts/verify-account-management-browser.mjs",
+    "test:characters:review": "node --import tsx --test tests/character-review.test.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

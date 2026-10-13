@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
-import {mkdir,open,writeFile} from 'node:fs/promises';
+import {mkdir,open,writeFile,rm} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {PrismaClient} from '@prisma/client';
@@ -18,6 +18,7 @@ const db=new PrismaClient({datasources:{db:{url:`file:${dbPath.split(path.sep).j
 const password=randomBytes(24).toString('hex'),actors=[];
 try{for(let i=0;i<4;i++)actors.push(await db.user.create({data:{username:`admin_browser_${i}_${stamp}`,email:`admin-${i}-${stamp}@example.invalid`,passwordHash:await bcrypt.hash(password,10)}}));
  await db.character.create({data:{creatorId:actors[0].id,name:'布局验收角色',personality:'合成角色',background:'用于后台布局验收。'.repeat(50),avatarUrl:'/brand/'+ 'long-avatar-reference-'.repeat(12)+'.svg',publicationRequested:true,reviewStatus:'PENDING',copyrightStatement:'合成测试内容'}});
+ await db.character.create({data:{creatorId:actors[0].id,name:'批量验收角色',personality:'合成角色',background:'合成背景',publicationRequested:true,reviewStatus:'PENDING',copyrightStatement:'合成测试内容'}});
 }finally{await db.$disconnect();}
 env.MODERATOR_USER_IDS=[actors[1].id,actors[3].id].join(',');env.PAYMENT_ADMIN_USER_IDS=[actors[2].id,actors[3].id].join(',');
 let app,browser;const checks=[],errors=[];
@@ -71,6 +72,20 @@ try{
      }
     }
     checks.push('后台三页四种宽度、独立导航及长内容无工作区溢出');
+    page.on('dialog',dialog=>void dialog.accept());
+    await page.goto(base+'/moderation');await page.getByRole('heading',{name:'布局验收角色',exact:true}).waitFor();
+    for(const name of ['布局验收角色','批量验收角色'])await page.getByLabel('选择角色 '+name,{exact:true}).check();
+    let batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/moderation/characters/batch')&&r.request().method()==='POST');
+    await page.getByRole('button',{name:'批量通过公开',exact:true}).click();assert.equal((await batchResponse).status(),200);
+    let publicRows=await (await context.request.get(base+'/api/characters')).json();assert.equal(publicRows.filter(r=>['布局验收角色','批量验收角色'].includes(r.name)).length,2);
+    await page.waitForFunction(()=>{const boxes=[...document.querySelectorAll('input[type=checkbox]')];return boxes.length===2&&boxes.every(box=>!box.checked);});
+    for(const name of ['布局验收角色','批量验收角色'])await page.getByLabel('选择角色 '+name,{exact:true}).check();
+    await page.getByLabel('批量审核说明',{exact:true}).fill('合成批量下架验证');
+    batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/moderation/characters/batch')&&r.request().method()==='POST');
+    await page.getByRole('button',{name:'批量退回 / 下架',exact:true}).click();assert.equal((await batchResponse).status(),200);
+    await page.getByText('暂无待处理角色。',{exact:true}).waitFor();
+    publicRows=await (await context.request.get(base+'/api/characters')).json();assert.equal(publicRows.filter(r=>['布局验收角色','批量验收角色'].includes(r.name)).length,0);
+    checks.push('批量角色审核页面通过/下架及前台公开列表同步');
    }
   }
   checks.push(`实际账号权限和后台导航 ${i}`);await context.close();
@@ -80,5 +95,6 @@ try{
  console.log(JSON.stringify({passed:true,checks:checks.length}));
 }finally{
  await browser?.close();
- if(app&&app.exitCode===null){if(process.platform==='win32')spawnSync('taskkill',['/pid',String(app.pid),'/T','/F'],{stdio:'ignore',windowsHide:true});else app.kill('SIGTERM');}
+ if(app&&app.exitCode===null){if(process.platform==='win32')spawnSync('taskkill',['/pid',String(app.pid),'/T','/F'],{stdio:'ignore',windowsHide:true});else app.kill('SIGTERM');await new Promise(resolve=>{if(app.exitCode!==null)resolve();else app.once('exit',resolve);});}
+ for(const suffix of ['','-wal','-shm','-journal'])await rm(dbPath+suffix,{force:true});
 }
