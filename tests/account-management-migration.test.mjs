@@ -5,7 +5,6 @@ import {cpSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync} from 
 import {spawnSync} from 'node:child_process';
 import path from 'node:path';
 import {PrismaClient} from '@prisma/client';
-import {PERMISSIONS} from '../src/lib/admin/permissions.ts';
 
 test('ordered account migration preserves existing data/custom grants and adds owner capabilities', async () => {
   const artifactRoot = path.resolve('artifacts'); mkdirSync(artifactRoot, {recursive: true});
@@ -32,7 +31,8 @@ test('ordered account migration preserves existing data/custom grants and adds o
     const createRole = sqlite.prepare('INSERT INTO admin_roles (id, code, name, system, updated_at) VALUES (?, ?, ?, ?, ?)');
     createRole.run('fixture_owner_role', 'OWNER', '所有者', 1, now); createRole.run('fixture_custom_role', 'CUSTOM_LOCAL', '原有角色', 0, now);
     const grant = sqlite.prepare('INSERT INTO admin_role_permissions (role_id, permission) VALUES (?, ?)');
-    for (const permission of Object.keys(PERMISSIONS).filter(key => !key.startsWith('accounts.') && !key.startsWith('characters.'))) grant.run('fixture_owner_role', permission);
+    const originalOwnerGrants = ['admin.staff.read', 'admin.staff.manage', 'admin.roles.manage', 'admin.audit.read', 'moderation.read', 'moderation.write', 'finance.read', 'finance.packages.write', 'finance.refunds.execute'];
+    for (const permission of originalOwnerGrants) grant.run('fixture_owner_role', permission);
     grant.run('fixture_custom_role', 'finance.read');
     sqlite.prepare('INSERT INTO admin_operators (user_id, enabled, version, updated_at) VALUES (?, 1, 7, ?)').run('fixture_owner', now);
     sqlite.prepare('INSERT INTO admin_role_assignments (user_id, role_id) VALUES (?, ?)').run('fixture_owner', 'fixture_owner_role');

@@ -84,6 +84,7 @@ jobs:
           npm run test:characters:review
           npm run test:characters:management
           npm run test:circles:service
+          npm run test:circles:management
           npm run test:m2:context
           npm run test:m4:ezfp
           npm run test:m4:budget

@@ -36,7 +36,7 @@ test('explicit bootstrap requires a registered identity and preserves account da
   await rejected(() => bootstrapOwner(other.email), 409);
   const roles = await db.adminRole.findMany();
   viewer = roles.find(role => role.code === 'FINANCE_VIEWER'); moderator = roles.find(role => role.code === 'MODERATOR'); ownerRole = roles.find(role => role.code === 'OWNER');
-  assert.equal(roles.length, 7); assert(roles.some(role => role.code === 'SUPPORT_AGENT')); assert.equal((await db.user.findUnique({where: {id: owner.id}})).coins, 300);
+  assert.equal(roles.length, 8); assert(roles.some(role => role.code === 'SUPPORT_AGENT')); assert.equal((await db.user.findUnique({where: {id: owner.id}})).coins, 300);
   assert.equal(await db.adminAuditLog.count({where: {action: 'BOOTSTRAP_OWNER'}}), 1);
 });
 test('ordinary users cannot manage roles, including through HTTP', async () => {

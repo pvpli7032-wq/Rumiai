@@ -78,3 +78,9 @@ community/restriction-service.ts维护禁言状态与accountVersion，用户后�
 角色审核由characters/review-service拥有事务，单条及批量HTTP入口调用同一服务；事务内重新校验审核能力，按最新版权、公开申请状态及更新版本执行，审计只保存状态与版本，不保存私有人设。批量审核展示在admin/moderation/bulk-character-review，数据检查与公开决定由服务器负责。
 
 角色后台由characters/management-service拥有列表、内容与发布事务，managed-assets维护相关素材/配角记录且保留ID。编辑与发布能力分离，内容保存不直接公开；私有预览经characters.read并限定关联素材，不能访问其他聊天图片。列表、编辑、素材编辑、批量操作分布在components/admin/characters，HTTP入口位于api/characters/management。
+
+## 圈子与成员管理
+
+circles/content共享内容及世界观校验，service拥有公开查询、创建和订阅事务；management-service拥有管理查询、内容、公开与推荐事务，membership-management拥有成员移除及加入限制。操作事务重新授权，使用圈子更新版本或成员记录时间拒绝过期覆盖。站点圈子ownerId为空，个人作者圈子保留原归属；公开列表按推荐排序，详情独立按编号读取。加入限制与订阅记录分开，限制会移除订阅并阻止重新加入，解除限制不替用户订阅。注销清理和个人导出由各领域提供明确记录，不复制后台规则。
+
+HTTP入口在api/circles及api/circles/management；后台组合、内容编辑和成员管理分布在components/admin/circles，公开圈子展示在components/circles。第21条迁移保留原圈子/成员/帖子关系和注销触发器，新增圈子推荐、站点归属及成员限制。旧版本不识别空owner和成员限制，启用这些业务后回退需保留兼容服务或执行停写后的受控恢复，不能直接切换到旧20迁移应用并假定行为兼容。

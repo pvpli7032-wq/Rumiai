@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {CircleError} from '@/lib/circles/service';
+import {CircleError} from '@/lib/circles/errors';
 import {logRouteError} from '@/lib/logger';
 
 export const privateHeaders = {'Cache-Control': 'private, no-store'};

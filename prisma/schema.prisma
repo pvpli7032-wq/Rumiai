@@ -56,6 +56,8 @@ model User {
 
   circles Circle[]
   circleMemberships CircleMember[]
+  circleRestrictions CircleMembershipRestriction[] @relation("CircleRestrictedUser")
+  circleRestrictionsApplied CircleMembershipRestriction[] @relation("CircleRestrictionActor")
   posts Post[]
   postLikes PostLike[]
   postComments PostComment[]
@@ -798,16 +800,20 @@ model Circle {
  name String
  description String
  tags String?
- ownerId String @map("owner_id")
+ ownerId String? @map("owner_id")
  universeId String? @map("universe_id")
  status String @default("ACTIVE")
+ isFeatured Boolean @default(false) @map("is_featured")
  createdAt DateTime @default(now()) @map("created_at")
  updatedAt DateTime @updatedAt @map("updated_at")
- owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ owner User? @relation(fields: [ownerId], references: [id], onDelete: Cascade)
  universe Universe? @relation(fields: [universeId], references: [id], onDelete: SetNull)
  members CircleMember[]
+ restrictions CircleMembershipRestriction[]
  posts Post[]
  @@index([status, createdAt])
+ @@index([status, isFeatured, createdAt, id])
+ @@index([status, updatedAt, id])
  @@map("circles")
 }
 model CircleMember {
@@ -818,7 +824,23 @@ model CircleMember {
  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
  @@id([circleId, userId])
  @@index([userId, createdAt])
+ @@index([circleId, createdAt, userId])
  @@map("circle_members")
+}
+model CircleMembershipRestriction {
+ circleId String @map("circle_id")
+ userId String @map("user_id")
+ actorId String @map("actor_id")
+ reason String
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+ user User @relation("CircleRestrictedUser", fields: [userId], references: [id], onDelete: Cascade)
+ actor User @relation("CircleRestrictionActor", fields: [actorId], references: [id], onDelete: Restrict)
+ @@id([circleId, userId])
+ @@index([userId])
+ @@index([circleId, createdAt, userId])
+ @@map("circle_membership_restrictions")
 }
 model Post {
  id String @id @default(cuid())

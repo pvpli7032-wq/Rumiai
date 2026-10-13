@@ -38,6 +38,7 @@ export async function exportAccountData(userId: string) {
       refund: { select: { refundNo: true, status: true, amountCnyCents: true, coinAmount: true, createdAt: true, completedAt: true } },
     } });
     const uploads = await tx.uploadAsset.findMany({ where: { ownerId: userId, siteOwned: false }, select: { url: true, createdAt: true } });
+    const circleRestrictions = await tx.circleMembershipRestriction.findMany({where: {userId}, select: {circleId: true, reason: true, createdAt: true, updatedAt: true}});
     const [reports, appeals, following, followers, memberships, circles, bookmarks, characterLikes, postLikes, commentLikes, checkins, gifts, missions, questProgress, aiCalls, aiDailyUsage] = await Promise.all([
       // Evidence snapshots and other reporters' records are deliberately excluded.
       tx.report.findMany({ where: { reporterId: userId }, select: { id: true, targetType: true, targetId: true, category: true, imageReason: true, details: true, workTitle: true, relationship: true, sourceLink: true, contactType: true, contactValue: true, status: true, createdAt: true } }),
@@ -59,7 +60,7 @@ export async function exportAccountData(userId: string) {
     ]);
     const adminIdentity = await readOwnAdminIdentity(tx, userId);
     return { version: 2, generatedAt: new Date().toISOString(), account, adminIdentity,
-      conversations, characters, posts, postComments, comments, transactions, orders, uploads,
+      conversations, characters, posts, postComments, comments, transactions, orders, uploads, circleRestrictions,
       reports, appeals, following, followers, memberships, circles, bookmarks, characterLikes, postLikes, commentLikes, checkins, gifts, missions, questProgress, aiCalls, aiDailyUsage };
   });
 }

@@ -36,9 +36,9 @@ export function CircleFeed({ circleId }: { circleId: string }) {
     setLoading(true); setError('');
     try {
       const headers: Record<string,string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const circleResponse = await fetch('/api/circles', { headers, signal });
-      const circleRows = await circleResponse.json(); if (!circleResponse.ok) throw new Error('圈子信息加载失败。');
-      const selected = circleRows.find((row: any) => row.id === circleId); if (!selected) throw new Error('圈子不存在或你无权查看。'); setCircle(selected);
+      const circleResponse = await fetch(`/api/circles/${encodeURIComponent(circleId)}`, { headers, signal });
+      const selected = await circleResponse.json(); if (!circleResponse.ok) throw new Error(selected.error || '圈子信息加载失败。');
+      setCircle(selected);
       const postResponse = await fetch(`/api/circles/${encodeURIComponent(circleId)}/posts`, { headers, signal });
       const postData = await postResponse.json(); if (!postResponse.ok) throw new Error(postData.error || '帖子加载失败。');
       const nextPosts: Post[] = await Promise.all(postData.posts.map(async (post: Post) => {

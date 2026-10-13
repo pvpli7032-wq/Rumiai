@@ -10,6 +10,9 @@ export const PERMISSIONS = {
   'characters.read': '查看全部角色与管理预览',
   'characters.write': '创建和编辑角色内容',
   'characters.publish': '发布和下架角色',
+  'community.read': '查看社区圈子、成员和内容',
+  'community.write': '管理圈子内容、推荐和下架',
+  'community.members.manage': '移除圈子成员与限制加入',
   'moderation.read': '查看审核与举报队列',
   'moderation.write': '处理审核、举报与申诉',
   'finance.read': '查看财务、套餐与订单',
@@ -26,4 +29,5 @@ export const SYSTEM_ROLES = [
   {code: 'AUDITOR', name: '管理审计员', permissions: ['admin.staff.read', 'admin.audit.read'] as AdminPermission[]},
   {code: 'SUPPORT_AGENT', name: '用户客服', permissions: ['accounts.read', 'accounts.community.manage'] as AdminPermission[]},
   {code: 'CHARACTER_MANAGER', name: '角色管理员', permissions: ['characters.read', 'characters.write', 'characters.publish'] as AdminPermission[]},
+  {code: 'COMMUNITY_MANAGER', name: '社区管理员', permissions: ['community.read', 'community.write', 'community.members.manage', 'moderation.read', 'moderation.write'] as AdminPermission[]},
 ];

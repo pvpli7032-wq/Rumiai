@@ -21,6 +21,7 @@ export async function eraseAccountCommunityContent(tx: Prisma.TransactionClient,
   for (const row of likedComments) await tx.comment.update({ where: { id: row.commentId }, data: { likeCount: await tx.commentLike.count({ where: { commentId: row.commentId } }) } });
   await tx.characterBookmark.deleteMany({ where: { userId } });
   await tx.circleMember.deleteMany({ where: { userId } });
+  await tx.circleMembershipRestriction.deleteMany({where: {userId}});
   await tx.postLike.deleteMany({ where: { userId } });
   return [...media.map(row => row.url), ...comments.map(row => row.imageUrl)];
 }

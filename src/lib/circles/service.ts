@@ -1,12 +1,10 @@
 import type {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
 import {checkRateLimit} from '@/lib/rate-limit';
-
-export class CircleError extends Error {
-  constructor(message: string, public status = 400, public retryAfter?: number, public reason?: string | null) {super(message);}
-}
+import {CircleError} from './errors';
+import {validateCircleContent, validateCircleUniverse} from './content';
 const circleSelect = (userId: string | null) => ({
-  id: true, name: true, description: true, tags: true, createdAt: true,
+  id: true, name: true, description: true, tags: true, createdAt: true, isFeatured: true,
   owner: {select: {id: true, username: true, displayName: true}},
   universe: {select: {id: true, name: true, isPublic: true}},
   _count: {select: {members: true}},
@@ -30,28 +28,22 @@ export async function listCircles(userId: string | null, query: {scope?: string 
   if (scope && !['mine', 'subscribed'].includes(scope)) throw new CircleError('未知圈子列表类型。');
   if (scope && !userId) throw new CircleError('请先登录。', 401);
   if (search.length > 100) throw new CircleError('搜索文字不能超过 100 字符。');
-  const rows = await db.circle.findMany({where: {status: 'ACTIVE', ...(scope === 'mine' ? {ownerId: userId!} : {}), ...(scope === 'subscribed' ? {members: {some: {userId: userId!}}} : {}), ...(search ? {OR: [{name: {contains: search}}, {description: {contains: search}}, {tags: {contains: search}}]} : {})}, select: circleSelect(userId), orderBy: [{createdAt: 'desc'}, {id: 'asc'}], take: 100});
+  const rows = await db.circle.findMany({where: {status: 'ACTIVE', ...(scope === 'mine' ? {ownerId: userId!} : {}), ...(scope === 'subscribed' ? {members: {some: {userId: userId!}}} : {}), ...(search ? {OR: [{name: {contains: search}}, {description: {contains: search}}, {tags: {contains: search}}]} : {})}, select: circleSelect(userId), orderBy: [{isFeatured: 'desc'}, {createdAt: 'desc'}, {id: 'asc'}], take: 100});
   return rows.map(publicCircle);
 }
-function content(input: unknown) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new CircleError('圈子数据格式不正确。');
-  const body = input as Record<string, unknown>;
-  if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 40) throw new CircleError('圈子名称须为 1–40 个字符。');
-  if (typeof body.description !== 'string' || !body.description.trim() || body.description.trim().length > 1000) throw new CircleError('圈子介绍须为 1–1000 个字符。');
-  if (body.tags !== undefined && (typeof body.tags !== 'string' || body.tags.length > 200)) throw new CircleError('标签须为不超过 200 字符的文字。');
-  const tags = typeof body.tags === 'string' ? [...new Set(body.tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean))] : [];
-  if (tags.length > 10 || tags.some(tag => tag.length > 20)) throw new CircleError('最多 10 个标签，每个不超过 20 字符。');
-  if (body.universeId !== undefined && body.universeId !== null && (typeof body.universeId !== 'string' || body.universeId.length > 100)) throw new CircleError('世界观关联格式不正确。');
-  return {name: body.name.trim(), description: body.description.trim(), tags: tags.join(',') || null, universeId: typeof body.universeId === 'string' && body.universeId ? body.universeId : null};
+export async function readCircle(userId: string | null, id: string) {
+  const circle = await db.circle.findFirst({where: {id, status: 'ACTIVE'}, select: circleSelect(userId)});
+  if (!circle) throw new CircleError('圈子不存在或已隐藏。', 404);
+  return publicCircle(circle);
 }
 export async function createCircle(userId: string, input: unknown) {
-  const data = content(input);
+  const data = validateCircleContent(input);
   await pragmasReady;
   return db.$transaction(async tx => {
     await claimActiveUser(tx, userId);
     const author = await tx.user.findUniqueOrThrow({where: {id: userId}, select: {communityBannedAt: true, communityBanReason: true}});
     if (author.communityBannedAt) throw new CircleError('你的社区发言权限暂时受限。可在社区申诉入口提交复核。', 403, undefined, author.communityBanReason);
-    if (data.universeId && !await tx.universe.findFirst({where: {id: data.universeId, isPublic: true}, select: {id: true}})) throw new CircleError('只能关联已公开的世界观。');
+    await validateCircleUniverse(tx, data.universeId);
     rateLimit(userId, 'create');
     return publicCircle(await tx.circle.create({data: {...data, ownerId: userId}, select: circleSelect(userId)}));
   });
@@ -61,6 +53,10 @@ export async function changeCircleSubscription(userId: string, circleId: string,
   return db.$transaction(async tx => {
     await claimActiveUser(tx, userId);
     if (!await tx.circle.findFirst({where: {id: circleId, status: 'ACTIVE'}, select: {id: true}})) throw new CircleError('圈子不存在或已隐藏。', 404);
+    if (subscribe) {
+      const restriction = await tx.circleMembershipRestriction.findUnique({where: {circleId_userId: {circleId, userId}}, select: {reason: true}});
+      if (restriction) throw new CircleError('你暂时不能加入该圈子，请联系运营人员。', 403, undefined, restriction.reason);
+    }
     rateLimit(userId, 'membership');
     if (subscribe) await tx.circleMember.upsert({where: {circleId_userId: {circleId, userId}}, create: {circleId, userId}, update: {}});
     else await tx.circleMember.deleteMany({where: {circleId, userId}});
