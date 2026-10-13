@@ -8,6 +8,8 @@ import bcrypt from 'bcryptjs';
 
 const file = `account-close-${process.pid}-${Date.now()}.db`;
 process.env.DATABASE_URL = `file:./${file}`;
+const uploadsDirectory = path.resolve('artifacts', 'account-closure', file, 'uploads');
+process.env.UPLOADS_DIRECTORY = uploadsDirectory;
 process.env.JWT_SECRET = randomUUID() + randomUUID();
 process.env.OPENAI_API_KEY = '';
 process.env.EZFP_ENABLED = 'false';
@@ -28,7 +30,7 @@ const testFiles = new Set();
 test.after(async () => {
   await db.$disconnect();
   for (const target of testFiles) {
-    assert.equal(path.dirname(target), path.resolve('public/uploads'));
+    assert.equal(path.dirname(target), uploadsDirectory);
     await rm(target, { force: true });
   }
   for (const suffix of ['', '-wal', '-shm', '-journal']) await rm(path.resolve('prisma', file + suffix), { force: true });
@@ -45,10 +47,10 @@ test('account closure erases own data, preserves foreign data and audit, revokes
   const uploads = [];
   for (const userId of [a.id, b.id]) {
     const asset = await saveAccountUpload(userId, new File([png], 'pixel.png', { type: 'image/png' }));
-    uploads.push(asset); testFiles.add(path.resolve('public', asset.url.slice(1)));
+    uploads.push(asset); testFiles.add(path.join(uploadsDirectory, path.basename(asset.url)));
   }
   assert.notEqual(uploads[0].url, uploads[1].url, 'same image in different accounts must have independent ownership');
-  const legacyUrl = `/uploads/legacy-${randomUUID()}.png`, legacyFile = path.resolve('public', legacyUrl.slice(1));
+  const legacyUrl = `/uploads/legacy-${randomUUID()}.png`, legacyFile = path.join(uploadsDirectory, path.basename(legacyUrl));
   await mkdir(path.dirname(legacyFile), { recursive: true }); await writeFile(legacyFile, png); testFiles.add(legacyFile);
   await db.user.update({ where: { id: a.id }, data: { avatarUrl: legacyUrl } });
   await db.user.update({ where: { id: b.id }, data: { avatarUrl: legacyUrl } });
@@ -115,8 +117,8 @@ test('account closure erases own data, preserves foreign data and audit, revokes
     assert.equal((await db.aiCall.findUniqueOrThrow({ where: { id: usage.id } })).estimatedCost, 0.3);
     const evidence = await db.report.findUniqueOrThrow({ where: { id: report.id } });
     assert.equal(evidence.evidenceContent, 'RETAINED_EVIDENCE'); assert.equal(evidence.contactValue, null);
-    await assert.rejects(stat(path.resolve('public', uploads[0].url.slice(1))), { code: 'ENOENT' });
-    assert.deepEqual(await readFile(path.resolve('public', uploads[1].url.slice(1))), png);
+    await assert.rejects(stat(path.join(uploadsDirectory, path.basename(uploads[0].url))), { code: 'ENOENT' });
+    assert.deepEqual(await readFile(path.join(uploadsDirectory, path.basename(uploads[1].url))), png);
     assert.deepEqual(await readFile(legacyFile), png);
   });
   await t.test('old tokens, old login, export and late content writes cannot revive the account', async () => {
