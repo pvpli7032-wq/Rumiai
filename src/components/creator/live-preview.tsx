@@ -50,13 +50,13 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
             </div>
             <div className="flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5">
               <span className="text-[10px]">💬</span>
-              <span className="font-athiti text-[10px] font-semibold text-white">0</span>
+              <span className="text-[10px] font-semibold text-white">0</span>
             </div>
           </div>
         </div>
 
-        <p className="mt-2 line-clamp-1 font-athiti text-sm font-bold md:text-base">{data.name || "角色名称"}</p>
-        <p className="mt-0.5 line-clamp-2 font-athiti text-xs text-muted-foreground md:text-sm">
+        <p className="mt-2 line-clamp-1 text-sm font-bold md:text-base">{data.name || "角色名称"}</p>
+        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground md:text-sm">
           {data.tagline || "角色一句话简介"}
         </p>
       </div>
@@ -64,7 +64,7 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
       {data.tags.length > 0 && (
         <div className="flex flex-wrap justify-center gap-1.5">
           {data.tags.slice(0, 8).map((t) => (
-            <span key={t} className="rounded-full border border-zinc-200 px-2 py-0.5 font-athiti text-[11px] dark:border-[#2A2A2A]">
+            <span key={t} className="rounded-full border border-zinc-200 px-2 py-0.5 text-[11px] dark:border-[#2A2A2A]">
               {tagLabel ? tagLabel(t) : t}
             </span>
           ))}
@@ -73,9 +73,9 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
       )}
 
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-[#2A2A2A] dark:bg-[#141414]">
-        <p className="mb-2 font-athiti text-xs font-bold text-muted-foreground">{"聊天中的第一句话"}</p>
+        <p className="mb-2 text-xs font-bold text-muted-foreground">{"聊天中的第一句话"}</p>
         <div className="flex gap-2">
-          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40]">
+          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-brand-gradient">
             {data.avatarUrl && <img src={data.avatarUrl} alt="" className="h-full w-full object-cover" />}
           </div>
           <div className="min-w-0 rounded-2xl rounded-tl-sm bg-white px-3 py-2 text-sm leading-relaxed dark:bg-[#1F1F1F]">

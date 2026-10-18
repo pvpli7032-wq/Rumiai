@@ -120,9 +120,9 @@ export default function ProfilePage() {
               {user.username[0]?.toUpperCase()}
             </div>
             <div>
-              <h1 className="text-xl font-bold font-athiti text-white">{user.username}</h1>
-              <p className="text-zinc-400 font-athiti text-sm">{user.email}</p>
-              <div className={`inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full bg-linear-to-r/srgb ${tierColor} text-white text-xs font-bold font-athiti`}>
+              <h1 className="text-xl font-bold text-white">{user.username}</h1>
+              <p className="text-zinc-400 text-sm">{user.email}</p>
+              <div className={`inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full bg-linear-to-r/srgb ${tierColor} text-white text-xs font-bold`}>
                 ⭐ {user.tier}
               </div>
             </div>
@@ -131,18 +131,18 @@ export default function ProfilePage() {
           <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 text-yellow-400 mb-1"><Coins className="w-4 h-4" /></div>
-              <p className="text-xl font-bold text-white font-athiti">{user.coins.toLocaleString()}</p>
-              <p className="text-xs text-zinc-500 font-athiti">{"金币"}</p>
+              <p className="text-xl font-bold text-white">{user.coins.toLocaleString()}</p>
+              <p className="text-xs text-zinc-500">{"金币"}</p>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 text-orange-400 mb-1"><Flame className="w-4 h-4" /></div>
-              <p className="text-xl font-bold text-white font-athiti">{user.streakCount}</p>
-              <p className="text-xs text-zinc-500 font-athiti">{"连续签到天数"}</p>
+              <p className="text-xl font-bold text-white">{user.streakCount}</p>
+              <p className="text-xs text-zinc-500">{"连续签到天数"}</p>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 text-purple-400 mb-1"><User className="w-4 h-4" /></div>
-              <p className="text-xl font-bold text-white font-athiti">1</p>
-              <p className="text-xs text-zinc-500 font-athiti">{"角色"}</p>
+              <p className="text-xl font-bold text-white">1</p>
+              <p className="text-xs text-zinc-500">{"角色"}</p>
             </div>
           </div>
         </div>
@@ -150,17 +150,17 @@ export default function ProfilePage() {
         {/* Daily Check-in */}
         {checkinStatus && (
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-            <h2 className="text-lg font-bold font-athiti text-white mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Flame className="w-5 h-5 text-orange-400" /> {"每日签到"}</h2>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-zinc-300 font-athiti text-sm">{"当前连续签到："}<span className="text-orange-400 font-bold">{checkinStatus.streakDay} {"天 🔥"}</span></p>
-                <p className="text-zinc-500 font-athiti text-xs mt-1">{"下次奖励："}<span className="text-yellow-400">{checkinStatus.nextCoins} 🪙</span></p>
+                <p className="text-zinc-300 text-sm">{"当前连续签到："}<span className="text-orange-400 font-bold">{checkinStatus.streakDay} {"天 🔥"}</span></p>
+                <p className="text-zinc-500 text-xs mt-1">{"下次奖励："}<span className="text-yellow-400">{checkinStatus.nextCoins} 🪙</span></p>
               </div>
               <button
                 onClick={handleCheckin}
                 disabled={checkinStatus.checkedInToday || checkinLoading}
-                className="px-5 py-2.5 bg-linear-to-r/srgb from-orange-500 to-amber-500 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-orange-500/20 text-sm"
+                className="px-5 py-2.5 bg-linear-to-r/srgb from-orange-500 to-amber-500 rounded-xl text-white font-semibold hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-orange-500/20 text-sm"
               >
                 {checkinLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : checkinStatus.checkedInToday ? "✅ 今日已签到" : "🎁 签到"}
               </button>
@@ -170,27 +170,27 @@ export default function ProfilePage() {
 
         {/* Missions */}
         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
-          <h2 className="text-lg font-bold font-athiti text-white mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
             <Gift className="w-5 h-5 text-purple-400" /> {"任务"}</h2>
           <div className="space-y-3">
             {missions.map(m => (
               <div key={m.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${m.isCompleted ? 'border-green-500/20 bg-green-500/5' : 'border-white/10 bg-zinc-800 hover:border-white/20'}`}>
                 {m.isCompleted ? <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" /> : <Circle className="w-5 h-5 text-zinc-500 shrink-0" />}
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold font-athiti ${m.isCompleted ? 'text-zinc-500 line-through' : 'text-white'}`}>{m.title}</p>
-                  {m.description && <p className="text-xs text-zinc-500 font-athiti">{m.description}</p>}
+                  <p className={`text-sm font-semibold ${m.isCompleted ? 'text-zinc-500 line-through' : 'text-white'}`}>{m.title}</p>
+                  {m.description && <p className="text-xs text-zinc-500">{m.description}</p>}
                   {!m.isCompleted&&<p className="text-xs text-zinc-500">进度 {m.progress}/{m.conditionTarget} · {m.period==='ONCE'?'一次':m.period==='DAILY'?'每日':'每周'}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs text-yellow-400 font-bold">+{m.rewardCoins}🪙</span>
                   {!m.isCompleted && (
-                    <button onClick={() => handleMission(m.id)} disabled={loading||!m.qualified} className="px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-athiti hover:bg-purple-600/30 transition-all disabled:opacity-50">
+                    <button onClick={() => handleMission(m.id)} disabled={loading||!m.qualified} className="px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs hover:bg-purple-600/30 transition-all disabled:opacity-50">
                       {m.qualified?"领取":'未达成'}</button>
                   )}
                 </div>
               </div>
             ))}
-            {missions.length === 0 && <p className="text-zinc-500 font-athiti text-sm text-center py-4">{"暂时没有任务"}</p>}
+            {missions.length === 0 && <p className="text-zinc-500 text-sm text-center py-4">{"暂时没有任务"}</p>}
           </div>
         </div>
 
@@ -205,7 +205,7 @@ export default function ProfilePage() {
             that endpoint from the UI at all before this. */}
         <button
           onClick={() => { leavingPage.current = true; logout(); router.push('/'); }}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/5 py-3 font-athiti text-sm font-bold text-red-400 transition-colors hover:bg-red-500/10"
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/5 py-3 text-sm font-bold text-red-400 transition-colors hover:bg-red-500/10"
         >
           <LogOut className="h-4 w-4" />
           {"退出登录"}</button>

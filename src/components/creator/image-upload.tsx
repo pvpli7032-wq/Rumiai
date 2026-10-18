@@ -173,7 +173,7 @@ export function ImageUpload({
               <UploadCloud className="h-5 w-5" />
             </span>
           )}
-          <span className="font-athiti text-sm font-bold">
+          <span className="text-sm font-bold">
             {busy ? "正在上传…" : "拖放图片，或点击选择文件"}
           </span>
           <span className="text-xs text-muted-foreground">

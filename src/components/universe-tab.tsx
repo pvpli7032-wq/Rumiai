@@ -91,7 +91,7 @@ export function UniverseTab() {
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`flex h-[52px] shrink-0 items-center justify-center gap-1 px-4 font-athiti text-sm font-semibold transition-all ${
+                  className={`flex h-[52px] shrink-0 items-center justify-center gap-1 px-4 text-sm font-semibold transition-all ${
                     active ? 'text-[#F2572B]' : 'text-[#8A8A8A]'
                   }`}
                   style={{ borderBottom: `2px solid ${active ? '#F2572B' : 'transparent'}`, marginBottom: -1 }}
@@ -110,7 +110,7 @@ export function UniverseTab() {
               ))}
             </div>
             {grid.length === 0 && (
-              <p className="py-16 text-center font-athiti text-sm text-muted-foreground">
+              <p className="py-16 text-center text-sm text-muted-foreground">
                 {"暂无世界观"}<code className="rounded-sm bg-muted px-1">npm run db:seed:universes</code>
               </p>
             )}
@@ -127,7 +127,7 @@ function Rail({ emoji, title, items }: { emoji: string; title: string; items: Un
 
   return (
     <div className="space-y-4 px-4 md:px-12">
-      <p className="inline-flex items-center gap-1.5 font-athiti text-base font-bold md:text-lg">
+      <p className="inline-flex items-center gap-1.5 text-base font-bold md:text-lg">
         <span aria-hidden className="shrink-0 select-none leading-none">{emoji}</span>
         <span className="min-w-0">{title}</span>
       </p>
@@ -139,11 +139,11 @@ function Rail({ emoji, title, items }: { emoji: string; title: string; items: Un
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`h-8 rounded-xl px-3 font-athiti text-sm transition-all ${
+              className={`h-8 rounded-xl px-3 text-sm transition-all ${
                 active ? 'border border-zinc-200 font-bold dark:border-none dark:bg-zinc-800' : 'font-medium text-neutral-500'
               }`}
             >
-              <span className={active ? 'bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent' : ''}>
+              <span className={active ? 'bg-brand-gradient bg-clip-text text-transparent' : ''}>
                 {r}
               </span>
             </button>
@@ -174,7 +174,7 @@ function UniverseCard({ universe, index }: { universe: Universe; index: number }
         {universe.imageUrl ? (
           <img src={universe.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
-          <span className="absolute inset-0 flex items-center justify-center px-3 text-center font-athiti text-sm font-bold leading-snug text-white/70">
+          <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-sm font-bold leading-snug text-white/70">
             {universe.name}
           </span>
         )}
@@ -186,18 +186,18 @@ function UniverseCard({ universe, index }: { universe: Universe; index: number }
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-2 py-1.5">
           <div className="flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5">
             <BookUser className="h-3 w-3 text-white" />
-            <span className="font-athiti text-[10px] font-semibold text-white">{universe.characterCount}</span>
+            <span className="text-[10px] font-semibold text-white">{universe.characterCount}</span>
           </div>
           <div className="flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5">
             <MessageCircle className="h-3 w-3 text-white" />
-            <span className="font-athiti text-[10px] font-semibold text-white">{compact(universe.chatCount)}</span>
+            <span className="text-[10px] font-semibold text-white">{compact(universe.chatCount)}</span>
           </div>
         </div>
       </div>
 
-      <p className="mt-2 line-clamp-1 font-athiti text-sm font-bold md:text-base">{universe.name}</p>
+      <p className="mt-2 line-clamp-1 text-sm font-bold md:text-base">{universe.name}</p>
       {universe.tagline && (
-        <p className="mt-0.5 line-clamp-2 font-athiti text-xs text-gray-600 dark:text-slate-200 md:text-sm">
+        <p className="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-slate-200 md:text-sm">
           {universe.tagline}
         </p>
       )}

@@ -74,7 +74,7 @@ export function CreatorTab() {
         </div>
       </div>
 
-      <div className="w-full space-y-3 font-athiti sm:space-y-4 lg:space-y-6">
+      <div className="w-full space-y-3 sm:space-y-4 lg:space-y-6">
         {/* Sort tabs */}
         <div className="flex flex-row flex-wrap items-center justify-start gap-2 px-3 sm:px-6 md:px-8 lg:px-12">
           {SORTS.map((s) => {
@@ -83,11 +83,11 @@ export function CreatorTab() {
               <button
                 key={s.key}
                 onClick={() => setSort(s.key)}
-                className={`group rounded-xl px-3 py-1.5 font-athiti text-sm transition-all duration-200 ${
+                className={`group rounded-xl px-3 py-1.5 text-sm transition-all duration-200 ${
                   active ? 'bg-zinc-50 font-bold dark:bg-zinc-800' : 'font-medium text-neutral-500'
                 }`}
               >
-                <span className={active ? 'text-[#EE4036]' : ''}>{s.label}</span>
+                <span className={active ? 'text-brand' : ''}>{s.label}</span>
               </button>
             );
           })}
@@ -122,7 +122,7 @@ export function CreatorTab() {
                 <div className="-ml-2 flex shrink-0 flex-col items-center gap-2">
                   <div className={`relative h-[5rem] shrink-0 ${c.rank >= 10 ? 'w-[4.5rem]' : 'w-12'}`}>
                     <span
-                      className={`absolute left-[0.5625rem] top-1/2 -translate-y-1/2 font-barlow font-semibold text-foreground ${
+                      className={`absolute left-[0.5625rem] top-1/2 -translate-y-1/2 font-semibold text-foreground ${
                         c.rank >= 10 ? 'text-[2.125rem] leading-[2.75rem] tracking-[-0.04em]' : 'text-[5rem] leading-[5rem]'
                       }`}
                       style={{
@@ -139,7 +139,7 @@ export function CreatorTab() {
                 <Avatar creator={c} className="mx-4 h-14 w-14 md:h-16 md:w-16" />
 
                 <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-2">
-                  <span className="truncate font-athiti text-sm font-semibold leading-5 md:text-base">
+                  <span className="truncate text-sm font-semibold leading-5 md:text-base">
                     {c.displayName || c.username}
                   </span>
                   <span className="truncate text-xs text-muted-foreground">@{c.username}</span>
@@ -159,7 +159,7 @@ export function CreatorTab() {
             </div>
           ))}
           {visible.length === 0 && (
-            <p className="col-span-full py-16 text-center font-athiti text-sm text-muted-foreground">
+            <p className="col-span-full py-16 text-center text-sm text-muted-foreground">
               {"没有找到匹配的创作者：“"}{query}”
             </p>
           )}
@@ -189,7 +189,7 @@ function metricLabel(c: Creator, sort: string) {
 
 function Avatar({ creator, className }: { creator: Creator; className: string }) {
   return (
-    <span className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] font-bold text-white ${className}`}>
+    <span className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-gradient font-bold text-white ${className}`}>
       {creator.avatarUrl ? (
         <img src={creator.avatarUrl} alt="" className="aspect-square h-full w-full object-cover" draggable={false} />
       ) : (
@@ -230,7 +230,7 @@ function Podium({ creator, place, sort }: { creator: Creator; place: 1 | 2 | 3; 
       />
 
       <div className="relative z-50 mb-5 w-full max-w-[70px] text-center sm:mb-4 md:mb-6 md:max-w-[110px] lg:max-w-[130px]">
-        <div className="truncate font-athiti text-xs font-bold md:text-base lg:text-lg">
+        <div className="truncate text-xs font-bold md:text-base lg:text-lg">
           {creator.displayName || creator.username}
         </div>
         <div className="truncate text-xs text-muted-foreground/80 md:text-sm lg:text-base">@{creator.username}</div>
@@ -239,7 +239,7 @@ function Podium({ creator, place, sort }: { creator: Creator; place: 1 | 2 | 3; 
 
       <div className={`relative w-20 overflow-visible bg-linear-to-l/srgb shadow-[0_8px_20px_rgba(0,0,0,0.15)] sm:w-28 md:w-44 lg:w-48 ${p.grad} ${p.h}`}>
         <div className="flex h-full flex-col items-center justify-center">
-          <div className="relative z-20 text-center font-athiti font-extrabold text-black">
+          <div className="relative z-20 text-center font-extrabold text-black">
             <span className={place === 1 ? 'text-lg md:text-xl lg:text-[28px]' : 'text-sm md:text-base lg:text-xl'}>{p.label}</span>
             <span className="text-xs md:text-sm lg:text-base">{p.sup}</span>
           </div>

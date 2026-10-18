@@ -18,7 +18,7 @@ export function FinancePackages({ token, canEdit }: { token: string; canEdit: bo
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/finance/packages', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal });
+      const response = await fetch('/api/admin/finance/packages', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal });
       const data = await response.json();
       if (!response.ok) throw Error(data.error || '套餐加载失败。');
       if (!signal?.aborted) { setPackages(data.packages); setChanges(data.changes); }
@@ -36,7 +36,7 @@ export function FinancePackages({ token, canEdit }: { token: string; canEdit: bo
     try {
       if (!/^\d+(?:\.\d{1,2})?$/.test(form.price)) throw Error('人民币价格最多两位小数。');
       const body = { label: form.label, coins: Number(form.coins), bonus: Number(form.bonus), priceCnyCents: Math.round(Number(form.price) * 100), sortOrder: Number(form.sortOrder), isActive: form.isActive, bonusStartsAt: form.start ? new Date(form.start).toISOString() : null, bonusEndsAt: form.end ? new Date(form.end).toISOString() : null, ...(editing ? { version: editing.version } : {}) };
-      const response = await fetch(editing ? `/api/finance/packages/${encodeURIComponent(editing.id)}` : '/api/finance/packages', { method: editing ? 'PUT' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const response = await fetch(editing ? `/api/admin/finance/packages/${encodeURIComponent(editing.id)}` : '/api/admin/finance/packages', { method: editing ? 'PUT' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
       if (!response.ok) { if (response.status === 409) await load(); throw Error(data.error || '保存失败。'); }
       setEditing(null); setForm(empty); setMessage('套餐已保存，新订单使用最新配置。'); await load();
@@ -64,7 +64,7 @@ export function FinancePackages({ token, canEdit }: { token: string; canEdit: bo
         <label>排序<input required type="number" min="0" max="10000" className="mt-1 min-h-11 w-full rounded-sm border bg-background px-2" value={form.sortOrder} onChange={e => field('sortOrder', e.target.value)} /></label>
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={form.isActive} onChange={e => field('isActive', e.target.checked)} />上架套餐</label>
       </div>
-      <div className="flex flex-wrap gap-2"><button disabled={busy} className="min-h-11 rounded-sm bg-orange-600 px-4 text-white disabled:opacity-50">{busy ? '保存中…' : '保存套餐'}</button><button disabled={busy} type="button" className="min-h-11 rounded-sm border px-4" onClick={() => { setEditing(null); setForm(empty); setError(''); }}>取消编辑</button></div>
+      <div className="flex flex-wrap gap-2"><button disabled={busy} className="min-h-11 rounded-sm bg-brand px-4 text-white disabled:opacity-50">{busy ? '保存中…' : '保存套餐'}</button><button disabled={busy} type="button" className="min-h-11 rounded-sm border px-4" onClick={() => { setEditing(null); setForm(empty); setError(''); }}>取消编辑</button></div>
     </form>}
     <details className="border-t pt-3"><summary className="cursor-pointer">最近修改记录（{changes.length} 条）</summary>{changes.map(change => <div key={change.id} className="space-y-1 break-all border-t py-2 text-xs"><p>{new Date(change.createdAt).toLocaleString('zh-CN')} · 操作人 {change.actorId} · 套餐 {change.packageId}</p><p>修改前：{change.beforeJson || '新增'}</p><p>修改后：{change.afterJson}</p></div>)}</details>
   </section>;

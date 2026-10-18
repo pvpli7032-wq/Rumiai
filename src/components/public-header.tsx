@@ -29,7 +29,7 @@ export function PublicHeader({ locale, signInLabel }: { locale: Locale; signInLa
       <div className="order-2 flex min-w-0 items-center gap-2 desktop:order-3">
         <Link
           href={`/${locale}/auth`}
-          className="rounded-full border border-white/15 px-4 py-2 text-sm font-athiti text-white transition-colors hover:bg-white/5"
+          className="rounded-full border border-white/15 px-4 py-2 text-sm text-white transition-colors hover:bg-white/5"
         >
           {signInLabel}
         </Link>
@@ -43,7 +43,7 @@ export function PublicHeader({ locale, signInLabel }: { locale: Locale; signInLa
             className="flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-2 text-sm text-white transition-colors hover:bg-white/5"
           >
             <span aria-hidden>{LOCALE_LABELS[locale].flag}</span>
-            <span className="font-barlow">{LOCALE_LABELS[locale].short}</span>
+            <span>{LOCALE_LABELS[locale].short}</span>
           </button>
 
           {open && (
@@ -57,7 +57,7 @@ export function PublicHeader({ locale, signInLabel }: { locale: Locale; signInLa
                   role="menuitem"
                   href={swapLocale(l)}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm font-athiti transition-colors hover:bg-white/5 ${
+                  className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-white/5 ${
                     l === locale ? 'text-white' : 'text-zinc-400'
                   }`}
                 >

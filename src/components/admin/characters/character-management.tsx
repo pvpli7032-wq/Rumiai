@@ -22,31 +22,31 @@ export function CharacterManagement() {
     setList(null); setSelectedRows({}); if (!token || !allowed) return;
     const controller = new AbortController(); setReading(true);
     const params = new URLSearchParams({q: query, status, tag, creatorId: creator, page: String(page)});
-    void request(`/api/characters/management?${params}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
+    void request(`/api/admin/characters?${params}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
   }, [token, allowed, request, query, status, tag, creator, page, refresh]);
   useEffect(() => {
     setDetail(null); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
-    void request(`/api/characters/management/${encodeURIComponent(selected)}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
+    void request(`/api/admin/characters/${encodeURIComponent(selected)}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
     return () => controller.abort();
   }, [selected, allowed, request, refresh]);
   async function save(content: CharacterContent, reason: string) {
     if (busy) return false; setBusy(true); setError(''); setMessage('');
     try {
       const id = detail?.id;
-      const result = await request(id ? `/api/characters/management/${encodeURIComponent(id)}` : '/api/characters/management', id ? 'PUT' : 'POST', {content, reason, ...(id ? {updatedAt: detail!.updatedAt} : {})});
+      const result = await request(id ? `/api/admin/characters/${encodeURIComponent(id)}` : '/api/admin/characters', id ? 'PUT' : 'POST', {content, reason, ...(id ? {updatedAt: detail!.updatedAt} : {})});
       setCreating(false); setSelected(result.id); setRefresh(value => value + 1); setMessage('角色内容已保存，公开状态由发布流程管理。'); return true;
     } catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
   }
   async function publish(action: 'PUBLISH' | 'UNPUBLISH', reason: string) {
     if (busy || !detail) return false; setBusy(true); setError(''); setMessage('');
-    try {await request(`/api/characters/management/${encodeURIComponent(detail.id)}/publication`, 'POST', {action, reason, updatedAt: detail.updatedAt}); setRefresh(value => value + 1); setMessage(action === 'PUBLISH' ? '角色已公开，前台可见性已更新。' : '角色已下架，前台可见性已更新。'); return true;}
+    try {await request(`/api/admin/characters/${encodeURIComponent(detail.id)}/publication`, 'POST', {action, reason, updatedAt: detail.updatedAt}); setRefresh(value => value + 1); setMessage(action === 'PUBLISH' ? '角色已公开，前台可见性已更新。' : '角色已下架，前台可见性已更新。'); return true;}
     catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
   }
   async function bulkPublish(action: 'PUBLISH' | 'UNPUBLISH', reason: string, items: CharacterSummary[]) {
     if (busy) return false; setBusy(true); setError(''); setMessage('');
-    try {await request('/api/characters/management/publication', 'POST', {action, reason, items: items.map(character => ({id: character.id, updatedAt: character.updatedAt}))}); setRefresh(value => value + 1); setMessage('批量角色操作已完成。'); return true;}
+    try {await request('/api/admin/characters/publication', 'POST', {action, reason, items: items.map(character => ({id: character.id, updatedAt: character.updatedAt}))}); setRefresh(value => value + 1); setMessage('批量角色操作已完成。'); return true;}
     catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
   }
   if (accessLoading) return <p role="status" className="p-6">正在读取角色管理权限…</p>;

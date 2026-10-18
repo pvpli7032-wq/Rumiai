@@ -35,7 +35,7 @@ export function PaymentOrderManagement({token}:{token:string}){
     try{
       const params=new URLSearchParams({page:String(page),pageSize:'25',status});
       if(query.trim())params.set('q',query.trim());
-      const response=await fetch('/api/finance/orders/all?'+params,{
+      const response=await fetch('/api/admin/finance/orders/all?'+params,{
         headers:{Authorization:'Bearer '+token},cache:'no-store',signal,
       });
       const data=await response.json();
@@ -73,7 +73,7 @@ export function PaymentOrderManagement({token}:{token:string}){
     try{
       const params=new URLSearchParams({status});
       if(query.trim())params.set('q',query.trim());
-      const response=await fetch('/api/finance/orders/export?'+params,{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+      const response=await fetch('/api/admin/finance/orders/export?'+params,{headers:{Authorization:'Bearer '+token},cache:'no-store'});
       if(!response.ok){const data=await response.json();throw Error(data.error);}
       const blob=await response.blob(),url=URL.createObjectURL(blob),anchor=document.createElement('a');
       anchor.href=url;anchor.download='payment-orders.csv';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);

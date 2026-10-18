@@ -98,15 +98,15 @@ export function CharacterCard({
           </div>
           <div className="flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5">
             <span className="text-[10px]">💬</span>
-            <span className="font-athiti text-[10px] font-semibold text-white">
+            <span className="text-[10px] font-semibold text-white">
               {formatCount(character.chatCount)}
             </span>
           </div>
         </div>
       </div>
 
-      <p className="mt-2 line-clamp-1 font-athiti text-sm font-bold md:text-base">{character.name}</p>
-      <p className="mt-0.5 line-clamp-2 font-athiti text-xs text-gray-600 dark:text-slate-200 md:text-sm">
+      <p className="mt-2 line-clamp-1 text-sm font-bold md:text-base">{character.name}</p>
+      <p className="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-slate-200 md:text-sm">
         {character.tagline || character.personality}
       </p>
     </button>

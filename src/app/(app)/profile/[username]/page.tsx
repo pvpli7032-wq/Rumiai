@@ -69,9 +69,9 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
           </div>
         )}
         <div className="min-w-0">
-          <h1 className="truncate font-athiti text-2xl font-bold text-white">{name}</h1>
-          <p className="font-barlow text-sm text-zinc-400">@{creator.username}</p>
-          <p className="mt-1 font-barlow text-xs text-zinc-500">
+          <h1 className="truncate text-2xl font-bold text-white">{name}</h1>
+          <p className="text-sm text-zinc-400">@{creator.username}</p>
+          <p className="mt-1 text-xs text-zinc-500">
             {creator.tier} · {compactNumber(creator.followerCount)} {"位关注者 ·"}{' '}
             {compactNumber(creator.publicCharacterCount)} {"个角色 ·"}{' '}
             {compactNumber(creator.chatCount)} {"聊天"}</p>
@@ -80,10 +80,10 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
 
       <CreatorCommunity username={creator.username} initialFollowerCount={creator.followerCount} />
 
-      <h2 className="mb-4 mt-8 font-athiti text-lg font-semibold text-white">{"角色"}</h2>
+      <h2 className="mb-4 mt-8 text-lg font-semibold text-white">{"角色"}</h2>
 
       {characters.length === 0 ? (
-        <p className="font-athiti text-zinc-500">{"这位创作者还没有公开角色"}</p>
+        <p className="text-zinc-500">{"这位创作者还没有公开角色"}</p>
       ) : (
         <ul className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-5">
           {characters.map(character => (
@@ -103,11 +103,11 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
                   ) : null}
                 </div>
                 <div className="p-3">
-                  <p className="truncate font-athiti text-sm font-semibold text-white">{character.name}</p>
+                  <p className="truncate text-sm font-semibold text-white">{character.name}</p>
                   {character.tagline && (
-                    <p className="mt-0.5 truncate font-athiti text-xs text-zinc-500">{character.tagline}</p>
+                    <p className="mt-0.5 truncate text-xs text-zinc-500">{character.tagline}</p>
                   )}
-                  <div className="mt-2 flex items-center gap-3 font-barlow text-[11px] text-zinc-500">
+                  <div className="mt-2 flex items-center gap-3 text-[11px] text-zinc-500">
                     <span title={"点赞"}>{compactNumber(character.likeCount)}</span>
                     <span title={"聊天"}>{compactNumber(character.chatCount)}</span>
                     {character.isAdult && <span className="text-amber-500/80">18+</span>}

@@ -58,8 +58,8 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 shadow-xl shadow-purple-500/30">
             <LogIn className="h-7 w-7 text-white" />
           </div>
-          <h1 className="font-athiti text-2xl font-bold text-white">{copy.heading}</h1>
-          <p className="mt-1 font-athiti text-sm text-zinc-400">{copy.subhead}</p>
+          <h1 className="text-2xl font-bold text-white">{copy.heading}</h1>
+          <p className="mt-1 text-sm text-zinc-400">{copy.subhead}</p>
         </div>
 
         {/* Both forms live on one route, so the toggle is a tab rather than a link. */}
@@ -69,7 +69,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
               key={key}
               type="button"
               onClick={() => { setMode(key); setError(''); }}
-              className={`flex-1 rounded-full py-2 font-athiti text-sm font-bold transition-colors ${
+              className={`flex-1 rounded-full py-2 text-sm font-bold transition-colors ${
                 mode === key ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -79,7 +79,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center font-athiti text-sm text-red-400">
+          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-400">
             {error}
           </div>
         )}
@@ -87,20 +87,20 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
         <form onSubmit={submit} className="space-y-4">
           {mode === 'signUp' && (
             <div>
-              <label className="mb-1.5 block font-athiti text-sm font-medium text-zinc-300">
+              <label className="mb-1.5 block text-sm font-medium text-zinc-300">
                 {copy.displayNameLabel}
               </label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
+                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
               />
             </div>
           )}
 
           <div>
-            <label className="mb-1.5 block font-athiti text-sm font-medium text-zinc-300">
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">
               {copy.emailLabel}
             </label>
             <input
@@ -109,12 +109,12 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
               onChange={(e) => setEmail(e.target.value)}
               required
               placeholder="your@email.com"
-              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
+              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block font-athiti text-sm font-medium text-zinc-300">
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">
               {copy.passwordLabel}
             </label>
             <div className="relative">
@@ -124,7 +124,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 pr-11 font-athiti text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
+                className="w-full rounded-xl border border-white/10 bg-zinc-800 px-4 py-3 pr-11 text-white placeholder-zinc-500 transition-all focus:border-purple-500/50 focus:outline-hidden focus:ring-1 focus:ring-purple-500/30"
               />
               <button
                 type="button"
@@ -140,7 +140,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-linear-to-r/srgb from-purple-600 to-pink-600 py-3 font-athiti font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full rounded-xl bg-linear-to-r/srgb from-purple-600 to-pink-600 py-3 font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? copy.submitting : mode === 'signIn' ? copy.signIn : copy.signUp}
           </button>
@@ -149,7 +149,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
         <button
           type="button"
           onClick={() => { setMode(mode === 'signIn' ? 'signUp' : 'signIn'); setError(''); }}
-          className="mt-4 w-full font-athiti text-sm text-purple-400 hover:text-purple-300"
+          className="mt-4 w-full text-sm text-purple-400 hover:text-purple-300"
         >
           {mode === 'signIn' ? copy.switchToSignUp : copy.switchToSignIn}
         </button>

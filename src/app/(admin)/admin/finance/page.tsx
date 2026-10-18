@@ -24,7 +24,7 @@ export default function FinancePage() {
     setReport(null); setError(''); setLoading(false);
     if (!token) { if (!isLoading) setError('请先登录财务管理员账号。'); return; }
     setLoading(true);
-    fetch(`/api/finance/report?days=${days}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal })
+    fetch(`/api/admin/finance/report?days=${days}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal })
       .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.error); return data; })
       .then(data => setReport(data))
       .catch(e => { if (!controller.signal.aborted) setError(e.message); })

@@ -72,10 +72,10 @@ export function ReaderPreferences() {
 
   return (
     <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-      <h2 className="mb-4 font-athiti text-lg font-bold text-white">{"阅读设置"}</h2>
+      <h2 className="mb-4 text-lg font-bold text-white">{"阅读设置"}</h2>
 
       {error && (
-        <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 font-athiti text-sm text-red-400">
+        <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
         </p>
       )}
@@ -88,8 +88,8 @@ export function ReaderPreferences() {
         <span className="flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-zinc-400" />
           <span>
-            <span className="block font-athiti text-sm text-white">{"阅读模式"}</span>
-            <span className="block font-athiti text-xs text-zinc-500">{"放大文字，让长篇阅读更舒适"}</span>
+            <span className="block text-sm text-white">{"阅读模式"}</span>
+            <span className="block text-xs text-zinc-500">{"放大文字，让长篇阅读更舒适"}</span>
           </span>
         </span>
         <span
@@ -103,26 +103,26 @@ export function ReaderPreferences() {
 
       {/* Banned words */}
       <div className="mt-4">
-        <p className="mb-1 flex items-center gap-1.5 font-athiti text-sm font-bold text-zinc-300">
+        <p className="mb-1 flex items-center gap-1.5 text-sm font-bold text-zinc-300">
           <Ban className="h-4 w-4 text-zinc-500" />
           {"屏蔽词"}</p>
-        <p className="mb-2 font-athiti text-xs text-zinc-500">
+        <p className="mb-2 text-xs text-zinc-500">
           {"每行一个词。含有这些词的回复将被折叠，点击仍可查看。"}</p>
         <textarea
           value={bannedWords}
           onChange={(e) => setBannedWords(e.target.value.slice(0, 4000))}
           rows={4}
           placeholder={"血腥\n暴力"}
-          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
         />
       </div>
 
       {/* Shortcuts */}
       <div className="mt-4">
-        <p className="mb-1 flex items-center gap-1.5 font-athiti text-sm font-bold text-zinc-300">
+        <p className="mb-1 flex items-center gap-1.5 text-sm font-bold text-zinc-300">
           <Zap className="h-4 w-4 text-zinc-500" />
           {"聊天快捷短语"}</p>
-        <p className="mb-2 font-athiti text-xs text-zinc-500">
+        <p className="mb-2 text-xs text-zinc-500">
           {"点击填入常用句子（最多"}{MAX_SHORTCUTS})
         </p>
 
@@ -139,7 +139,7 @@ export function ReaderPreferences() {
                   )
                 }
                 placeholder={"按钮名称"}
-                className="w-28 shrink-0 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+                className="w-28 shrink-0 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
               />
               <input
                 value={s.text}
@@ -151,7 +151,7 @@ export function ReaderPreferences() {
                   )
                 }
                 placeholder={"填入的文字"}
-                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
               />
               <button
                 onClick={() => setShortcuts((list) => list.filter((_, j) => j !== i))}
@@ -167,7 +167,7 @@ export function ReaderPreferences() {
         {shortcuts.length < MAX_SHORTCUTS && (
           <button
             onClick={() => setShortcuts((list) => [...list, { label: '', text: '' }])}
-            className="mt-2 flex items-center gap-1 rounded-full border border-white/10 px-3 py-1.5 font-athiti text-xs text-zinc-300 hover:bg-white/5"
+            className="mt-2 flex items-center gap-1 rounded-full border border-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
           >
             <Plus className="h-3.5 w-3.5" />
             {"添加快捷短语"}</button>
@@ -177,13 +177,13 @@ export function ReaderPreferences() {
       <button
         onClick={save}
         disabled={saving}
-        className="mt-5 w-full rounded-xl bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] py-3 font-athiti text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="mt-5 w-full rounded-xl bg-brand-gradient py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {saving ? "正在保存…" : "保存设置"}
       </button>
 
       {notice && (
-        <p className="mt-2 flex items-center justify-center gap-1 font-athiti text-xs text-emerald-400">
+        <p className="mt-2 flex items-center justify-center gap-1 text-xs text-emerald-400">
           <Check className="h-3 w-3" />
           {notice}
         </p>

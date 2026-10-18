@@ -14,7 +14,7 @@ export function CircleMembers({circleId, token, canManage, onChanged}: {circleId
   useEffect(() => {
     const controller = new AbortController(); setList(null); setReading(true);
     const params = new URLSearchParams({q: query, status, page: String(page)});
-    void request(`/api/circles/management/${encodeURIComponent(circleId)}/members?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
+    void request(`/api/admin/circles/${encodeURIComponent(circleId)}/members?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
   }, [request, circleId, query, status, page, refresh]);
   function search(event: FormEvent) {event.preventDefault(); setError(''); setPage(1); setQuery(q); setRefresh(value => value + 1);}
@@ -22,7 +22,7 @@ export function CircleMembers({circleId, token, canManage, onChanged}: {circleId
     if (!selected || busy || !reason.trim()) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      await request(`/api/circles/management/${encodeURIComponent(circleId)}/members/${encodeURIComponent(selected.member.userId)}`, undefined, {action: selected.action, updatedAt: selected.member.updatedAt, reason});
+      await request(`/api/admin/circles/${encodeURIComponent(circleId)}/members/${encodeURIComponent(selected.member.userId)}`, undefined, {action: selected.action, updatedAt: selected.member.updatedAt, reason});
       setMessage(`${memberActionLabels[selected.action]}已完成。`); setSelected(null); setReason(''); onChanged();
     } catch (value) {setError((value as Error).message);} finally {setBusy(false); setRefresh(value => value + 1);}
   }

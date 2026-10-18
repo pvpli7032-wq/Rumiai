@@ -73,9 +73,9 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
             <div className="h-40 w-40 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500" />
           )}
 
-          <h1 className="mt-5 font-athiti text-2xl font-bold text-white">{character.name}</h1>
+          <h1 className="mt-5 text-2xl font-bold text-white">{character.name}</h1>
           {character.tagline && (
-            <p className="mt-2 font-athiti text-zinc-400">&ldquo;{character.tagline}&rdquo;</p>
+            <p className="mt-2 text-zinc-400">&ldquo;{character.tagline}&rdquo;</p>
           )}
 
           {tagLabels.length > 0 && (
@@ -83,7 +83,7 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
               {tagLabels.map(label => (
                 <li
                   key={label}
-                  className="rounded-full bg-white/5 px-3 py-1 font-athiti text-xs text-zinc-300"
+                  className="rounded-full bg-white/5 px-3 py-1 text-xs text-zinc-300"
                 >
                   {label}
                 </li>
@@ -91,26 +91,26 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
             </ul>
           )}
 
-          <p className="mt-4 font-barlow text-sm text-zinc-500">
+          <p className="mt-4 text-sm text-zinc-500">
             {compactNumber(character.chatCount)} {dict.chatsLabel}
             {creatorName ? ` · @${creatorName}` : ''}
           </p>
 
           <Link
             href={`/${locale}/auth`}
-            className="mt-7 rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-10 py-3 font-athiti text-lg font-semibold text-white shadow-lg transition-transform hover:scale-105"
+            className="mt-7 rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-10 py-3 text-lg font-semibold text-white shadow-lg transition-transform hover:scale-105"
           >
             {dict.chatNow}
           </Link>
         </div>
 
         {character.greeting && (
-          <blockquote className="mt-10 rounded-2xl border border-white/10 bg-zinc-900/60 p-5 font-athiti leading-relaxed text-zinc-300">
+          <blockquote className="mt-10 rounded-2xl border border-white/10 bg-zinc-900/60 p-5 leading-relaxed text-zinc-300">
             {character.greeting}
           </blockquote>
         )}
         {communityPosts.length > 0 && <section className="mt-10">
-          <h2 className="mb-3 font-athiti text-lg font-semibold text-white">社区相关帖子</h2>
+          <h2 className="mb-3 text-lg font-semibold text-white">社区相关帖子</h2>
           <ul className="space-y-3">{communityPosts.map(post => <li key={post.id} className="rounded-xl border border-white/10 bg-zinc-900/60 p-4">
             <p className="whitespace-pre-wrap break-words text-sm text-zinc-200">{post.content}</p>
             <Link href={`/circles/${post.circle.id}#post-${post.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm text-orange-400">{post.circle.name} · 前往帖子</Link>

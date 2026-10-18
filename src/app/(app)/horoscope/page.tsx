@@ -41,8 +41,8 @@ export default function HoroscopePage() {
           <div className="w-16 h-16 rounded-full bg-linear-to-br/srgb from-violet-500 to-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-violet-500/30">
             <Star className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold font-athiti text-white mb-2">{"每日星座小签"}</h1>
-          <p className="text-zinc-400 font-athiti">{"选择星座，查看今日小签（娱乐内容）"}</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{"每日星座小签"}</h1>
+          <p className="text-zinc-400">{"选择星座，查看今日小签（娱乐内容）"}</p>
         </div>
 
         {/* Zodiac Grid */}
@@ -55,7 +55,7 @@ export default function HoroscopePage() {
                   : 'bg-zinc-900 border-white/10 hover:border-white/20'
               }`}>
               <div className="text-2xl mb-1">{sign.emoji}</div>
-              <p className="text-xs font-semibold font-athiti text-white">{sign.thaiName}</p>
+              <p className="text-xs font-semibold text-white">{sign.thaiName}</p>
             </button>
           ))}
         </div>
@@ -72,37 +72,37 @@ export default function HoroscopePage() {
             <div className="flex items-center gap-3 mb-4">
               <div className="text-4xl">{SIGNS.find(s => s.id === selected)?.emoji}</div>
               <div>
-                <h2 className="text-xl font-bold font-athiti text-white">{data.title}</h2>
-                <p className="text-zinc-400 text-sm font-athiti">{SIGNS.find(s => s.id === selected)?.dates}</p>
+                <h2 className="text-xl font-bold text-white">{data.title}</h2>
+                <p className="text-zinc-400 text-sm">{SIGNS.find(s => s.id === selected)?.dates}</p>
               </div>
             </div>
 
-            <p className="text-zinc-200 font-athiti leading-relaxed mb-6">{data.description}</p>
+            <p className="text-zinc-200 leading-relaxed mb-6">{data.description}</p>
 
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="bg-zinc-800 rounded-xl p-3 text-center">
-                <p className="text-xs text-zinc-500 font-athiti mb-1">{"幸运数字"}</p>
+                <p className="text-xs text-zinc-500 mb-1">{"幸运数字"}</p>
                 <p className="text-2xl font-bold text-yellow-400">{data.luckyNumber}</p>
               </div>
               <div className="bg-zinc-800 rounded-xl p-3 text-center">
-                <p className="text-xs text-zinc-500 font-athiti mb-1">{"幸运颜色"}</p>
-                <p className="text-sm font-bold text-purple-400 font-athiti">{data.luckyColor}</p>
+                <p className="text-xs text-zinc-500 mb-1">{"幸运颜色"}</p>
+                <p className="text-sm font-bold text-purple-400">{data.luckyColor}</p>
               </div>
               <div className="bg-zinc-800 rounded-xl p-3 text-center">
-                <p className="text-xs text-zinc-500 font-athiti mb-1">{"适合的星座"}</p>
-                <p className="text-xs font-bold text-pink-400 font-athiti">{data.compatibility}</p>
+                <p className="text-xs text-zinc-500 mb-1">{"适合的星座"}</p>
+                <p className="text-xs font-bold text-pink-400">{data.compatibility}</p>
               </div>
             </div>
 
             <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-4">
-              <p className="text-xs text-violet-400 font-athiti mb-1">{"今日建议 💫"}</p>
-              <p className="text-zinc-200 font-athiti text-sm">{data.advice}</p>
+              <p className="text-xs text-violet-400 mb-1">{"今日建议 💫"}</p>
+              <p className="text-zinc-200 text-sm">{data.advice}</p>
             </div>
           </div>
         )}
 
         {!loading && !data && (
-          <div className="text-center py-10 text-zinc-500 font-athiti">
+          <div className="text-center py-10 text-zinc-500">
             <p>{"选择上方星座 ⭐"}</p>
           </div>
         )}

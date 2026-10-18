@@ -35,19 +35,19 @@ export default async function ExplorePage({ params: paramsPromise }: { params: P
 
       <div className="px-4 pb-16 desktop:px-8">
         <section className="py-10 text-center">
-          <h1 className="mx-auto max-w-2xl font-athiti text-2xl font-bold text-white desktop:text-4xl">
+          <h1 className="mx-auto max-w-2xl text-2xl font-bold text-white desktop:text-4xl">
             {dict.exploreHeadline(compactNumber(total))}
           </h1>
-          <p className="mx-auto mt-3 max-w-xl font-athiti text-zinc-400">{dict.exploreSubhead}</p>
+          <p className="mx-auto mt-3 max-w-xl text-zinc-400">{dict.exploreSubhead}</p>
           <Link
             href={`/${locale}/auth`}
-            className="mt-6 inline-block rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-8 py-3 font-athiti font-semibold text-white shadow-lg transition-transform hover:scale-105"
+            className="mt-6 inline-block rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-8 py-3 font-semibold text-white shadow-lg transition-transform hover:scale-105"
           >
             {dict.chatNow}
           </Link>
         </section>
 
-        <h2 className="mb-4 font-athiti text-lg font-semibold text-white">{dict.charactersSection}</h2>
+        <h2 className="mb-4 text-lg font-semibold text-white">{dict.charactersSection}</h2>
 
         <ul className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-5">
           {characters.map(character => {
@@ -75,20 +75,20 @@ export default async function ExplorePage({ params: paramsPromise }: { params: P
                   </div>
 
                   <div className="p-3">
-                    <p className="truncate font-athiti text-sm font-semibold text-white">{character.name}</p>
+                    <p className="truncate text-sm font-semibold text-white">{character.name}</p>
 
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {tagLabels.map(label => (
                         <span
                           key={label}
-                          className="rounded-full bg-white/5 px-2 py-0.5 font-athiti text-[11px] text-zinc-400"
+                          className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400"
                         >
                           {label}
                         </span>
                       ))}
                     </div>
 
-                    <div className="mt-2 flex gap-3 font-barlow text-[11px] text-zinc-500">
+                    <div className="mt-2 flex gap-3 text-[11px] text-zinc-500">
                       <span title={dict.conversationsLabel}>
                         {compactNumber(character.conversationCount)}
                       </span>

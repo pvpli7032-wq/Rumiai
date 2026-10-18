@@ -107,8 +107,8 @@ export default function HomePage() {
             className="relative flex aspect-[375/90] w-full flex-col justify-center overflow-hidden rounded-xl px-6 md:aspect-[1000/120]"
             style={{ backgroundImage: `${hero.imageUrl ? `url("${hero.imageUrl}"), ` : ''}linear-gradient(225deg, ${hero.gradientFrom} 0%, ${hero.gradientTo} 100%)`, backgroundSize: hero.imageUrl ? 'cover' : undefined, backgroundPosition: 'center' }}
           >
-            <p className="font-athiti text-sm font-bold text-white drop-shadow-sm md:text-base">{hero.title}</p>
-            <p className="font-athiti text-xs text-white/90 drop-shadow-sm md:text-sm">{hero.description}</p>
+            <p className="text-sm font-bold text-white drop-shadow-sm md:text-base">{hero.title}</p>
+            <p className="text-xs text-white/90 drop-shadow-sm md:text-sm">{hero.description}</p>
           </div>
         </Link>
         <div className="mt-2 flex items-center justify-center gap-1.5">
@@ -134,7 +134,7 @@ export default function HomePage() {
             <button
               key={c.label}
               onClick={() => setCategory(c.label)}
-              className={`flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 font-athiti text-sm font-semibold transition-all md:flex-none md:px-6 ${
+              className={`flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all md:flex-none md:px-6 ${
                 active
                   ? 'text-white'
                   : 'border border-zinc-200 text-foreground dark:border-[#2A2A2A]'
@@ -167,10 +167,10 @@ export default function HomePage() {
 
         <button
           aria-label="随机角色" onClick={() => { if(characters.length) setQuery(characters[Math.floor(Math.random()*characters.length)].name); }}
-          className="group relative flex h-12 w-12 shrink-0 items-center justify-center gap-2 overflow-hidden rounded-lg bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] shadow-md transition-all duration-200 hover:scale-105 active:scale-95 md:w-auto md:px-3"
+          className="group relative flex h-12 w-12 shrink-0 items-center justify-center gap-2 overflow-hidden rounded-lg bg-brand-gradient shadow-md transition-all duration-200 hover:scale-105 active:scale-95 md:w-auto md:px-3"
         >
           <span className="relative z-10 text-lg">🎲</span>
-          <span className="relative z-10 hidden whitespace-nowrap font-athiti text-sm font-medium text-white md:inline">
+          <span className="relative z-10 hidden whitespace-nowrap text-sm font-medium text-white md:inline">
             {"浏览角色"}</span>
         </button>
 
@@ -179,7 +179,7 @@ export default function HomePage() {
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-linear-to-br/srgb from-[#A855F7] to-[#EC4899]">
               <Sparkles className="h-3.5 w-3.5 text-white" />
             </span>
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40]">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-gradient">
               <Play className="ml-0.5 h-3.5 w-3.5 fill-current text-white" />
             </span>
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-linear-to-br/srgb from-[#8B5CF6] to-[#6366F1]">
@@ -205,7 +205,7 @@ export default function HomePage() {
                   <button
                     key={t.key}
                     onClick={() => setTab(t.key)}
-                    className={`-mb-px flex h-[52px] shrink-0 items-center justify-center gap-1 border-b-2 px-4 font-athiti text-sm font-semibold transition-all ${
+                    className={`-mb-px flex h-[52px] shrink-0 items-center justify-center gap-1 border-b-2 px-4 text-sm font-semibold transition-all ${
                       active ? 'border-[#F2572B] text-[#F2572B]' : 'border-transparent text-[#8A8A8A]'
                     }`}
                   >
@@ -229,7 +229,7 @@ export default function HomePage() {
           </div>
 
           {!loading && !loadError && grid.length === 0 && (
-            <p className="py-16 text-center font-athiti text-sm text-muted-foreground">
+            <p className="py-16 text-center text-sm text-muted-foreground">
               {"暂无角色，创建你的第一个角色"}<code className="rounded-sm bg-muted px-1">npm run db:seed</code>
             </p>
           )}
@@ -254,7 +254,7 @@ function FilterRow({
 }) {
   return (
     <div className="flex items-center gap-2 px-4 md:px-12">
-      <span className="shrink-0 whitespace-nowrap font-athiti text-sm font-bold text-muted-foreground">{label}</span>
+      <span className="shrink-0 whitespace-nowrap text-sm font-bold text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {options.map((o) => {
           const active = selected.includes(o.key);
@@ -262,9 +262,9 @@ function FilterRow({
             <button
               key={o.key}
               onClick={() => onToggle(o.key)}
-              className={`flex h-8 shrink-0 items-center rounded-full px-3 font-athiti text-sm font-semibold transition-all ${
+              className={`flex h-8 shrink-0 items-center rounded-full px-3 text-sm font-semibold transition-all ${
                 active
-                  ? 'bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] text-white'
+                  ? 'bg-brand-gradient text-white'
                   : 'border border-zinc-200 text-foreground dark:border-[#2A2A2A]'
               }`}
             >

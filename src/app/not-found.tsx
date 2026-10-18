@@ -12,21 +12,21 @@ export default function NotFound() {
 
   return (
     <main className="flex min-h-[100svh] flex-col items-center justify-center gap-5 bg-background px-6 text-center">
-      <p className="font-barlow text-6xl font-bold text-white/20">404</p>
-      <h1 className="font-athiti text-xl font-semibold text-white">页面不存在</h1>
-      <p className="max-w-sm font-athiti text-zinc-400">
+      <p className="text-6xl font-bold text-white/20">404</p>
+      <h1 className="text-xl font-semibold text-white">页面不存在</h1>
+      <p className="max-w-sm text-zinc-400">
         页面可能已移动或删除，请返回发现页。
       </p>
       <div className="mt-2 flex gap-3">
         <Link
           href={`/${DEFAULT_LOCALE}`}
-          className="rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-6 py-2.5 font-athiti font-semibold text-white"
+          className="rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-6 py-2.5 font-semibold text-white"
         >
           {dict.chatNow}
         </Link>
         <Link
           href={`/${DEFAULT_LOCALE}/explore`}
-          className="rounded-full border border-white/15 px-6 py-2.5 font-athiti text-white transition-colors hover:bg-white/5"
+          className="rounded-full border border-white/15 px-6 py-2.5 text-white transition-colors hover:bg-white/5"
         >
           {dict.charactersSection}
         </Link>

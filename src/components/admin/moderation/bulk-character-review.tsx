@@ -10,7 +10,7 @@ export function BulkCharacterReview({selected, token, disabled, onStart, onFinis
     if (!window.confirm(`确认${status === 'APPROVED' ? '通过公开' : '退回 / 下架'}选中的 ${selected.length} 个角色？`)) return;
     onStart(); setError('');
     try {
-      const response = await fetch('/api/moderation/characters/batch', {method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({status, reason, items: selected.map(character => ({id: character.id, updatedAt: character.updatedAt}))})});
+      const response = await fetch('/api/admin/moderation/characters/batch', {method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({status, reason, items: selected.map(character => ({id: character.id, updatedAt: character.updatedAt}))})});
       const data = await response.json(); if (!response.ok) throw Error(data.error || '批量审核失败。');
       setReason(''); await onSaved();
     } catch (value) {setError((value as Error).message);} finally {onFinish();}

@@ -44,7 +44,7 @@ export function RankingsTab() {
   }, []);
 
   if (!data) {
-    return <p className="px-4 py-16 text-center font-athiti text-sm text-muted-foreground md:px-12">{"正在加载榜单…"}</p>;
+    return <p className="px-4 py-16 text-center text-sm text-muted-foreground md:px-12">{"正在加载榜单…"}</p>;
   }
 
   return (
@@ -67,7 +67,7 @@ export function RankingsTab() {
           <span className="text-lg text-white">#</span>
         </div>
         <div className="absolute left-[22px] right-0 top-[8px] h-[29px] rounded-r-[9px] bg-linear-to-r/srgb from-orange-100 via-amber-50 to-orange-200/80 dark:from-[rgba(255,162,2,0.5)] dark:via-[rgba(255,90,0,0.45)] dark:to-[rgba(255,19,0,0.5)]" />
-        <span className="absolute left-[51px] right-2 top-[13px] truncate text-center font-athiti text-sm font-semibold leading-5">
+        <span className="absolute left-[51px] right-2 top-[13px] truncate text-center text-sm font-semibold leading-5">
           {"上周榜单日期："}{data.weekLabel}
         </span>
       </div>
@@ -81,7 +81,7 @@ export function RankingsTab() {
               <Link key={c.id} href={`/chat?character=${c.id}`} className="flex shrink-0 items-start">
                 <div className={`relative -ml-2 h-[5rem] shrink-0 ${c.rank === 10 ? 'w-[4.5rem]' : 'w-12'}`}>
                   <span
-                    className={`absolute left-[0.5625rem] top-1/2 -translate-y-1/2 font-barlow font-semibold leading-[5rem] text-foreground ${
+                    className={`absolute left-[0.5625rem] top-1/2 -translate-y-1/2 font-semibold leading-[5rem] text-foreground ${
                       c.rank === 10 ? 'text-[4rem] tracking-[0.03em]' : 'text-[5rem]'
                     }`}
                     style={{
@@ -98,7 +98,7 @@ export function RankingsTab() {
                     {c.avatarUrl && <img src={c.avatarUrl} alt="" className="h-full w-full object-cover" />}
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="max-w-[100px] truncate font-athiti text-sm font-semibold leading-5 md:max-w-[140px] md:text-base">
+                    <span className="max-w-[100px] truncate text-sm font-semibold leading-5 md:max-w-[140px] md:text-base">
                       {c.name}
                     </span>
                     <div className="flex items-center gap-2">
@@ -121,10 +121,10 @@ export function RankingsTab() {
             <div className="-mx-4 flex flex-wrap gap-3 px-4">
               {data.newCreators.map((u) => (
                 <div key={u.id} className="flex w-fit items-center gap-2 rounded-[43px] bg-muted py-1 pl-1 pr-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] text-xs font-bold text-white">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-gradient text-xs font-bold text-white">
                     {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="h-full w-full object-cover" /> : u.username.slice(0, 1)}
                   </span>
-                  <span className="whitespace-nowrap font-athiti text-sm font-semibold leading-5">@{u.username}</span>
+                  <span className="whitespace-nowrap text-sm font-semibold leading-5">@{u.username}</span>
                 </div>
               ))}
             </div>
@@ -146,15 +146,15 @@ export function RankingsTab() {
                       <svg width="26" height="28" viewBox="0 0 26 28" fill="none">
                         <path d="M0 28V0H26V28L13 22.8L0 28Z" fill={RIBBON[c.rank - 1] ?? '#848484'} />
                       </svg>
-                      <span className="absolute left-0 top-[4px] w-full text-center font-athiti text-xs font-semibold leading-4 text-white md:text-sm">
+                      <span className="absolute left-0 top-[4px] w-full text-center text-xs font-semibold leading-4 text-white md:text-sm">
                         {c.rank}
                       </span>
                     </div>
-                    <span className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] text-lg font-bold text-white ring-2 ring-border md:h-[72px] md:w-[72px]">
+                    <span className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-gradient text-lg font-bold text-white ring-2 ring-border md:h-[72px] md:w-[72px]">
                       {c.avatarUrl ? <img src={c.avatarUrl} alt="" className="h-full w-full object-cover" /> : c.username.slice(0, 1)}
                     </span>
                     <div className="flex min-h-0 flex-1 flex-col items-center gap-1">
-                      <span className="line-clamp-1 w-full text-center font-athiti text-sm font-semibold leading-5 md:text-base">
+                      <span className="line-clamp-1 w-full text-center text-sm font-semibold leading-5 md:text-base">
                         @{c.username}
                       </span>
                       <div className="flex items-center gap-1 rounded-[19px] bg-muted px-2 py-[2px]">
@@ -173,10 +173,10 @@ export function RankingsTab() {
         {/* Best of the week */}
         {data.topGifted.length > 0 && (
           <section className="flex flex-col gap-4">
-            <span className="font-athiti text-base font-semibold leading-5">{"⭐ 上周榜单"}</span>
+            <span className="text-base font-semibold leading-5">{"⭐ 上周榜单"}</span>
             <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-w-[240px] shrink-0 flex-col gap-2">
-                <span className="flex items-center gap-1.5 font-athiti text-sm font-semibold">{"🎁 收到礼物最多"}</span>
+                <span className="flex items-center gap-1.5 text-sm font-semibold">{"🎁 收到礼物最多"}</span>
                 <div className="flex flex-col gap-1">
                   {data.topGifted.map((g) => (
                     <Link
@@ -184,14 +184,14 @@ export function RankingsTab() {
                       href={`/chat?character=${g.id}`}
                       className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-muted/50"
                     >
-                      <span className="w-5 text-center font-barlow text-lg font-semibold text-muted-foreground md:w-6 md:text-xl">
+                      <span className="w-5 text-center text-lg font-semibold text-muted-foreground md:w-6 md:text-xl">
                         {g.rank}
                       </span>
                       <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-[#1A1A2E] md:h-[72px] md:w-[72px]">
                         {g.avatarUrl && <img src={g.avatarUrl} alt="" className="h-full w-full object-cover" />}
                       </div>
                       <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="truncate font-athiti text-sm font-semibold leading-5 md:text-base">{g.name}</span>
+                        <span className="truncate text-sm font-semibold leading-5 md:text-base">{g.name}</span>
                         <span className="text-xs text-muted-foreground md:text-sm">{g.giftCount} 🎁</span>
                       </div>
                     </Link>
@@ -209,11 +209,11 @@ export function RankingsTab() {
 function Header({ title, href }: { title: string; href?: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="font-athiti text-base font-semibold leading-5">{title}</span>
+      <span className="text-base font-semibold leading-5">{title}</span>
       {href && (
         <Link
           href={href}
-          className="flex shrink-0 items-center gap-1 rounded-full border border-border px-3 py-2 font-athiti text-xs font-semibold transition-colors hover:bg-muted"
+          className="flex shrink-0 items-center gap-1 rounded-full border border-border px-3 py-2 text-xs font-semibold transition-colors hover:bg-muted"
         >
           {"查看全部"}<ChevronRight className="h-3 w-3" />
         </Link>

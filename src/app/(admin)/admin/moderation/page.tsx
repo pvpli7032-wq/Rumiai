@@ -15,7 +15,7 @@ export default function Moderation() {
   const load = useCallback(async (signal?: AbortSignal) => {
     if (!token) return;
     setCharacters([]); setSelected({}); setLoading(true);
-    try {const response = await fetch('/api/moderation/characters', {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store', signal}); const data = await response.json(); if (!response.ok) throw Error(data.error); if (!signal?.aborted) {setCharacters(data); setError('');}}
+    try {const response = await fetch('/api/admin/moderation/characters', {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store', signal}); const data = await response.json(); if (!response.ok) throw Error(data.error); if (!signal?.aborted) {setCharacters(data); setError('');}}
     catch (value) {if (!signal?.aborted) setError((value as Error).message);}
     finally {if (!signal?.aborted) setLoading(false);}
   }, [token]);
@@ -28,7 +28,7 @@ export default function Moderation() {
   async function review(character: ReviewCharacter, status: string) {
     if (!canReview || busy) return;
     setBusy(character.id);
-    try {const response = await fetch(`/api/moderation/characters/${character.id}`, {method: 'PUT', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({status, reason: reasons[character.id] || '', updatedAt: character.updatedAt})}); const data = await response.json(); if (!response.ok) throw Error(data.error); await load();}
+    try {const response = await fetch(`/api/admin/moderation/characters/${character.id}`, {method: 'PUT', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({status, reason: reasons[character.id] || '', updatedAt: character.updatedAt})}); const data = await response.json(); if (!response.ok) throw Error(data.error); await load();}
     catch (value) {setError((value as Error).message);} finally {setBusy('');}
   }
   return <main className="mx-auto max-w-3xl space-y-4 p-4"><h1 className="text-xl font-bold">角色审核</h1>

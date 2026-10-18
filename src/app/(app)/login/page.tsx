@@ -47,12 +47,12 @@ export default function LoginPage() {
             <div className="w-14 h-14 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-purple-500/30">
               <LogIn className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold font-athiti text-white">{"登录"}</h1>
-            <p className="text-zinc-400 font-athiti mt-1 text-sm">{"欢迎回来"}</p>
+            <h1 className="text-2xl font-bold text-white">{"登录"}</h1>
+            <p className="text-zinc-400 mt-1 text-sm">{"欢迎回来"}</p>
           </div>
 
           {error && (
-            <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-athiti text-center">
+            <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
               {error}
             </div>
           )}
@@ -60,18 +60,18 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5 font-athiti">{"邮箱"}</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{"邮箱"}</label>
               <input
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
                 placeholder="your@email.com"
-                className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti"
+                className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5 font-athiti">{"密码"}</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{"密码"}</label>
               <div className="relative">
                 <input
                   type={showPwd ? 'text' : 'password'}
@@ -79,7 +79,7 @@ export default function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all pr-12 font-athiti"
+                  className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all pr-12"
                 />
                 <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors">
                   {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -89,14 +89,14 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-linear-to-r/srgb from-purple-600 to-pink-600 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 mt-2"
+              className="w-full py-3 bg-linear-to-r/srgb from-purple-600 to-pink-600 rounded-xl text-white font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 mt-2"
             >
               {loading ? "正在登录…" : "登录"}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-zinc-400 text-sm font-athiti">
+            <p className="text-zinc-400 text-sm">
               {"还没有账号？"}{' '}
               <Link href="/register" className="text-purple-400 hover:text-purple-300 font-medium transition-colors">
                 {"免费注册"}</Link>

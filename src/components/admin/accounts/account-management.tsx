@@ -20,19 +20,19 @@ export function AccountManagement() {
     setList(null); if (!token || !allowed) return;
     const controller = new AbortController(); setReading(true);
     const params = new URLSearchParams({q: query, status, community, sort, page: String(page)});
-    void request(`/api/accounts/management?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
+    void request(`/api/admin/accounts?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
   }, [token, allowed, request, query, status, community, sort, page, refresh]);
   useEffect(() => {
     setDetail(null); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
-    void request(`/api/accounts/management/${encodeURIComponent(selected)}`, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
+    void request(`/api/admin/accounts/${encodeURIComponent(selected)}`, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
     return () => controller.abort();
   }, [selected, allowed, request, refresh]);
   async function applyAction(action: AccountAction, reason: string) {
     if (!detail || busy) return false;
     setBusy(true); setError(''); setMessage('');
-    try {await request(`/api/accounts/management/${encodeURIComponent(detail.user.id)}`, undefined, {action, reason, version: detail.user.accountVersion}); setMessage(`${actionLabels[action]}已完成。`); setRefresh(value => value + 1); return true;}
+    try {await request(`/api/admin/accounts/${encodeURIComponent(detail.user.id)}`, undefined, {action, reason, version: detail.user.accountVersion}); setMessage(`${actionLabels[action]}已完成。`); setRefresh(value => value + 1); return true;}
     catch (value) {setError((value as Error).message); setRefresh(value => value + 1); return false;} finally {setBusy(false);}
   }
   function search(event: FormEvent) {event.preventDefault(); setError(''); setPage(1); setQuery(q); setRefresh(value => value + 1);}

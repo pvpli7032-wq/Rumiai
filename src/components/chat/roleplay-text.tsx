@@ -15,7 +15,7 @@ export function RoleplayText({ text, streaming = false }: { text: string; stream
   const nodes = parseRoleplay(text);
 
   return (
-    <span className="font-athiti text-sm leading-relaxed">
+    <span className="text-sm leading-relaxed">
       {nodes.map((node, i) => (
         <Piece key={i} node={node} />
       ))}
@@ -32,7 +32,7 @@ function Piece({ node }: { node: Node }) {
       return <span className="text-zinc-50">“{node.value}”</span>;
     case 'gradient':
       return (
-        <span className="bg-linear-to-r/srgb from-[#FAAF40] to-[#EE4036] bg-clip-text font-semibold text-transparent">
+        <span className="bg-linear-to-r/srgb from-brand-2 to-brand bg-clip-text font-semibold text-transparent">
           {node.value}
         </span>
       );
@@ -52,14 +52,14 @@ function Thought({ value }: { value: string }) {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1 rounded-full bg-zinc-700/60 px-2 py-0.5 font-athiti text-[11px] text-zinc-300 hover:bg-zinc-700"
+        className="inline-flex items-center gap-1 rounded-full bg-zinc-700/60 px-2 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-700"
       >
         <span aria-hidden="true">💭</span>
         {open ? "隐藏内心想法" : "内心想法"}
         <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <span className="mt-1 block border-l-2 border-zinc-600 pl-2 font-athiti text-xs italic text-zinc-400">
+        <span className="mt-1 block border-l-2 border-zinc-600 pl-2 text-xs italic text-zinc-400">
           {value}
         </span>
       )}

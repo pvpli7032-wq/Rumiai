@@ -355,12 +355,12 @@ function ChatContent() {
           <>
             <CharacterAvatar character={character} size={40} />
             <div>
-              <h2 className="font-semibold font-athiti text-white">{character.name}</h2>
-              <p className="text-xs text-zinc-400 font-athiti truncate max-w-48">{character.personality.slice(0, 50)}</p>
+              <h2 className="font-semibold text-white">{character.name}</h2>
+              <p className="text-xs text-zinc-400 truncate max-w-48">{character.personality.slice(0, 50)}</p>
             </div>
           </>
         )}
-        {streaming && <div className="ml-auto flex items-center gap-2 text-xs text-purple-400 font-athiti"><div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />{"正在输入…"}</div>}
+        {streaming && <div className="ml-auto flex items-center gap-2 text-xs text-purple-400"><div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />{"正在输入…"}</div>}
         {character && (
           <button
             onClick={() => setReporting(true)}
@@ -378,8 +378,8 @@ function ChatContent() {
         {messages.length === 0 && character && (
           <div className="text-center py-8">
             <CharacterAvatar character={character} size={64} className="mx-auto mb-3" />
-            <p className="text-zinc-300 font-athiti text-lg font-semibold mb-1">{character.name}</p>
-            <p className="text-zinc-400 font-athiti text-sm">
+            <p className="text-zinc-300 text-lg font-semibold mb-1">{character.name}</p>
+            <p className="text-zinc-400 text-sm">
               {character.greeting
                 ? <RoleplayText text={character.greeting} />
                 : "你好！我是" + (character.name) + "，很高兴认识你。"}
@@ -399,20 +399,20 @@ function ChatContent() {
                     onChange={e => setEditDraft(e.target.value)}
                     rows={3}
                     autoFocus
-                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 font-athiti text-sm text-white focus:border-purple-500/50 focus:outline-hidden"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-purple-500/50 focus:outline-hidden"
                   />
-                  <p className="mt-1 font-athiti text-[11px] text-zinc-500">
+                  <p className="mt-1 text-[11px] text-zinc-500">
                     {"编辑后将重新生成回复"}</p>
                   <div className="mt-2 flex gap-2">
                     <button
                       onClick={() => setEditingId(null)}
-                      className="flex-1 rounded-full border border-white/10 py-1.5 font-athiti text-xs text-zinc-300 hover:bg-white/5"
+                      className="flex-1 rounded-full border border-white/10 py-1.5 text-xs text-zinc-300 hover:bg-white/5"
                     >
                       {"取消"}</button>
                     <button
                       onClick={() => saveEdit(msg.id)}
                       disabled={!editDraft.trim() || busyId === msg.id}
-                      className="flex-1 rounded-full bg-purple-600 py-1.5 font-athiti text-xs font-bold text-white hover:bg-purple-500 disabled:opacity-40"
+                      className="flex-1 rounded-full bg-purple-600 py-1.5 text-xs font-bold text-white hover:bg-purple-500 disabled:opacity-40"
                     >
                       {busyId === msg.id ? "正在保存…" : "保存并重新生成"}
                     </button>
@@ -426,7 +426,7 @@ function ChatContent() {
                       : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                   }`}>
                     {msg.role === 'USER' ? (
-                      <p className="whitespace-pre-wrap font-athiti text-sm leading-relaxed">{msg.content}</p>
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
                     ) : containsBannedWord(msg.content, bannedWords) ? (
                       <HiddenReply>
                         <RoleplayText text={msg.content} />
@@ -485,7 +485,7 @@ function ChatContent() {
                 key={i}
                 type="button"
                 onClick={() => setInput(prev => (prev ? `${prev} ${s.text}` : s.text))}
-                className="rounded-full border border-white/10 bg-zinc-800 px-3 py-1 font-athiti text-xs text-zinc-300 hover:border-white/25 hover:text-white"
+                className="rounded-full border border-white/10 bg-zinc-800 px-3 py-1 text-xs text-zinc-300 hover:border-white/25 hover:text-white"
               >
                 {s.label}
               </button>
@@ -500,7 +500,7 @@ function ChatContent() {
             disabled={streaming}
             maxLength={5000}
             placeholder={"发送消息给" + (character?.name || '角色') + "..."}
-            className="flex-1 px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti disabled:opacity-50"
+            className="flex-1 px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all disabled:opacity-50"
           />
           <button type="submit" disabled={streaming || !input.trim()}
             className="p-3 bg-linear-to-br/srgb from-purple-600 to-pink-600 rounded-xl text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20">

@@ -169,24 +169,24 @@ export function CharacterComments({ characterId }: { characterId: string }) {
           rows={2}
           placeholder={token ? "写下评论…" : "登录后发表评论"}
           onFocus={() => { if (!token) router.push(loginWithNext()); }}
-          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
         />
         <div className="mt-1 flex items-center justify-between">
-          <span className="font-barlow text-[11px] text-zinc-600">{draft.length}/{MAX_BODY}</span>
+          <span className="text-[11px] text-zinc-600">{draft.length}/{MAX_BODY}</span>
           <button
             onClick={() => post(draft)}
             disabled={busy || !draft.trim()}
-            className="flex items-center gap-1.5 rounded-full bg-[#F2572B] px-4 py-1.5 font-athiti text-xs font-bold text-white hover:bg-[#d94a22] disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-full bg-[#F2572B] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#d94a22] disabled:opacity-40"
           >
             <Send className="h-3.5 w-3.5" />
             {"发送"}</button>
         </div>
       </div>
 
-      {error && <p className="mb-3 font-athiti text-xs text-red-400">{error}</p>}
+      {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
 
       {comments.length === 0 ? (
-        <p className="py-6 text-center font-athiti text-sm text-zinc-500">
+        <p className="py-6 text-center text-sm text-zinc-500">
           {"暂无评论，来发表第一条吧"}</p>
       ) : (
         <ul className="space-y-3">
@@ -215,18 +215,18 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                     rows={2}
                     autoFocus
                     placeholder={"回复 " + (c.author.name || c.author.username)}
-                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
                   />
                   <div className="mt-1 flex justify-end gap-2">
                     <button
                       onClick={() => setReplyTo(null)}
-                      className="rounded-full border border-white/10 px-3 py-1 font-athiti text-[11px] text-zinc-400 hover:bg-white/5"
+                      className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-zinc-400 hover:bg-white/5"
                     >
                       {"取消"}</button>
                     <button
                       onClick={() => post(replyDraft, c.id)}
                       disabled={busy || !replyDraft.trim()}
-                      className="rounded-full bg-zinc-700 px-3 py-1 font-athiti text-[11px] font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
+                      className="rounded-full bg-zinc-700 px-3 py-1 text-[11px] font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
                     >
                       {"回复"}</button>
                   </div>
@@ -263,7 +263,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
       {nextCursor && (
         <button
           onClick={() => load(nextCursor)}
-          className="mt-4 w-full rounded-full border border-white/10 py-2 font-athiti text-xs text-zinc-300 hover:bg-white/5"
+          className="mt-4 w-full rounded-full border border-white/10 py-2 text-xs text-zinc-300 hover:bg-white/5"
         >
           {"加载更多评论"}</button>
       )}
@@ -333,7 +333,7 @@ function CommentRow({
         {node.author.avatarUrl ? (
           <img src={node.author.avatarUrl} alt={name} className={`${size} rounded-full object-cover`} />
         ) : (
-          <span className={`${size} flex items-center justify-center rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40] font-athiti text-xs font-bold text-white`}>
+          <span className={`${size} flex items-center justify-center rounded-full bg-brand-gradient text-xs font-bold text-white`}>
             {name[0]?.toUpperCase()}
           </span>
         )}
@@ -343,11 +343,11 @@ function CommentRow({
         <p className="flex items-center gap-2">
           <Link
             href={`/profile/${encodeURIComponent(node.author.username)}`}
-            className="truncate font-athiti text-xs font-bold text-white hover:underline"
+            className="truncate text-xs font-bold text-white hover:underline"
           >
             {name}
           </Link>
-          <span className="shrink-0 font-barlow text-[10px] text-zinc-600">{ago(node.createdAt)}</span>
+          <span className="shrink-0 text-[10px] text-zinc-600">{ago(node.createdAt)}</span>
         </p>
 
         {editing ? (
@@ -357,24 +357,24 @@ function CommentRow({
               onChange={(e) => onEditDraft(e.target.value.slice(0, MAX_BODY))}
               rows={2}
               autoFocus
-              className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-1.5 font-athiti text-xs text-white focus:border-[#F2572B]/50 focus:outline-hidden"
+              className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-xs text-white focus:border-[#F2572B]/50 focus:outline-hidden"
             />
             <div className="mt-1 flex justify-end gap-2">
               <button
                 onClick={onCancelEdit}
-                className="rounded-full border border-white/10 px-3 py-1 font-athiti text-[11px] text-zinc-400 hover:bg-white/5"
+                className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-zinc-400 hover:bg-white/5"
               >
                 {"取消"}</button>
               <button
                 onClick={onSaveEdit}
                 disabled={busy || !editDraft.trim()}
-                className="rounded-full bg-zinc-700 px-3 py-1 font-athiti text-[11px] font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
+                className="rounded-full bg-zinc-700 px-3 py-1 text-[11px] font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
               >
                 {"保存"}</button>
             </div>
           </div>
         ) : (
-          <p className="mt-0.5 whitespace-pre-wrap break-words font-athiti text-sm text-zinc-300">
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-zinc-300">
             {node.body}
           </p>
         )}
@@ -383,7 +383,7 @@ function CommentRow({
           <button
             onClick={onLike}
             aria-label={node.hasLiked ? "取消评论点赞" : "点赞评论"}
-            className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 font-barlow text-[11px] transition-colors ${
+            className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] transition-colors ${
               node.hasLiked ? 'text-pink-400' : 'text-zinc-500 hover:text-pink-400'
             }`}
           >
@@ -394,7 +394,7 @@ function CommentRow({
           {onReply && (
             <button
               onClick={onReply}
-              className="flex items-center gap-1 rounded-full px-1.5 py-0.5 font-athiti text-[11px] text-zinc-500 hover:text-zinc-200"
+              className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] text-zinc-500 hover:text-zinc-200"
             >
               <Reply className="h-3 w-3" />
               {"回复"}{node.replyCount ? ` (${node.replyCount})` : ''}

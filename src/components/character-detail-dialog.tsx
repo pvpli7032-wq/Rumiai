@@ -179,7 +179,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
   if (error) {
     return (
       <Overlay onClose={onClose}>
-        <div className="p-8 text-center font-athiti text-zinc-400">{error}</div>
+        <div className="p-8 text-center text-zinc-400">{error}</div>
       </Overlay>
     );
   }
@@ -234,7 +234,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             )}
 
             {character.isAdult && (
-              <span className="absolute left-3 top-3 rounded-full bg-amber-500/90 px-2 py-0.5 font-barlow text-[10px] font-bold text-black">
+              <span className="absolute left-3 top-3 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-bold text-black">
                 18+
               </span>
             )}
@@ -248,15 +248,15 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
           </div>
 
           <div className="px-5 pb-5">
-            <h2 className="font-athiti text-xl font-bold text-white">{character.name}</h2>
+            <h2 className="text-xl font-bold text-white">{character.name}</h2>
             {character.tagline && (
-              <p className="mt-1 font-athiti text-sm text-zinc-400">{character.tagline}</p>
+              <p className="mt-1 text-sm text-zinc-400">{character.tagline}</p>
             )}
 
             {creatorName && character.creator && (
               <Link
                 href={`/profile/${encodeURIComponent(character.creator.username)}`}
-                className="mt-2 inline-flex items-center gap-1.5 font-barlow text-xs text-zinc-400 hover:text-white"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white"
               >
                 {character.creator.avatarUrl ? (
                   <img src={character.creator.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
@@ -265,7 +265,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
               </Link>
             )}
 
-            <div className="mt-3 flex flex-wrap items-center gap-3 font-barlow text-xs text-zinc-400">
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-400">
               <Stat icon={<MessageSquare className="h-3.5 w-3.5" />} value={character.chatCount} label={"聊天"} />
               <Stat icon={<Heart className="h-3.5 w-3.5" />} value={character.likeCount} label={"点赞"} />
               <Stat icon={<Gift className="h-3.5 w-3.5" />} value={character.giftCount} label={"礼物"} />
@@ -274,7 +274,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             {tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {tags.map((t) => (
-                  <span key={t} className="rounded-full bg-zinc-800 px-2.5 py-0.5 font-athiti text-[11px] text-zinc-300">
+                  <span key={t} className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-[11px] text-zinc-300">
                     {t}
                   </span>
                 ))}
@@ -285,13 +285,13 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => startChat(false)}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] py-3 font-athiti text-sm font-bold text-white transition-opacity hover:opacity-90"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-gradient py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
               >
                 <MessageSquare className="h-4 w-4" />
                 {"开始聊天"}</button>
               <button
                 onClick={() => startChat(true)}
-                className="rounded-full border border-white/15 px-4 font-athiti text-sm font-bold text-zinc-200 hover:bg-white/5"
+                className="rounded-full border border-white/15 px-4 text-sm font-bold text-zinc-200 hover:bg-white/5"
               >
                 {"新建聊天"}</button>
             </div>
@@ -312,7 +312,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
               <IconAction onClick={() => setReporting(true)} icon={<Flag className="h-4 w-4" />} label={"举报"} />
             </div>
 
-            {notice && <p className="mt-2 font-athiti text-xs text-emerald-400">{notice}</p>}
+            {notice && <p className="mt-2 text-xs text-emerald-400">{notice}</p>}
 
             {/* Tabs */}
             <div className="mt-5 flex gap-1 border-b border-white/10">
@@ -338,16 +338,16 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                   {character.scenario && <Section title={"场景"}>{character.scenario}</Section>}
                   {character.copyrightStatement && <Section title="版权声明">{character.copyrightStatement}</Section>}
                   {character.background && <Section title={"故事"}>{character.background}</Section>}
-                  {giftOptions.length>0&&<section className="space-y-2"><h3 className="font-athiti text-xs font-bold text-zinc-500">赠送礼物</h3><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{giftOptions.map(gift=><button key={gift.id} onClick={()=>void sendGift(gift)} disabled={!token||!!sendingGift} className="flex min-h-14 items-center gap-2 rounded-xl border border-white/10 bg-zinc-800/50 px-3 text-left hover:border-[#F2572B]/50 disabled:opacity-50"><span className="text-xl">{gift.emoji}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm">{gift.name}</span><span className="text-xs text-amber-400">{gift.coinPrice} 金币</span></span></button>)}</div>{!token&&<p className="text-xs text-zinc-500">登录后可赠送礼物</p>}</section>}
+                  {giftOptions.length>0&&<section className="space-y-2"><h3 className="text-xs font-bold text-zinc-500">赠送礼物</h3><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{giftOptions.map(gift=><button key={gift.id} onClick={()=>void sendGift(gift)} disabled={!token||!!sendingGift} className="flex min-h-14 items-center gap-2 rounded-xl border border-white/10 bg-zinc-800/50 px-3 text-left hover:border-[#F2572B]/50 disabled:opacity-50"><span className="text-xl">{gift.emoji}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm">{gift.name}</span><span className="text-xs text-amber-400">{gift.coinPrice} 金币</span></span></button>)}</div>{!token&&<p className="text-xs text-zinc-500">登录后可赠送礼物</p>}</section>}
                   {character.greeting && <Section title={"开场白"}>{character.greeting}</Section>}
                   {character.emojis.length > 0 && (
                     <div>
-                      <p className="mb-2 font-athiti text-xs font-bold text-zinc-500">{"情绪"}</p>
+                      <p className="mb-2 text-xs font-bold text-zinc-500">{"情绪"}</p>
                       <div className="flex flex-wrap gap-2">
                         {character.emojis.map((e) => (
                           <div key={e.id} className="flex flex-col items-center gap-1">
                             <img src={e.url} alt={e.emotion} className="h-14 w-14 rounded-xl object-cover" />
-                            <span className="font-athiti text-[10px] text-zinc-400">{e.emotion}</span>
+                            <span className="text-[10px] text-zinc-400">{e.emotion}</span>
                           </div>
                         ))}
                       </div>
@@ -359,7 +359,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
               {tab === 'quests' && (
                 <div className="space-y-2">
                   {quests.length === 0 ? (
-                    <p className="py-6 text-center font-athiti text-sm text-zinc-500">
+                    <p className="py-6 text-center text-sm text-zinc-500">
                       {"该角色暂无任务"}</p>
                   ) : (
                     quests.map((q) => (
@@ -375,11 +375,11 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                           {q.isCompleted ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-athiti text-sm font-semibold text-white">{q.title}</p>
+                          <p className="truncate text-sm font-semibold text-white">{q.title}</p>
                           {q.description && (
-                            <p className="truncate font-athiti text-xs text-zinc-500">{q.description}</p>
+                            <p className="truncate text-xs text-zinc-500">{q.description}</p>
                           )}
-                          <p className="mt-0.5 flex items-center gap-1 font-barlow text-[11px] text-amber-400">
+                          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-400">
                             <Coins className="h-3 w-3" />
                             {q.rewardCoins}
                           </p>
@@ -388,7 +388,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                         <button
                           onClick={() => claimQuest(q.id)}
                           disabled={q.isCompleted || !q.isQualified || claiming === q.id}
-                          className="shrink-0 rounded-full bg-zinc-700 px-3 py-1.5 font-athiti text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
+                          className="shrink-0 rounded-full bg-zinc-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
                         >
                           {q.isCompleted ? "已领取" : claiming === q.id ? '...' : q.isQualified?"领取奖励":'尚未达成'}
                         </button>
@@ -412,9 +412,9 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                         </span>
                       )}
                       <div className="min-w-0">
-                        <p className="truncate font-athiti text-sm text-white">{s.name}</p>
+                        <p className="truncate text-sm text-white">{s.name}</p>
                         {s.description && (
-                          <p className="truncate font-athiti text-[11px] text-zinc-500">{s.description}</p>
+                          <p className="truncate text-[11px] text-zinc-500">{s.description}</p>
                         )}
                       </div>
                     </div>
@@ -495,7 +495,7 @@ function IconAction({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border py-2 font-athiti text-xs font-bold transition-colors ${
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border py-2 text-xs font-bold transition-colors ${
         active
           ? 'border-[#F2572B]/50 bg-[#F2572B]/10 text-[#F2572B]'
           : 'border-white/10 text-zinc-300 hover:bg-white/5'
@@ -519,7 +519,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`relative px-3 pb-2 font-athiti text-sm font-bold transition-colors ${
+      className={`relative px-3 pb-2 text-sm font-bold transition-colors ${
         active ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
       }`}
     >
@@ -532,8 +532,8 @@ function TabButton({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1 font-athiti text-xs font-bold text-zinc-500">{title}</p>
-      <p className="whitespace-pre-wrap font-athiti text-sm leading-relaxed text-zinc-300">{children}</p>
+      <p className="mb-1 text-xs font-bold text-zinc-500">{title}</p>
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{children}</p>
     </div>
   );
 }

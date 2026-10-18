@@ -250,7 +250,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate font-athiti text-base font-bold leading-tight">{editId ? '编辑角色' : '创建角色'}</h1>
+            <h1 className="truncate text-base font-bold leading-tight">{editId ? '编辑角色' : '创建角色'}</h1>
             <p className="truncate text-[11px] text-muted-foreground">
               {savedAt ? "草稿已自动保存于" + (savedAt) : "草稿会自动保存"}
             </p>
@@ -259,7 +259,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
           <div className="hidden items-center gap-2 md:flex">
             <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] transition-all duration-300"
+                className="h-full rounded-full bg-brand-gradient transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -290,8 +290,8 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             <button
               key={s.id}
               onClick={() => goTo(s.id)}
-              className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 font-athiti text-sm font-semibold transition-all ${
-                active === s.id ? 'bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] text-white' : 'border border-zinc-200 dark:border-[#2A2A2A]'
+              className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold transition-all ${
+                active === s.id ? 'bg-brand-gradient text-white' : 'border border-zinc-200 dark:border-[#2A2A2A]'
               }`}
             >
               {done[s.id as keyof typeof done] && <Check className="h-3 w-3" />}
@@ -324,7 +324,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                   {isDone ? <Check className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
                 </span>
                 <span className="min-w-0">
-                  <span className={`block font-athiti text-sm font-bold ${isActive ? '' : 'text-muted-foreground'}`}>{s.label}</span>
+                  <span className={`block text-sm font-bold ${isActive ? '' : 'text-muted-foreground'}`}>{s.label}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">{s.desc}</span>
                 </span>
               </button>
@@ -471,7 +471,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                   <button
                     key={t}
                     onClick={() => toggleIn('tags', t)}
-                    className="flex h-8 items-center gap-1 rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] px-3 font-athiti text-sm font-semibold text-white"
+                    className="flex h-8 items-center gap-1 rounded-full bg-brand-gradient px-3 text-sm font-semibold text-white"
                   >
                     {labelOf(t)}
                     <X className="h-3 w-3" />
@@ -482,7 +482,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
 
             {filteredGroups.map((g) => (
               <div key={g.label} className="space-y-2">
-                <p className="font-athiti text-sm font-bold text-muted-foreground">{g.label}</p>
+                <p className="text-sm font-bold text-muted-foreground">{g.label}</p>
                 <div className="flex flex-wrap gap-2">
                   {g.tags.map((t) => {
                     const on = draft.tags.includes(t.key);
@@ -490,7 +490,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                       <button
                         key={t.key}
                         onClick={() => toggleIn('tags', t.key)}
-                        className={`flex h-8 items-center rounded-full px-3 font-athiti text-sm font-semibold transition-all ${
+                        className={`flex h-8 items-center rounded-full px-3 text-sm font-semibold transition-all ${
                           on ? 'bg-[#F2572B]/15 text-[#F2572B] ring-1 ring-[#F2572B]/40' : 'border border-zinc-200 hover:bg-accent dark:border-[#2A2A2A]'
                         }`}
                       >
@@ -515,7 +515,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                     <button
                       key={b.emoji}
                       onClick={() => toggleIn('badges', b.emoji)}
-                      className={`flex h-9 items-center gap-2 rounded-full px-3 font-athiti text-sm transition-all ${
+                      className={`flex h-9 items-center gap-2 rounded-full px-3 text-sm transition-all ${
                         on ? 'bg-[#F2572B]/15 text-[#F2572B] ring-1 ring-[#F2572B]/40' : 'border border-zinc-200 dark:border-[#2A2A2A]'
                       }`}
                     >
@@ -564,7 +564,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
 
         {/* Live preview — desktop */}
         <aside className="sticky top-36 hidden h-fit xl:block">
-          <p className="mb-3 font-athiti text-sm font-bold text-muted-foreground">{"实时预览"}</p>
+          <p className="mb-3 text-sm font-bold text-muted-foreground">{"实时预览"}</p>
           <LivePreview data={draft} tagLabel={labelOf} />
         </aside>
       </div>
@@ -574,7 +574,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-full rounded-full bg-brand-gradient transition-all" style={{ width: `${progress}%` }} />
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">{"已填写"}{progress}%</p>
           </div>
@@ -597,7 +597,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             <LivePreview data={draft} tagLabel={labelOf} />
             <button
               onClick={() => setShowPreview(false)}
-              className="mt-5 h-11 w-full rounded-xl border border-input font-athiti font-bold transition-colors hover:bg-accent"
+              className="mt-5 h-11 w-full rounded-xl border border-input font-bold transition-colors hover:bg-accent"
             >
               {"关闭"}</button>
           </div>
@@ -623,7 +623,7 @@ function Card({
       className="scroll-mt-40 space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-[#2A2A2A] dark:bg-[#141414]"
     >
       <header>
-        <h2 className="font-athiti text-lg font-bold">{title}</h2>
+        <h2 className="text-lg font-bold">{title}</h2>
         <p className="text-xs text-muted-foreground">{desc}</p>
       </header>
       {children}

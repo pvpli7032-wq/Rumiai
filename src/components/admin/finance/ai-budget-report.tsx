@@ -11,7 +11,7 @@ export function AiBudgetReport({ report }: { report: FinanceReport['aiBudget'] }
     {report.status === 'enabled' && <>
       {Object.entries(report.budgets).map(([currency, limits]) => <p key={currency}>{currency} · 全站预算 {limits.site ?? '未设置'} · 每账号预算 {limits.user ?? '未设置'}</p>)}
       {!report.alerts.length && <p>已知成本尚未达到已配置的预算。</p>}
-      {report.alerts.map(row => <p role="alert" className="break-all text-orange-400" key={`${row.scope}:${row.currency}:${row.userId}`}>
+      {report.alerts.map(row => <p role="alert" className="break-all text-brand-2" key={`${row.scope}:${row.currency}:${row.userId}`}>
         {row.scope === 'site' ? '全站' : `账号 ${row.userId}`} · {row.currency} 已知成本 {row.knownCost.toFixed(6)}，达到预算 {row.budget}
       </p>)}
       {report.alertsTruncated && <p>提示超过 100 条，仅展示前 100 条。</p>}

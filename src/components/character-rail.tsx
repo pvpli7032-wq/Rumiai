@@ -20,7 +20,7 @@ export function CharacterRail({
 
   return (
     <div className="space-y-4 px-4 md:px-12">
-      <p className="inline-flex items-center gap-1.5 font-athiti text-base font-bold md:text-lg">
+      <p className="inline-flex items-center gap-1.5 text-base font-bold md:text-lg">
         <span aria-hidden className="shrink-0 select-none leading-none">{emoji}</span>
         <span className="min-w-0">{title}</span>
       </p>
@@ -32,13 +32,13 @@ export function CharacterRail({
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`h-8 rounded-xl px-3 font-athiti text-sm transition-all duration-200 ${
+              className={`h-8 rounded-xl px-3 text-sm transition-all duration-200 ${
                 active
                   ? 'font-bold border border-zinc-200 dark:border-transparent dark:bg-zinc-800'
                   : 'font-medium text-neutral-500 hover:bg-accent'
               }`}
             >
-              <span className={active ? 'bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent' : ''}>
+              <span className={active ? 'bg-brand-gradient bg-clip-text text-transparent' : ''}>
                 {r}
               </span>
             </button>
