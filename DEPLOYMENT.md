@@ -311,3 +311,19 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 **后台现状核对**（据此修正上一条口头结论）：商户其实早已配置 —— `易支付正式商户 7059`，`PRODUCTION`，`isActive`，revision 2，`merchantNo=7059`，`apiBaseUrl=https://www.ezfp.cn`，`refundsEnabled=true`，凭据校验 `credentialsValid=true`；结账策略 `enabled=true, version=2`，公网 `/api/coins/packages` 返回 `x-checkout-enabled: true / READY`，即线上当前可用真实支付。此前我说「商户未配置」是查错了表（`payment_merchants` 没有 secret 列，查询报错被当成空）。合规侧 `ageGateEnabled=false`、`minimumAge=null`，年龄准入尚未开启。
 
 验收：`verify:done` 8/8、`verify:build` 通过（`sqlite_pragmas_failed=0`）、17 个套件 138 项断言全绿、3108 预启动 13×200/17×401/8×404；线上条款页 200 且内容完整，PM2 error.log 零错误。
+
+## 2026-10-18 C1 真实商户下单验收通过
+
+当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261018-c1`（源码 = `6a1e9a1` 附近，`BUILD_ID=iSBUNZHj_AGsmQf6jS53I`）；回滚位 `-legal`、`-phase8` 保留。无新增迁移。
+
+**下单链路实测通过**：管理员账号经公网连续下单 4 次（支付宝 3 次、微信 1 次），每次都返回 `orderNo + status=PENDING + redirectUrl`，收银台页面（`https://www.ezfp.cn/pay/submit/{tradeNo}/`）实测 200 可访问。用应用自身代码（`resolveNewPaymentConfiguration` + `createEzfpCheckout`）在服务器单独复现同样 200ms 成功——网关、RSA 签名、商户 7059 配置全部正常。
+
+**本轮修的问题**：
+1. 下单接口在拿不到公网客户端 IP 时（如反代未透传 X-Real-IP），网关只回一个含糊的「系统异常无法完成付款」。现在 `POST /api/coins/orders` 在生产环境先校验客户端 IP 为公网地址，不满足直接 400 `{error, code: CLIENT_IP_UNAVAILABLE}` 并说明原因；校验过的 IP 复用，不再重复读头。
+2. 桌面验收脚本（`test:browser`）适配分步向导与新流程：SSE 响应在 response 事件内读 body（页面随后跳转）、清浏览器级草稿残留、创作角色改走接口（UI 断言向导首屏只挂第一步）、模拟充值在真实支付开启时按策略跳过。结果：8 项通过、1 项策略性跳过。
+
+**已知事实**：一次下单曾报「支付服务连接失败」（fetch 网络层瞬时失败），立即重试即成功且此后未复现——判断为网关瞬时抖动，非代码问题；订单状态落在「待核对」是预期行为。
+
+**支付回调**（notify 验签入账）只能由真实支付触发，属下一阶段灰度时观察项；工程侧回调路由、退款开关（refundsEnabled=true）已就位。
+
+验收：`verify:done` 8/8、`verify:build` 通过（pragmas=0）、17 个套件全绿、3109 预启动 13×200/17×401/8×404；线上 7 页面全 200，error.log 零错误。
