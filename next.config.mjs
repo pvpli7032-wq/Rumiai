@@ -8,6 +8,17 @@ const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: fileURLToPath(new URL('.', import.meta.url)),
   async rewrites() { return { beforeFiles: [{ source: '/uploads/:name', destination: '/api/uploads/:name' }] }; },
+  // Administration used to live at the top level (/finance, /moderation). It now
+  // sits under /admin as its own route group. Temporary redirects until a release
+  // has shipped and external links have been updated.
+  async redirects() {
+    return [
+      { source: '/finance', destination: '/admin/finance', permanent: false },
+      { source: '/finance/:path*', destination: '/admin/finance/:path*', permanent: false },
+      { source: '/moderation', destination: '/admin/moderation', permanent: false },
+      { source: '/moderation/:path*', destination: '/admin/moderation/:path*', permanent: false },
+    ];
+  },
   // Production builds go to .next-build so `npm run build` never wipes the dev
   // server's chunks out from under a running `npm run dev`. (npm sets
   // npm_lifecycle_event to the script name; cross-platform, no extra dep.)
@@ -24,12 +35,9 @@ const nextConfig = {
   images: {
     // Authenticated uploads must never be copied into the public image-optimizer cache.
     localPatterns: [{ pathname: '/brand/**' }],
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'api.dicebear.com',
-      },
-    ],
+    // No remote host is whitelisted: every avatar is either an uploaded file or a
+    // local /brand asset. Adding one back requires an actual caller.
+    remotePatterns: [],
   },
 };
 
