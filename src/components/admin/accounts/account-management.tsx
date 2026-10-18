@@ -4,6 +4,7 @@ import {useAdminAccess} from '../use-admin-access';
 import {AccountTable} from './account-table';
 import {ManagedAccountDetail} from './account-detail';
 import {actionLabels, type AccountAction, type AccountDetail, type AccountList} from './types';
+import {apiFetch} from '@/lib/api-client';
 
 export function AccountManagement() {
   const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
@@ -11,22 +12,19 @@ export function AccountManagement() {
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [community, setCommunity] = useState('ALL'), [sort, setSort] = useState('NEWEST'), [page, setPage] = useState(1);
   const [list, setList] = useState<AccountList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<AccountDetail | null>(null);
   const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0);
-  const request = useCallback(async (url: string, signal?: AbortSignal, body?: object) => {
-    const response = await fetch(url, {method: body ? 'PATCH' : 'GET', headers: {Authorization: `Bearer ${token}`, ...(body ? {'Content-Type': 'application/json'} : {})}, cache: 'no-store', signal, ...(body ? {body: JSON.stringify(body)} : {})});
-    const data = await response.json(); if (!response.ok) throw Error(data.error || '用户管理请求失败。'); return data;
-  }, [token]);
+  const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, {method: body ? 'PATCH' : 'GET', token, body, signal, cache: 'no-store'}), [token]);
   useEffect(() => {setList(null); setSelected(null); setDetail(null); setMessage('');}, [token]);
   useEffect(() => {
     setList(null); if (!token || !allowed) return;
     const controller = new AbortController(); setReading(true);
     const params = new URLSearchParams({q: query, status, community, sort, page: String(page)});
-    void request(`/api/admin/accounts?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
+    void request<AccountList>(`/api/admin/accounts?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
   }, [token, allowed, request, query, status, community, sort, page, refresh]);
   useEffect(() => {
     setDetail(null); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
-    void request(`/api/admin/accounts/${encodeURIComponent(selected)}`, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
+    void request<AccountDetail>(`/api/admin/accounts/${encodeURIComponent(selected)}`, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
     return () => controller.abort();
   }, [selected, allowed, request, refresh]);
   async function applyAction(action: AccountAction, reason: string) {

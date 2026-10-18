@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useSiteContent } from '@/lib/use-site-content';
+import type {ConversationSummary} from '@/lib/api-types/conversations';
 import { CHAT_LIST_CHANGED } from '@/lib/conversations/chat-events';
 import { isPrimaryNavActive, PRIMARY_NAV } from '@/lib/navigation';
 
@@ -54,7 +55,7 @@ export function Sidebar() {
       .then((data) => {
         if (!Array.isArray(data)) return;
         setChats(
-          data.map((c: any) => ({
+          data.map((c: ConversationSummary) => ({
             id: c.id,
             title: c.character?.name ?? c.title ?? '对话',
             avatarUrl: c.character?.avatarUrl ?? null,

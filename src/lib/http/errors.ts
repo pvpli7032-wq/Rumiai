@@ -1,5 +1,6 @@
 import {NextResponse} from 'next/server';
 import {logRouteError} from '@/lib/logger';
+import {STATUS_CODES} from './status-codes';
 
 /**
  * Authenticated API responses must never be cached by a shared proxy.
@@ -9,22 +10,6 @@ export const privateHeaders = {'Cache-Control': 'private, no-store'};
 
 /** The one error body shape every migrated route returns. */
 export type ApiErrorBody = {error: string; code: string};
-
-const STATUS_CODES: Record<number, string> = {
-  400: 'INVALID_INPUT',
-  401: 'UNAUTHORIZED',
-  403: 'FORBIDDEN',
-  404: 'NOT_FOUND',
-  405: 'METHOD_NOT_ALLOWED',
-  409: 'CONFLICT',
-  413: 'PAYLOAD_TOO_LARGE',
-  415: 'UNSUPPORTED_MEDIA_TYPE',
-  422: 'INVALID_INPUT',
-  429: 'RATE_LIMITED',
-  500: 'INTERNAL',
-  502: 'UPSTREAM_FAILED',
-  503: 'UNAVAILABLE',
-};
 
 /** A domain error carries its own HTTP status; anything else is a server fault. */
 function errorStatus(error: unknown): number | null {

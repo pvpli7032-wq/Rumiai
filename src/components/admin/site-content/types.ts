@@ -1,3 +1,5 @@
+import {DEFAULT_ACCENT_FROM, DEFAULT_ACCENT_TO, DEFAULT_BRAND_LOGO, DEFAULT_BRAND_NAME} from '@/lib/site-content/brand-defaults';
+
 export type ContentType = 'BANNER' | 'TAG' | 'BADGE' | 'SECTION' | 'NAVIGATION' | 'PAGE' | 'BRANDING';
 export type ContentStatus = 'PUBLISHED' | 'UNPUBLISHED' | 'DRAFT' | 'SCHEDULED';
 export type SiteContentRow = {id: string; content: Record<string, unknown> | null; status: ContentStatus; isPublished: boolean; scheduledAt: string | null; version: number; updatedAt: string};
@@ -15,7 +17,7 @@ export const defaults: Record<ContentType, Record<string, unknown>> = {
   SECTION: {key: '', emoji: '✨', title: '', source: 'FOR_YOU', tagKey: null, sortOrder: 0, isActive: true},
   NAVIGATION: {placement:'HEADER',label:'',href:'/announcements',sortOrder:0,isActive:true},
   PAGE: {slug:'',kind:'PAGE',title:'',summary:'',blocks:[{type:'PARAGRAPH',text:''}],sortOrder:0,isActive:true,startsAt:null,endsAt:null},
-  BRANDING: {brandName:'星伴',logoUrl:'/brand/icon.svg',accentFrom:'#EE4036',accentTo:'#FAAF40',footerNote:'',isActive:true},
+  BRANDING: {brandName:DEFAULT_BRAND_NAME,logoUrl:DEFAULT_BRAND_LOGO,accentFrom:DEFAULT_ACCENT_FROM,accentTo:DEFAULT_ACCENT_TO,footerNote:'',isActive:true},
 };
 export function summary(type: ContentType, value: Record<string, unknown>) {
   if (type === 'BANNER') return `${value.placement === 'HERO' ? '首页大图' : '侧栏'} · ${value.title || '未命名横幅'}`;

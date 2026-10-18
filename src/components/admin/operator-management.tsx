@@ -2,10 +2,12 @@
 
 import {useCallback, useEffect, useState, type FormEvent} from 'react';
 import {useAdminAccess} from './use-admin-access';
+import {apiFetch} from '@/lib/api-client';
 
 type Role = {id: string; name: string; system: boolean; version: number; permissions: {permission: string}[]; _count: {assignments: number}};
 type Operator = {userId: string; enabled: boolean; version: number; user: {username: string; email: string; deletedAt: string | null}; assignments: {role: {id: string; name: string}}[]};
 type Report = {operators: Operator[]; total: number; pageSize: number; roles: Role[]; definitions: Record<string, string>; ownerOnly: string[]; canManageStaff: boolean; canManageRoles: boolean};
+type LookupUser = {id: string; username: string; email: string; adminOperator: {enabled: boolean; version: number; assignments: {roleId: string}[]} | null};
 type Selection = {userId: string; username: string; email: string; enabled: boolean; version: number; roleIds: string[]};
 const inputClass = 'mt-1 min-h-11 w-full rounded-lg border bg-background px-3';
 const buttonClass = 'min-h-11 rounded-lg border px-4 disabled:opacity-50';
@@ -19,16 +21,11 @@ export function OperatorManagement() {
   const [staffReason, setStaffReason] = useState(''), [roleReason, setRoleReason] = useState('');
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [reading, setReading] = useState(false);
 
-  const request = useCallback(async (url: string, body?: object, signal?: AbortSignal) => {
-    const response = await fetch(url, {method: body ? 'POST' : 'GET', headers: {Authorization: `Bearer ${token}`, ...(body ? {'Content-Type': 'application/json'} : {})}, ...(body ? {body: JSON.stringify(body)} : {}), cache: 'no-store', signal});
-    const data = await response.json();
-    if (!response.ok) throw Error(data.error || '管理操作失败。');
-    return data;
-  }, [token]);
+  const request = useCallback(<T,>(url: string, body?: object, signal?: AbortSignal) => apiFetch<T>(url, {method: body ? 'POST' : 'GET', token, body, signal, cache: 'no-store'}), [token]);
   const load = useCallback(async (signal?: AbortSignal) => {
     if (!token || !access?.staff) return;
     setReading(true); setError('');
-    try {const data = await request(`/api/admin/operators?q=${encodeURIComponent(search)}&page=${page}`, undefined, signal); if (!signal?.aborted) setReport(data);}
+    try {const data = await request<Report>(`/api/admin/operators?q=${encodeURIComponent(search)}&page=${page}`, undefined, signal); if (!signal?.aborted) setReport(data);}
     catch (value) {if (!signal?.aborted) {setReport(null); setError((value as Error).message);}}
     finally {if (!signal?.aborted) setReading(false);}
   }, [token, access?.staff, request, search, page]);
@@ -39,8 +36,8 @@ export function OperatorManagement() {
     event.preventDefault(); if (busy) return;
     setBusy(true); setError(''); setMessage(''); setSelection(null);
     try {
-      const user = await request(`/api/admin/operators/lookup?q=${encodeURIComponent(lookup.trim())}`);
-      setSelection({userId: user.id, username: user.username, email: user.email, enabled: user.adminOperator?.enabled ?? true, version: user.adminOperator?.version ?? 0, roleIds: user.adminOperator?.assignments.map((item: {roleId: string}) => item.roleId) ?? []});
+      const user = await request<LookupUser>(`/api/admin/operators/lookup?q=${encodeURIComponent(lookup.trim())}`);
+      setSelection({userId: user.id, username: user.username, email: user.email, enabled: user.adminOperator?.enabled ?? true, version: user.adminOperator?.version ?? 0, roleIds: user.adminOperator?.assignments.map(item => item.roleId) ?? []});
       setStaffReason('');
     } catch (value) {setError((value as Error).message);} finally {setBusy(false);}
   }

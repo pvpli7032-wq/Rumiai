@@ -702,7 +702,7 @@
   "padding": "0 23px 0 0",
   "pageTitle": "聊得越多，奖品越大",
   "parallelRouterKey": "children",
-  "payAmount": "点击支付 ฿{amount}",
+  "payAmount": "点击支付 {amount}",
   "payWithEWallet": "使用电子钱包和 TrueMoney 支付",
   "payWithPromptPay": "使用 QR PromptPay 和信用卡支付",
   "paymentError": "无法启动支付。请重试。",

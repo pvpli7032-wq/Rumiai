@@ -5,6 +5,7 @@ import {CharacterBulkActions} from './character-bulk-actions';
 import {CharacterEditor} from './character-editor';
 import {CharacterModelAccess} from './character-model-access';
 import {statusLabels, type CharacterContent, type CharacterSummary, type ManagedCharacter} from './types';
+import {apiFetch} from '@/lib/api-client';
 
 export function CharacterManagement() {
   const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
@@ -13,29 +14,26 @@ export function CharacterManagement() {
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [tag, setTag] = useState(''), [creator, setCreator] = useState(''), [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
   const [list, setList] = useState<{items: CharacterSummary[]; total: number; pageSize: number} | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<ManagedCharacter | null>(null), [creating, setCreating] = useState(false);
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false);
-  const request = useCallback(async (url: string, method = 'GET', body?: object, signal?: AbortSignal) => {
-    const response = await fetch(url, {method, headers: {Authorization: `Bearer ${token}`, ...(body ? {'Content-Type': 'application/json'} : {})}, cache: 'no-store', signal, ...(body ? {body: JSON.stringify(body)} : {})});
-    const data = await response.json(); if (!response.ok) throw Error(data.error || '角色管理请求失败。'); return data;
-  }, [token]);
+  const request = useCallback(<T,>(url: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET', body?: object, signal?: AbortSignal) => apiFetch<T>(url, {method, token, body, signal, cache: 'no-store'}), [token]);
   useEffect(() => {setList(null); setDetail(null); setSelected(null); setCreating(false);}, [token]);
   useEffect(() => {
     setList(null); setSelectedRows({}); if (!token || !allowed) return;
     const controller = new AbortController(); setReading(true);
     const params = new URLSearchParams({q: query, status, tag, creatorId: creator, page: String(page)});
-    void request(`/api/admin/characters?${params}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
+    void request<{items: CharacterSummary[]; total: number; pageSize: number}>(`/api/admin/characters?${params}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
   }, [token, allowed, request, query, status, tag, creator, page, refresh]);
   useEffect(() => {
     setDetail(null); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
-    void request(`/api/admin/characters/${encodeURIComponent(selected)}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
+    void request<ManagedCharacter>(`/api/admin/characters/${encodeURIComponent(selected)}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
     return () => controller.abort();
   }, [selected, allowed, request, refresh]);
   async function save(content: CharacterContent, reason: string) {
     if (busy) return false; setBusy(true); setError(''); setMessage('');
     try {
       const id = detail?.id;
-      const result = await request(id ? `/api/admin/characters/${encodeURIComponent(id)}` : '/api/admin/characters', id ? 'PUT' : 'POST', {content, reason, ...(id ? {updatedAt: detail!.updatedAt} : {})});
+      const result = await request<{id: string}>(id ? `/api/admin/characters/${encodeURIComponent(id)}` : '/api/admin/characters', id ? 'PUT' : 'POST', {content, reason, ...(id ? {updatedAt: detail!.updatedAt} : {})});
       setCreating(false); setSelected(result.id); setRefresh(value => value + 1); setMessage('角色内容已保存，公开状态由发布流程管理。'); return true;
     } catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
   }

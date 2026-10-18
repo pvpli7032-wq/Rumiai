@@ -1,8 +1,9 @@
 import {db} from '@/lib/db';
 import {SITE_CONTENT_TYPES, type SiteContentType} from './content';
 import type {SitePageBlock} from '@/lib/use-site-content';
+import {DEFAULT_ACCENT_FROM, DEFAULT_ACCENT_TO, DEFAULT_BRAND_LOGO, DEFAULT_BRAND_NAME} from './brand-defaults';
 
-const DEFAULT_BRANDING={id:'primary',brandName:'星伴',logoUrl:'/brand/icon.svg',accentFrom:'#EE4036',accentTo:'#FAAF40',footerNote:'',isActive:true,updatedAt:new Date(0)};
+const DEFAULT_BRANDING={id:'primary',brandName:DEFAULT_BRAND_NAME,logoUrl:DEFAULT_BRAND_LOGO,accentFrom:DEFAULT_ACCENT_FROM,accentTo:DEFAULT_ACCENT_TO,footerNote:'',isActive:true,updatedAt:new Date(0)};
 const now=()=>new Date();
 
 async function applyDueDrafts<T extends {id:string}>(type:SiteContentType,rows:T[],at:Date):Promise<T[]>{

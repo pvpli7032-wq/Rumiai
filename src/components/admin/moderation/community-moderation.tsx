@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import {useAdminAccess} from '@/components/admin/use-admin-access';
 import { useAuth } from '@/lib/auth-context';
 
-type ReportRow = { id: string; targetType: string; targetId: string; category: string; details: string; evidenceContent: string | null; status: string; target: any; reporter: { username: string } };
+type ReportTarget = { content?: string | null; name?: string | null; username?: string | null; communityBannedAt?: string | null; communityBanReason?: string | null } | null;
+type ReportRow = { id: string; targetType: string; targetId: string; category: string; details: string; evidenceContent: string | null; status: string; target: ReportTarget; reporter: { username: string } };
 type AppealRow = { id: string; userId: string; reason: string; status: string; user: { username: string; communityBanReason: string | null } };
 type AuditRow = { id: string; targetType: string; targetId: string; action: string; reason: string; createdAt: string; actor: { username: string } };
 type Tab = 'reports' | 'appeals' | 'audit';

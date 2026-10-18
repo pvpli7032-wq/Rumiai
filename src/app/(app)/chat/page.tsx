@@ -17,9 +17,10 @@ import { parseShortcuts, parseBannedWords, containsBannedWord, type Shortcut } f
 import { HiddenReply } from '@/components/chat/hidden-reply';
 import { notifyChatListChanged } from '@/lib/conversations/chat-events';
 import { Send, Loader2, ArrowLeft, Flag } from 'lucide-react';
+import type {ChatMessage as Message} from '@/lib/api-types/conversations';
 import Link from 'next/link';
 
-interface Message { id: string; role: string; content: string; createdAt: string; }
+
 interface Character { id: string; name: string; personality: string; background: string; greeting?: string | null; avatarUrl?: string | null; }
 
 const EMOJI_LIST = ['🌸', '⚡', '🔮', '🌙', '✨', '💫', '🦋', '🌺', '🐉', '🦊'];
@@ -140,7 +141,7 @@ function ChatContent() {
     }).then(r => r?.json()).then(msgs => {
       if (Array.isArray(msgs)) {
         setMessages(msgs);
-        setLikedIds(new Set(msgs.filter((m: any) => m.likedAt).map((m: any) => m.id)));
+        setLikedIds(new Set(msgs.filter(m => m.likedAt).map(m => m.id)));
       }
     }).catch(error => setChatError(error.message || '无法加载对话，请重试。'))
       .finally(() => setLoading(false));
@@ -179,7 +180,7 @@ function ChatContent() {
         signal.throwIfAborted();
         if (Array.isArray(fresh)) {
           setMessages(fresh);
-          setLikedIds(new Set(fresh.filter((m: any) => m.likedAt).map((m: any) => m.id)));
+          setLikedIds(new Set(fresh.filter(m => m.likedAt).map(m => m.id)));
         } else {
           setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ASSISTANT', content: full, createdAt: new Date().toISOString() }]);
         }
@@ -222,7 +223,7 @@ function ChatContent() {
     }).then(r => (r.ok ? r.json() : null)).catch(() => null);
     if (!signal?.aborted && Array.isArray(fresh)) {
       setMessages(fresh);
-      setLikedIds(new Set(fresh.filter((m: any) => m.likedAt).map((m: any) => m.id)));
+      setLikedIds(new Set(fresh.filter(m => m.likedAt).map(m => m.id)));
     }
   }
 

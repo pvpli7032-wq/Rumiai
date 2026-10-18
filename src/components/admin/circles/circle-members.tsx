@@ -1,20 +1,18 @@
 'use client';
 import {useCallback, useEffect, useState, type FormEvent} from 'react';
 import {memberActionLabels, type ManagedCircleMember, type MemberAction, type MemberList} from './types';
+import {apiFetch} from '@/lib/api-client';
 
 export function CircleMembers({circleId, token, canManage, onChanged}: {circleId: string; token: string; canManage: boolean; onChanged: () => void}) {
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('MEMBER'), [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
   const [list, setList] = useState<MemberList | null>(null), [reading, setReading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const [selected, setSelected] = useState<{member: ManagedCircleMember; action: MemberAction} | null>(null), [reason, setReason] = useState('');
-  const request = useCallback(async (url: string, signal?: AbortSignal, body?: object) => {
-    const response = await fetch(url, {method: body ? 'PATCH' : 'GET', headers: {Authorization: `Bearer ${token}`, ...(body ? {'Content-Type': 'application/json'} : {})}, cache: 'no-store', signal, ...(body ? {body: JSON.stringify(body)} : {})});
-    const data = await response.json(); if (!response.ok) throw Error(data.error || '成员管理请求失败。'); return data;
-  }, [token]);
+  const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, {method: body ? 'PATCH' : 'GET', token, body, signal, cache: 'no-store'}), [token]);
   useEffect(() => {setSelected(null); setReason(''); setError(''); setMessage('');}, [token, circleId, status]);
   useEffect(() => {
     const controller = new AbortController(); setList(null); setReading(true);
     const params = new URLSearchParams({q: query, status, page: String(page)});
-    void request(`/api/admin/circles/${encodeURIComponent(circleId)}/members?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
+    void request<MemberList>(`/api/admin/circles/${encodeURIComponent(circleId)}/members?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
   }, [request, circleId, query, status, page, refresh]);
   function search(event: FormEvent) {event.preventDefault(); setError(''); setPage(1); setQuery(q); setRefresh(value => value + 1);}

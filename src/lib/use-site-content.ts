@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import {DEFAULT_ACCENT_FROM, DEFAULT_ACCENT_TO, DEFAULT_BRAND_LOGO, DEFAULT_BRAND_NAME} from '@/lib/site-content/brand-defaults';
 
 export interface SiteBanner {
   id: string;
@@ -55,7 +56,7 @@ export interface SiteContent {
   nextScheduledAt: string | null;
 }
 
-const DEFAULT_BRANDING:SiteBranding={id:'primary',brandName:'星伴',logoUrl:'/brand/icon.svg',accentFrom:'#EE4036',accentTo:'#FAAF40',footerNote:null};
+const DEFAULT_BRANDING:SiteBranding={id:'primary',brandName:DEFAULT_BRAND_NAME,logoUrl:DEFAULT_BRAND_LOGO,accentFrom:DEFAULT_ACCENT_FROM,accentTo:DEFAULT_ACCENT_TO,footerNote:null};
 const EMPTY: SiteContent = { banners: { hero: [], sidebar: [] }, tags: [], badges: [], sections: [], navigation:{header:[],footer:[]}, branding:DEFAULT_BRANDING, announcements:[], nextScheduledAt: null };
 
 /** In-memory cache so the shell and the page don't each refetch on navigation. */
