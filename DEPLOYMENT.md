@@ -249,3 +249,9 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 一次构建告警：首次 `verify:build` 在 `/[locale]/explore` 预渲染时出现 11 次 `sqlite_pragmas_failed`（P2010）与两条 P1008 超时，删除 `.next-validation-build` 重跑后完全复现不了（0 次告警、构建通过）。判断是隔离库上的瞬时锁竞争，不是代码问题；重跑即通过，后续遇到同样报错先重跑一次再排查。
 
 线上实测：`/zh` 七块文案全部服务端直出（各命中 1 次）、6 个角色链接、`<title>` 为「和你喜欢的角色，聊出属于你的故事 · 星伴 · AI 角色社区」、canonical 正确；`/en` 走英文文案；PM2 error.log 零错误。
+
+## 2026-10-18 三个遗留坑的处理
+
+1. **构建期 SQLite 锁竞争（P2010/P1008）**：根因是 `src/lib/db.ts` 先切 `journal_mode = WAL` 再设 `busy_timeout`。切换 WAL 需要排他锁，而这时还没有等待预算，构建期 116 页并发连接一抢就失败，连接退回回滚日志，预渲染查询随后超时。现在顺序改为先 `busy_timeout = 8000`、再切 WAL，切换失败按 120/240/360ms 退避重试 4 次；`scripts/start-production.mjs` 在启动 `next start` 之前用 `node:sqlite` 把库文件设成 WAL（WAL 是文件级设置，设一次后续连接直接继承）；`scripts/verify-production-build.mjs` 在 `migrate deploy` 之后、`next build` 之前对隔离库做同样处理。连续两次 `verify:build` 均通过、`sqlite_pragmas_failed` 为 0。
+2. **健康检查单元指向旧发布目录**：脚本本身没有任何项目依赖，现固定为 `/www/wwwroot/khui-ai/shared/bin/check-site-health.mjs`，unit 的 `WorkingDirectory` 改为 `shared`。`systemctl daemon-reload` + 重启 timer 后实测 `site_health_ok`。以后切换发布不用再改 unit，`deploy/baota/khui-ai-health.service` 已同步。
+3. **泰语落地页沿用英文**：补 `LANDING_TH`，`/th` 现在输出泰语价值主张、三步、示例、合规与 FAQ；仍建议上线前请母语同事过一遍用词。
