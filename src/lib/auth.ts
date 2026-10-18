@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { db } from '@/lib/db';
+import {logActivityStorageUnavailable,recordUserActivityDay} from '@/lib/analytics/activity-service';
 
 /**
  * The development fallback is a literal in this repository, so anyone could forge
@@ -126,6 +127,9 @@ export async function getAuthUser(request: Request): Promise<JWTPayload | null> 
     });
     if (!user || user.deletedAt || user.suspendedAt) return null;
     if ((payload.tv ?? 0) !== user.tokenVersion) return null;
+
+    try { await recordUserActivityDay(payload.userId); }
+    catch { logActivityStorageUnavailable(); }
 
     const cutoff = new Date(Date.now() - 300000);
     if (!user.lastActiveAt || user.lastActiveAt < cutoff) await db.user.updateMany({where: {id: payload.userId, tokenVersion: user.tokenVersion, deletedAt: null, suspendedAt: null, OR: [{lastActiveAt: null}, {lastActiveAt: {lt: cutoff}}]}, data: {lastActiveAt: new Date()}});

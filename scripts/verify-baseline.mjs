@@ -81,13 +81,15 @@ export function inspect(root, mode = 'development', env = process.env) {
   add('AI-001',prod && badKey(aiKey)?'BLOCK':badKey(aiKey)?'WARN':'PASS',prod&&badKey(aiKey)?'生产模型 API Key 未配置；当前安全策略将返回 503，不允许模拟回复。':'模型 Key 配置检查；仍需发起真实 SSE 调用测试。','OPENAI_API_KEY');
   const stream = read(root,'src/lib/conversations/chat-stream.ts');
   if (stream?.includes('streamMockResponse')) add('AI-002','WARN','存在模拟 AI 回复逻辑：需要确保生产不能将其当成真实成功回复。','src/lib/conversations/chat-stream.ts');
-  const coinRoute = read(root,'src/app/api/coins/purchase/route.ts');
-  if (coinRoute?.includes('simulationAllowed') || coinRoute?.includes('maySimulatePurchase') || coinRoute?.includes('credits coins without taking payment')) {
-    add('PAY-001',prod?'BLOCK':'WARN',prod?'购买接口仍是模拟充值；无真实支付回调验收时禁止生产上线。':'当前商城接口使用模拟充值，测试仅限隔离环境。','src/app/api/coins/purchase/route.ts');
-  } else if (coinRoute) {
-    add('PAY-001','WARN','购买接口并非已知模拟版本；必须另行审核支付回调、账本和幂等性。','src/app/api/coins/purchase/route.ts');
+  const coinService = read(root,'src/lib/payments/purchase-service.ts');
+  if (coinService?.includes('maySimulatePurchase') || coinService?.includes('PAYMENT_PURCHASE') || coinService?.includes('simulateCoinPurchase')) {
+    add('PAY-001',prod?'BLOCK':'WARN',prod?'购买流程仍包含模拟充值；无真实支付回调验收时禁止生产上线。':'当前商城服务使用模拟充值，测试仅限隔离环境。','src/lib/payments/purchase-service.ts');
+  } else if (coinService) {
+    add('PAY-001','WARN','购买服务并非已知模拟版本；必须另行审核支付回调、账本和幂等性。','src/lib/payments/purchase-service.ts');
+  } else {
+    add('PAY-001','WARN','未发现购买域服务；必须审核支付回调、账本和幂等性。','src/lib/payments/purchase-service.ts');
   }
-  add('PAY-002',configured.ALLOW_SIMULATED_PURCHASES === 'true' && prod?'BLOCK':'PASS',configured.ALLOW_SIMULATED_PURCHASES === 'true' && prod?'生产配置仍携带模拟购买开关，需关闭；当前路由已强制阻断模拟充值。':'生产模拟购买开关未被明确启用。','ALLOW_SIMULATED_PURCHASES');
+  add('PAY-002',configured.ALLOW_SIMULATED_PURCHASES === 'true' && prod?'BLOCK':'PASS',configured.ALLOW_SIMULATED_PURCHASES === 'true' && prod?'生产配置仍携带模拟购买开关，需关闭；购买域服务会强制阻断生产模拟充值。':'生产模拟购买开关未被明确启用。','ALLOW_SIMULATED_PURCHASES');
   const limiter = read(root,'src/lib/rate-limit.ts');
   if (limiter?.includes('new Map<')) add('SEC-002','WARN','限流状态使用单进程 Map；多实例部署须改为共享存储。','src/lib/rate-limit.ts');
   const passed = checks.filter(x=>x.status==='PASS').length;

@@ -1,5 +1,15 @@
 # Third-party notices
 
+## Khui AI
+
+上游仓库：[Gubbitkeytoday/khuiai-fullstack](https://github.com/Gubbitkeytoday/khuiai-fullstack)。原始MIT许可与版权保留在[LICENSE](LICENSE)。
+
+2026-10-17核对参考提交：`a8865d1262a61bcd88fc6ee785dd491838c82866`；[固定提交许可证](https://github.com/Gubbitkeytoday/khuiai-fullstack/blob/a8865d1262a61bcd88fc6ee785dd491838c82866/LICENSE)与本地许可文本一致，比较时仅归一化空白和换行。该SHA用于本次许可核对，原始导入SHA仍缺少可核验记录。
+
+本地维护历史从 `8f2f650b55322833afcb350d3458bb5c73ca5078` 开始，该提交是本地项目基线。保留这一事实边界，不以参考提交代填导入版本。
+
+## Tailwind legacy colors
+
 tailwind-legacy-colors.json retains the used color families from Tailwind CSS 3.4.19 to preserve the interface during the Tailwind 4 migration. The upstream license follows.
 
 MIT License

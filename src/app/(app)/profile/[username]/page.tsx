@@ -2,9 +2,9 @@ import { zhText } from '@/lib/zh-text';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { db } from '@/lib/db';
 import { compactNumber } from '@/lib/i18n';
 import { CreatorCommunity } from '@/components/creator-community';
+import { CreatorReadError, readCreatorProfile } from '@/lib/creators/read-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,45 +26,12 @@ function decodeHandle(value: string): string {
  * (/profile/{username}) and until now that URL did not exist, so the button 404'd.
  */
 async function loadCreator(rawUsername: string) {
-  const username = decodeHandle(rawUsername);
-  const creator = await db.user.findUnique({
-    where: { username },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      avatarUrl: true,
-      tier: true,
-      followerCount: true,
-      createdAt: true,
-    },
-  });
-  if (!creator) return null;
-
-  const characters = await db.character.findMany({
-    where: { creatorId: creator.id, isPublic: true, reviewStatus: 'APPROVED' },
-    orderBy: { chatCount: 'desc' },
-    take: 60,
-    select: {
-      id: true,
-      name: true,
-      tagline: true,
-      avatarUrl: true,
-      chatCount: true,
-      likeCount: true,
-      isAdult: true,
-    },
-  });
-
-  // The list is capped at 60, so its length is not the total.
-  const totals = await db.character.aggregate({
-    where: { creatorId: creator.id, isPublic: true, reviewStatus: 'APPROVED' },
-    _count: { _all: true },
-    _sum: { chatCount: true, likeCount: true },
-  });
-
-  const followerCount = await db.follow.count({ where: { followingId: creator.id } });
-  return { creator: { ...creator, followerCount }, characters, totals };
+  try {
+    return await readCreatorProfile(decodeHandle(rawUsername));
+  } catch (error) {
+    if (error instanceof CreatorReadError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 export async function generateMetadata({ params: paramsPromise }: { params: Promise<{ username: string }> }): Promise<Metadata> {
@@ -85,7 +52,7 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
   const data = await loadCreator(params.username);
   if (!data) notFound();
 
-  const { creator, characters, totals } = data;
+  const { creator, characters } = data;
   const name = creator.displayName ?? creator.username;
 
   return (
@@ -107,8 +74,8 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
           <p className="font-barlow text-sm text-zinc-400">@{creator.username}</p>
           <p className="mt-1 font-barlow text-xs text-zinc-500">
             {creator.tier} · {compactNumber(creator.followerCount)} {zhText("ผู้ติดตาม ·")}{' '}
-            {compactNumber(totals._count._all)} {zhText("ตัวละคร ·")}{' '}
-            {compactNumber(totals._sum.chatCount ?? 0)} {zhText("แชท")}</p>
+            {compactNumber(creator.publicCharacterCount)} {zhText("ตัวละคร ·")}{' '}
+            {compactNumber(creator.chatCount)} {zhText("แชท")}</p>
         </div>
       </header>
 

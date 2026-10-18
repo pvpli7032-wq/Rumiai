@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { LOCALES, LOCALE_LABELS, type Locale } from '@/lib/i18n';
+import {useSiteContent} from '@/lib/use-site-content';
 
 /**
  * Header for the public pages: logo, sign-in, language switcher. Mirrors the live
@@ -10,6 +11,7 @@ import { LOCALES, LOCALE_LABELS, type Locale } from '@/lib/i18n';
  */
 export function PublicHeader({ locale, signInLabel }: { locale: Locale; signInLabel: string }) {
   const pathname = usePathname();
+  const {navigation,branding}=useSiteContent();
   const [open, setOpen] = useState(false);
 
   /** Same page, different locale — keeps the visitor where they were. */
@@ -19,12 +21,12 @@ export function PublicHeader({ locale, signInLabel }: { locale: Locale; signInLa
   }
 
   return (
-    <header className="flex items-center justify-between gap-3 px-4 py-3 desktop:px-8">
-      <Link href={`/${locale}`} className="flex items-center gap-2" aria-label="星伴">
-        <img src="/brand/icon.svg" alt="" width={32} height={32} /><span className="text-xl font-bold">星伴</span>
+    <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 desktop:px-8">
+      <Link href={`/${locale}`} className="order-1 flex shrink-0 items-center gap-2" aria-label={branding.brandName}>
+        {branding.logoUrl&&<img src={branding.logoUrl} alt="" width={32} height={32} />}<span className="text-xl font-bold" style={{backgroundImage:`linear-gradient(90deg,${branding.accentFrom},${branding.accentTo})`,backgroundClip:'text',color:'transparent'}}>{branding.brandName}</span>
       </Link>
 
-      <div className="flex items-center gap-2">
+      <div className="order-2 flex min-w-0 items-center gap-2 desktop:order-3">
         <Link
           href={`/${locale}/auth`}
           className="rounded-full border border-white/15 px-4 py-2 text-sm font-athiti text-white transition-colors hover:bg-white/5"
@@ -67,6 +69,7 @@ export function PublicHeader({ locale, signInLabel }: { locale: Locale; signInLa
           )}
         </div>
       </div>
+      {navigation.header.length>0&&<nav aria-label="站点导航" className="order-3 flex min-w-0 basis-full gap-3 overflow-x-auto text-sm desktop:order-2 desktop:basis-auto">{navigation.header.map(item=><Link key={item.id} href={item.href} className="min-h-11 shrink-0 inline-flex items-center text-zinc-300 hover:text-white">{item.label}</Link>)}</nav>}
     </header>
   );
 }

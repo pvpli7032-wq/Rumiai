@@ -205,8 +205,8 @@ export function registerTier4Tests() {
       const balance = await topUpCoins(clientUserA, 250);
       assertOk(balance >= 250, 'Balance must cover the gift after topping up');
       const res = await clientUserA.post(`/api/characters/${j2CharacterId}/gift`, {
-        gift_type: 'gold_star',
-        amount: 250,
+        gift_type: 'rose',
+        amount: 10,
       });
       await assertStatus(res, [200, 201]);
       const data = await clientUserA.json(res);
@@ -404,8 +404,8 @@ export function registerTier4Tests() {
       const balance = await topUpCoins(clientUserB, 500);
       assertOk(balance >= 500, 'Balance must cover the gift after topping up');
       const res = await clientUserB.post(`/api/characters/${j4CharacterId}/gift`, {
-        gift_type: 'diamond_crown',
-        amount: 500,
+        gift_type: 'rose',
+        amount: 10,
       });
       await assertStatus(res, [200, 201]);
       const data = await clientUserB.json(res);

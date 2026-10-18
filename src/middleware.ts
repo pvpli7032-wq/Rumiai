@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n';
+import { DEFAULT_LOCALE, isLocale, SITE_URL, type Locale } from '@/lib/i18n';
+import {isMaintenanceProtectedWrite} from '@/lib/operations/maintenance-routing';
+import {logRouteError} from '@/lib/logger';
 
 /**
  * The live site has no locale-less pages: / redirects into /{locale}. Only the
@@ -15,7 +17,7 @@ function preferredLocale(request: NextRequest): Locale {
   return DEFAULT_LOCALE;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Belt and braces alongside the matcher below. A locale redirect on an API path
@@ -23,20 +25,28 @@ export function middleware(request: NextRequest) {
   // is how the economy stress script started failing on CI while returning a
   // rendered not-found page for /api/users/me.
   if (pathname.startsWith('/api') || pathname.startsWith('/_next')) {
+    if(isMaintenanceProtectedWrite(pathname,request.method)){
+      try{
+        const {readPublicMaintenance}=await import('@/lib/operations/maintenance-service');
+        const policy=await readPublicMaintenance();
+        if(policy.enabled)return NextResponse.json({error:policy.message,code:'MAINTENANCE_MODE'},{status:503,headers:{'Cache-Control':'no-store','Retry-After':String(policy.retryAfterSeconds)}});
+      }catch(error){
+        logRouteError('maintenance_write_gate',error);
+        return NextResponse.json({error:'暂时无法提交操作，请稍后重试。',code:'MAINTENANCE_STATUS_UNAVAILABLE'},{status:503,headers:{'Cache-Control':'no-store','Retry-After':'60'}});
+      }
+    }
     return NextResponse.next();
   }
 
   if (pathname === '/') {
-    const url = request.nextUrl.clone();
-    url.pathname = `/${preferredLocale(request)}`;
+    const url = new URL(`/${preferredLocale(request)}${request.nextUrl.search}`, SITE_URL);
     return NextResponse.redirect(url);
   }
 
   // A known root without a locale prefix, e.g. /explore -> /th/explore.
   const [, first] = pathname.split('/');
   if (first && !isLocale(first) && LOCALISED_ROOTS.includes(first)) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/${preferredLocale(request)}${pathname}`;
+    const url = new URL(`/${preferredLocale(request)}${pathname}${request.nextUrl.search}`, SITE_URL);
     return NextResponse.redirect(url);
   }
 
@@ -44,6 +54,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Skip API routes, Next internals and anything with a file extension.
-  matcher: ['/((?!api|_next|.*\\..*).*)'],
+  runtime:'nodejs',
+  // API matching is explicit so file extensions cannot bypass business-write protection.
+  matcher: ['/api/:path*','/((?!api|_next|.*\\..*).*)'],
 };

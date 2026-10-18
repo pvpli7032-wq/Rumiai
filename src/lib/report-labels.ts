@@ -1,9 +1,9 @@
 import { zhText } from '@/lib/zh-text';
-import { REPORT_CATEGORIES, IMAGE_REASONS, COPYRIGHT_RELATIONSHIPS } from './reports';
+import { REPORT_CATEGORIES, IMAGE_REASONS, COPYRIGHT_RELATIONSHIPS } from '@/lib/community/report-types';
 
 /**
  * Thai labels for the report taxonomy. The keys come from the live site's own dictionary
- * (see src/lib/reports.ts), so this file only supplies the wording — never the set.
+ * (see src/lib/community/report-types.ts), so this file only supplies the wording — never the set.
  */
 export const CATEGORY_LABELS: Record<(typeof REPORT_CATEGORIES)[number], string> = {
   sexualContent: zhText("เนื้อหาทางเพศ"),

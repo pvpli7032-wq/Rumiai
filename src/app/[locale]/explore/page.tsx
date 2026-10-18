@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { db } from '@/lib/db';
+import { readExploreCatalog } from '@/lib/discovery/read-service';
 import {
   SITE_URL,
   alternateLanguages,
@@ -28,30 +28,13 @@ export async function generateMetadata({ params: paramsPromise }: { params: Prom
   };
 }
 
-const CARD_LIMIT = 60;
-
 export default async function ExplorePage({ params: paramsPromise }: { params: Promise<{ locale: string }> }) {
   const params = await paramsPromise;
 
   const locale = (isLocale(params.locale) ? params.locale : 'th') as Locale;
   const dict = getDictionary(locale);
 
-  const [characters, total, tagRows, conversationCounts] = await Promise.all([
-    db.character.findMany({
-      where: { isPublic: true, reviewStatus: 'APPROVED' },
-      orderBy: { chatCount: 'desc' },
-      take: CARD_LIMIT,
-      select: { id: true, name: true, tagline: true, avatarUrl: true, chatCount: true, tags: true },
-    }),
-    db.character.count({ where: { isPublic: true, reviewStatus: 'APPROVED' } }),
-    db.tag.findMany({ select: { key: true, label: true } }),
-    db.conversation.groupBy({ by: ['characterId'], _count: { id: true } }),
-  ]);
-
-  // Tags are stored as a comma-separated list of keys; the cards show the Thai
-  // labels, and the live site shows two per card.
-  const labelByKey = new Map(tagRows.map(t => [t.key, t.label]));
-  const conversationsById = new Map(conversationCounts.map(c => [c.characterId, c._count.id]));
+  const {characters, total, labelByKey} = await readExploreCatalog();
 
   return (
     <main className="flex min-h-[100svh] flex-col">
@@ -77,7 +60,7 @@ export default async function ExplorePage({ params: paramsPromise }: { params: P
           {characters.map(character => {
             const tagLabels = (character.tags ?? '')
               .split(',')
-              .map(key => labelByKey.get(key.trim()) ?? key.trim())
+              .map(key => labelByKey[key.trim()] ?? key.trim())
               .filter(Boolean)
               .slice(-2);
 
@@ -114,7 +97,7 @@ export default async function ExplorePage({ params: paramsPromise }: { params: P
 
                     <div className="mt-2 flex gap-3 font-barlow text-[11px] text-zinc-500">
                       <span title={dict.conversationsLabel}>
-                        {compactNumber(conversationsById.get(character.id) ?? 0)}
+                        {compactNumber(character.conversationCount)}
                       </span>
                       <span title={dict.chatsLabel}>{compactNumber(character.chatCount)}</span>
                     </div>

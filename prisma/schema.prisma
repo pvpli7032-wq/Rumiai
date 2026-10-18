@@ -64,11 +64,14 @@ model User {
   following Follow[] @relation("Following")
   followers Follow[] @relation("Followers")
   moderationActions ModerationAction[]
+  siteContentDrafts         SiteContentDraft[]
+  siteContentRevisions      SiteContentRevision[]
   appeals CommunityAppeal[]
 
   // Relationships
   characters       Character[]       @relation("CreatedCharacters")
   conversations    Conversation[]
+  activityDays     UserActivityDay[]
   checkins         Checkin[]
   giftsSent        Gift[]            @relation("UserGiftsSent")
   coinTransactions CoinTransaction[]
@@ -81,14 +84,15 @@ model User {
   aiCalls            AiCall[]
   aiDailyUsage       AiDailyUsage[]
   accountClosure AccountClosure?
+  consents UserConsent[]
   uploadAssets UploadAsset[]
   adminOperator AdminOperator?
+  comments           Comment[]
+  commentLikes       CommentLike[]
 
-  @@map("users")
   @@index([createdAt, id])
   @@index([suspendedAt, deletedAt])
-  comments     Comment[]
-  commentLikes CommentLike[]
+  @@map("users")
 }
 
 model AdminOperator {
@@ -99,6 +103,7 @@ model AdminOperator {
   assignments AdminRoleAssignment[]
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
   @@map("admin_operators")
 }
 
@@ -112,6 +117,7 @@ model AdminRole {
   assignments AdminRoleAssignment[]
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
   @@map("admin_roles")
 }
 
@@ -119,6 +125,7 @@ model AdminRolePermission {
   roleId String @map("role_id")
   permission String
   role AdminRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
   @@id([roleId, permission])
   @@map("admin_role_permissions")
 }
@@ -129,6 +136,7 @@ model AdminRoleAssignment {
   operator AdminOperator @relation(fields: [userId], references: [userId], onDelete: Cascade)
   role AdminRole @relation(fields: [roleId], references: [id], onDelete: Restrict)
   createdAt DateTime @default(now()) @map("created_at")
+
   @@id([userId, roleId])
   @@index([roleId])
   @@map("admin_role_assignments")
@@ -142,9 +150,66 @@ model AdminAuditLog {
   reason String
   changes String
   createdAt DateTime @default(now()) @map("created_at")
+
   @@index([createdAt])
   @@index([targetId, createdAt])
   @@map("admin_audit_logs")
+}
+
+/// Current operator-configured registration requirements. Legal text remains in the CMS.
+model CompliancePolicy {
+  id               String   @id @default("primary")
+  ageGateEnabled   Boolean  @default(false) @map("age_gate_enabled")
+  minimumAge       Int?     @map("minimum_age")
+  agePolicyVersion String?  @map("age_policy_version")
+  termsVersion     String?  @map("terms_version")
+  privacyVersion   String?  @map("privacy_version")
+  version          Int      @default(0)
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("compliance_policies")
+}
+
+model SiteCertificateStatus {
+  id String @id @default("primary")
+  hostname String?
+  port Int?
+  status String @default("NOT_CHECKED")
+  verified Boolean @default(false)
+  validFrom DateTime? @map("valid_from")
+  validUntil DateTime? @map("valid_until")
+  checkedAt DateTime? @map("checked_at")
+  errorCode String? @map("error_code")
+  fingerprint256 String?
+
+  @@map("site_certificate_status")
+}
+
+model MaintenancePolicy {
+  id String @id @default("primary")
+  enabled Boolean @default(false)
+  message String @default("系统维护中，暂时无法提交操作，请稍后重试。")
+  retryAfterSeconds Int @default(300) @map("retry_after_seconds")
+  version Int @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("maintenance_policies")
+}
+
+/// Immutable registration consent records; stores policy versions, never IP or birth date.
+model UserConsent {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  policyType    String   @map("policy_type")
+  policyVersion String   @map("policy_version")
+  source        String   @default("REGISTER")
+  acceptedAt    DateTime @default(now()) @map("accepted_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, policyType, policyVersion])
+  @@index([policyType, policyVersion, acceptedAt])
+  @@index([userId, acceptedAt])
+  @@map("user_consents")
 }
 
 model AccountClosure {
@@ -155,6 +220,7 @@ model AccountClosure {
   createdAt DateTime @default(now()) @map("created_at")
   completedAt DateTime? @map("completed_at")
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
   @@map("account_closures")
 }
 
@@ -166,6 +232,7 @@ model UploadAsset {
   url String @unique
   createdAt DateTime @default(now()) @map("created_at")
   owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
   @@index([ownerId])
   @@map("upload_assets")
 }
@@ -219,6 +286,9 @@ model Character {
   relationshipStatus String? @map("relationship_status")
   initialRomance     Int     @default(0) @map("initial_romance")
   initialIntimacy    Int     @default(0) @map("initial_intimacy")
+  aiModelsRestricted Boolean @default(false) @map("ai_models_restricted")
+  aiModelScopeVersion Int @default(0) @map("ai_model_scope_version")
+  allowedAiModels CharacterAiModel[]
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -233,12 +303,23 @@ model Character {
   likes         CharacterLike[]
   bookmarks     CharacterBookmark[]
   quests        CharacterQuest[]
+  comments      Comment[]
 
   @@index([creatorId])
   @@index([isPublic])
-  @@map("characters")
   @@index([reviewStatus, updatedAt, id])
-  comments      Comment[]
+  @@map("characters")
+}
+
+model CharacterAiModel {
+  characterId String @map("character_id")
+  modelKey String @map("model_key")
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  model AiModel @relation(fields: [modelKey], references: [key], onDelete: Restrict)
+
+  @@id([characterId, modelKey])
+  @@index([modelKey])
+  @@map("character_ai_models")
 }
 
 /// Extra pictures behind the main one — the detail header pages through them ("1/5").
@@ -326,6 +407,7 @@ model CharacterQuest {
   title       String
   description String?
   rewardCoins Int      @default(0) @map("reward_coins")
+  requiredMessages Int @default(1) @map("required_messages")
   sortOrder   Int      @default(0) @map("sort_order")
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -361,7 +443,7 @@ model Report {
   /// CHARACTER, USER, COMMENT, POST, UNIVERSE or MESSAGE.
   targetType String   @map("target_type")
   targetId   String   @map("target_id")
-  /// One of the categories in REPORT_CATEGORIES (src/lib/reports.ts).
+  /// One of the categories in community/report-types.ts.
   category   String
   /// Narrows an inappropriateImage report: realPerson, explicit, violent or other.
   imageReason String? @map("image_reason")
@@ -464,6 +546,7 @@ model Gift {
   id          String   @id @default(cuid())
   senderId    String   @map("sender_id")
   characterId String   @map("character_id")
+  catalogId   String?  @map("catalog_id")
   amount      Int
   giftType    String   @default("rose") @map("gift_type")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -471,6 +554,7 @@ model Gift {
   // Relationships
   sender    User      @relation("UserGiftsSent", fields: [senderId], references: [id], onDelete: Cascade)
   character Character @relation("CharacterGiftsReceived", fields: [characterId], references: [id], onDelete: Cascade)
+  catalog   GiftCatalogItem? @relation(fields: [catalogId], references: [id], onDelete: SetNull)
 
   @@index([senderId])
   @@index([characterId])
@@ -478,10 +562,30 @@ model Gift {
   @@map("gifts")
 }
 
+/// Server-priced gift options; Gift.amount remains the immutable historical price snapshot.
+model GiftCatalogItem {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  description String?
+  emoji String @default("🎁")
+  coinPrice Int @map("coin_price")
+  isActive Boolean @default(true) @map("is_active")
+  sortOrder Int @default(0) @map("sort_order")
+  version Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  gifts Gift[]
+
+  @@index([isActive,sortOrder])
+  @@map("gift_catalog_items")
+}
+
 /// Ledger tracking all coin adjustments (purchases, rewards, spent)
 model CoinTransaction {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
+  sourceKey   String   @default("OTHER") @map("source_key")
   paymentOrderId String? @unique @map("payment_order_id")
   refundId String? @unique @map("refund_id")
   refundReleaseId String? @unique @map("refund_release_id")
@@ -499,6 +603,7 @@ model CoinTransaction {
   @@index([userId])
   @@index([type])
   @@index([createdAt])
+  @@index([sourceKey, createdAt])
   @@map("coin_transactions")
 }
 
@@ -517,6 +622,8 @@ model PaymentOrder {
   currency           String   @default("CNY")
   status             String   @default("PENDING")
   provider            String   @default("EZFP")
+  merchantRevisionId String?                  @map("merchant_revision_id")
+  merchantRevision   PaymentMerchantRevision? @relation(fields: [merchantRevisionId], references: [id], onDelete: Restrict)
   providerTradeNo     String?  @unique @map("provider_trade_no")
   providerPayType     String?  @map("provider_pay_type")
   providerPayInfo     String?  @map("provider_pay_info")
@@ -527,11 +634,157 @@ model PaymentOrder {
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   coinTransaction CoinTransaction?
   refund PaymentRefund?
+  callbackEvents  PaymentCallbackEvent[]
+  reconciliationRows PaymentReconciliationEntry[]
 
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([merchantRevisionId])
   @@map("payment_orders")
+}
+
+/// Minimal audit trail for authenticated payment notifications. Raw callback payloads are never stored.
+model PaymentCallbackEvent {
+  id              String       @id @default(cuid())
+  paymentOrderId  String       @map("payment_order_id")
+  provider        String
+  providerTradeNo String       @map("provider_trade_no")
+  outcome         String
+  reasonCode      String?      @map("reason_code")
+  receivedAt      DateTime     @default(now()) @map("received_at")
+  paymentOrder    PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+
+  @@index([paymentOrderId, receivedAt])
+  @@index([provider, receivedAt])
+  @@map("payment_callback_events")
+}
+
+/// Bounded, low-cardinality callback rejection monitoring. Raw notification data is never stored.
+model PaymentCallbackAlertSample {
+  id            String   @id @default(cuid())
+  provider      String
+  minuteStart   DateTime @map("minute_start")
+  reasonCode    String   @map("reason_code")
+  firstSeenAt   DateTime @map("first_seen_at")
+  lastSeenAt    DateTime @map("last_seen_at")
+
+  @@unique([provider, minuteStart, reasonCode])
+  @@index([minuteStart, provider])
+  @@map("payment_callback_alert_samples")
+}
+
+/// Immutable imported channel statement and local order reconciliation result.
+model PaymentReconciliationBatch {
+  id                 String   @id @default(cuid())
+  provider           String   @default("EZFP")
+  sourceSha256       String   @unique @map("source_sha256")
+  importedById       String   @map("imported_by_id")
+  importReason       String   @map("import_reason")
+  rowCount           Int      @map("row_count")
+  matchedRowCount    Int      @map("matched_row_count")
+  exceptionRowCount  Int      @map("exception_row_count")
+  grossCnyCents      BigInt   @map("gross_cny_cents")
+  feeCnyCents        BigInt   @map("fee_cny_cents")
+  periodStart        DateTime @map("period_start")
+  periodEnd          DateTime @map("period_end")
+  createdAt          DateTime @default(now()) @map("created_at")
+  rows               PaymentReconciliationEntry[]
+
+  @@index([createdAt])
+  @@map("payment_reconciliation_batches")
+}
+
+model PaymentReconciliationEntry {
+  id                         String   @id @default(cuid())
+  batchId                    String   @map("batch_id")
+  entrySource                String   @default("STATEMENT") @map("entry_source")
+  lineNumber                 Int?     @map("line_number")
+  providerTradeNo            String?  @map("provider_trade_no")
+  orderNo                    String   @map("order_no")
+  grossCnyCents              Int?     @map("gross_cny_cents")
+  feeCnyCents                Int?     @map("fee_cny_cents")
+  paidAt                     DateTime @map("paid_at")
+  matchStatus                String   @map("match_status")
+  exceptionCode              String?  @map("exception_code")
+  paymentOrderId             String?  @map("payment_order_id")
+  internalAmountCnyCents     Int?     @map("internal_amount_cny_cents")
+  internalOrderStatus        String?  @map("internal_order_status")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  batch                      PaymentReconciliationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  paymentOrder               PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, lineNumber])
+  @@index([batchId, matchStatus])
+  @@index([providerTradeNo])
+  @@index([orderNo])
+  @@map("payment_reconciliation_entries")
+}
+
+/// One authenticated user activity per UTC day, used for privacy-minimal retention cohorts.
+model UserActivityDay {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  activityDate DateTime @map("activity_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityDate])
+  @@index([activityDate, userId])
+  @@map("user_activity_days")
+}
+
+/// Mutable channel identity points at immutable, encrypted configuration revisions.
+model PaymentCheckoutPolicy {
+  id        String   @id
+  enabled   Boolean
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_checkout_policy")
+}
+
+model PaymentMerchant {
+  id                String                    @id @default(cuid())
+  name              String                    @unique
+  provider          String                    @default("EZFP")
+  environment       String                    @default("PRODUCTION")
+  isActive          Boolean                   @default(false) @map("is_active")
+  activeSlot        String?                   @unique @map("active_slot")
+  currentRevisionId String?                   @unique @map("current_revision_id")
+  version           Int                       @default(0)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+  revisions         PaymentMerchantRevision[]
+  currentRevision   PaymentMerchantRevision?  @relation("MerchantCurrentRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+
+  @@index([provider, environment, isActive])
+  @@map("payment_merchants")
+}
+
+/// Immutable provider credentials/settings referenced by orders at creation time.
+model PaymentMerchantRevision {
+  id                    String           @id @default(cuid())
+  merchantId            String           @map("merchant_id")
+  revision              Int
+  merchantNo            String           @map("merchant_no")
+  apiBaseUrl            String           @map("api_base_url")
+  privateKeyCiphertext  String           @map("private_key_ciphertext")
+  privateKeyNonce       String           @map("private_key_nonce")
+  privateKeyTag         String           @map("private_key_tag")
+  platformKeyCiphertext String           @map("platform_key_ciphertext")
+  platformKeyNonce      String           @map("platform_key_nonce")
+  platformKeyTag        String           @map("platform_key_tag")
+  refundsEnabled        Boolean          @default(false) @map("refunds_enabled")
+  createdBy             String           @map("created_by")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  merchant              PaymentMerchant  @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  currentFor            PaymentMerchant? @relation("MerchantCurrentRevision")
+  orders                PaymentOrder[]
+
+  @@unique([merchantId, revision])
+  @@index([merchantId, createdAt])
+  @@map("payment_merchant_revisions")
 }
 
 /// One full refund per order. PROCESSING/UNKNOWN reserve coins until confirmed.
@@ -541,6 +794,13 @@ model PaymentRefund {
   refundNo String @unique @map("refund_no")
   providerRefundNo String? @unique @map("provider_refund_no")
   actorId String @map("actor_id")
+  approvedById String? @map("approved_by_id")
+  approvedAt DateTime? @map("approved_at")
+  approvalReason String? @map("approval_reason")
+  rejectedById String? @map("rejected_by_id")
+  rejectedAt DateTime? @map("rejected_at")
+  rejectionReason String? @map("rejection_reason")
+  lastActionById String? @map("last_action_by_id")
   reason String
   amountCnyCents Int @map("amount_cny_cents")
   coinAmount Int @map("coin_amount")
@@ -552,6 +812,7 @@ model PaymentRefund {
   paymentOrder PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
   debit CoinTransaction? @relation("RefundDebit")
   release CoinTransaction? @relation("RefundRelease")
+
   @@index([status, createdAt])
   @@map("payment_refunds")
 }
@@ -563,11 +824,20 @@ model Mission {
   description String?
   rewardCoins Int      @map("reward_coins")
   category    String   @default("DAILY") // DAILY, ONBOARDING, STARTER, SPECIAL, CREATOR
+  conditionType String @default("MANUAL") @map("condition_type")
+  conditionTarget Int @default(1) @map("condition_target")
+  period String @default("ONCE")
+  isActive Boolean @default(false) @map("is_active")
+  sortOrder Int @default(0) @map("sort_order")
+  version Int @default(0)
+  startsAt DateTime? @map("starts_at")
+  endsAt DateTime? @map("ends_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
   // Relationships
   userMissions UserMission[]
 
+  @@index([isActive, sortOrder, createdAt])
   @@map("missions")
 }
 
@@ -576,6 +846,7 @@ model UserMission {
   id          String    @id @default(cuid())
   userId      String    @map("user_id")
   missionId   String    @map("mission_id")
+  periodKey String @default("ONCE") @map("period_key")
   isCompleted Boolean   @default(false) @map("is_completed")
   completedAt DateTime? @map("completed_at")
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -584,10 +855,21 @@ model UserMission {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, missionId])
+  @@unique([userId, missionId, periodKey])
   @@index([userId])
   @@index([missionId])
   @@map("user_missions")
+}
+
+/// Editable daily streak rewards; rows 1–7 preserve the existing schedule.
+model CheckinRewardRule {
+  streakDay Int @id @map("streak_day")
+  rewardCoins Int @map("reward_coins")
+  version Int @default(0)
+  updatedBy String? @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("checkin_reward_rules")
 }
 
 // ==========================================
@@ -620,6 +902,7 @@ model Tag {
   group     String   // ประเภท, บทบาท, บุคลิก, แนวเรื่อง, ความสัมพันธ์
   filterRow String?  @map("filter_row") // type | role -> shown as a filter chip row on the explore page
   sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
 
   @@index([group])
   @@index([filterRow])
@@ -632,6 +915,7 @@ model Badge {
   emoji     String @unique
   label     String
   sortOrder Int    @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
 
   @@map("badges")
 }
@@ -649,6 +933,81 @@ model HomeSection {
   isActive  Boolean  @default(true) @map("is_active")
 
   @@map("home_sections")
+}
+
+model SiteNavigationItem {
+  id        String   @id @default(cuid())
+  placement String
+  label     String
+  href      String
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([placement, isActive, sortOrder, id])
+  @@map("site_navigation_items")
+}
+
+model SitePage {
+  id         String    @id @default(cuid())
+  slug       String    @unique
+  kind       String    @default("PAGE")
+  title      String
+  summary    String    @default("")
+  blocksJson String    @map("blocks_json")
+  sortOrder  Int       @default(0) @map("sort_order")
+  isActive   Boolean   @default(true) @map("is_active")
+  startsAt   DateTime? @map("starts_at")
+  endsAt     DateTime? @map("ends_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@index([kind, isActive, startsAt, endsAt, sortOrder])
+  @@map("site_pages")
+}
+
+model SiteBranding {
+  id         String   @id @default("primary")
+  brandName  String   @map("brand_name")
+  logoUrl    String?  @map("logo_url")
+  accentFrom String   @map("accent_from")
+  accentTo   String   @map("accent_to")
+  footerNote String?  @map("footer_note")
+  isActive   Boolean  @default(true) @map("is_active")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("site_branding")
+}
+
+/// Validated working copies for explicitly supported site-content records.
+model SiteContentDraft {
+  contentType String    @map("content_type")
+  contentId   String    @map("content_id")
+  draftJson   String    @map("draft_json")
+  scheduledAt DateTime? @map("scheduled_at")
+  version     Int       @default(0)
+  actorId     String    @map("actor_id")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  actor       User      @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@id([contentType, contentId])
+  @@index([contentType, scheduledAt])
+  @@map("site_content_drafts")
+}
+
+model SiteContentRevision {
+  id           String   @id @default(cuid())
+  contentType  String   @map("content_type")
+  contentId    String   @map("content_id")
+  version      Int
+  snapshotJson String   @map("snapshot_json")
+  actorId      String   @map("actor_id")
+  reason       String
+  createdAt    DateTime @default(now()) @map("created_at")
+  actor        User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([contentType, contentId, createdAt])
+  @@map("site_content_revisions")
 }
 
 /// Coin bundles shown in the shop
@@ -675,6 +1034,7 @@ model CoinPackageChange {
   beforeJson String? @map("before_json")
   afterJson String @map("after_json")
   createdAt DateTime @default(now()) @map("created_at")
+
   @@index([packageId, createdAt])
   @@map("coin_package_changes")
 }
@@ -769,9 +1129,11 @@ model AiDailyUsage {
   day String
   count Int @default(0)
   user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+
   @@id([userId,day])
   @@map("ai_daily_usage")
 }
+
 model AiCall {
   id String @id @default(cuid())
   userId String @map("user_id")
@@ -783,15 +1145,109 @@ model AiCall {
   inputTokens Int? @map("input_tokens")
   outputTokens Int? @map("output_tokens")
   estimatedCost Float? @map("estimated_cost")
+  modelPriceId String? @map("model_price_id")
+  modelPrice AiModelPrice? @relation(fields:[modelPriceId],references:[id],onDelete:SetNull)
   currency String
   errorCode String? @map("error_code")
   startedAt DateTime @default(now()) @map("started_at")
   finishedAt DateTime? @map("finished_at")
   durationMs Int? @map("duration_ms")
   user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+
   @@index([userId,startedAt])
   @@index([currency,startedAt])
   @@map("ai_calls")
+}
+
+/// Daily cost thresholds stored in their native currency; never converted implicitly.
+model AiDailyCostBudget {
+  currency  String   @id
+  siteLimit Float?   @map("site_limit")
+  userLimit Float?   @map("user_limit")
+  isActive  Boolean  @default(true) @map("is_active")
+  version   Int      @default(0)
+  updatedBy String   @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_daily_cost_budgets")
+}
+
+/// Explicit singleton for the cost circuit breaker. Absence preserves legacy env behavior.
+model AiCostPolicy {
+  id                    String   @id @default("GLOBAL")
+  circuitBreakerEnabled Boolean  @default(false) @map("circuit_breaker_enabled")
+  version               Int      @default(0)
+  updatedBy             String   @map("updated_by")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_cost_policies")
+}
+
+model AiProvider {
+  id               String    @id @default(cuid())
+  name             String    @unique
+  protocol         String    @default("OPENAI_COMPATIBLE")
+  baseUrl          String    @map("base_url")
+  secretCiphertext String?   @map("secret_ciphertext")
+  secretNonce      String?   @map("secret_nonce")
+  secretTag        String?   @map("secret_tag")
+  isActive         Boolean   @default(false) @map("is_active")
+  sortOrder        Int       @default(0) @map("sort_order")
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  models           AiModel[]
+
+  @@index([isActive, sortOrder, id])
+  @@map("ai_providers")
+}
+
+model AiModel {
+  id              String     @id @default(cuid())
+  key             String     @unique
+  displayName     String     @map("display_name")
+  modelCode       String     @map("model_code")
+  providerId      String     @map("provider_id")
+  provider        AiProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  isActive        Boolean    @default(false) @map("is_active")
+  isDefault       Boolean    @default(false) @map("is_default")
+  defaultSlot     String?    @unique @map("default_slot")
+  isFallback      Boolean    @default(false) @map("is_fallback")
+  sortOrder       Int        @default(0) @map("sort_order")
+  timeoutMs       Int        @default(60000) @map("timeout_ms")
+  maxRetries      Int        @default(1) @map("max_retries")
+  maxOutputTokens Int        @default(800) @map("max_output_tokens")
+  lastCheckAt     DateTime?  @map("last_check_at")
+  lastCheckStatus String?    @map("last_check_status")
+  version         Int        @default(0)
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  prices          AiModelPrice[]
+  characters      CharacterAiModel[]
+
+  @@unique([providerId, modelCode])
+  @@index([isActive, isDefault, isFallback, sortOrder, id])
+  @@map("ai_models")
+}
+
+/// Append-only provider price history. Rates are stored as millionths of a currency unit per million tokens.
+model AiModelPrice {
+  id                    String   @id @default(cuid())
+  modelId               String   @map("model_id")
+  model                 AiModel  @relation(fields:[modelId],references:[id],onDelete:Restrict)
+  currency              String
+  inputPerMillionMicros BigInt   @map("input_per_million_micros")
+  outputPerMillionMicros BigInt  @map("output_per_million_micros")
+  effectiveAt           DateTime @map("effective_at")
+  source                String
+  reason                String
+  createdBy             String   @map("created_by")
+  createdAt             DateTime @default(now()) @map("created_at")
+  calls                 AiCall[]
+
+  @@unique([modelId,effectiveAt])
+  @@map("ai_model_prices")
 }
 
 /// Creating a circle does not automatically subscribe its owner.
@@ -811,22 +1267,26 @@ model Circle {
  members CircleMember[]
  restrictions CircleMembershipRestriction[]
  posts Post[]
+
  @@index([status, createdAt])
  @@index([status, isFeatured, createdAt, id])
  @@index([status, updatedAt, id])
  @@map("circles")
 }
+
 model CircleMember {
  circleId String @map("circle_id")
  userId String @map("user_id")
  createdAt DateTime @default(now()) @map("created_at")
  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
  @@id([circleId, userId])
  @@index([userId, createdAt])
  @@index([circleId, createdAt, userId])
  @@map("circle_members")
 }
+
 model CircleMembershipRestriction {
  circleId String @map("circle_id")
  userId String @map("user_id")
@@ -837,11 +1297,13 @@ model CircleMembershipRestriction {
  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
  user User @relation("CircleRestrictedUser", fields: [userId], references: [id], onDelete: Cascade)
  actor User @relation("CircleRestrictionActor", fields: [actorId], references: [id], onDelete: Restrict)
+
  @@id([circleId, userId])
  @@index([userId])
  @@index([circleId, createdAt, userId])
  @@map("circle_membership_restrictions")
 }
+
 model Post {
  id String @id @default(cuid())
  circleId String @map("circle_id")
@@ -849,6 +1311,8 @@ model Post {
  characterId String? @map("character_id")
  content String
  status String @default("VISIBLE")
+  isPinned    Boolean       @default(false) @map("is_pinned")
+  isFeatured  Boolean       @default(false) @map("is_featured")
  createdAt DateTime @default(now()) @map("created_at")
  updatedAt DateTime @updatedAt @map("updated_at")
  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
@@ -857,28 +1321,37 @@ model Post {
  media PostMedia[]
  likes PostLike[]
  comments PostComment[]
+
  @@index([circleId, status, createdAt])
+  @@index([circleId, status, isPinned, isFeatured, createdAt, id])
+  @@index([status, updatedAt, id])
+  @@index([circleId, status, updatedAt, id])
  @@index([authorId, createdAt])
  @@map("posts")
 }
+
 model PostMedia {
  id String @id @default(cuid())
  postId String @map("post_id")
  url String
  position Int @default(0)
  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
  @@unique([postId, position])
  @@map("post_media")
 }
+
 model PostLike {
  postId String @map("post_id")
  userId String @map("user_id")
  createdAt DateTime @default(now()) @map("created_at")
  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
  @@id([postId, userId])
  @@map("post_likes")
 }
+
 /// Independent from character comments; community visibility applies here.
 model PostComment {
  id String @id @default(cuid())
@@ -891,19 +1364,24 @@ model PostComment {
  updatedAt DateTime @updatedAt @map("updated_at")
  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
  @@index([postId, status, createdAt])
+  @@index([status, updatedAt, id])
  @@map("post_comments")
 }
+
 model Follow {
  followerId String @map("follower_id")
  followingId String @map("following_id")
  createdAt DateTime @default(now()) @map("created_at")
  follower User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
  @@id([followerId, followingId])
  @@index([followingId, createdAt])
  @@map("follows")
 }
+
 /// Target identifiers survive deletion for audit history.
 model ModerationAction {
  id String @id @default(cuid())
@@ -914,9 +1392,11 @@ model ModerationAction {
  reason String
  createdAt DateTime @default(now()) @map("created_at")
  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
  @@index([targetType, targetId, createdAt])
  @@map("moderation_actions")
 }
+
 model CommunityAppeal {
  id String @id @default(cuid())
  userId String @map("user_id")
@@ -928,6 +1408,7 @@ model CommunityAppeal {
  createdAt DateTime @default(now()) @map("created_at")
  updatedAt DateTime @updatedAt @map("updated_at")
  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
  @@index([status, createdAt])
  @@index([userId, createdAt])
  @@map("community_appeals")

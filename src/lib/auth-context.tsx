@@ -25,7 +25,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (displayName: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (displayName: string, email: string, password: string, consents?: {ageConfirmed?:boolean;termsAccepted?:boolean;privacyAccepted?:boolean}) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -100,12 +100,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * which is why seeded rows have handles like "สมชาย สายแชท" that need URL-encoding.
    * Sending `name` lets the server allocate a free handle from the email instead.
    */
-  async function register(displayName: string, email: string, password: string) {
+  async function register(displayName: string, email: string, password: string, consents?: {ageConfirmed?:boolean;termsAccepted?:boolean;privacyAccepted?:boolean}) {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: displayName, email, password }),
+          body: JSON.stringify({ name: displayName, email, password, consents }),
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: zhError(data.error || '') || 'Registration failed' };

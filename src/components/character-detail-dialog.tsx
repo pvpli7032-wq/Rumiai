@@ -44,8 +44,12 @@ interface Quest {
   title: string;
   description?: string | null;
   rewardCoins: number;
+  requiredMessages:number;
+  progress:number;
+  isQualified:boolean;
   isCompleted: boolean;
 }
+interface GiftOption {id:string;code:string;name:string;description:string|null;emoji:string;coinPrice:number;}
 
 type Tab = 'about' | 'quests' | 'cast' | 'comments';
 
@@ -55,16 +59,18 @@ type Tab = 'about' | 'quests' | 'cast' | 'comments';
  * to a chat. The card used to link straight into /chat, skipping all of it.
  */
 export function CharacterDetailDialog({ characterId, onClose }: { characterId: string; onClose: () => void }) {
-  const { token } = useAuth();
+  const { token, refreshUser } = useAuth();
   const router = useRouter();
   const [character, setCharacter] = useState<DetailCharacter | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
+  const [giftOptions,setGiftOptions]=useState<GiftOption[]>([]);
   const [tab, setTab] = useState<Tab>('about');
   const [slide, setSlide] = useState(0);
   const [reporting, setReporting] = useState(false);
   const [pendingLike, setPendingLike] = useState(false);
   const [pendingMark, setPendingMark] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [sendingGift,setSendingGift]=useState<string|null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
@@ -81,12 +87,14 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
     Promise.all([
       fetch(`/api/characters/${characterId}`, { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null)),
       fetch(`/api/characters/${characterId}/quests`, { headers: authHeaders() }).then((r) => (r.ok ? r.json() : [])),
+      fetch('/api/gifts').then(r=>(r.ok?r.json():{gifts:[]})).catch(()=>({gifts:[]})),
     ])
-      .then(([detail, questList]) => {
+      .then(([detail, questList, giftCatalog]) => {
         if (!alive) return;
         if (detail?.character) setCharacter(detail.character);
         else setError(zhText("โหลดข้อมูลตัวละครไม่สำเร็จ"));
         if (Array.isArray(questList)) setQuests(questList);
+        if(Array.isArray(giftCatalog?.gifts))setGiftOptions(giftCatalog.gifts);
       })
       .catch(() => alive && setError(zhText("โหลดข้อมูลตัวละครไม่สำเร็จ")));
     return () => {
@@ -150,11 +158,18 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
     setClaiming(null);
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setNotice(body.error === 'Quest already completed' ? zhText("ภารกิจนี้รับรางวัลไปแล้ว") : zhText("รับรางวัลไม่สำเร็จ"));
+      setNotice(body.error === 'Quest already completed' ? zhText("ภารกิจนี้รับรางวัลไปแล้ว") : body.error==='Quest condition not met'?`还需发送 ${Math.max(0,(body.target??0)-(body.progress??0))} 条消息` : zhText("รับรางวัลไม่สำเร็จ"));
       return;
     }
     setQuests((qs) => qs.map((q) => (q.id === questId ? { ...q, isCompleted: true } : q)));
     setNotice(zhText("ได้รับ") + (body.coinsEarned) + zhText("คอยน์"));
+  }
+
+  async function sendGift(gift:GiftOption){
+    if(requireLogin()||sendingGift)return;setSendingGift(gift.id);setError('');
+    try{const response=await fetch(`/api/characters/${characterId}/gift`,{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},body:JSON.stringify({giftId:gift.id,amount:gift.coinPrice})});const body=await response.json();if(!response.ok)throw Error(body.error||'赠送失败');setCharacter(current=>current?{...current,giftCount:current.giftCount+1}:current);setNotice(`已赠送${gift.name}，消耗 ${body.coinPrice} 金币`);await refreshUser();}
+    catch(e){setNotice(e instanceof Error?e.message:'赠送礼物失败。');}
+    finally{setSendingGift(null);}
   }
 
   function startChat(newChat = false) {
@@ -324,6 +339,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                   {character.scenario && <Section title={zhText("สถานการณ์")}>{character.scenario}</Section>}
                   {character.copyrightStatement && <Section title="版权声明">{character.copyrightStatement}</Section>}
                   {character.background && <Section title={zhText("เรื่องราว")}>{character.background}</Section>}
+                  {giftOptions.length>0&&<section className="space-y-2"><h3 className="font-athiti text-xs font-bold text-zinc-500">赠送礼物</h3><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{giftOptions.map(gift=><button key={gift.id} onClick={()=>void sendGift(gift)} disabled={!token||!!sendingGift} className="flex min-h-14 items-center gap-2 rounded-xl border border-white/10 bg-zinc-800/50 px-3 text-left hover:border-[#F2572B]/50 disabled:opacity-50"><span className="text-xl">{gift.emoji}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm">{gift.name}</span><span className="text-xs text-amber-400">{gift.coinPrice} 金币</span></span></button>)}</div>{!token&&<p className="text-xs text-zinc-500">登录后可赠送礼物</p>}</section>}
                   {character.greeting && <Section title={zhText("คำทักทาย")}>{character.greeting}</Section>}
                   {character.emojis.length > 0 && (
                     <div>
@@ -368,13 +384,14 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                             <Coins className="h-3 w-3" />
                             {q.rewardCoins}
                           </p>
+                          {!q.isCompleted&&<p className="mt-0.5 text-[11px] text-zinc-500">消息进度 {q.progress}/{q.requiredMessages}</p>}
                         </div>
                         <button
                           onClick={() => claimQuest(q.id)}
-                          disabled={q.isCompleted || claiming === q.id}
+                          disabled={q.isCompleted || !q.isQualified || claiming === q.id}
                           className="shrink-0 rounded-full bg-zinc-700 px-3 py-1.5 font-athiti text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
                         >
-                          {q.isCompleted ? zhText("รับแล้ว") : claiming === q.id ? '...' : zhText("รับรางวัล")}
+                          {q.isCompleted ? zhText("รับแล้ว") : claiming === q.id ? '...' : q.isQualified?zhText("รับรางวัล"):'尚未达成'}
                         </button>
                       </div>
                     ))

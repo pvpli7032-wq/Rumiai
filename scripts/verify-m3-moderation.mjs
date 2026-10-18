@@ -98,7 +98,7 @@ try {
   assert.equal((await req(bannedUser, `/api/circles/${circleId}/posts`, 'POST', { content: 'ban bypass' })).status, 403);
   assert.equal((await req(bannedUser, `/api/posts/${postId}/comments`, 'POST', { content: 'ban bypass' })).status, 403);
   assert.equal((await req(bannedUser, `/api/creators/${authorProfile.username}/follow`, 'POST')).status, 403);
-  assert.equal((await req(bannedUser, '/api/circles', 'POST', { name: 'ban bypass circle', description: '' })).status, 403);
+  assert.equal((await req(bannedUser, '/api/circles', 'POST', { name: 'ban bypass circle', description: 'valid synthetic request' })).status, 403);
   assert.equal((await req(null, '/api/community-appeals', 'POST', { reason: '请复核' })).status, 401);
   assert.equal((await req(author, '/api/community-appeals', 'POST', { reason: '普通账号无需申诉此限制' })).status, 409);
   mark('管理员封禁写入原因和审计；被封账号不能发帖、评论、关注或建圈，但仍能登录');

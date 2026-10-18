@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { db } from '@/lib/db';
 import { readPurchasablePackage } from '@/lib/coins/package-service';
-import { createEzfpCheckout, formatCnyCents, getPublicSiteOrigin, isEzfpConfigured } from './ezfp-v2';
+import { createEzfpCheckout, formatCnyCents, getPublicSiteOrigin } from './ezfp-v2';
+import {resolveNewPaymentConfiguration} from './merchant-config-service';
 
 export class PaymentOrderError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) { super(message); this.name = 'PaymentOrderError'; }
@@ -34,18 +35,22 @@ export async function createCoinPaymentOrder(input: {
   packageId: string;
   idempotencyKey: string;
   clientIp: string;
+  paymentMethod?: unknown;
   quote?: { amountCnyCents: number; coinAmount: number };
 }) {
-  if (!isEzfpConfigured(process.env)) throw new PaymentOrderError('真实支付暂未配置或未启用。', 503);
-  const pid = process.env.EZFP_PID!.trim();
-  const origin = getPublicSiteOrigin(process.env);
-
+  const paymentMethod = input.paymentMethod ?? 'alipay';
+  if (paymentMethod !== 'alipay' && paymentMethod !== 'wxpay') throw new PaymentOrderError('不支持该支付方式。', 400);
   // Retry a created order using its original snapshot even after deactivation or expiry.
   const lookup = { where: { userId_idempotencyKey: { userId: input.userId, idempotencyKey: input.idempotencyKey } } };
   const existing = await db.paymentOrder.findUnique({ ...lookup,
     select: { orderNo: true, status: true, providerPayInfo: true, packageId: true },
   });
   if (existing) return existingOrderResult(existing, input.packageId);
+  let paymentConfig;
+  try { paymentConfig=await resolveNewPaymentConfiguration(); } catch { paymentConfig=null; }
+  if (!paymentConfig) throw new PaymentOrderError('真实支付暂未配置或未启用。', 503);
+  const pid = paymentConfig.pid;
+  const origin = getPublicSiteOrigin(process.env);
   const pkg = await readPurchasablePackage(input.packageId);
   if (!pkg || !Number.isSafeInteger(pkg.coins) || pkg.coins < 1 || !Number.isSafeInteger(pkg.bonus) || pkg.bonus < 0 || !Number.isSafeInteger(pkg.priceCnyCents) || !pkg.priceCnyCents || pkg.priceCnyCents < 1) {
     throw new PaymentOrderError('该金币套餐尚未配置人民币售价。', 400);
@@ -69,6 +74,7 @@ export async function createCoinPaymentOrder(input: {
         packageBonus: pkg.bonus,
         coinAmount,
         amountCnyCents: pkg.priceCnyCents,
+        merchantRevisionId:paymentConfig.revisionId,
       },
     });
   } catch (error) {
@@ -87,6 +93,7 @@ export async function createCoinPaymentOrder(input: {
     checkout = await createEzfpCheckout({
       pid,
       method: 'jump',
+      type: paymentMethod,
       out_trade_no: order.orderNo,
       notify_url: `${origin}/api/coins/payments/ezfp/notify`,
       return_url: `${origin}/shop?payment=${encodeURIComponent(order.orderNo)}`,
@@ -94,7 +101,7 @@ export async function createCoinPaymentOrder(input: {
       money: formatCnyCents(pkg.priceCnyCents),
       clientip: input.clientIp,
       timestamp: String(Math.floor(Date.now() / 1000)),
-    }, process.env);
+    }, {...process.env,EZFP_ENABLED:'true',EZFP_PID:paymentConfig.pid,EZFP_MERCHANT_PRIVATE_KEY:paymentConfig.privateKey,EZFP_PLATFORM_PUBLIC_KEY:paymentConfig.publicKey,EZFP_API_BASE_URL:paymentConfig.baseUrl});
   } catch (error) {
     if (error instanceof Error) throw new PaymentOrderError(error.message, 502);
     throw new PaymentOrderError('支付服务调用失败，订单状态待核对。', 502);

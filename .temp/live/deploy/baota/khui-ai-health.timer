@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Khui AI health every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=khui-ai-health.service
+
+[Install]
+WantedBy=timers.target

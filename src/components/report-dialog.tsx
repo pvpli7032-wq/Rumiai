@@ -6,7 +6,7 @@ import { X, Flag, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { loginWithNext } from '@/lib/next-path';
 import { useRouter } from 'next/navigation';
-import { REPORT_CATEGORIES, IMAGE_REASONS, COPYRIGHT_RELATIONSHIPS, MAX_DETAILS } from '@/lib/reports';
+import { REPORT_CATEGORIES, IMAGE_REASONS, COPYRIGHT_RELATIONSHIPS, MAX_DETAILS } from '@/lib/community/report-types';
 import { CATEGORY_LABELS, IMAGE_REASON_LABELS, RELATIONSHIP_LABELS } from '@/lib/report-labels';
 
 type Category = (typeof REPORT_CATEGORIES)[number];

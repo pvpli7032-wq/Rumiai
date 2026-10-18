@@ -1,35 +1,13 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { logRouteError } from '@/lib/logger';
-import { getAuthUser } from '@/lib/auth';
+import {NextResponse} from 'next/server';
+import {getAuthUser} from '@/lib/auth';
+import {readUserMissions} from '@/lib/missions/reward-service';
+import {logRouteError} from '@/lib/logger';
 
-export async function GET(request: Request) {
-  try {
-    const authUser = await getAuthUser(request);
-    if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const dynamic='force-dynamic';
 
-    const missions = await db.mission.findMany({
-      include: {
-        userMissions: {
-          where: { userId: authUser.userId },
-          select: { isCompleted: true, completedAt: true },
-        },
-      },
-    });
-
-    const result = missions.map(m => ({
-      id: m.id,
-      title: m.title,
-      description: m.description,
-      rewardCoins: m.rewardCoins,
-      category: m.category,
-      isCompleted: m.userMissions[0]?.isCompleted ?? false,
-      completedAt: m.userMissions[0]?.completedAt ?? null,
-    }));
-
-    return NextResponse.json(result);
-  } catch (error) {
-    logRouteError('GET /api/missions', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function GET(request:Request){
+  const auth=await getAuthUser(request);
+  if(!auth)return NextResponse.json({error:'Unauthorized'},{status:401});
+  try{return NextResponse.json(await readUserMissions(auth.userId));}
+  catch(error){logRouteError('GET /api/missions',error);return NextResponse.json({error:'Internal server error'},{status:500});}
 }

@@ -23,7 +23,7 @@ interface ChatItem {
 export function Sidebar() {
   const { user, token } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { banners } = useSiteContent();
+  const { banners,branding } = useSiteContent();
   const [banner, setBanner] = useState(0);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<'private' | 'universe'>('private');
@@ -72,7 +72,7 @@ export function Sidebar() {
       {/* Brand */}
       <div className="flex h-16 items-center gap-3 p-4">
         <Link href="/" className="font-athiti text-xl font-bold">
-          <span className="bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] bg-clip-text text-transparent">{zhText("Khui AI")}</span>
+          <span className="flex items-center gap-2"><span className="bg-clip-text text-transparent" style={{backgroundImage:`linear-gradient(90deg,${branding.accentFrom},${branding.accentTo})`}}>{branding.brandName}</span>{branding.logoUrl&&<img src={branding.logoUrl} alt="" width={24} height={24}/>}</span>
         </Link>
         <button className="ml-auto flex h-8 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs shadow-xs transition-colors hover:bg-accent">
           <Code className="h-3 w-3" />
@@ -86,6 +86,7 @@ export function Sidebar() {
         <div className="w-full">
           <Link href={active.href}>
             <div className="relative flex min-h-20 w-full items-center justify-between gap-2 overflow-hidden rounded-md bg-[#1e1e1e] p-4 text-left">
+              {active.imageUrl && <img src={active.imageUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-30" />}
               <div
                 className="absolute inset-0 opacity-30"
                 style={{ background: `linear-gradient(225deg, ${active.gradientFrom} 0%, ${active.gradientTo} 100%)` }}

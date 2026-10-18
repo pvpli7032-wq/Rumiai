@@ -6,8 +6,8 @@ module.exports = {
   apps: [{
     name: 'khui-ai',
     cwd: root,
-    script: path.join(root, 'node_modules/next/dist/bin/next'),
-    args: 'start --hostname 127.0.0.1 --port 3000',
+    script: path.join(root, 'scripts/start-production.mjs'),
+    args: '',
     interpreter: process.execPath,
     instances: 1,
     exec_mode: 'fork',

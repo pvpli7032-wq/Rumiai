@@ -106,7 +106,7 @@ export default function HomePage() {
         <Link href={hero.href}>
           <div
             className="relative flex aspect-[375/90] w-full flex-col justify-center overflow-hidden rounded-xl px-6 md:aspect-[1000/120]"
-            style={{ background: `linear-gradient(225deg, ${hero.gradientFrom} 0%, ${hero.gradientTo} 100%)` }}
+            style={{ backgroundImage: `${hero.imageUrl ? `url("${hero.imageUrl}"), ` : ''}linear-gradient(225deg, ${hero.gradientFrom} 0%, ${hero.gradientTo} 100%)`, backgroundSize: hero.imageUrl ? 'cover' : undefined, backgroundPosition: 'center' }}
           >
             <p className="font-athiti text-sm font-bold text-white drop-shadow-sm md:text-base">{hero.title}</p>
             <p className="font-athiti text-xs text-white/90 drop-shadow-sm md:text-sm">{hero.description}</p>

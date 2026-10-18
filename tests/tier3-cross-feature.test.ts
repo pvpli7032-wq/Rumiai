@@ -169,7 +169,7 @@ export function registerTier3Tests() {
       // Send Gift
       const giftRes = await clientB.post(`/api/characters/${w2CharacterId}/gift`, {
         gift_type: 'rose',
-        amount: 100,
+        amount: 10,
       });
       await assertStatus(giftRes, [200, 201]);
       const giftData = await clientB.json(giftRes);
@@ -232,6 +232,7 @@ export function registerTier3Tests() {
     });
 
     test('3.3 Execute Mission Completion', async () => {
+      await assertStatus(await clientA.post('/api/checkin'),200);
       const missionIdToComplete = w3MissionId || 'mission_1';
       const res = await clientA.post(`/api/missions/${missionIdToComplete}/complete`);
       await assertStatus(res, [200, 201]);

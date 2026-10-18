@@ -45,6 +45,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Audit locked dependencies
+        run: npm audit --audit-level=high
+
       - name: Apply migrations
         run: |
           npx prisma migrate deploy
@@ -62,10 +65,12 @@ jobs:
           import bcrypt from 'bcryptjs';
           import { randomBytes } from 'node:crypto';
           import { appendFileSync } from 'node:fs';
+          import { seedHttpFixtures } from './tests/helpers/seed-http-fixtures.mjs';
           const db = new PrismaClient();
           const password = randomBytes(24).toString('hex');
           console.log('::add-mask::' + password);
           try {
+            await seedHttpFixtures(db);
             const user = await db.user.create({ data: { username: 'ci-reviewer', email: 'reviewer@example.invalid', passwordHash: await bcrypt.hash(password, 10) } });
             appendFileSync(process.env.GITHUB_ENV, `MODERATOR_USER_IDS=${user.id}\nTEST_REVIEWER_EMAIL=${user.email}\nTEST_REVIEWER_PASSWORD=${password}\n`);
           } finally { await db.$disconnect(); }
@@ -74,17 +79,37 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Focused safety, payments and recovery checks
+      - name: Domain, migration, safety and recovery checks
         run: |
           npm run test:m0
           npm run test:auth-config
+          npm run test:accounts:registration
           npm run test:admin:access
           npm run test:admin:management
           npm run test:accounts:management
+          npm run test:community:reports
+          npm run test:conversations:service
+          npm run test:conversations:messages
+          npm run test:creators:follow
+          npm run test:discovery:read
+          npm run test:middleware:locale
           npm run test:characters:review
           npm run test:characters:management
           npm run test:circles:service
           npm run test:circles:management
+          npm run test:database:upgrade
+          npm run test:posts:management
+          npm run test:site-content:management
+          npm run test:ai:providers
+          npm run test:ai:models
+          npm run test:ai:costs
+          npm run test:payments:merchants
+          npm run test:payments:orders
+          npm run test:payments:reconciliation
+          npm run test:payments:alerts
+          npm run test:analytics
+          npm run test:growth
+          npm run test:operations
           npm run test:m2:context
           npm run test:m4:ezfp
           npm run test:m4:budget
@@ -97,6 +122,12 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify restored state runs as an isolated production instance
+        run: NEXT_DIST_DIR=.next npm run test:m5:recovery-runtime
+
+      - name: Verify production launch guards
+        run: npm run test:production:guards
 
       - name: Start server
         run: |

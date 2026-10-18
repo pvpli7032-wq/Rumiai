@@ -29,8 +29,7 @@ delete environment.RUST_LOG;
 const database = path.resolve('prisma', file);
 const empty = await open(database, 'wx'); await empty.close();
 const migrated = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { env: environment, encoding: 'utf8', windowsHide: true });
-await writeFile(path.join(output, 'migration.log'), migrated.stdout + migrated.stderr);
-assert.equal(migrated.status, 0, 'Isolated database migrations must succeed');
+assert.equal(migrated.status, 0, migrated.stdout + migrated.stderr);
 const fixtureDb = new PrismaClient({ datasources: { db: { url: `file:${database.split(path.sep).join('/')}` } }, log: [] });
 let admin;
 try { admin = await fixtureDb.user.create({ data: { username: `budget_admin_${stamp}`, email: `budget-admin-${stamp}@example.invalid`, passwordHash: await bcrypt.hash(adminPassword, 10) } }); }
@@ -158,4 +157,5 @@ try {
   await browser?.close(); await stopApp();
   provider?.closeAllConnections();
   if (provider) await new Promise(resolve => provider.close(resolve));
+  await rm(path.join(output, 'server.log'), {force:true}); await rm(path.join(output, 'migration.log'), {force:true});
 }

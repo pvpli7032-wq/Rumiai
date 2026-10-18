@@ -1,4 +1,5 @@
 import { constants, createSign, createVerify } from 'node:crypto';
+import {parsePaymentRsaKey} from './rsa-credentials';
 
 export type EzfpParams = Record<string, string>;
 
@@ -11,25 +12,21 @@ export function canonicalizeEzfpParams(params: EzfpParams): string {
     .join('&');
 }
 
-function normalizePem(value: string): string {
-  return value.replace(/\\n/g, '\n').trim();
-}
-
 export function signEzfpParams(params: EzfpParams, privateKey: string): string {
   const signer = createSign('RSA-SHA256');
   signer.update(canonicalizeEzfpParams(params), 'utf8');
   signer.end();
-  return signer.sign({ key: normalizePem(privateKey), padding: constants.RSA_PKCS1_PADDING }, 'base64');
+  return signer.sign({ key: parsePaymentRsaKey(privateKey, 'private'), padding: constants.RSA_PKCS1_PADDING }, 'base64');
 }
 
 export function verifyEzfpParams(params: EzfpParams, publicKey: string): boolean {
-  if (!params.sign || params.sign_type !== 'RSA') return false;
+  if (!params.sign || (params.sign_type && params.sign_type !== 'RSA')) return false;
   try {
     const verifier = createVerify('RSA-SHA256');
     verifier.update(canonicalizeEzfpParams(params), 'utf8');
     verifier.end();
     return verifier.verify(
-      { key: normalizePem(publicKey), padding: constants.RSA_PKCS1_PADDING },
+      { key: parsePaymentRsaKey(publicKey, 'public'), padding: constants.RSA_PKCS1_PADDING },
       params.sign.replace(/ /g, '+'),
       'base64'
     );
@@ -41,6 +38,15 @@ export function verifyEzfpParams(params: EzfpParams, publicKey: string): boolean
 export function formatCnyCents(cents: number): string {
   if (!Number.isSafeInteger(cents) || cents < 1) throw new Error('Invalid CNY cents');
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
+}
+
+/** Parse the original provider amount only after signature verification. No floating-point rounding. */
+export function parseCnyCents(value: string): number | null {
+  if (typeof value !== 'string' || value.length > 20) return null;
+  const match = /^(0|[1-9]\d*)(?:\.(\d{1,2}))?$/.exec(value);
+  if (!match) return null;
+  const cents = BigInt(match[1]) * BigInt(100) + BigInt((match[2] ?? '').padEnd(2, '0'));
+  return cents > BigInt(0) && cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
 }
 
 /** Test endpoint override is restricted to local development servers. */
@@ -145,6 +151,12 @@ export async function createEzfpCheckout(params: EzfpParams, env: Record<string,
   if (!response.ok) throw new EzfpProviderError('支付服务暂时不可用，订单状态待核对。');
 
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  // The platform may return an unsigned {code,msg} rejection. It cannot prove
+  // payment status, but reporting it does not authorize a redirect or credit.
+  if (payload && !payload.sign && /^-?\d+$/.test(String(payload.code)) && Number(payload.code) !== 0) {
+    const message = typeof payload.msg === 'string' ? payload.msg.slice(0, 160) : '请检查商户配置和支付方式。';
+    throw new EzfpProviderError(`支付平台未受理请求：${message}。订单状态仍需核对。`);
+  }
   const signedResponse = payload && responseParams(payload);
   if (!payload || !signedResponse || !verifyEzfpParams(signedResponse, publicKey)) {
     throw new EzfpProviderError('支付服务响应验签失败，订单状态待核对。');

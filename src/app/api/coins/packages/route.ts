@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { logRouteError } from '@/lib/logger';
-import { isEzfpConfigured } from '@/lib/payments/ezfp-v2';
+import {readCheckoutAvailability} from '@/lib/payments/merchant-config-service';
 import { listActiveCoinPackages } from '@/lib/coins/package-service';
 
 /**
@@ -13,7 +13,9 @@ export async function GET() {
   try {
     const packages = await listActiveCoinPackages();
     const response = NextResponse.json(packages);
-    response.headers.set('X-Checkout-Enabled', String(isEzfpConfigured(process.env)));
+    const checkout = await readCheckoutAvailability();
+    response.headers.set('X-Checkout-Enabled', String(checkout.enabled));
+    response.headers.set('X-Checkout-Reason', checkout.reason);
     response.headers.set('Cache-Control', 'no-store');
     return response;
   } catch (error) {

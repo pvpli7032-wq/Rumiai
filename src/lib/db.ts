@@ -40,7 +40,9 @@ function applyPragmas(client: PrismaClient): Promise<void> {
       await client.$queryRawUnsafe('PRAGMA synchronous = NORMAL;');
     } catch (error) {
       // A non-SQLite datasource simply will not have these; that is not fatal.
-      logWarning('sqlite_pragmas_failed');
+      const safeName=error instanceof Error&&/^[A-Za-z][A-Za-z0-9_]{0,80}$/.test(error.name)?error.name:'UnknownError';
+      const code=(error as {code?:unknown}|null)?.code;
+      logWarning('sqlite_pragmas_failed',{errorName:safeName,...(typeof code==='string'&&/^[A-Z0-9_]{1,80}$/.test(code)?{errorCode:code}:{})});
     }
   })();
 }

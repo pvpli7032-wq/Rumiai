@@ -25,7 +25,7 @@ const { signToken, getAuthUser } = await import('../src/lib/auth.ts');
 const { saveAccountUpload } = await import('../src/lib/uploads/storage-service.ts');
 const { finishClosureFileCleanup } = await import('../src/lib/uploads/privacy.ts');
 const { readVisibleUpload } = await import('../src/lib/uploads/read-service.ts');
-const { validatePostImages } = await import('../src/lib/community-posts.ts');
+const { validatePostImages } = await import('../src/lib/posts/validation.ts');
 const testFiles = new Set();
 test.after(async () => {
   await db.$disconnect();
@@ -66,11 +66,11 @@ test('account closure erases own data, preserves foreign data and audit, revokes
   const usage = await db.aiCall.create({ data: { userId: a.id, conversationId: ownChat.id, operation: 'SEND', status: 'SUCCEEDED', estimatedCost: 0.3, currency: 'USD' } });
 
   await t.test('private media is owner-scoped and only the owner can make its reference public', async () => {
-    assert.deepEqual(await validatePostImages([uploads[0].url], a.id), { urls: [uploads[0].url] });
-    assert.match((await validatePostImages([uploads[0].url], b.id)).error, /自己上传/);
-    assert.deepEqual(await validatePostImages([legacyUrl], a.id), { urls: [legacyUrl] }, 'existing own legacy references remain editable');
-    assert.match((await validatePostImages([uploads[0].url, uploads[0].url], a.id)).error, /重复/);
-    assert.match((await validatePostImages(['/uploads/../private.png'], a.id)).error, /站内/);
+    assert.deepEqual(await validatePostImages([uploads[0].url], a.id), [uploads[0].url]);
+    await assert.rejects(validatePostImages([uploads[0].url], b.id), /自己上传/);
+    assert.deepEqual(await validatePostImages([legacyUrl], a.id), [legacyUrl], 'existing own legacy references remain editable');
+    await assert.rejects(validatePostImages([uploads[0].url, uploads[0].url], a.id), /重复/);
+    await assert.rejects(validatePostImages(['/uploads/../private.png'], a.id), /站内/);
     const names = uploads.map(asset => asset.url.split('/').at(-1));
     await assert.rejects(readVisibleUpload(names[0], null), /图片不存在/);
     await assert.rejects(readVisibleUpload(names[0], b.id), /图片不存在/);

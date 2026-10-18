@@ -6,6 +6,7 @@ import { Topbar } from './topbar';
 import { MobileNav } from './mobile-nav';
 import { AdminShell } from './admin/admin-shell';
 import {AdminAccessProvider} from './admin/use-admin-access';
+import {MaintenanceNotice} from './maintenance-notice';
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -71,7 +72,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div ref={scroll} className={`app-content min-h-0 min-w-0 flex-1 bg-background ${chat ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`}>
         <div ref={content} className={chat ? 'flex h-full min-h-0 flex-col' : 'min-h-full'}>
-          {!chat && <Topbar />}{children}
+          {!chat && <Topbar />}<MaintenanceNotice/>{chat?<div className="min-h-0 flex-1">{children}</div>:children}
         </div>
       </div>
       <MobileNav />

@@ -416,7 +416,8 @@ export function registerTier1Tests() {
     test('7.3 Post gift to character', async () => {
       assertOk(createdCharacterId, 'Character ID required');
       const res = await client.post(`/api/characters/${createdCharacterId}/gift`, {
-        giftAmount: 100,
+        giftCode: 'rose',
+        amount: 10,
       });
       // Gifting creates a Gift resource, so 201 is correct; every other creating
       // endpoint in this suite accepts either status.

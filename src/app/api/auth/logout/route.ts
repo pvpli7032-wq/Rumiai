@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { logRouteError } from '@/lib/logger';
 import { getAuthUser } from '@/lib/auth';
 import { setMediaSessionCookie } from '@/lib/auth-cookies';
+import { revokeAllSessions } from '@/lib/accounts/session-service';
 
 /**
  * Signs the caller out everywhere.
@@ -17,13 +17,8 @@ export async function POST(request: Request) {
     const authUser = await getAuthUser(request);
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const user = await db.user.update({
-      where: { id: authUser.userId },
-      data: { tokenVersion: { increment: 1 } },
-      select: { tokenVersion: true },
-    });
-
-    return setMediaSessionCookie(NextResponse.json({ success: true, tokenVersion: user.tokenVersion }), null);
+    const tokenVersion = await revokeAllSessions(authUser.userId);
+    return setMediaSessionCookie(NextResponse.json({ success: true, tokenVersion }), null);
   } catch (error) {
     logRouteError('POST /api/auth/logout', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -29,11 +29,11 @@ const baseAuth={getAuthUser:async()=>({userId:'u1'})};
 const output={json:(obj,options={})=>({status:options.status??200, body:obj,headers:options.headers??{}})};
 const next={NextResponse:output};
 
-function fakeDeps(env,{throwAI=false,persistGate=null,throwPersist=false,reviewStatus="APPROVED"}={}){
-  const state={created:[],deletes:0,mockCalls:0,chatCalls:0,updates:0};
+function fakeDeps(env,{throwAI=false,persistGate=null,throwPersist=false,reviewStatus="APPROVED",providers=[],modelPlan=null,modelCatalog={source:'ENV',models:['stub-model'],labels:{'stub-model':'stub-model'},default:'stub-model'}}={}){
+  const state={created:[],deletes:0,mockCalls:0,chatCalls:0,updates:0,providersPassed:undefined,modelsPassed:undefined};
   const conversation={id:'c1',userId:'u1',characterId:'role1',character:{id:'role1',name:'Role',personality:'patient',isPublic:true,reviewStatus},aiModel:null};
   const db={
-    conversation:{findUnique:async()=>conversation,update:async()=>{state.updates++}},
+    conversation:{findUnique:async()=>conversation,update:async({data})=>{state.updates++;state.conversationUpdate=data;return {id:'c1',aiModel:data.aiModel??null}}},
     character:{update:async()=>({})},
     message:{
       findUnique:async({where}) => where.id==='reply1' ? {id:'reply1',conversationId:'c1',role:'ASSISTANT',createdAt:new Date('2026-01-02')} : {id:'question1',content:'hi',createdAt:new Date('2026-01-01')},
@@ -56,13 +56,51 @@ function fakeDeps(env,{throwAI=false,persistGate=null,throwPersist=false,reviewS
     controller.enqueue(new TextEncoder().encode('data: [DONE]\\n\\n'));
     return 'fake';
   };
-  const streamOpenAIResponse=async()=>{state.chatCalls++;if(throwAI) throw Error('upstream down');return 'AI result';};
+  const streamOpenAIResponse=async(...args)=>{state.chatCalls++;state.providersPassed=args[5]?.providers;state.modelsPassed=args[5]?.models;if(throwAI) throw Error('upstream down');return 'AI result';};
   const config={HISTORY_TURNS:20,CHAT_LIMIT:30,CHAT_WINDOW_MS:60000};
   const service={streamMockResponse,streamOpenAIResponse,aiErrorCode:()=>"UPSTREAM_ERROR",aiUserError:()=>"AI 服务暂时不可用，请稍后重试。"};
+  class ConversationError extends Error { constructor(message,status){super(message);this.status=status;} }
   const stubs={
     'next/server':next,'@/lib/db':{db},'@/lib/logger':{logRouteError:()=>{}, logWarning:()=>{}},
     '@/lib/auth':baseAuth,'@/lib/rate-limit':{checkRateLimit:()=>({allowed:true})},
-    '@/lib/ai/config':config,'@/lib/conversations/chat-stream':service,'@/lib/ai/ai-usage':{AiQuotaError:class AiQuotaError extends Error{},reserveAiCall:async()=>({id:'usage1',startedAt:new Date()}),finishAiCall:async()=>{}},'@/lib/launch-guards':policy,
+    '@/lib/ai/config':config,'@/lib/conversations/chat-stream':service,'@/lib/ai/providers/management-service':{readActiveAiProviders:async()=>providers},'@/lib/ai/models/runtime-service':{readAiModelPlan:async()=>modelPlan,readAiModelCatalog:async()=>modelCatalog},'@/lib/ai/ai-usage':{AiQuotaError:class AiQuotaError extends Error{},reserveAiCall:async()=>({id:'usage1',startedAt:new Date()}),finishAiCall:async()=>{}},'@/lib/launch-guards':policy,
+    '@/lib/conversations/conversation-service':{
+      ConversationError,
+      readConversationForChat: async(userId,id)=>{
+        if(id!==conversation.id)throw new ConversationError('Not found',404);
+        if(userId!==conversation.userId)throw new ConversationError('Forbidden',403);
+        if((!conversation.character.isPublic||conversation.character.reviewStatus!=='APPROVED')&&conversation.character.creatorId!==userId)throw new ConversationError('Private',403);
+        return conversation;
+      },
+      updateConversation: async(userId,id,input)=>{
+        if(id!==conversation.id)throw new ConversationError('Not found',404);
+        if(userId!==conversation.userId)throw new ConversationError('Forbidden',403);
+        const model=input.aiModel??input.ai_model;
+        if(model!==undefined&&model!==null&&!modelCatalog.models.includes(model))throw new ConversationError('invalid model',400);
+        state.conversationUpdate={id,aiModel:model??null};
+        return {conversation:state.conversationUpdate};
+      },
+      readConversation: async()=>({conversation}), deleteConversation: async()=>({success:true}),
+      listUserConversations: async()=>[], createOrReuseConversation: async()=>({conversation}),
+    },
+    '@/lib/conversations/message-service':{
+      ConversationMessageError: class ConversationMessageError extends Error { constructor(message,status){super(message);this.status=status;} },
+      createUserMessage: async(conversationId,content)=>db.message.create({data:{conversationId,role:'USER',content}}),
+      readRecentMessageHistory: async()=>[],
+      readConversationMessages: async()=>[],
+      prepareMessageRegeneration: async(userId,conversationId,messageId)=>({prompt:{id:'question1',content:'hi',createdAt:new Date('2026-01-01')},history:[]}),
+      replaceMessageReply: async(conversationId,promptCreatedAt,content)=>{if(!content.trim())return null;await db.$transaction([db.message.deleteMany({where:{conversationId,createdAt:{gt:promptCreatedAt}}}),db.message.create({data:{conversationId,role:'ASSISTANT',content}}),db.conversation.update({where:{id:conversationId},data:{updatedAt:new Date()}})]);return {id:'new1',content};},
+      persistAssistantResponse: async(conversationId,characterId,content)=>{
+        const assistant=content.trim()?await db.message.create({data:{conversationId,role:'ASSISTANT',content}}):null;
+        await db.conversation.update({where:{id:conversationId},data:{updatedAt:new Date()}});
+        await db.character.update({where:{id:characterId},data:{messageCount:{increment:content.trim()?2:1}}});
+        return assistant;
+      },
+    },
+    '@/lib/payments/purchase-service':{
+      SimulatedPurchaseError: class SimulatedPurchaseError extends Error { constructor(message,status){super(message);this.status=status;} },
+      simulateCoinPurchase: async()=>{ if(!policy.maySimulatePurchase(env)) throw new stubs['@/lib/payments/purchase-service'].SimulatedPurchaseError('充值功能暂未开放；该接口仅供本地测试，未接入真实支付。',503); return {success:true,newBalance:60,coinsAdded:60}; },
+    },
   };
   const requireStub=name=>{if(!(name in stubs))throw Error('Unknown dependency '+name);return stubs[name];};
   return {state,loadRoute:file=>load(file,requireStub,env)};
@@ -77,6 +115,25 @@ test('Production: no AI key returns HTTP 503 and writes no messages', async()=>{
   assert.equal(result.status,503);
   assert.equal(ctx.state.created.length,0);
   assert.equal(ctx.state.mockCalls,0);
+});
+
+test('Production: enabled database providers authorize chat and are passed to the real streaming service',async()=>{
+  const providers=[{id:'provider-1',name:'fixture',baseUrl:'https://api.example.invalid/v1',apiKey:'database-secret-fixture'}];
+  const ctx=fakeDeps({NODE_ENV:'production'},{providers});const route=ctx.loadRoute('src/app/api/conversations/[id]/messages/route.ts');
+  const result=await route.POST(req({content:'hello'}),{params:{id:'c1'}});assert.equal(result.status,200);await result.body.getReader().read();
+  assert.equal(ctx.state.chatCalls,1);assert.deepEqual(ctx.state.providersPassed,providers);assert.equal(ctx.state.mockCalls,0);
+});
+
+test('Production: enabled database model routes pass provider/model limits to the real streaming service',async()=>{
+  const models=[{key:'chat-primary',modelCode:'vendor-model-a',provider:{id:'provider-a',name:'fixture',baseUrl:'https://api.example.invalid/v1',apiKey:'model-secret-fixture'},timeoutMs:12000,maxRetries:2,maxOutputTokens:1200,isDefault:true,isFallback:false,sortOrder:0}];
+  const ctx=fakeDeps({NODE_ENV:'production'},{modelPlan:models});const route=ctx.loadRoute('src/app/api/conversations/[id]/messages/route.ts');const result=await route.POST(req({content:'hello'}),{params:{id:'c1'}});assert.equal(result.status,200);await result.body.getReader().read();assert.equal(ctx.state.chatCalls,1);assert.deepEqual(ctx.state.modelsPassed,models);assert.equal(ctx.state.providersPassed?.length,0);assert.equal(ctx.state.mockCalls,0);
+});
+
+test('Conversation model selection validates only the server-managed model catalog',async()=>{
+  const catalog={source:'DATABASE',models:['chat-primary'],labels:{'chat-primary':'角色对话标准版'},default:'chat-primary'};const ctx=fakeDeps({NODE_ENV:'production'},{modelCatalog:catalog});const route=ctx.loadRoute('src/app/api/conversations/[id]/route.ts');
+  const request=model=>new Request('http://local.test/api/conversations/c1',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({aiModel:model})});
+  const valid=await route.PATCH(request('chat-primary'),{params:{id:'c1'}});assert.equal(valid.status,200);assert.equal(ctx.state.conversationUpdate.aiModel,'chat-primary');const updates=ctx.state.updates;
+  const invalid=await route.PATCH(request('arbitrary-expensive-model'),{params:{id:'c1'}});assert.equal(invalid.status,400);assert.equal(ctx.state.updates,updates);
 });
 
 test('Production: upstream failure emits an error, not a scripted reply', async()=>{

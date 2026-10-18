@@ -18,7 +18,3 @@ export function allowedModels(): string[] {
     .filter(Boolean);
   return [...new Set([primary, ...fallbacks])];
 }
-
-export function isAllowedModel(value: unknown): value is string {
-  return typeof value === 'string' && allowedModels().includes(value);
-}

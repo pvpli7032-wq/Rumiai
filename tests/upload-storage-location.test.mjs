@@ -18,7 +18,7 @@ assert.equal(migrated.status, 0, migrated.stdout + migrated.stderr);
 const { db, pragmasReady } = await import('../src/lib/db.ts'); await pragmasReady;
 const { saveAccountUpload, uploadDirectory } = await import('../src/lib/uploads/storage-service.ts');
 const { readVisibleUpload } = await import('../src/lib/uploads/read-service.ts');
-const { validatePostImages } = await import('../src/lib/community-posts.ts');
+const { validatePostImages } = await import('../src/lib/posts/validation.ts');
 const { closeAccount } = await import('../src/lib/accounts/closure-service.ts');
 
 test.after(async () => {
@@ -38,8 +38,8 @@ test('custom recovered upload location supports save, private read, attachments 
   await assert.rejects(stat(path.resolve('public/uploads', ownName)), { code: 'ENOENT' });
   assert.deepEqual((await readVisibleUpload(ownName, a.id)).bytes, bytes);
   await assert.rejects(readVisibleUpload(ownName, null), /不存在/);
-  assert.deepEqual(await validatePostImages([own.url], a.id), { urls: [own.url] });
-  assert.match((await validatePostImages([foreign.url], a.id)).error, /自己上传/);
+  assert.deepEqual(await validatePostImages([own.url], a.id), [own.url]);
+  await assert.rejects(validatePostImages([foreign.url], a.id), /自己上传/);
   const result = await closeAccount(a.id, { password, confirmation: '注销我的账号', acknowledgeRetention: true });
   assert.equal(result.closed, true); assert.equal(result.fileCleanupPending, false);
   await assert.rejects(stat(path.join(uploadDirectory(), ownName)), { code: 'ENOENT' });

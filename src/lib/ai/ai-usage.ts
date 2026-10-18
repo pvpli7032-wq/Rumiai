@@ -4,7 +4,8 @@ import type { AiStreamMetrics } from '@/lib/ai/types';
 import { readCostBudgetBlock, type AiBudgetBlock } from './budget-guard';
 import { estimateAiCallCost } from './cost-accounting';
 import { logWarning } from '@/lib/logger';
-import { budgetCircuitBreakerMode } from './budget-config';
+import { readAiDailyBudgetConfiguration } from './costs/budget-config-service';
+import {readCurrentAiModelPrices,estimateAiCostFromPrice} from './costs/model-price-service';
 
 export const quotaDay = (now = new Date()) => now.toISOString().slice(0,10);
 export const quotaReset = (now = new Date()) => new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1));
@@ -18,7 +19,7 @@ const logBudgetBlock = (event:string,block:AiBudgetBlock,callId?:string) => logW
  * The conditional write and call record share a transaction, so concurrent requests
  * and process restarts cannot mint extra daily slots.
  */
-export async function reserveAiCall(userId:string,conversationId:string,operation:'SEND'|'REGENERATE'){
+export async function reserveAiCall(userId:string,conversationId:string,operation:'SEND'|'REGENERATE',modelKeys?:string[]){
   await pragmasReady;
   const now=new Date();
   if(CHAT_DAILY_LIMIT===0)throw new AiQuotaError(Math.ceil((quotaReset(now).getTime()-now.getTime())/1000));
@@ -31,7 +32,7 @@ export async function reserveAiCall(userId:string,conversationId:string,operatio
       ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < ${CHAT_DAILY_LIMIT}`;
     if(!changed)throw new AiQuotaError(Math.ceil((quotaReset(now).getTime()-now.getTime())/1000));
     const callCurrency=currency();
-    const block=await readCostBudgetBlock(tx,userId,now,callCurrency);
+    const block=await readCostBudgetBlock(tx,userId,now,callCurrency,modelKeys);
     if(block)throw new AiQuotaError(block.status===429?Math.ceil((quotaReset(now).getTime()-now.getTime())/1000):0,block);
     return tx.aiCall.create({data:{userId,conversationId,operation,currency:callCurrency,startedAt:now}});
   }); } catch(error) {
@@ -41,9 +42,14 @@ export async function reserveAiCall(userId:string,conversationId:string,operatio
 }
 export async function finishAiCall(id:string,startedAt:Date,status:'SUCCEEDED'|'FAILED'|'CANCELLED'|'MOCK',metrics:AiStreamMetrics={},errorCode?:string){
   const input=metrics.inputTokens??null,output=metrics.outputTokens??null;
-  const estimatedCost=estimateAiCallCost(status,metrics);
-  const call=await db.aiCall.update({where:{id},data:{status,model:metrics.model??null,attempts:metrics.attempts??0,inputTokens:input,outputTokens:output,estimatedCost,errorCode:errorCode??null,finishedAt:new Date(),durationMs:Date.now()-startedAt.getTime()}});
-  if(budgetCircuitBreakerMode()==='disabled')return call;
+  let price:{id:string;currency:string;inputPerMillionMicros:bigint;outputPerMillionMicros:bigint}|undefined,priceLookupFailed=false;
+  if(status!=='MOCK'&&metrics.modelKey){try{price=(await readCurrentAiModelPrices(db,[metrics.modelKey],startedAt))[0]?.price;}catch{priceLookupFailed=true;logWarning('ai_model_price_lookup_failed',{callId:id});}}
+  const estimatedCost=status==='MOCK'?0:price?estimateAiCostFromPrice(input??undefined,output??undefined,price.inputPerMillionMicros,price.outputPerMillionMicros):priceLookupFailed?null:estimateAiCallCost(status,metrics);
+  const call=await db.aiCall.update({where:{id},data:{status,model:metrics.model??null,attempts:metrics.attempts??0,inputTokens:input,outputTokens:output,estimatedCost,...(price?{currency:price.currency,modelPriceId:price.id}:{}),errorCode:errorCode??null,finishedAt:new Date(),durationMs:Date.now()-startedAt.getTime()}});
+  let circuitBreaker:string;
+  try { circuitBreaker=(await readAiDailyBudgetConfiguration()).circuitBreaker; }
+  catch { logWarning('ai_budget_monitor_failed',{callId:id}); return call; }
+  if(circuitBreaker!=='enabled')return call;
   // A monitoring failure must not roll back an already completed cost record.
   try {
     const block=await db.$transaction(tx=>readCostBudgetBlock(tx,call.userId,new Date(),call.currency));

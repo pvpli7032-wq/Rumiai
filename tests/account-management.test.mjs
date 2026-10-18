@@ -19,11 +19,16 @@ const {bootstrapOwner, saveOperator, saveRole} = await import('../src/lib/admin/
 const {listManagedAccounts, readManagedAccount, updateManagedAccount} = await import('../src/lib/accounts/management-service.ts');
 const {loginWithPassword} = await import('../src/lib/accounts/login-service.ts');
 const {signToken, getAuthUser} = await import('../src/lib/auth.ts');
-const {communityWriteBlock} = await import('../src/lib/community-moderation.ts');
+const {POST: logoutRoute} = await import('../src/app/api/auth/logout/route.ts');
+const {GET: readAuthMeRoute} = await import('../src/app/api/auth/me/route.ts');
+const {readCommunityWriteRestriction, setCommunityRestriction} = await import('../src/lib/community/restriction-service.ts');
+const {POST: submitAppeal, GET: listAppeals} = await import('../src/app/api/community-appeals/route.ts');
+const {POST: followCreator}=await import('../src/app/api/creators/[username]/follow/route.ts');
 const {moderateCommunityReport, reviewCommunityAppeal} = await import('../src/lib/community/moderation-service.ts');
 const {GET: listRoute} = await import('../src/app/api/accounts/management/route.ts');
 const {PATCH: changeRoute} = await import('../src/app/api/accounts/management/[id]/route.ts');
 const {POST: loginRoute} = await import('../src/app/api/auth/login/route.ts');
+const {GET: readProfileRoute, PUT: updateProfileRoute} = await import('../src/app/api/users/me/route.ts');
 const password = `LocalOnly!${randomUUID()}`, hash = await bcrypt.hash(password, 10);
 const fixture = async name => db.user.create({data: {username: name, email: `${name}@example.invalid`, passwordHash: hash, coins: 345}});
 const owner = await fixture('owner'), support = await fixture('support'), viewer = await fixture('viewer'), supervisor = await fixture('supervisor'), ordinary = await fixture('ordinary');
@@ -46,6 +51,16 @@ test('user management transport rejects anonymous/ordinary callers and private r
   const response = await listRoute(await request(viewer)); assert.equal(response.status, 200); assert.match(response.headers.get('cache-control'), /private, no-store/);
   const data = await response.json(); assert(!JSON.stringify(data).includes(hash)); assert(!JSON.stringify(data).includes('tokenVersion'));
 });
+test('authenticated account context delegates its profile projection to the account domain', async () => {
+  assert.equal((await readAuthMeRoute(await request(null))).status, 401);
+  await db.user.update({where: {id: ordinary.id}, data: {readingMode: true, bannedWords: 'blocked', shortcuts: '[{"key":"hello","value":"hi"}]'}});
+  const response = await readAuthMeRoute(await request(ordinary));
+  assert.equal(response.status, 200);
+  const {user} = await response.json();
+  assert.equal(user.id, ordinary.id); assert.equal(user.email, ordinary.email); assert.equal(user.coins, 345);
+  assert.equal(user.readingMode, true); assert.equal(user.bannedWords, 'blocked');
+  assert(!('passwordHash' in user)); assert(!('tokenVersion' in user));
+});
 test('search, state filters, stable pagination and validation work on stored accounts', async () => {
   for (let i = 0; i < 26; i++) await fixture(`paged_${String(i).padStart(2, '0')}`);
   const first = await listManagedAccounts(viewer.id, {q: 'paged_', page: 1}), second = await listManagedAccounts(viewer.id, {q: 'paged_', page: 2});
@@ -63,13 +78,14 @@ test('community restrictions preserve login and appeals, and produce shared mode
   const target = await fixture('community_target');
   const before = await loginWithPassword({email: target.email, password});
   await act(support, target, 'BAN_COMMUNITY', '客服社区限制');
-  assert.equal((await communityWriteBlock(target.id)).status, 403);
+  assert(await readCommunityWriteRestriction(target.id));
+  const blockedFollow=await followCreator(new Request('http://localhost/api/creators/community_target/follow',{method:'POST',headers:{Authorization:`Bearer ${before.token}`}}),{params:Promise.resolve({username:target.username})});assert.equal(blockedFollow.status,403);assert.match((await blockedFollow.json()).error,/社区发言权限/);
   assert((await getAuthUser(await request(null, 'GET', undefined, before.token)))?.userId === target.id);
   assert(await loginWithPassword({email: target.email, password}));
   assert.equal((await listManagedAccounts(viewer.id, {q: target.email, community: 'BANNED'})).total, 1);
   assert.equal(await db.moderationAction.count({where: {targetId: target.id, action: 'BAN'}}), 1);
   assert.equal(await db.adminAuditLog.count({where: {targetId: target.id, action: 'ACCOUNT_BAN_COMMUNITY'}}), 1);
-  await act(support, target, 'UNBAN_COMMUNITY'); assert.equal(await communityWriteBlock(target.id), null);
+  await act(support, target, 'UNBAN_COMMUNITY'); assert.equal(await readCommunityWriteRestriction(target.id), null);
 });
 test('site suspension rejects existing tokens and password login, restoration requires fresh login and preserves money', async () => {
   const target = await fixture('site_target');
@@ -92,6 +108,18 @@ test('session revocation invalidates old sessions while normal credentials remai
   await act(supervisor, target, 'REVOKE_SESSIONS');
   assert.equal(await getAuthUser(await request(null, 'GET', undefined, before.token)), null);
   assert((await loginWithPassword({email: target.email, password})).token);
+});
+test('logout revokes every token version and clears the media session cookie', async () => {
+  const account = await fixture('logout_fixture');
+  const oldToken = await signToken({userId: account.id, email: account.email, tokenVersion: account.tokenVersion});
+  const logout = await logoutRoute(new Request('http://localhost/api/auth/logout', {method: 'POST', headers: {Authorization: `Bearer ${oldToken}`}}));
+  assert.equal(logout.status, 200);
+  assert.match(logout.headers.get('set-cookie') ?? '', /xingban_media_session=.*Max-Age=0/i);
+  const meRequest = token => new Request('http://localhost/api/users/me', {headers: {Authorization: `Bearer ${token}`}});
+  assert.equal((await readProfileRoute(meRequest(oldToken))).status, 401);
+  const updated = await db.user.findUnique({where: {id: account.id}, select: {tokenVersion: true}});
+  const currentToken = await signToken({userId: account.id, email: account.email, tokenVersion: updated.tokenVersion});
+  assert.equal((await readProfileRoute(meRequest(currentToken))).status, 200);
 });
 test('read-only details expose necessary links, not private conversations, persona, provider keys or ledger', async () => {
   const role = await db.character.create({data: {creatorId: ordinary.id, name: '私有角色摘要', personality: 'PRIVATE_PERSONA', background: 'PRIVATE_BACKGROUND', reviewStatus: 'DRAFT'}});
@@ -142,6 +170,24 @@ test('closed users cannot be resumed and authenticated activity is recorded with
   await getAuthUser(await request(null, 'GET', undefined, token)); const second = await db.user.findUnique({where: {id: target.id}});
   assert(first.lastActiveAt); assert.equal(first.lastActiveAt.getTime(), second.lastActiveAt.getTime());
 });
+test('own profile service updates display preferences without exposing credentials or changing balances', async () => {
+  const balance = viewer.coins;
+  const update = await updateProfileRoute(await request(viewer, 'PUT', {
+    username: 'viewer_profile', name: 'Viewer display', bannedWords: 'alpha\nbeta', readingMode: true, shortcuts: {hello: 'hi'},
+  }));
+  assert.equal(update.status, 200);
+  const payload = await update.json();
+  assert.equal(payload.user.username, 'viewer_profile');
+  assert.equal(payload.user.name, 'Viewer display');
+  assert.equal(payload.user.readingMode, true);
+  assert.equal(payload.user.coins, balance);
+  assert(!('passwordHash' in payload.user));
+  assert.equal((await updateProfileRoute(await request(ordinary, 'PUT', {username: 'viewer_profile'}))).status, 409);
+  assert.equal((await updateProfileRoute(await request(viewer, 'PUT', {shortcuts: 'not json{'}))).status, 400);
+  const profile = await readProfileRoute(await request(viewer));
+  assert.equal(profile.status, 200);
+  assert.equal((await profile.json()).user.bannedWords, 'alpha\nbeta');
+});
 test('report and appeal workflows share restriction state, optimistic version and transactional authority', async () => {
   const target = await fixture('report_target');
   const report = await db.report.create({data: {reporterId: ordinary.id, targetType: 'USER', targetId: target.id, category: 'OTHER', details: '合成举报'}});
@@ -150,9 +196,22 @@ test('report and appeal workflows share restriction state, optimistic version an
   await denied(() => moderateCommunityReport(viewer.id, report.id, {action: 'UNBAN', reason: '越权'}), 403);
   const appeal = await db.communityAppeal.create({data: {userId: target.id, reason: '申请复核'}});
   await reviewCommunityAppeal(owner.id, appeal.id, {status: 'ACCEPTED', resolution: '复核通过'});
-  assert.equal(await communityWriteBlock(target.id), null); assert.equal((await db.user.findUnique({where: {id: target.id}})).accountVersion, 2);
+  assert.equal(await readCommunityWriteRestriction(target.id), null); assert.equal((await db.user.findUnique({where: {id: target.id}})).accountVersion, 2);
   await denied(() => reviewCommunityAppeal(owner.id, appeal.id, {status: 'ACCEPTED', resolution: '重复复核'}), 409);
   assert.equal(await db.moderationAction.count({where: {targetId: appeal.id}}), 1);
+});
+test('community appeal submission checks restriction and writes one appeal with its audit', async () => {
+  const appealRequest = (user, method = 'POST', body) => request(user, method, body);
+  const reason = '我认为这次社区限制存在误判，请核对相关帖子和处理记录。';
+  assert.equal((await submitAppeal(await appealRequest(ordinary, 'POST', {reason}))).status, 409);
+  await db.$transaction(tx => setCommunityRestriction(tx, ordinary.id, true, '隔离测试封禁'));
+  const submitted = await submitAppeal(await appealRequest(ordinary, 'POST', {reason}));
+  assert.equal(submitted.status, 201);
+  assert.equal((await submitAppeal(await appealRequest(ordinary, 'POST', {reason}))).status, 409);
+  const rows = await listAppeals(await appealRequest(ordinary));
+  assert.equal(rows.status, 200);
+  assert.equal((await rows.json()).length, 1);
+  assert.equal(await db.moderationAction.count({where: {actorId: ordinary.id, action: 'APPEAL_SUBMITTED'}}), 1);
 });
 
 test('server bootstrap refuses a suspended identity before changing owner assignments', async () => {

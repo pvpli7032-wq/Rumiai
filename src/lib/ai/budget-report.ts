@@ -1,6 +1,8 @@
 import type { Prisma } from '@prisma/client';
-import { budgetCircuitBreakerMode, parseDailyBudgets, type DailyCostBudget } from './budget-config';
-import { classifyAiCostGroup, readAiPriceConfiguration } from './cost-accounting';
+import type { DailyCostBudget } from './budget-config';
+import { readAiDailyBudgetConfiguration } from './costs/budget-config-service';
+import { classifyAiCostGroup } from './cost-accounting';
+import {readAiModelPriceCoverage} from './costs/model-price-service';
 export { parseDailyBudgets } from './budget-config';
 
 type Budget = DailyCostBudget;
@@ -27,11 +29,12 @@ export function evaluateDailyBudgets(budgets: Record<string, Budget>, usage: Usa
 
 export async function readDailyBudgetReport(tx: Prisma.TransactionClient, now: Date) {
   const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const period = { since: since.toISOString(), timezone: 'UTC' as const, circuitBreaker: budgetCircuitBreakerMode(), pricingConfigured: Boolean(readAiPriceConfiguration()) };
-  let budgets: Record<string, Budget> | null;
-  try { budgets = parseDailyBudgets(process.env.AI_DAILY_COST_BUDGETS); }
-  catch { return { ...period, status: 'invalid' as const }; }
-  if (!budgets) return { ...period, status: 'disabled' as const };
+  const configuration=await readAiDailyBudgetConfiguration(tx);
+  const coverage=await readAiModelPriceCoverage(tx,now);
+  const period = { since: since.toISOString(), timezone: 'UTC' as const, circuitBreaker: configuration.circuitBreaker, pricingConfigured: coverage.configured&&coverage.complete, pricingUnpricedModels:coverage.unpricedModels, source:configuration.source };
+  if (configuration.status==='invalid') return { ...period, status: 'invalid' as const };
+  if (!configuration.budgets) return { ...period, status: 'disabled' as const };
+  const budgets=configuration.budgets;
   const groups = await tx.aiCall.groupBy({
     by: ['userId', 'currency', 'attempts'],
     where: { startedAt: { gte: since, lte: now }, status: { not: 'MOCK' } },

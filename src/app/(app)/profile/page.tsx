@@ -11,7 +11,7 @@ import { AdminEntry } from '@/components/admin/admin-entry';
 import { loginWithNext } from '@/lib/next-path';
 import { User, Flame, Coins, CheckCircle2, Circle, Gift, Loader2, LogOut, Download } from 'lucide-react';
 
-interface Mission { id: string; title: string; description?: string; rewardCoins: number; category: string; isCompleted: boolean; }
+interface Mission { id: string; title: string; description?: string; rewardCoins: number; category: string; conditionTarget:number; progress:number; qualified:boolean; period:string; isCompleted: boolean; }
 
 const TIER_COLORS: Record<string, string> = {
   ROOKIE: 'from-gray-400 to-gray-600',
@@ -91,7 +91,8 @@ export default function ProfilePage() {
       alert(zhText("🎉 ภารกิจสำเร็จ! รับ") + (data.coinsEarned) + zhText("🪙"));
       await refreshUser();
       fetchData();
-    }
+    } else if(data.error==='Mission condition not met') alert(`任务还未达成：${data.progress??0}/${data.target??0}`);
+    else if(data.error) alert(data.error);
   }
 
   if (!user) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-400 animate-spin" /></div>;
@@ -178,12 +179,13 @@ export default function ProfilePage() {
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-semibold font-athiti ${m.isCompleted ? 'text-zinc-500 line-through' : 'text-white'}`}>{m.title}</p>
                   {m.description && <p className="text-xs text-zinc-500 font-athiti">{m.description}</p>}
+                  {!m.isCompleted&&<p className="text-xs text-zinc-500">进度 {m.progress}/{m.conditionTarget} · {m.period==='ONCE'?'一次':m.period==='DAILY'?'每日':'每周'}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs text-yellow-400 font-bold">+{m.rewardCoins}🪙</span>
                   {!m.isCompleted && (
-                    <button onClick={() => handleMission(m.id)} disabled={loading} className="px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-athiti hover:bg-purple-600/30 transition-all disabled:opacity-50">
-                      {zhText("รับ")}</button>
+                    <button onClick={() => handleMission(m.id)} disabled={loading||!m.qualified} className="px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-athiti hover:bg-purple-600/30 transition-all disabled:opacity-50">
+                      {m.qualified?zhText("รับ"):'未达成'}</button>
                   )}
                 </div>
               </div>

@@ -116,7 +116,12 @@ export async function saveRole(actorId: string, input: unknown) {
   if (permissions.some(key => key.startsWith('characters.') && key !== 'characters.read') && !permissions.includes('characters.read')) throw new AdminManagementError('角色操作权限必须同时包含角色查看权限。');
   if (permissions.some(key => key.startsWith('community.') && key !== 'community.read') && !permissions.includes('community.read')) throw new AdminManagementError('社区操作权限必须同时包含社区查看权限。');
   if (permissions.some(key => key.startsWith('accounts.') && key !== 'accounts.read') && !permissions.includes('accounts.read')) throw new AdminManagementError('用户操作权限必须同时包含用户查看权限。');
-  if (permissions.includes('moderation.write') && !permissions.includes('moderation.read') || (permissions.includes('finance.packages.write') || permissions.includes('finance.refunds.execute')) && !permissions.includes('finance.read')) throw new AdminManagementError('操作权限必须同时包含对应的查看权限。');
+  if (permissions.some(key => key.startsWith('ai.providers.') && key !== 'ai.providers.read') && !permissions.includes('ai.providers.read')) throw new AdminManagementError('AI 供应商操作权限必须同时包含供应商查看权限。');
+  if (permissions.some(key => key.startsWith('ai.models.') && key !== 'ai.models.read') && !permissions.includes('ai.models.read')) throw new AdminManagementError('AI 模型操作权限必须同时包含模型查看权限。');
+  if (permissions.includes('ai.costs.manage') && !permissions.includes('ai.costs.read')) throw new AdminManagementError('AI 成本管理权限必须同时包含成本查看权限。');
+  if (permissions.includes('growth.manage') && !permissions.includes('growth.read')) throw new AdminManagementError('任务与奖励管理权限必须同时包含查看权限。');
+  if (permissions.some(key => key.startsWith('payments.merchants.') && key !== 'payments.merchants.read') && !permissions.includes('payments.merchants.read')) throw new AdminManagementError('支付商户操作权限必须同时包含商户查看权限。');
+  if (permissions.includes('moderation.write') && !permissions.includes('moderation.read') || (permissions.includes('finance.packages.write') || permissions.includes('finance.refunds.request') || permissions.includes('finance.refunds.approve') || permissions.includes('finance.refunds.execute') || permissions.includes('finance.reconciliation.import')) && !permissions.includes('finance.read')) throw new AdminManagementError('操作权限必须同时包含对应的查看权限。');
   const id = body.id === undefined ? undefined : body.id;
   if (id !== undefined && (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(id))) throw new AdminManagementError('角色编号无效。');
   const expected = id ? version(body.version) : 0;
@@ -135,12 +140,26 @@ export async function saveRole(actorId: string, input: unknown) {
   });
 }
 
-export async function readAdminAudit(actorId: string, page = 1) {
+export async function readAdminAudit(actorId: string, page = 1, filters: {actorId?:string;targetId?:string;action?:string;from?:string;until?:string} = {}) {
   await requirePermission(actorId, 'admin.audit.read');
   if (!Number.isSafeInteger(page) || page < 1 || page > 10000) throw new AdminManagementError('页码无效。');
+  const where:Prisma.AdminAuditLogWhereInput={};
+  for(const key of ['actorId','targetId','action'] as const){
+    const value=filters[key]?.trim();
+    if(value){if(!/^[A-Za-z0-9_:-]{1,100}$/.test(value))throw new AdminManagementError('操作人、对象或动作筛选格式无效。');where[key]=value;}
+  }
+  const dates:{gte?:Date;lt?:Date}={};
+  for(const key of ['from','until'] as const){
+    const value=filters[key];if(!value)continue;
+    const date=new Date(value+'T00:00:00.000Z');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value)throw new AdminManagementError('审计日期无效，请使用 YYYY-MM-DD。');
+    if(key==='from')dates.gte=date;else dates.lt=new Date(date.getTime()+86400000);
+  }
+  if(dates.gte&&dates.lt&&dates.gte>=dates.lt)throw new AdminManagementError('开始日期不能晚于结束日期。');
+  if(dates.gte||dates.lt)where.createdAt=dates;
   return db.$transaction(async tx => {
     await requirePermission(actorId, 'admin.audit.read', tx);
-    const [items, total] = await Promise.all([tx.adminAuditLog.findMany({orderBy: [{createdAt: 'desc'}, {id: 'desc'}], take: 25, skip: (page - 1) * 25}), tx.adminAuditLog.count()]);
+    const [items, total] = await Promise.all([tx.adminAuditLog.findMany({where,orderBy: [{createdAt: 'desc'}, {id: 'desc'}], take: 25, skip: (page - 1) * 25}), tx.adminAuditLog.count({where})]);
     return {items, total, page, pageSize: 25};
   });
 }

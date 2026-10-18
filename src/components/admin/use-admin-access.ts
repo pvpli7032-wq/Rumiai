@@ -26,7 +26,7 @@ function useSessionState(enabled = true) {
   }, [token, enabled, refresh]);
   const current = result?.token === token ? result : null;
   const permissions = current?.session?.permissions ?? [];
-  const access = current?.session ? {moderation: permissions.includes('moderation.read'), finance: permissions.includes('finance.read'), characters: permissions.includes('characters.read'), community: permissions.includes('community.read'), accounts: permissions.includes('accounts.read'), staff: permissions.includes('admin.staff.read'), audit: permissions.includes('admin.audit.read')} : undefined;
+  const access = current?.session ? {moderation: permissions.includes('moderation.read'), finance: permissions.includes('finance.read'), analytics:permissions.includes('analytics.read'), growth:permissions.includes('growth.read'),operations:permissions.includes('operations.read'),compliance:permissions.includes('compliance.read'), characters: permissions.includes('characters.read'), community: permissions.includes('community.read'), siteContent: permissions.includes('site.content.read'), aiProviders: permissions.includes('ai.providers.read'), aiModels: permissions.includes('ai.models.read'), aiCosts:permissions.includes('ai.costs.read'),paymentMerchants:permissions.includes('payments.merchants.read'),accounts: permissions.includes('accounts.read'), staff: permissions.includes('admin.staff.read'), audit: permissions.includes('admin.audit.read')} : undefined;
   return {token, access, permissions, session: current?.session, error: current?.error, loading: isLoading || Boolean(enabled && token && !current), refreshAccess: () => {setResult(null); setRefresh(value => value + 1);}};
 }
 

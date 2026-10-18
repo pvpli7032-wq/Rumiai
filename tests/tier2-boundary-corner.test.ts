@@ -332,13 +332,13 @@ export function registerTier2Tests() {
 
     test('6.5 Concurrent mission completions award the reward exactly once', async () => {
       const user = await freshUser('msrace');
+      await assertStatus(await user.post('/api/checkin'),200);
       const listRes = await user.get('/api/missions');
       await assertStatus(listRes, 200);
       const listData = await user.json(listRes);
       const missions: any[] = Array.isArray(listData) ? listData : listData.missions || [];
-      assertOk(missions.length > 0, 'At least one mission must be available');
-
-      const mission = missions[0];
+      const mission = missions.find(item => item.qualified);
+      assertOk(mission,'HTTP fixtures must include a check-in mission qualified by the preceding check-in');
       const before = await balanceOf(user);
       const statuses = await Promise.all(
         Array.from({ length: 6 }, () => user.post(`/api/missions/${mission.id}/complete`).then(r => r.status))
@@ -528,8 +528,19 @@ export function registerTier2Tests() {
       assertEquals(listed.length, 1);
       assertEquals(listed[0].isCompleted, false);
       assertEquals(listed[0].rewardCoins, 30);
+      assertEquals(listed[0].requiredMessages, 1);
+      assertEquals(listed[0].isQualified, false);
 
       const before = await balanceOf(reader);
+      await assertStatus(await reader.post(`/api/characters/${charId}/quests/${quest.id}/complete`), 409);
+      assertEquals(await balanceOf(reader), before);
+
+      const conversationResponse=await reader.post('/api/conversations',{characterId:charId});
+      await assertStatus(conversationResponse,201);
+      const conversationId=(await reader.json(conversationResponse)).conversation.id;
+      const sent=await reader.post(`/api/conversations/${conversationId}/messages`,{content:'完成角色任务的可核验消息'});
+      await assertStatus(sent,200);await sent.text();
+
       const statuses = await Promise.all(
         Array.from({ length: 6 }, () =>
           reader.post(`/api/characters/${charId}/quests/${quest.id}/complete`).then(r => r.status)
@@ -925,7 +936,7 @@ export function registerTier2Tests() {
       // Spend the entire balance six times over at once; only one may settle.
       const statuses = await Promise.all(
         Array.from({ length: 6 }, () =>
-          sender.post(`/api/characters/${charId}/gift`, { amount: before }).then(r => r.status)
+          sender.post(`/api/characters/${charId}/gift`, { giftCode:'http-balance-test',amount: before }).then(r => r.status)
         )
       );
       assertEquals(statuses.filter(s => s === 200 || s === 201).length, 1);

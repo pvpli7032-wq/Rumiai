@@ -64,7 +64,9 @@ export function RelationshipPanel({
 }) {
   const [state, setState] = useState<ConversationState | null>(null);
   const [models, setModels] = useState<string[]>([]);
+  const [modelLabels, setModelLabels] = useState<Record<string,string>>({});
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
+  const [modelsLoaded,setModelsLoaded]=useState(false);
   const [notes, setNotes] = useState('');
   const [savedNotes, setSavedNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -74,11 +76,11 @@ export function RelationshipPanel({
 
   useEffect(() => {
     let alive = true;
+    setModels([]);setModelsLoaded(false);
     Promise.all([
       fetch(`/api/conversations/${conversationId}`, { headers }).then((r) => (r.ok ? r.json() : null)),
-      // The selectable models are whatever the server's chain is; hardcoding a list here
-      // would go stale the moment AI_MODEL or AI_FALLBACK_MODELS changes.
-      fetch('/api/ai/models').then((r) => (r.ok ? r.json() : null)),
+        // The selectable models come from the server-managed routing catalog.
+      fetch(`/api/ai/models?conversationId=${encodeURIComponent(conversationId)}`,{headers}).then((r) => (r.ok ? r.json() : null)),
     ])
       .then(([conv, modelList]) => {
         if (!alive) return;
@@ -88,7 +90,9 @@ export function RelationshipPanel({
           setSavedNotes(conv.conversation.notes ?? '');
         }
         if (modelList?.models) {
+          setModelsLoaded(true);
           setModels(modelList.models);
+          setModelLabels(modelList.labels??{});
           setDefaultModel(modelList.default ?? null);
         }
       })
@@ -215,15 +219,16 @@ export function RelationshipPanel({
               <Cpu className="h-3.5 w-3.5" />
               {zhText("โมเดลที่ใช้ในแชทนี้")}</p>
             <div className="space-y-1">
+              {state.aiModel&&!models.includes(state.aiModel)&&<p className="mb-2 text-xs text-amber-400">原选择模型已不可用，请选择当前范围内模型或恢复默认。</p>}
               <ModelOption
-                label={zhText("ค่าเริ่มต้น") + (defaultModel ? ` (${defaultModel})` : '') + zhText("")}
+                label={zhText("ค่าเริ่มต้น") + (defaultModel ? ` (${modelLabels[defaultModel]??defaultModel})` : '') + zhText("")}
                 selected={!state.aiModel}
                 onClick={() => patch({ ai_model: null }, zhText("กลับไปใช้โมเดลค่าเริ่มต้น"))}
               />
               {models.map((m) => (
                 <ModelOption
                   key={m}
-                  label={m}
+                  label={modelLabels[m]??m}
                   selected={state.aiModel === m}
                   onClick={() => patch({ ai_model: m }, zhText("เปลี่ยนเป็น") + (m) + zhText(""))}
                 />
@@ -231,6 +236,7 @@ export function RelationshipPanel({
             </div>
           </div>
         )}
+        {modelsLoaded&&models.length===0&&<p className="rounded-xl border border-white/10 p-3 text-xs text-amber-400">此角色当前没有可用模型，请联系管理员。</p>}
 
         {/* Notes */}
         <div className="rounded-2xl border border-white/10 bg-zinc-800/40 p-3">

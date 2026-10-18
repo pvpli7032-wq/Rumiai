@@ -46,7 +46,7 @@ export function BannerCarousel({
         <Link
           href={active.href}
           className="block min-h-[9rem] p-6 transition-opacity"
-          style={{ backgroundImage: `linear-gradient(135deg, ${active.gradientFrom}, ${active.gradientTo})` }}
+          style={{ backgroundImage: `${active.imageUrl ? `url("${active.imageUrl}"), ` : ''}linear-gradient(135deg, ${active.gradientFrom}, ${active.gradientTo})`, backgroundSize: active.imageUrl ? 'cover' : undefined, backgroundPosition: 'center' }}
         >
           <h2 className="font-athiti text-xl font-bold text-white">{active.title}</h2>
           <p className="mt-1 max-w-md font-athiti text-sm text-white/85">{active.description}</p>

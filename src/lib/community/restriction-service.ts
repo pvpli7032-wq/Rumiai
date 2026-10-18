@@ -1,4 +1,14 @@
 import type {Prisma} from '@prisma/client';
+import {db} from '@/lib/db';
+
+export async function readCommunityRestriction(userId: string, reader: Pick<Prisma.TransactionClient, 'user'> = db) {
+  return reader.user.findUnique({where: {id: userId}, select: {communityBannedAt: true, communityBanReason: true}});
+}
+
+export async function readCommunityWriteRestriction(userId:string){
+  const restriction=await readCommunityRestriction(userId);
+  return restriction?.communityBannedAt?{reason:restriction.communityBanReason}:null;
+}
 
 /** Used inside the caller's writer transaction; community restrictions leave login and appeals available. */
 export async function setCommunityRestriction(tx: Prisma.TransactionClient, userId: string, banned: boolean, reason: string, requireBanned = false) {

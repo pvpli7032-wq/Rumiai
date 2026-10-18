@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, writeFile, rm, rmdir, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, copyFile, rm, rmdir, stat } from 'node:fs/promises';
 import { PrismaClient } from '@prisma/client';
 import { createStateBackup, inspectStateBackup, restoreStateBackup } from '../src/lib/operations/state-backup.mjs';
 import { uploadDirectory } from '../src/lib/uploads/storage-location.mjs';
+import {readBackupCatalog,readBackupInventory} from '../src/lib/operations/backup-inventory.ts';
 
 const root = process.cwd(), parent = path.resolve('prisma/backups');
 const fileUrl = file => `file:${file.split(path.sep).join('/')}`;
@@ -44,7 +45,11 @@ test('full state recovery preserves database and private/legacy uploads without 
     });
     await t.test('restore uses a new target and retains attachment ownership, balances and messages', async () => {
       await db.user.update({ where: { id: user.id }, data: { coins: 99 } });
+      const sourceManifest=await readFile(path.join(backup,'manifest.json')),sourceDatabase=await readFile(path.join(backup,'database.db'));
       const result = await restoreStateBackup(backup, recovered);
+      const restoration=JSON.parse(await readFile(path.join(recovered,'restore-result.json'),'utf8'));
+      assert.equal(restoration.format,'xingban-state-restore');assert.equal(restoration.integrity,'ok');assert.equal(restoration.foreignKeys,'ok');assert.equal(restoration.uploadedFiles,2);assert.equal(restoration.sourceDatabaseSha256,result.manifest.database.sha256);assert(Number.isFinite(Date.parse(restoration.completedAt)));
+      assert.deepEqual(await readFile(path.join(backup,'manifest.json')),sourceManifest);assert.deepEqual(await readFile(path.join(backup,'database.db')),sourceDatabase);await assert.rejects(stat(path.join(backup,'restore-result.json')),{code:'ENOENT'});
       restored = new PrismaClient({ datasources: { db: { url: fileUrl(result.database) } }, log: [] });
       assert.equal((await restored.user.findUnique({ where: { id: user.id } })).coins, 73);
       assert.equal((await db.user.findUnique({ where: { id: user.id } })).coins, 99);
@@ -54,6 +59,14 @@ test('full state recovery preserves database and private/legacy uploads without 
       await restored.$disconnect(); restored = undefined;
       await assert.rejects(restoreStateBackup(backup, recovered), { code: 'EEXIST' });
       await assert.rejects(createStateBackup(source, uploads, backup), { code: 'EEXIST' });
+    });
+    await t.test('catalog projects operation records without filenames, paths, account data or contents',async()=>{
+      const result=await readBackupCatalog(1,{directory:dir,activeDatabase:path.join(recovered,'database.db')});
+      assert.equal(result.stateBundles,2);assert.equal(result.activeRestore.kind,'STATE_RESTORE');assert.equal(result.activeRestore.verification,'RECORDED_AT_OPERATION');
+      const records=result.items.filter(item=>item.kind!=='DATABASE');assert.equal(records.length,2);assert(records.every(item=>item.uploadCount===2&&item.referenceCount===2&&item.verification==='RECORDED_AT_OPERATION'));assert(records.some(item=>item.kind==='STATE_BACKUP'));assert(records.some(item=>item.kind==='STATE_RESTORE'));
+      const output=JSON.stringify(result);for(const privateValue of [dir,'owned.png','legacy.png','SYNTHETIC_CHAT','state@example.invalid','source.db'])assert(!output.includes(privateValue),privateValue);
+      const client=new PrismaClient({datasources:{db:{url:fileUrl(path.join(recovered,'database.db'))}},log:[]});try{await client.message.create({data:{conversationId:conversation.id,role:'USER',content:'恢复后业务写入'.repeat(10000)}});}finally{await client.$disconnect();}
+      const changed=await readBackupCatalog(1,{directory:dir,activeDatabase:path.join(recovered,'database.db')});assert.equal(changed.activeRestore.verification,'RECORDED_AT_OPERATION');assert.equal(changed.items.find(item=>item.kind==='STATE_RESTORE').verification,'RECORDED_AT_OPERATION');
     });
     await t.test('tampered bytes and path-traversal manifest are rejected before target creation', async () => {
       const file = path.join(backup, 'uploads/owned.png');
@@ -76,6 +89,13 @@ test('full state recovery preserves database and private/legacy uploads without 
       await writeFile(path.join(uploads, 'owned.png'), png); await mkdir(path.join(uploads, 'nested'));
       await assert.rejects(createStateBackup(source, uploads, path.join(dir, 'nested-source')), /子目录/);
       await rmdir(path.join(uploads, 'nested'));
+    });
+    await t.test('catalog identifies incomplete/corrupt/oversize records and paginates metadata only',async()=>{
+      const corrupt=path.join(dir,'corrupt');await mkdir(corrupt);await copyFile(path.join(backup,'database.db'),path.join(corrupt,'database.db'));await writeFile(path.join(corrupt,'manifest.json'),'{broken');
+      let catalog=await readBackupCatalog(1,{directory:dir});assert(catalog.items.some(item=>item.verification==='INVALID_METADATA'));assert(catalog.items.some(item=>item.verification==='INCOMPLETE'));
+      await writeFile(path.join(corrupt,'manifest.json'),'x'.repeat(8*1024*1024+1));catalog=await readBackupCatalog(1,{directory:dir});assert(catalog.items.some(item=>item.reasonCode==='METADATA_TOO_LARGE'));
+      for(let index=0;index<21;index++)await writeFile(path.join(dir,`metadata-only-${index}.db`),'unverified placeholder');
+      const first=await readBackupCatalog(1,{directory:dir}),second=await readBackupCatalog(2,{directory:dir});assert.equal(first.items.length,20);assert(second.items.length>0);assert(first.items.every(item=>!second.items.some(other=>other.id===item.id)));assert.equal((await readBackupInventory(dir)).directoryPresent,true);
     });
     await t.test('storage defaults are preserved and recovery can point to a separate directory', () => {
       const original = process.env.UPLOADS_DIRECTORY;

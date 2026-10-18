@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       packageId,
       idempotencyKey,
       clientIp: requestClientIp(request),
+      paymentMethod: input.paymentMethod,
       quote: quote ? { amountCnyCents: Number(quote.amountCnyCents), coinAmount: Number(quote.coinAmount) } : undefined,
     });
     return NextResponse.json(result);

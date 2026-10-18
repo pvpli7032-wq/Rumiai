@@ -1,0 +1,362 @@
+[Heading 1] 星伴 · AI 角色社区 商业化改造建议书
+[Normal] 面向：项目负责人与执行 AI ｜ 日期：2026-10-18 ｜ 依据：对 ai-role-community 源码的只读审阅（未运行项目、未改动任何文件）；对标资料为公开网络信息，见附录。
+[Heading 2] 0. 执行规则与授权（执行 AI 必读）
+[Normal] 以下授权已由项目负责人确认：项目已部署在负责人自己的宝塔面板上，前台与后台均可正常访问，对话与支付在现网站点上已可用；支付渠道与 AI 供应商均已接入（AI 供应商在后台为带额度限制的测试账号）。负责人上线前会自行完整过一遍。因此本文只保留少数底线，其余由执行 AI 自主判断。
+[Normal] 已授权事项
+[List Paragraph] 自主连续执行第 6 章全部阶段，阶段之间不必停下等人确认；第 5 章的决策点按“默认”执行并记录，不阻塞。
+[List Paragraph] 启动本地或测试环境的完整应用，用真实浏览器（Playwright Chromium）操作全部前台与后台页面并截图留证。
+[List Paragraph] 调用已接入的真实 AI 供应商（测试账号）与真实支付渠道做端到端测试，额度与笔数上限见第 8 章。
+[List Paragraph] 自行决定实现细节：拆分或合并文件、调整本文未规定的目录与接口、新增脚本与测试。
+[List Paragraph] 测试中发现的缺陷（含范围外的）可以直接修复，记入 docs/changelog-ai.md；涉及资金、权限、数据结构的修复必须有对应测试。
+[List Paragraph] 新增依赖需许可宽松（MIT、Apache、BSD 等）且 npm audit --audit-level=high 通过，并在 changelog 说明理由。
+[Normal] 底线（只有这些，目的是保护数据与资金；违反即停止并汇报）
+[List Paragraph] 迁移只增不改：不修改已有迁移文件，不用 db push、reset；改动数据库前先执行 npm run db:backup。
+[List Paragraph] 不碰现网：不部署到现网目录，不修改现网服务器配置、现网数据库与现网后台配置；除支付外的真实测试一律在第 8.0 节的预发布实例上进行。现网站点只允许不产生写入的访问（打开页面、查看），唯一例外是决策 D10（已选方案 B）规定的合成账号小额支付冒烟。
+[List Paragraph] 密钥不外泄：密钥、令牌、支付私钥只通过环境变量或后台加密配置使用，不写入源码、日志、截图、测试报告与提交记录；截图前遮盖。
+[List Paragraph] 保留上游许可声明（LICENSE、THIRD_PARTY_NOTICES.md），历史迁移里的 khui_system_* 角色主键不改。
+[List Paragraph] 真实通道有上限：真实 AI 与真实支付只在第 8 章额度内使用，超限立即停止并汇报；不做压力测试，不无限重试。
+[List Paragraph] 以命令输出为证：每阶段汇报改动、命令与结果、失败项；没有输出证明不得说“已完成”。
+[List Paragraph] 每阶段单独提交以便回滚，并保持 AGENTS.md 的分层规则。
+[Heading 2] 1. 现状摘要（均为源码实测）
+=== TABLE ===
+维度 | 事实
+规模 | Next.js 15 / React 19 / TypeScript / Prisma 5 / SQLite / Tailwind 4；约 50 个页面、126 个 API 路由、73 张表、45 条迁移、60 余个测试文件、56 个运维/验收脚本
+后台入口 | 与前台同在 src/app/(app) 下；components/app-frame.tsx 按路径硬编码切换为后台外壳；后台页面分布在 /admin/*、/finance、/moderation 三种风格
+管理接口 | 分散在 6 个前缀：/api/admin、/api/finance、/api/moderation、/api/accounts/management、/api/characters/management、/api/circles/management
+路由层 | 鉴权 3 种写法（getAuthUser 92 个路由文件、getFinanceAdmin 10、getModerator 8）；10 份重复的 _response.ts；错误文案中英混用
+登录态 | localStorage 键 khuiai_token + Bearer。服务端页面无法识别用户，故 /admin 页面壳任何人可打开（数据由 API 判权，当前是安全的）
+后台导航 | 19 项平铺无分组，8 项共用同一盾牌图标；“权限→入口”映射在 admin-shell.tsx、admin-dashboard.tsx、use-admin-access.ts 三处重复；工作台只有链接卡片，无任何指标
+前台文案 | 472 处 zhText("泰语原文")（27 个文件），运行时以泰语为 key 查中文表；39 个源文件含泰语字符
+视觉 | 默认灰黑 shadcn 配色；品牌色在代码中硬编码约 103 处，后台橙色 orange-* 约 77 处；字体变量被覆盖为 system-ui，但仍残留 font-athiti 等类名
+耦合 | 前台与后台代码仅 4 条跨界 import；前端无任何文件直接引用数据库；风险集中在 AppFrame、auth-context（35 个文件使用）、zhText（30 个文件使用）三个共享点
+=== END TABLE ===
+[Normal] 现网只读核对（2026-10-18）：仅用 GET 访问了 https://lh.y-98.cn 与 https://lh.y-98.cn/admin，结果与源码审阅一致。/admin 对未登录访问者同样返回后台外壳（显示“星伴管理中心”“未登录”“正在读取管理权限…”），页面标题是全站通用标题而不是后台标题，印证了 A1 的判断。公开首页只有横幅、标题、一个按钮和四个链接。此外，首页横幅仍写“领取测试金币”，页脚链接为“测试条款与隐私说明”：用户可见的“测试”字样正式运营前必须清理，执行 AI 在阶段 0 一并处理（需核对中文字典与站点内容默认种子）。
+[Heading 2] 2. 后端建议（Part A）
+[Normal] 总体判断：业务层（src/lib/<域>/）划分已经合格，不需要重写；问题全部在“入口层”——后台寄生在前台里、接口前缀分散、路由写法不统一。因此后端改造是重组入口，不动业务规则。同时不建议现在拆成两个仓库或两个服务：共享同一套 Prisma 与 lib、单机 SQLite、人手有限，拆分的维护成本大于收益；等到多人协作或多实例部署再议。
+[Heading 3] A1 后台独立入口（阶段 1）
+[Normal] 目标：后台成为独立“应用壳”，前台代码不再感知后台。
+[List Paragraph] 新建路由组 src/app/(admin)/，其 layout.tsx 只渲染 AdminAccessProvider + AdminShell，不引入前台的 Sidebar、Topbar、MobileNav、MaintenanceNotice。
+[List Paragraph] 把 (app)/admin/**、(app)/finance、(app)/moderation 的页面移动到 (admin) 下，URL 统一为 /admin/<域>：/finance → /admin/finance，/moderation → /admin/moderation。同一提交内必须删除旧位置（两个路由组下不能有相同路径）。
+[List Paragraph] next.config.mjs 增加 redirects：/finance、/moderation 跳到新地址（先用临时跳转，稳定一个发布后改永久）。
+[List Paragraph] 删除 app-frame.tsx 里 pathname === '/admin' ... 的后台分支及对 AdminShell、use-admin-access 的 import。注意：AdminShell 用到的 --app-height 变量原由 AppFrame 的 effect 写入，独立后依赖 globals.css 里的 100dvh 兜底，需在手机端实测。
+[List Paragraph] 全局更新页面链接：src、scripts/verify-*.mjs、tests/、DEPLOYMENT.md、docs/（约 30 个文件含 /finance 或 /moderation；注意与 /api/finance 接口路径区分，接口在 A3 处理）。
+[List Paragraph] 后台页面设置 robots: noindex，robots.ts 中 disallow /admin；后台标题统一“星伴管理中心”。
+[Normal] 验收：前台页面的组件树不再引用任何后台组件；/admin、/admin/finance、/admin/moderation 可打开且外壳正确；旧地址正确跳转；npm run typecheck、npm run test:admin:access、npm run test:admin:browser 通过。
+[Normal] 后期选项（不在默认范围，需负责人批准）
+[List Paragraph] 后台改用 HttpOnly Cookie 会话 + 服务端 layout 校验权限：项目已有 lib/auth-cookies.ts 先例。收益：未授权者拿不到后台前端结构，并可叠加二次验证（TOTP）。商业正式上线前建议做。
+[List Paragraph] 子域名 admin.<主域名>：Nginx 指向同一进程，可做 IP 白名单与独立访问策略。代价：localStorage 不跨子域，必须先完成上一项 Cookie 方案。
+[Heading 3] A2 后台栏目重新规划（阶段 2）
+[Normal] 目标：按业务对象分组（Shopify、Stripe 等成熟后台的通用做法），一份数据源，多处复用。
+=== TABLE ===
+分组 | 栏目与地址 | 权限键
+工作台 | 概览 /admin | 任一管理权限
+内容与社区 | 角色管理 /admin/characters；审核中心 /admin/moderation（角色审核、举报、申诉、禁言）；圈子与成员 /admin/circles；帖子 /admin/community/posts；评论 /admin/community/comments | characters.read、moderation.read、community.read
+用户与客服 | 用户管理 /admin/accounts | accounts.read
+增长与运营 | 运营分析 /admin/analytics；任务与奖励 /admin/growth；站点内容 /admin/site-content | analytics.read、growth.read、site.content.read
+财务与支付 | 订单与退款 /admin/finance；支付商户 /admin/payments/merchants | finance.read、payments.merchants.read
+AI 与成本 | AI 供应商 /admin/ai/providers；模型与路由 /admin/ai/models；成本与预算 /admin/ai/costs | ai.providers.read、ai.models.read、ai.costs.read
+系统与安全 | 系统与运维 /admin/operations；注册合规 /admin/compliance；管理员与角色 /admin/operators；操作审计 /admin/audit | operations.read、compliance.read、admin.staff.read、admin.audit.read
+=== END TABLE ===
+[Normal] 实现要求：
+[List Paragraph] 新建 src/lib/admin/nav.ts（纯数据、无服务端依赖，可被客户端 import），导出分组、入口、图标名、权限键。AdminShell、AdminDashboard、use-admin-access 全部改读它，删除三处重复映射。
+[List Paragraph] 每个入口独立图标，禁止多个入口共用同一图标；“审核管理/内容审核”等同义名称统一。
+[List Paragraph] 侧栏分组可折叠，当前所在分组默认展开；无任何权限的分组整组隐藏。顶部面包屑：管理中心 / 分组 / 页面。手机端改为抽屉菜单，按分组显示。
+[List Paragraph] 工作台首页改为指标看板：待审角色数、待处理举报与申诉、今日新增用户、今日订单与金额、AI 今日调用与成本、预算熔断状态、备份与证书状态。数据只能来自现有只读服务（lib/analytics、payments/reconciliation-service、ai/budget-report、operations/report-service），按权限显示对应卡片；没有数据时明确显示“暂无”，不得造数字。
+[List Paragraph] 每个栏目页统一版式：顶部标题、说明、主操作区；列表页统一为筛选条、表格、分页、批量操作栏、空状态、错误状态。
+[Normal] 验收：19 个旧入口全部可达，权限显示与原来一致（对每个系统角色逐一验证）；npm run test:admin:management:browser 及各 *:browser 后台检查通过；390px 与 1280px 无横向溢出。
+[Heading 3] A3 管理接口统一前缀（阶段 3，高风险，务必按顺序）
+[Normal] 目标：所有管理接口位于 /api/admin/<域>/...。
+=== TABLE ===
+旧前缀 | 新前缀
+/api/finance/*（callback-alerts、orders、orders/all、orders/export、orders/[orderNo]/refund、packages、reconciliation、report） | /api/admin/finance/*
+/api/moderation/*（appeals、audit、characters、characters/batch、reports） | /api/admin/moderation/*
+/api/accounts/management | /api/admin/accounts
+/api/characters/management（含 models、publication） | /api/admin/characters
+/api/circles/management（含 members） | /api/admin/circles
+=== END TABLE ===
+[Normal] 不要移动：/api/coins/payments/ezfp/notify（支付平台回调，地址已配置在第三方，移动会导致掉单）；/api/operations/status（公开维护状态）；/api/compliance/registration-policy（公开）。
+[Normal] 步骤：
+[List Paragraph] 移动 route.ts 及同目录 _response.ts 到新路径。
+[List Paragraph] next.config.mjs 的 rewrites().afterFiles 增加“旧→新”映射，旧调用方继续可用。
+[List Paragraph] 中间件陷阱：src/lib/operations/maintenance-routing.ts 的 administrationRoots 按请求原路径判断是否绕过维护模式。兼容期内保留旧根，新根已被 /api/admin 覆盖；兼容期结束后再删除旧根。漏改会导致维护模式下后台无法写入。
+[List Paragraph] 更新前端调用、tests/、scripts/（约 30 个文件引用旧前缀）；路径集中到 B6 的 api-paths.ts。
+[List Paragraph] 运行：test:admin:access、test:admin:management、test:accounts:management、test:characters:management、test:circles:management、test:payments:orders、test:payments:reconciliation、test:analytics、test:growth、test:operations、test:middleware:locale。
+[List Paragraph] 兼容期（至少一个发布）后移除 rewrites 与旧根，并更新 ARCHITECTURE.md。
+[Heading 3] A4 路由层统一（阶段 4）
+[Normal] 目标：同一类问题只有一种写法。
+[List Paragraph] 新建 src/lib/http/（小而明确，不做通用框架）：requireUser(request)、requireAdmin(request, permission)、jsonError(error, routeName)、privateHeaders。
+[List Paragraph] 统一错误体 { error, code }，文案全部中文。去除 Unauthorized、Internal server error 等英文文案；修改前先检索 tests/ 与 scripts/ 是否断言了这些字符串；前端 zhError 映射表保留一个版本做兜底。
+[List Paragraph] 用它替换 10 份重复的 _response.ts；getFinanceAdmin、getModerator 保留为薄封装。
+[List Paragraph] 逐域迁移，每域一个提交，不要一次改 126 个路由。
+[List Paragraph] 权限判断仍在服务层（现状正确，保持不变）。
+[Normal] 验收：同一未登录请求访问任意管理接口，返回结构相同的 401 JSON；各域已有测试全部通过。
+[Heading 3] A5 lib/ai 目录收口（低优先级）
+[Normal] lib/ai 根目录平铺文件（ai-models.ts、budget-*.ts、cost-*.ts）与子目录（costs/、models/、providers/）混用，属于迁移到一半。把平铺文件归入对应子目录，同时一次性更新全部 import；不改任何函数行为。只在 A1–A4 完成后做。
+[Heading 3] A6 商业上线前的能力缺口（需负责人决策，不属于默认执行范围）
+=== TABLE ===
+缺口 | 现状证据 | 建议
+账号体系 | 路由清单中没有找回密码、邮箱或手机验证、第三方登录 | 上线前补找回密码与验证；面向中国大陆运营通常还涉及手机号实名，取决于运营主体与服务器所在地，须法务确认
+通知中心 | 顶栏铃铛没有处理逻辑，也没有通知接口 | 新增通知表与接口：点赞、评论、关注、审核结果、金币到账
+AI 生成内容标识 | 《人工智能生成合成内容标识办法》自 2025-09-01 起施行，要求对生成内容做显式与隐式标识，并在服务协议中说明标识方式 | 聊天消息界面加“AI 生成”提示，条款补充说明；是否适用及具体要求须法务核实
+未成年人保护 | 竞品筑梦岛被约谈整改后增加了年龄确认弹窗、青少年模式与实名认证；本项目已有注册年龄确认 | 评估青少年模式与内容分级
+限流与扩展 | 分钟级限流在单进程内存 Map 中，数据库为单机 SQLite（作者文档已说明） | 多实例前必须换共享存储，不要直接宣称完成 PostgreSQL 迁移
+令牌存储 | Bearer 令牌存放在 localStorage | 见 A1 后期选项（Cookie 会话）
+=== END TABLE ===
+[Heading 2] 3. 前端建议（Part B）
+[Normal] 总体判断：前台“简约”是继承来的默认骨架——灰黑 shadcn 配色加泰语原站布局。缺的不是组件数量，而是品牌层、内容层、信任层。前台与后台代码耦合很低（见第 1 章），因此可以放心按页面逐个改；真正要先动的是共享地基，且要最小化改动面。行业报道也提醒，AI 社交产品的普遍问题是角色语言重复、记不住上下文、玩法同质化、付费转化不及预期——商业化的重点是留存与转化，而不是堆功能。
+[Heading 3] B1 先清地基：设计令牌与基础组件（阶段 5）
+[List Paragraph] 品牌色令牌化：在 globals.css 定义 --brand、--brand-2、--brand-foreground、--brand-gradient 并映射到 Tailwind；替换 #EE4036、#FAAF40、#F2572B、#F4B208（约 103 处）与后台 orange-*（约 77 处）。默认沿用现有橙红到金黄渐变，具体品牌色由负责人确认（决策 D3）；令牌化后改一处全站生效。
+[List Paragraph] 字体：保持中文系统字体栈（苹方、鸿蒙/思源、微软雅黑）；删除 font-athiti（264 处）、font-athithi（8 处，拼写错误，实际无效）、font-barlow（19 处）及 tailwind.config.ts 的 fontFamily 条目、globals.css 的 --font-* 覆盖。
+[List Paragraph] 基础组件库 src/components/ui/：Button、Badge、Card、Dialog、Sheet、Tabs、Tooltip、Skeleton、EmptyState、ErrorState、Toast、Avatar、Input/Select/Textarea、Pagination、DataTable（后台用）。用手写变体函数即可，不强制新增依赖。
+[List Paragraph] 三态规范：所有列表与详情必须有加载（骨架屏）、空、错误三种状态，替代各处自写的文字提示。
+[List Paragraph] 主题：保留深色默认；切换主题时同步 theme-color；尊重 prefers-reduced-motion。
+[List Paragraph] 死按钮与残留处理见第 4 章。
+[Normal] 验收：硬编码品牌色与旧字体类名搜索结果为 0；npm run typecheck、npm run test:browser、npm run test:m1:mobile 通过。
+[Heading 3] B2 前台信息架构与竞品取舍（阶段 6）
+[Normal] 公开资料中的要点（均为转述，来源见附录）：
+[List Paragraph] Character.AI：导航包含首页、聊天、发现、信息流、创作等；创作入口独立成页，可创建角色、语音、场景、设定集；信息流支持发布聊天片段、角色卡与短视频，强调“创作者即消费者”。
+[List Paragraph] 星野：支持单聊与多智能体群聊、电话沟通；创建角色时维护性别、形象、画风、可见范围；以星钻、星月卡等方式付费。
+[List Paragraph] 筑梦岛：因低俗内容被约谈后，新增年龄确认弹窗、未成年人模式与实名认证。
+[List Paragraph] Shopify 等成熟后台：按业务对象分组导航，关键流程不让用户跳出后台（对应本文 A2）。
+=== TABLE ===
+# | 值得学习 | 本项目落地 | 优先级 | 后端依赖
+1 | 发现页做成内容流分区：今日推荐、热门、新角色、关注的创作者、榜单 | 重构 /discover，复用 /api/characters、/api/rankings、/api/creators、/api/site | P1 | 无新增
+2 | 角色卡信息密度 | character-card.tsx：封面、名称、一句话简介、标签、对话数与点赞、创作者、徽章 | P1 | 先核对列表接口是否已返回计数字段，缺则在 lib/characters/catalog-service 补投影
+3 | 主导航收敛为 5 项：发现、聊天、创作、圈子、我的 | 现为 4 项，创作入口只在侧栏按钮；同步修改 mobile-nav.tsx 与 sidebar.tsx | P1 | 无
+4 | 公开首页与角色详情页作为获客落地页 | [locale]/page.tsx、[locale]/character/[id]：价值主张、热门角色、三步玩法、示例对话、安全与合规说明、FAQ、页脚 | P1 | 复用 /api/site 与 lib/discovery
+5 | 创作流程分步向导加实时预览 | creator-form.tsx（已有 live-preview）拆为基础、人设、开场白、素材、发布五步，支持保存草稿 | P2 | 无新增
+6 | 通知中心 | 顶栏铃铛接入通知抽屉 | P2 | 见 A6 新增通知表
+7 | 聊天体验 | 会话搜索、归档、置顶；消息“AI 生成”标识；分享聊天片段卡 | P2 到 P3 | 分享需新增接口
+8 | 商城与权益 | 套餐卡片对比、首充提示、余额与流水入口；会员、月卡等待负责人定价 | P3 | 价格未定，不预设
+9 | 内容分级与青少年保护 | 评估后再定 | P3 | 合规
+=== END TABLE ===
+[Heading 3] B3 逐页改造规范（每页必做，阶段 6 与 7）
+[List Paragraph] 只用令牌与 ui 组件，不再写十六进制颜色与内联渐变。
+[List Paragraph] 加载、空、错误三态齐全。
+[List Paragraph] 390px 与 1280px 无横向溢出；触控目标不小于 44px；手机端输入框字号保持 16px（已有全局规则，勿破坏）。
+[List Paragraph] 键盘可达，控件有可访问名称，图片有 alt。
+[List Paragraph] 文案进入 B5 的统一中文文案文件，不再出现 zhText 或泰语。
+[List Paragraph] 数据请求走 B6 的 api-client，不再手写 fetch 加 Authorization。
+[List Paragraph] 触碰到的大文件顺势拆分：chat/page.tsx（540 行）、character-detail-dialog.tsx（约 24KB）、circle-feed.tsx（约 19KB）、creator-form.tsx、chat/relationship-panel.tsx。拆分只改结构不改行为，拆分前后各跑一次相关验收脚本（test:m2:chat、test:m1:mobile）。
+[List Paragraph] 每页一个提交，可单独回滚。
+[Heading 3] B4 后台界面规范
+[List Paragraph] 列表统一用 DataTable：筛选条、排序、分页、批量操作栏、空状态；筛选条件写入 URL query，刷新与分享链接不丢状态。
+[List Paragraph] 危险操作（停用账号、退款、撤权、删除）统一二次确认并要求填写理由（项目已有“理由与审计”机制，复用，不新造）。
+[List Paragraph] 导出与敏感信息展示必须在界面上标明所需权限，无权限时隐藏而不是点击后报错。
+[List Paragraph] 手机端以查看和常用操作为主（与既有《商业运营后台实施方案》一致）。
+[Heading 3] B5 文案体系替换 zhText（阶段 5 末）
+[List Paragraph] 新建 src/lib/copy/zh.ts：语义 key 对应中文文案。
+[List Paragraph] 写一次性脚本：扫描 472 处 zhText(…) 调用，借助 app-zh.json 与 dictionaries/th.json、zh.json 的对应关系求出中文，替换为中文字面量或语义 key；求不出的列入清单交人工翻译，不得悄悄机翻填充。
+[List Paragraph] 替换完成且全局无泰语字符（保留的 th 字典除外）后，删除 lib/zh-text.ts 与 app-zh.json。
+[List Paragraph] 多语言去留见决策 D2；/th 公开页依赖 th 字典，删除字典前必须先做决定。
+[List Paragraph] 同时处理用户可见的泰语：app/global-error.tsx（崩溃页向用户显示泰语）、lib/characters/comment-service.ts 第 94 行的限频报错（泰语）、lib/report-labels.ts（举报类别以泰语为 key）、lib/analytics/ranking-service.ts 的 thaiMonths（核对用途，用于榜单标题则改中文月份）。lib/conversations/chat-stream.ts 与 lib/rp-markup.ts 中的泰语只在注释和示例里，不影响运行，改写注释即可。
+[Normal] 验收：用 rg '[\u0E00-\u0E7F]' src 或等价脚本扫描，除保留的 th 字典外结果为 0；故意触发一次崩溃页与评论限频，确认显示中文。
+[Heading 3] B6 前后端对接清单与接口合同（阶段 4 与 5）
+[Normal] 问题：前端直接 fetch 并读取字段，接口返回无共享类型（源码中 14 处 any），路径字符串散落各处——这正是“改一处牵连别处”的根源。
+[List Paragraph] src/lib/api-paths.ts：所有 /api 路径的常量与构造函数（A3 改前缀只需改这里）。
+[List Paragraph] src/lib/api-client.ts：封装 fetch、Bearer、统一 { error, code } 解析与 401 自动登出；页面不再手写请求头。
+[List Paragraph] src/lib/api-types/<域>.ts：只放类型；后端路由返回值用 satisfies 对齐同一类型。
+[List Paragraph] 清除 14 处 any。
+[Normal] 前台页面与接口对照（按源码检索得到的主要调用；个别页面为服务端渲染，直接读 lib 服务）
+=== TABLE ===
+页面或组件 | 调用的接口
+发现（含榜单、创作者、世界观标签页） | /api/characters、/api/rankings、/api/creators、/api/universes
+聊天 | /api/conversations 及其 messages、messages/[id]、like、regenerate；/api/characters/[id]；/api/ai/models
+聊天记录、侧栏、聊天收件箱 | /api/conversations
+角色详情弹窗 | /api/characters/[id] 及 bookmark、like、gift、quests、quests/[id]/complete；/api/gifts
+角色评论 | /api/characters/[id]/comments；/api/comments/[id] 及 like
+圈子与帖子 | /api/circles、/api/circles/[id]；/api/posts/[id]；/api/post-comments/[id]；/api/upload；/api/universes
+商城 | /api/coins/packages、/api/coins/orders（含 [orderNo]）
+我的 | /api/users/me（含 export、close）；/api/checkin（含 status）；/api/missions（含 [id]/complete）
+创作者主页与创作 | /api/creators/[username]；/api/characters；/api/upload
+举报与申诉 | /api/reports；/api/community-appeals
+排行榜、星座、AI 用量 | /api/leaderboard/gifts；/api/horoscope/[sign]；/api/ai/usage
+登录与注册 | /api/auth/login、register、logout、me；/api/compliance/registration-policy
+全局 | /api/site（站点内容）；/api/operations/status（维护提示）
+=== END TABLE ===
+[Normal] 后台模块与接口对照（接口为 A3 完成后的新前缀）
+=== TABLE ===
+后台模块 | 组件目录 | 接口
+用户管理 | components/admin/accounts | /api/admin/accounts
+角色管理 | admin/characters | /api/admin/characters（含 publication、models）
+审核中心 | admin/moderation | /api/admin/moderation/：appeals、audit、characters/batch、reports
+圈子、帖子、评论 | admin/circles、admin/community | /api/admin/circles；/api/admin/community/posts、comments；共用读取 /api/universes
+站点内容 | admin/site-content | /api/admin/site-content/[type]/[id]（含 revisions）
+财务 | admin/finance | /api/admin/finance/：orders、packages、reconciliation、callback-alerts、report
+支付商户 | admin/payments | /api/admin/payments/merchants、checkout
+AI | admin/ai-providers、ai-models、ai-costs | /api/admin/ai/providers、models、costs、prices
+增长 | admin/growth | /api/admin/growth/：missions、rewards、gifts、checkins
+分析 | admin/analytics | /api/admin/analytics
+运维 | admin/operations | /api/admin/operations/：backups、certificate、maintenance
+合规 | admin/compliance | /api/admin/compliance
+管理员与审计 | operator-management.tsx、admin-audit.tsx | /api/admin/operators（含 lookup）、/api/admin/roles、/api/admin/audit
+权限会话 | use-admin-access.ts | /api/admin/session
+=== END TABLE ===
+[Heading 2] 4. 品牌残留与闲置内容清理清单
+[Normal] 风险列：低 = 纯文字或注释；中 = 影响运行行为，需兼容处理；高 = 影响线上运行，须负责人决策。
+[Heading 3] 4.1 品牌与上游残留
+=== TABLE ===
+# | 项 | 位置 | 操作 | 风险
+1 | 展示文字 “Khui AI”、“Only on Khui AI”、“Khuiator Club” | topbar.tsx、character-card.tsx、creator/live-preview.tsx、creator-form.tsx、rankings-tab.tsx、profile/[username]/page.tsx（标题与描述）、[locale]/explore/page.tsx、[locale]/character/[id]/page.tsx（标题后缀）、10 个 lib/i18n/dictionaries/*.json（每个约 18 到 19 处）、lib/i18n.ts（khuiai.com） | 统一从站点品牌配置读取（项目已有 CMS 的 SiteBranding 与 branding.brandName）；独占徽章文案改为“星伴独家”；数据库字段 isExclusive 不改 | 低
+2 | 本地存储键 khuiai_token | lib/auth-context.tsx（5 处） | 改为 xingban_token。必须兼容：启动时读旧键、写新键、删旧键，保留一个版本，避免现有用户被登出 | 中
+3 | Cookie khuiai_locale | middleware.ts 读取；全项目没有任何位置写入它（已核实） | 属于闲置逻辑：删除该读取，或在决策 D2 后改为真正的语言切换 Cookie | 低
+4 | 开发用 JWT 占位字面量 | lib/auth.ts 的 DEV_JWT_SECRET，同时在生产禁用名单 PUBLISHED_SECRETS 中；tests/auth-configuration.test.mjs | 可改为新占位值，但必须把旧值保留在禁用名单里（旧值已公开），并同步测试 | 中
+5 | 事件名 | lib/conversations/chat-events.ts 含 khuiai | 改名并同步全部使用处 | 低
+6 | Tailwind 未使用的颜色组 khui | tailwind.config.ts | 删除（已核实全项目没有 *-khui-* 类名） | 低
+7 | 注释 | prisma/schema.prisma 第 1 行路径注释与第 260 行 | 只改注释，不改模型 | 低
+8 | 仓库元数据 | .github/CODEOWNERS 指向上游作者；.github/ISSUE_TEMPLATE/feature_request.yml 品牌文字；.claude/launch.json 名称 khuiai-dev；.gitignore 中一行泰语注释 | 改为项目负责人与新名称 | 低
+9 | 部署文件名与进程名 | deploy/baota/khui-ai-pm2.service、khui-ai-health.service 与 .timer、ecosystem.config.js 的 name；DEPLOYMENT.md 约 9 处；deploy/baota/README.md 约 12 处；tests/release-check.test.mjs | 不要只改仓库不改线上：线上 PM2 进程名与 systemd 单元名正在运行，只改仓库会导致下次部署多出一个新进程。见决策 D4 | 高
+10 | 脚本与测试中的 khui | scripts/verify-*.mjs、tests/* 共约 25 个文件 | 逐个判断是展示文字还是标识，只改展示文字与对旧名的断言 | 中
+11 | 迁移里的 khui_system_* 角色主键 | prisma/migrations/* | 禁止修改 | —
+12 | 许可声明 | LICENSE、THIRD_PARTY_NOTICES.md | 必须保留；可在 README 增加一句“基于 Khui AI（MIT）”致谢，不得删除 | —
+=== END TABLE ===
+[Heading 3] 4.2 泰语与翻译机制残留
+=== TABLE ===
+项 | 位置 | 操作
+472 处 zhText(…) 以泰语为 key | 27 个文件 | 按 B5 替换并删除 zhText
+用户可见的泰语 | app/global-error.tsx、lib/characters/comment-service.ts 第 94 行、lib/report-labels.ts、lib/analytics/ranking-service.ts 的 thaiMonths | 按 B5 第 5 条处理
+公开首页回退语言为泰语 | [locale]/page.tsx 中 isLocale(raw)?raw:'th' | 改为默认语言 DEFAULT_LOCALE（已是 zh）
+脚本中的泰语断言 | scripts/verify-ai-context.mjs（约 346 个泰语字符）、verify-rate-limit.mjs（约 385）、stress-economy.mjs（约 154）、verify-browser.mjs（约 93） | 文案迁移后同步断言；先读懂再改，不得为让测试通过而删除断言
+多语言字典 10 套（th、en、vn、ph、ja、es、pt、zh、zh-tw、ko） | lib/i18n/dictionaries/，仅覆盖公开营销页；登录后的应用只有中文 | 见决策 D2
+=== END TABLE ===
+[Heading 3] 4.3 死按钮与占位界面
+[List Paragraph] sidebar.tsx：“输入兑换码”按钮（无处理逻辑）、归档按钮（无处理逻辑）、Discord、Facebook、Linktree 三个社交按钮（无处理逻辑，内容源自原站社群）、“宇宙（实验）”标签页只显示“即将上线”；topbar.tsx：通知铃铛（无处理逻辑）。
+[List Paragraph] 处理原则：没有对应后端的一律移除或隐藏。归档按钮应接入既有的归档会话能力（ARCHITECTURE.md 记载会话列表支持归档与活跃的显式筛选），否则移除；社交按钮改为读取站点配置里的真实链接（走 CMS 导航或页脚），没有真实链接就删除；“宇宙”标签没有上线计划则隐藏。
+[List Paragraph] sidebar.tsx 快捷操作区存在 <Link> 内嵌 <button> 的无效 HTML 嵌套，改为单一可点击元素。
+[Heading 3] 4.4 闲置文件与交付包
+=== TABLE ===
+项 | 事实 | 操作
+.next-build/（约 640MB）、.next-validation-build/（约 293MB）、artifacts/（约 31MB）、.temp/ | 构建与验证产物，已被 .gitignore 覆盖（.temp 除外）但被打进了交付 zip | 交付与传递源码时排除；.temp 加入 .gitignore
+public/uploads/ 内一张真实上传图片 | 被 .gitignore 覆盖，但出现在压缩包里 | 从交付包排除
+.metis/harness.json | AI 工具流程配置，与产品无关，未被 .gitignore 覆盖 | 见决策 D5
+public/brand/persona-0..5.svg 共 6 个文件 | 全项目检索未发现对这些文件名的引用（代码里的 persona 是“人设”字段，与这些文件无关） | 执行 AI 先全局检索 brand/persona 与动态拼接形式；确认无引用后删除；不确定则保留并记入 docs/issues-found.md
+next.config.mjs 的 api.dicebear.com 图片白名单 | 全项目没有任何代码引用 | 删除该条 remotePatterns（同时减少外链图片风险）
+scripts/ 中 m0 到 m5 命名的验收脚本 | CLAUDE.md 明确“不得仅因名称含旧阶段号就删除” | 不删除；改名属于另一个独立任务，需同步 package.json 与 CI
+孤儿源码文件 | 已核实 src 下没有无人引用的源码文件（框架入口除外） | 无需处理
+=== END TABLE ===
+[Heading 2] 5. 需要负责人确认的决策（未确认前，执行 AI 只能按“默认”执行）
+=== TABLE ===
+编号 | 问题 | 默认
+D1 | 后台入口方案 | 先做路径方案 /admin；Cookie 会话与子域名作为后期选项，另行批准
+D2 | 多语言去留 | 暂不删除多语言；th 字典在 zhText 全部替换后删除；其余语言按目标市场由负责人决定
+D3 | 品牌色与字体 | 沿用现有橙红到金黄渐变，仅令牌化；字体用中文系统字体栈
+D4 | 线上进程名与部署文件重命名 | 不改线上，仅改文案；如需改名，由负责人在维护窗口按步骤切换
+D5 | 删除 .metis，保留 .claude/ | 默认只删除 .metis；.claude/ 被 AGENTS.md 与 CLAUDE.md 引用，保留
+D6 | A6 的能力缺口是否纳入本轮 | 默认都不纳入，仅记录
+D7 | 接口兼容期长度 | 一个发布周期
+=== END TABLE ===
+[Heading 2] 6. 阶段路线与验证
+[Normal] 每阶段通用要求：npm run typecheck 与 npm run build 必须通过，并完成本阶段指定验证（第 8 章的自动化自测可替代人工检查）；每阶段单独提交，提交信息写明阶段编号。测试使用本地隔离库或指定的测试实例，不得对生产库运行。
+=== TABLE ===
+阶段 | 内容 | 风险 | 本阶段指定验证
+0 | 建分支；记录基线（npm ci、typecheck、test:admin:access 的结果）；新建 docs/issues-found.md；执行第 4 章中风险为“低”的项与 4.3、4.4 | 低 | typecheck、build、test:browser
+1 | A1 后台独立入口 | 中 | test:admin:access、test:admin:browser、test:m1:mobile
+2 | A2 后台栏目与工作台 | 中 | test:admin:management:browser 及全部后台 *:browser（analytics、growth、operations、payments、ai、site-content、circles、characters、compliance）
+3 | A3 接口前缀统一 | 高 | A3 步骤 5 列出的全部测试加各后台 *:browser
+4 | A4 路由层统一；B6 的 api-paths 与 api-client | 中 | 各域 test:* 与 typecheck
+5 | B1 设计令牌与组件；B5 文案替换；4.1 的第 2、4、10 项 | 中 | test:browser、test:m1:mobile、test:m2:browser、test:m2:chat、test:security:browser、test:auth-config、test:middleware:locale
+6 | B2 的 P1 项与 B3 逐页规范（每页一个提交） | 中 | test:browser、test:m1:mobile、test:m1:pwa、test:m2:browser、test:m3:*，并对改动页面在 390px 与 1280px 各截图核对
+7 | B2 的 P2、P3 项与 A6（按决策 D6） | 视内容而定 | 随内容新增专项测试
+8 | 兼容期结束：移除 rewrites 与旧根；A5；更新文档 | 低到中 | build、verify:build、release:check、全部相关 test:*
+=== END TABLE ===
+[Heading 2] 7. 完成定义
+[List Paragraph] 全局忽略大小写搜索 khui，只剩：LICENSE、THIRD_PARTY_NOTICES.md、README 致谢、历史迁移，以及决策 D4 保留的部署名。
+[List Paragraph] 泰语字符除保留的 th 字典外为 0；没有无处理逻辑的按钮；没有 font-athiti 等旧字体类名。
+[List Paragraph] 后台是独立路由组，前台组件不引用任何后台组件；管理接口全部位于 /api/admin 下，兼容期结束后无旧路径。
+[List Paragraph] 硬编码品牌色为 0；所有页面三态齐全，390px 与 1280px 无横向溢出。
+[List Paragraph] 全部相关测试通过，生产构建成功，release:check 通过。
+[List Paragraph] ARCHITECTURE.md、README.md、DEPLOYMENT.md、docs/待完成清单.md 已更新到新结构。
+[List Paragraph] 所有未做项与新发现的问题都记录在 docs/issues-found.md，没有隐瞒。
+[Heading 2] 8. 全链路自测方案（由执行 AI 自行完成）
+[Normal] 目标：改造完成后，AI 用真实浏览器、真实 AI 通道和真实支付通道把全部用户旅程与后台流程跑一遍，并产出可核查的报告，负责人只需复核报告与上线前人工过一遍。
+[Heading 3] 8.0 测试环境：在现有宝塔服务器上起一个预发布实例（推荐）
+[Normal] 现网站点已经能对话和支付，但它带着真实用户与账务。为了让 AI 放心做真实测试又不影响现网，推荐在同一台服务器上再起一个预发布实例：
+=== TABLE ===
+项 | 现网 | 预发布实例
+目录 | 当前发布目录 | 新目录（如 releases/staging-<日期>）
+端口与域名 | 现有 Nginx 反向代理 | 新端口加二级域名（如 staging.<现网域名>），独立 Nginx 站点与证书
+数据库与上传 | shared 数据库与上传目录 | 用 npm run state:backup 与 state:restore 从现网联合备份恢复出的全新副本；DATABASE_URL、UPLOADS_DIRECTORY 指向副本
+环境密钥 | shared/app.env | 复制一份，只改 NEXT_PUBLIC_SITE_URL（预发布域名）与重新随机生成的 JWT_SECRET；其余（含供应商、商户加密主密钥）沿用，副本里的供应商与商户配置才能解密使用
+AI 与支付 | 真实配置 | 复用同一套测试供应商与商户配置，无需重新录入
+=== END TABLE ===
+[Normal] 要点：
+[List Paragraph] 支付回调地址由 NEXT_PUBLIC_SITE_URL 拼出（order-service.ts 生成 notify_url 与 return_url），所以预发布实例下的订单会回调预发布域名，不会打到现网。
+[List Paragraph] 回调域名白名单：支付渠道只登记了现网域名 lh.y-98.cn，预发布域名不在白名单内，渠道会拒绝其回调。因此预发布实例上的支付只验证到下单与验签，回调用本地模拟渠道验证；完整的支付与退款冒烟按决策 D10（已选方案 B）在现网进行。
+[Normal] 决策 D10（已确定：方案 B）：负责人已选择不新增渠道白名单，改在现网 https://lh.y-98.cn 上用合成账号做小额支付冒烟。执行协议如下：
+[List Paragraph] 时机：阶段 0 到 8 在预发布实例上全部通过后，由负责人把新版本部署到现网；部署完成后，执行 AI 才执行本冒烟。
+[List Paragraph] 前置条件现网退款开关已开启且商户配置验证通过；负责人在现网后台给两个合成账号分别授予“财务经办员”与“退款审批员”角色（系统要求双人复核）；负责人已在服务器执行 npm run db:backup 备份现网数据库；选在低峰时段。
+[List Paragraph] 流程：AI 用合成账号登录，选最小面额套餐（6 元档）下单，到达渠道支付页后截图并通知负责人；负责人在手机上扫码付款（AI 无法代付）；AI 核对回调到账：订单状态、金币流水、余额一致，重复回调不重复入账；AI 用两个管理员账号完成整单退款（申请、审批）；核对退款后的余额、流水与财务对账。
+[List Paragraph] 限制：只创建和操作合成测试数据；不修改任何现网配置；不读取、不输出真实用户数据；不做压力或并发测试；单轮不超过 3 笔，建议 1 到 2 笔。
+[List Paragraph] 收尾：测试结束后，由负责人撤销两个合成账号的管理角色并停用；合成用户账号走注销流程；所有测试订单号写入报告。
+[List Paragraph] 须知：订单、退款与金币流水属于账务记录，不会被删除，会出现在财务报表与运营分析中；报告列出的测试订单号用于日后排除。
+[List Paragraph] 停止条件：任何一笔的金额、金币数或余额对不上；回调迟迟未到账；退款失败或状态未知。出现任一情况立即停止，保持冻结，按原退款单号查单，向负责人汇报订单号，不得重复下单。
+[Heading 3] 8.1 环境准备
+=== TABLE ===
+需要 | 用途 | 来源
+供应商与商户配置 | 真实 AI 与支付 | 随 8.0 的数据库副本与环境密钥带入，无需另给 Key；AI 不读取、不输出其明文
+Playwright Chromium | 真实浏览器 | npx playwright install chromium
+测试账号 | 普通用户、管理员、各受限角色 | 执行 AI 在预发布实例创建合成账号；首位所有者在预发布目录执行 npm run admin:bootstrap
+手机扫码付款 | 完成真实支付 | 负责人本人操作，每笔约 6 元，退款后返还
+=== END TABLE ===
+[Heading 3] 8.2 默认额度（负责人可调整）
+=== TABLE ===
+通道 | 默认上限 | 停止条件
+真实 AI 调用 | 单轮全量自测不超过 50 次，累计不超过 200 次；用合成提示词，输出上限取后台模型配置中的较小值 | 触及供应商测试账号限额的 80%，或持续出现 429
+真实支付（现网，D10 方案 B） | 只用最小面额套餐；单轮不超过 3 笔（建议 1 到 2 笔），累计不超过 10 笔；仅限合成账号；付款由负责人手机扫码完成 | 任何一笔的金额、金币数或账本对不上，立即停止
+真实退款（现网） | 每笔测试订单都走系统自带的整单退款；需两个不同的合成管理员分别完成申请与审批；退款开关必须已开启，否则不得下单 | 退款状态未知时保持冻结，按原退款单号查单，不重复提交
+浏览器 | 不限次数；每个页面在 390px 与 1280px 各留一张截图 | 无
+=== END TABLE ===
+[Heading 3] 8.3 自测矩阵
+[Normal] 前台用户旅程
+=== TABLE ===
+编号 | 场景 | 通过标准
+F1 | 注册（含年龄与条款勾选、重复邮箱、弱密码）、登录、退出、旧令牌失效 | 各分支提示为中文；退出后旧令牌访问接口返回 401
+F2 | 发现页进入角色详情，收藏、点赞、评论、举报 | 计数与列表实时一致；举报进入后台队列
+F3 | 创建角色，提交审核；后台通过后在发现页可见 | 未通过前他人不可见；通过后出现在发现与搜索中
+F4 | 真实 AI 对话：新建会话、发送、流式输出、重新生成、取消、删除、导出；检查 AI 用量页 | 回复完整保存；取消与失败时原回复保留；用量与成本记录增加
+F5 | 圈子：订阅、发帖（含图片）、评论、点赞、举报 | 权限与可见性正确；图片仅限站内上传
+F6 | 商城充值：套餐展示、下单、支付、回调到账、订单页 | 余额、流水、订单三者一致；重复回调只入账一次
+F7 | 任务、签到、礼物 | 金币增减与流水一致，不可重复领取
+F8 | 个人资料、阅读偏好、数据导出、账号注销 | 导出只含本人数据；注销后无法登录且内容按规则匿名
+F9 | 手机端与 PWA：390px 布局、键盘弹出、安装图标、离线页 | 无横向溢出；键盘弹出时输入框不被遮挡
+F10 | 维护模式：后台开启，前台写操作被拒并显示提示，关闭后恢复 | 后台操作不受影响，读取不受影响
+=== END TABLE ===
+[Normal] 后台流程
+=== TABLE ===
+编号 | 场景 | 通过标准
+B1 | 管理员登录、工作台指标、19 个入口全部可达 | 指标来自真实数据，无数据时显示“暂无”
+B2 | 权限矩阵：对每个系统角色逐一登录 | 可见入口与接口权限一致；越权接口返回 403
+B3 | 审核：角色单个与批量审核、举报处理、申诉、禁言 | 状态与前台可见性同步变化，审计有记录
+B4 | 用户管理：停用、恢复 | 停用后该用户令牌立即失效，恢复不复活旧令牌
+B5 | 角色、圈子、帖子、评论管理：编辑、发布、置顶、推荐、下架 | 前台对应变化
+B6 | 站点内容：草稿、预览、发布、定时、版本回滚 | 前台按发布状态生效，非法链接被拒
+B7 | AI 供应商、模型、成本：配置、连通性测试、默认与备用路由、价格版本、预算熔断触发与恢复 | 密钥不返回浏览器；熔断触发后新调用被拒、恢复后可用
+B8 | 财务：订单列表与导出、退款（申请、审批、执行，两个管理员）、对账导入、回调告警 | 账本与余额一致，负余额为 0
+B9 | 增长：任务、奖励、礼物、签到配置 | 前台领取到账与配置一致
+B10 | 运维：备份清单、证书状态、维护开关；检查审计日志 | 以上全部写操作均有审计记录
+=== END TABLE ===
+[Normal] 跨领域检查
+=== TABLE ===
+编号 | 场景 | 通过标准
+X1 | 旧页面地址跳转；兼容期内旧接口前缀可用 | /finance、/moderation 正确跳到新地址
+X2 | 安全：未登录访问全部管理接口，普通用户访问管理接口，越权读取他人私有角色与对话 | 分别为 401、403、拒绝
+X3 | 品牌与语言扫描 | 结果符合第 7 章
+X4 | 每页 390px 与 1280px：横向溢出、控制台错误、失败的资源请求 | 无横向溢出，控制台 0 错误，无意外 4xx 或 5xx
+=== END TABLE ===
+[Heading 3] 8.4 自测方式
+[List Paragraph] 优先复用现有脚本（scripts/verify-*-browser.mjs 与 tests/*.test.mjs）；缺口用新增的 Playwright 脚本补齐，放在 scripts/e2e/，并在 package.json 增加 test:e2e:* 命令。
+[List Paragraph] 执行顺序：服务与单元测试，然后浏览器脚本，然后 F、B、X 全链路旅程，最后汇总报告。
+[List Paragraph] 失败处理：自行定位修复并重跑；同一问题连续修复 3 轮仍失败，则记录现象与已尝试的做法，继续其他项，最终在报告里列出。
+[List Paragraph] 资金类用例（F6、B8）结束后运行 test:payments:reconciliation 对应的对账检查：订单数、流水、余额一致，负余额为 0。
+[List Paragraph] 每项保存截图、控制台日志与请求日志（均已脱敏）到 artifacts/selftest-<日期>/。
+[Heading 3] 8.5 交付物与建议人工必看项
+[Normal] 执行 AI 完成后提交：变更清单、docs/selftest-report.md（每项标注通过、失败或跳过，并写明原因）、docs/changelog-ai.md、仍需人工确认的事项清单，以及一份上线步骤清单（只写不执行）。
+[Heading 2] 附录 来源与局限
+[List Paragraph] Character.AI 信息流：https://techcrunch.com/2025/08/04/character-ai-is-debuting-a-social-feed-within-the-app
+[List Paragraph] Character.AI 导航栏目（条款对比页中的界面文案）：https://conductatlas.com/diff/characterai/characterai-terms-of-service/3865/3959/
+[List Paragraph] 星野产品要点：https://www.woshipm.com/evaluating/6038414.html
+[List Paragraph] 国内外虚拟 AI 聊天 App 竞品分析：https://www.woshipm.com/evaluating/6146340.html
+[List Paragraph] 筑梦岛整改与 AI 社交行业现状：https://tech.ifeng.com/c/8kfDCmQkqSO
+[List Paragraph] 《人工智能生成合成内容标识办法》：https://www.news.cn/politics/20250314/b7a24028f2924b7681e6ed1bfbd8fade/c.html
+[List Paragraph] 标识办法合规解读（PwC 中国）：https://www.pwccn.com/zh/tmt/method-identifying-synthetic-content-generated-ai-sep2025.pdf
+[List Paragraph] Shopify 应用导航设计指南：https://shopify.dev/docs/apps/design-guidelines/navigation

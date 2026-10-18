@@ -15,8 +15,13 @@ const migration = spawnSync(process.execPath, ['node_modules/prisma/build/index.
 const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
 const {bootstrapOwner, saveOperator, saveRole} = await import('../src/lib/admin/management-service.ts');
 const {listManagedCharacters, readManagedCharacter, saveManagedCharacter, publishManagedCharacter, publishManagedCharacters} = await import('../src/lib/characters/management-service.ts');
-const {GET: publicList} = await import('../src/app/api/characters/route.ts');
+const {createCreatorCharacter, updateCreatorCharacter, deleteCreatorCharacter} = await import('../src/lib/characters/creator-service.ts');
+const {listCharacters, readPublicCharacter, resolveCharacterTagLabels, listPublicCharacterPosts} = await import('../src/lib/characters/catalog-service.ts');
+const {likeCharacter, unlikeCharacter, bookmarkCharacter, unbookmarkCharacter} = await import('../src/lib/characters/engagement-service.ts');
+const {createCharacterComment, listCharacterComments, updateCharacterComment, deleteCharacterComment, likeCharacterComment, unlikeCharacterComment} = await import('../src/lib/characters/comment-service.ts');
+const {GET: publicList, POST: createCharacterRoute} = await import('../src/app/api/characters/route.ts');
 const {GET: publicDetail} = await import('../src/app/api/characters/[id]/route.ts');
+const {GET: listCommentsRoute, POST: createCommentRoute} = await import('../src/app/api/characters/[id]/comments/route.ts');
 const {GET: managementList} = await import('../src/app/api/characters/management/route.ts');
 const {signToken} = await import('../src/lib/auth.ts');
 const {saveAccountUpload} = await import('../src/lib/uploads/storage-service.ts');
@@ -43,8 +48,109 @@ test('management is private while the public endpoint still rejects private role
   const role = await create();
   const managed = await readManagedCharacter(reader.id, role.id); assert.equal(managed.personality, 'PRIVATE_PERSONA');
   const response = await publicDetail(await request(ordinary), {params: Promise.resolve({id: role.id})}); assert.equal(response.status, 403);
+  const authorPrivate = await db.character.create({data: {creatorId: editor.id, name: '作者私有角色', personality: 'OWNER_PERSONA', background: ''}});
+  const ownerResponse = await publicDetail(await request(editor), {params: Promise.resolve({id: authorPrivate.id})}); assert.equal(ownerResponse.status, 200);
+  assert.equal((await ownerResponse.json()).character.personality, 'OWNER_PERSONA');
   const list = await managementList(await request(reader)); assert.equal(list.status, 200); assert.match(list.headers.get('cache-control'), /private, no-store/);
   assert(!(JSON.stringify(await list.json())).includes('PRIVATE_PERSONA'));
+});
+test('creator creation and catalog filters stay in the character domain with public review gating', async () => {
+  const created = await createCharacterRoute(new Request('http://localhost/api/characters', {
+    method: 'POST', headers: {Authorization: `Bearer ${await signToken({userId: author.id, email: author.email})}`, 'Content-Type': 'application/json'},
+    body: JSON.stringify({name: '投稿测试角色', personality: '合成设定', is_public: true, copyrightStatement: '合成原创声明', avatar_url: '/brand/icon.svg', initial_romance: 1500}),
+  }));
+  assert.equal(created.status, 201);
+  const {character} = await created.json();
+  assert.equal(character.creatorId, author.id);
+  assert.equal(character.isPublic, false);
+  assert.equal(character.publicationRequested, true);
+  assert.equal(character.reviewStatus, 'PENDING');
+  assert.equal(character.initialRomance, 1500);
+  await assert.rejects(() => createCreatorCharacter(author.id, {name: '无版权申请', personality: '合成', isPublic: true}), error => error.status === 400);
+  const mine = await listCharacters({scope: 'mine', userId: author.id});
+  assert(mine.some(item => item.id === character.id && item.openReportCount === 0));
+  const publicCatalog = await listCharacters({});
+  assert(!publicCatalog.some(item => item.id === character.id));
+});
+test('public character page data is projected by the character domain and excludes hidden community content', async () => {
+  await db.tag.create({data: {key: 'public-tag', label: '公开标签', group: 'GENRE'}});
+  const role = await db.character.create({data: {creatorId: author.id, name: '网页公开角色', personality: '合成', background: '', tags: 'public-tag,unknown-tag', isPublic: true, reviewStatus: 'APPROVED'}});
+  const circle = await db.circle.create({data: {name: '公开角色圈子', description: '合成'}});
+  const visible = await db.post.create({data: {circleId: circle.id, authorId: author.id, characterId: role.id, content: '公开关联帖子'}});
+  await db.post.create({data: {circleId: circle.id, authorId: author.id, characterId: role.id, content: '已隐藏帖子', status: 'HIDDEN'}});
+  assert.equal((await readPublicCharacter(role.id)).id, role.id);
+  assert.deepEqual(await resolveCharacterTagLabels(role.tags), ['公开标签', 'unknown-tag']);
+  assert.deepEqual((await listPublicCharacterPosts(role.id)).map(post => post.id), [visible.id]);
+  await db.character.update({where: {id: role.id}, data: {isPublic: false}});
+  assert.equal(await readPublicCharacter(role.id), null);
+});
+test('creator edits and deletion are owned by the character domain and enforce author boundaries', async () => {
+  const role = await db.character.create({data: {creatorId: author.id, name: '作者角色', personality: '原本人设', background: ''}});
+  await assert.rejects(() => updateCreatorCharacter(ordinary.id, role.id, {name: '越权修改'}), error => error.status === 403);
+  const edited = await updateCreatorCharacter(author.id, role.id, {name: '修改后的角色', isPublic: true, copyrightStatement: '合成原创声明'});
+  assert.equal(edited.name, '修改后的角色');
+  assert.equal(edited.isPublic, false);
+  assert.equal(edited.publicationRequested, true);
+  assert.equal(edited.reviewStatus, 'PENDING');
+  await assert.rejects(() => deleteCreatorCharacter(ordinary.id, role.id), error => error.status === 403);
+  assert.ok(await db.character.findUnique({where: {id: role.id}}));
+  assert.deepEqual(await deleteCreatorCharacter(author.id, role.id), {success: true});
+  assert.equal(await db.character.findUnique({where: {id: role.id}}), null);
+});
+test('character likes and bookmarks preserve privacy, uniqueness and counter consistency', async () => {
+  const role = await db.character.create({data: {creatorId: author.id, name: '互动测试角色', personality: '合成内容', background: ''}});
+  await denied(() => likeCharacter(ordinary.id, role.id), 403);
+  await denied(() => bookmarkCharacter(ordinary.id, role.id), 403);
+  await db.character.update({where: {id: role.id}, data: {isPublic: true, reviewStatus: 'APPROVED'}});
+
+  const parallelLikes = await Promise.all([likeCharacter(reader.id, role.id), likeCharacter(reader.id, role.id)]);
+  assert.deepEqual(parallelLikes.map(result => result.likeCount), [1, 1]);
+  assert.equal(await db.characterLike.count({where: {userId: reader.id, characterId: role.id}}), 1);
+  assert.equal((await db.character.findUnique({where: {id: role.id}})).likeCount, 1);
+  await bookmarkCharacter(reader.id, role.id);
+  await bookmarkCharacter(reader.id, role.id);
+  assert.equal(await db.characterBookmark.count({where: {userId: reader.id, characterId: role.id}}), 1);
+  assert.equal((await unlikeCharacter(reader.id, role.id)).likeCount, 0);
+  assert.equal((await unlikeCharacter(reader.id, role.id)).likeCount, 0);
+  await unbookmarkCharacter(reader.id, role.id);
+  await unbookmarkCharacter(reader.id, role.id);
+  assert.equal(await db.characterBookmark.count({where: {userId: reader.id, characterId: role.id}}), 0);
+});
+test('character comments keep visibility, one-level replies, hidden filtering and HTTP ownership in the character domain', async () => {
+  const role = await db.character.create({data: {creatorId: author.id, name: '评论域测试角色', personality: '合成内容', background: ''}});
+  await denied(() => listCharacterComments(role.id, ordinary.id), 403);
+  await denied(() => createCharacterComment(author.id, role.id, {body: '   '}), 400);
+  await db.character.update({where: {id: role.id}, data: {isPublic: true, reviewStatus: 'APPROVED'}});
+
+  const root = await createCharacterComment(author.id, role.id, {body: ' 根评论 '});
+  const reply = await createCharacterComment(reader.id, role.id, {body: '回复根评论', parent_id: root.comment.id});
+  const nested = await createCharacterComment(reader.id, role.id, {body: '回复仍归根评论', parentId: reply.comment.id});
+  assert.equal(root.comment.body, '根评论');
+  assert.equal(nested.comment.parentId, root.comment.id);
+  await db.comment.update({where: {id: nested.comment.id}, data: {hiddenAt: new Date()}});
+  const visible = await listCharacterComments(role.id, undefined);
+  assert.equal(visible.comments.length, 1);
+  assert.equal(visible.comments[0].replyCount, 2);
+  assert.deepEqual(visible.comments[0].replies.map(item => item.id), [reply.comment.id]);
+  await denied(() => updateCharacterComment(reader.id, root.comment.id, {body: '他人评论'}), 403);
+  assert.equal((await updateCharacterComment(author.id, root.comment.id, {body: '编辑后的根评论'})).body, '编辑后的根评论');
+  const parallelLikes = await Promise.all(Array.from({length: 6}, () => likeCharacterComment(reader.id, root.comment.id)));
+  assert(parallelLikes.every(result => result.likeCount === 1));
+  assert.equal(await db.commentLike.count({where: {userId: reader.id, commentId: root.comment.id}}), 1);
+  assert.equal((await unlikeCharacterComment(reader.id, root.comment.id)).likeCount, 0);
+  await denied(() => deleteCharacterComment(ordinary.id, reply.comment.id), 403);
+  assert.deepEqual(await deleteCharacterComment(author.id, nested.comment.id), {success: true, deletedBy: 'creator'});
+
+  const anonymousPost = await createCommentRoute(new Request('http://localhost/api/characters/comments', {method: 'POST'}), {params: Promise.resolve({id: role.id})});
+  assert.equal(anonymousPost.status, 401);
+  const token = await signToken({userId: reader.id, email: reader.email});
+  const created = await createCommentRoute(new Request('http://localhost/api/characters/comments', {
+    method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({body: '通过 HTTP 入口创建'}),
+  }), {params: Promise.resolve({id: role.id})});
+  assert.equal(created.status, 201);
+  const listing = await listCommentsRoute(new Request('http://localhost/api/characters/comments'), {params: Promise.resolve({id: role.id})});
+  assert.equal(listing.status, 200);
+  assert.equal((await listing.json()).comments.length, 2);
 });
 test('editing and publication are distinct permissions with enforced read dependencies', async () => {
   const role = await create();

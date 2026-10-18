@@ -2,6 +2,7 @@ import type {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
 import {setCommunityRestriction} from './restriction-service';
+import {setContentVisibilityFromReport} from '@/lib/posts/service';
 
 export class CommunityModerationError extends Error {
   constructor(message: string, public status = 400) {super(message);}
@@ -33,8 +34,7 @@ export async function moderateCommunityReport(actorId: string, reportId: string,
     const status = action === 'REVIEWING' ? 'REVIEWING' : action === 'DISMISS' ? 'DISMISSED' : 'ACTIONED';
     if (['OPEN', 'REVIEWING'].includes(report.status)) await tx.report.update({where: {id: report.id}, data: {status}});
     if (action === 'HIDE' || action === 'RESTORE') {
-      const state = action === 'HIDE' ? 'HIDDEN' : 'VISIBLE';
-      const saved = report.targetType === 'POST' ? await tx.post.updateMany({where: {id: report.targetId}, data: {status: state}}) : await tx.postComment.updateMany({where: {id: report.targetId}, data: {status: state}});
+      const saved = await setContentVisibilityFromReport(tx, report.targetType === 'POST' ? 'POST' : 'COMMENT', report.targetId, action === 'RESTORE');
       if (!saved.count) throw new CommunityModerationError('举报目标已不存在，未执行处置。', 404);
     } else if (action === 'BAN' || action === 'UNBAN') {
       try {await setCommunityRestriction(tx, report.targetId, action === 'BAN', reason, action === 'UNBAN');}

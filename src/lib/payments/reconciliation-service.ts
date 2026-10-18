@@ -32,10 +32,13 @@ export async function readFinanceReport(days: number) {
          OR (r.id IS NOT NULL AND (
            r.amount_cny_cents != p.amount_cny_cents OR r.coin_amount != p.coin_amount OR
            d.id IS NULL OR d.user_id != p.user_id OR d.amount != -r.coin_amount OR d.type != 'REFUND' OR
-           (r.status IN ('PROCESSING', 'UNKNOWN') AND (p.status != 'REFUND_PENDING' OR l.id IS NOT NULL)) OR
+           (r.status IN ('PENDING_APPROVAL', 'PROCESSING', 'UNKNOWN') AND (p.status != 'REFUND_PENDING' OR l.id IS NOT NULL)) OR
+           (r.status = 'PENDING_APPROVAL' AND (r.approved_by_id IS NOT NULL OR r.approved_at IS NOT NULL OR r.rejected_by_id IS NOT NULL)) OR
+           (r.status IN ('PROCESSING', 'UNKNOWN', 'SUCCEEDED', 'FAILED') AND (r.approved_by_id IS NULL OR r.approved_at IS NULL OR (r.approved_by_id = r.actor_id AND r.approval_reason <> '旧流程退款记录迁移：已按原执行状态保留'))) OR
            (r.status = 'SUCCEEDED' AND (p.status != 'REFUNDED' OR l.id IS NOT NULL)) OR
-           (r.status = 'FAILED' AND (p.status != 'PAID' OR l.id IS NULL OR l.user_id != p.user_id OR l.amount != r.coin_amount OR l.type != 'REFUND_RELEASE')) OR
-           r.status NOT IN ('PROCESSING', 'UNKNOWN', 'SUCCEEDED', 'FAILED')
+           (r.status IN ('FAILED', 'REJECTED') AND (p.status != 'PAID' OR l.id IS NULL OR l.user_id != p.user_id OR l.amount != r.coin_amount OR l.type != 'REFUND_RELEASE')) OR
+           (r.status = 'REJECTED' AND (r.approved_by_id IS NOT NULL OR r.rejected_by_id IS NULL OR r.rejected_at IS NULL OR r.rejected_by_id = r.actor_id)) OR
+           r.status NOT IN ('PENDING_APPROVAL', 'PROCESSING', 'UNKNOWN', 'SUCCEEDED', 'FAILED', 'REJECTED')
          ))
       ORDER BY p.created_at ASC LIMIT 101`;
     const negativeBalances = await tx.user.findMany({ where: { coins: { lt: 0 } }, select: { id: true, coins: true }, orderBy: { id: 'asc' }, take: 101 });

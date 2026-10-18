@@ -1,0 +1,62 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import {rmSync} from 'node:fs';
+import path from 'node:path';
+import bcrypt from 'bcryptjs';
+
+const file = `post-management-${process.pid}-${Date.now()}.db`;
+process.env.DATABASE_URL = `file:./${file}`;
+process.env.UPLOADS_DIRECTORY = path.resolve('artifacts', file, 'uploads');
+process.env.JWT_SECRET = randomUUID() + randomUUID();
+const env = {...process.env}; delete env.RUST_LOG;
+const migrated = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true});
+assert.equal(migrated.status, 0, migrated.stdout + migrated.stderr);
+const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
+const {bootstrapOwner} = await import('../src/lib/admin/management-service.ts');
+const {createPost, editPost, deletePost, createPostComment, editPostComment, deletePostComment, managePost, managePostComment} = await import('../src/lib/posts/service.ts');
+const {moderateCommunityReport} = await import('../src/lib/community/moderation-service.ts');
+const users = [];
+for (const username of ['post-owner', 'post-author', 'post-reply']) users.push(await db.user.create({data: {username, email: `${username}@example.invalid`, passwordHash: await bcrypt.hash(randomUUID(), 4)}}));
+const [owner, author, reply] = users;
+await bootstrapOwner(owner.email);
+const circle = await db.circle.create({data: {name: '帖子隔离测试圈', description: 'synthetic', members: {create: [{userId: author.id}, {userId: reply.id}]}}});
+const denied = (fn, status) => assert.rejects(fn, error => error.status === status);
+test.after(async () => {await db.$disconnect(); for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), {force: true});});
+
+test('post and comment writes bind identity, enforce versions, and retain evidence on soft deletion', async () => {
+  const post = await createPost(author.id, circle.id, {content: 'first', authorId: reply.id, circleId: 'forged'});
+  assert.equal(post.authorId, author.id); assert.equal(post.circleId, circle.id);
+  await denied(() => editPost(reply.id, post.id, {updatedAt: post.updatedAt.toISOString(), content: 'hijack', images: []}), 403);
+  const edited = await editPost(author.id, post.id, {updatedAt: post.updatedAt.toISOString(), content: 'edited', images: []});
+  await denied(() => editPost(author.id, post.id, {updatedAt: post.updatedAt.toISOString(), content: 'stale', images: []}), 409);
+  const comment = await createPostComment(reply.id, post.id, {content: 'reply'});
+  const commentEdited = await editPostComment(reply.id, comment.id, {updatedAt: comment.updatedAt.toISOString(), content: 'reply edited'});
+  await denied(() => deletePostComment(reply.id, comment.id, comment.updatedAt.toISOString()), 409);
+  const report = await db.report.create({data: {reporterId: reply.id, targetType: 'POST', targetId: post.id, category: 'spam', details: 'retain this evidence', evidenceContent: edited.content}});
+  await deletePost(author.id, post.id, edited.updatedAt.toISOString());
+  assert.equal(await db.post.count({where: {id: post.id}}), 1);
+  assert.equal((await db.post.findUniqueOrThrow({where: {id: post.id}})).status, 'DELETED');
+  assert.equal((await db.postComment.findUniqueOrThrow({where: {id: comment.id}})).status, 'DELETED');
+  assert.equal((await db.report.findUniqueOrThrow({where: {id: report.id}})).evidenceContent, 'edited');
+  assert.deepEqual(await deletePost(author.id, post.id, edited.updatedAt.toISOString()), {success: true}, 'a retry after a committed delete is idempotent');
+  assert(commentEdited.updatedAt > comment.updatedAt);
+});
+
+test('admin actions require versions and reasons, record audits, and report state changes are transactional', async () => {
+  let post = await createPost(author.id, circle.id, {content: 'moderation target'});
+  await denied(() => managePost(owner.id, post.id, {action: 'HIDE', updatedAt: post.updatedAt.toISOString()}), 400);
+  post = await managePost(owner.id, post.id, {action: 'PIN', updatedAt: post.updatedAt.toISOString(), reason: 'synthetic pin'});
+  assert.equal(post.isPinned, true);
+  await denied(() => managePost(owner.id, post.id, {action: 'UNPIN', updatedAt: new Date(0).toISOString(), reason: 'stale'}), 409);
+  let comment = await createPostComment(reply.id, post.id, {content: 'moderation comment'});
+  comment = await managePostComment(owner.id, comment.id, {action: 'HIDE', updatedAt: comment.updatedAt.toISOString(), reason: 'synthetic hide'});
+  assert.equal(comment.status, 'HIDDEN');
+  const report = await db.report.create({data: {reporterId: reply.id, targetType: 'POST', targetId: post.id, category: 'spam', details: 'synthetic'}});
+  await moderateCommunityReport(owner.id, report.id, {action: 'HIDE', reason: 'report review'});
+  assert.equal((await db.post.findUniqueOrThrow({where: {id: post.id}})).status, 'HIDDEN');
+  assert.equal((await db.report.findUniqueOrThrow({where: {id: report.id}})).status, 'ACTIONED');
+  assert(await db.moderationAction.findFirst({where: {targetId: post.id, action: 'HIDE'}}));
+  assert(await db.adminAuditLog.findFirst({where: {targetId: post.id, action: 'COMMUNITY_POST_PIN'}}));
+});

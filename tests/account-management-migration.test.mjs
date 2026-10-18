@@ -31,7 +31,7 @@ test('ordered account migration preserves existing data/custom grants and adds o
     const createRole = sqlite.prepare('INSERT INTO admin_roles (id, code, name, system, updated_at) VALUES (?, ?, ?, ?, ?)');
     createRole.run('fixture_owner_role', 'OWNER', '所有者', 1, now); createRole.run('fixture_custom_role', 'CUSTOM_LOCAL', '原有角色', 0, now);
     const grant = sqlite.prepare('INSERT INTO admin_role_permissions (role_id, permission) VALUES (?, ?)');
-    const originalOwnerGrants = ['admin.staff.read', 'admin.staff.manage', 'admin.roles.manage', 'admin.audit.read', 'moderation.read', 'moderation.write', 'finance.read', 'finance.packages.write', 'finance.refunds.execute'];
+    const originalOwnerGrants = ['admin.staff.read', 'admin.staff.manage', 'admin.roles.manage', 'admin.audit.read', 'moderation.read', 'moderation.write', 'finance.read', 'finance.packages.write', 'finance.refunds.request', 'finance.refunds.approve', 'finance.refunds.execute'];
     for (const permission of originalOwnerGrants) grant.run('fixture_owner_role', permission);
     grant.run('fixture_custom_role', 'finance.read');
     sqlite.prepare('INSERT INTO admin_operators (user_id, enabled, version, updated_at) VALUES (?, 1, 7, ?)').run('fixture_owner', now);
@@ -51,10 +51,10 @@ test('ordered account migration preserves existing data/custom grants and adds o
     client = new PrismaClient({datasources: {db: {url}}, log: []});
     const user = await client.user.findUnique({where: {id: 'fixture_owner'}, select: {coins: true, tokenVersion: true, accountVersion: true, suspendedAt: true, lastLoginAt: true, lastActiveAt: true}});
     assert.deepEqual(user, {coins: 456, tokenVersion: 3, accountVersion: 0, suspendedAt: null, lastLoginAt: null, lastActiveAt: null});
-    assert.equal(await client.adminRolePermission.count({where: {roleId: 'fixture_owner_role'}}), 13);
+    assert.equal(await client.adminRolePermission.count({where: {roleId: 'fixture_owner_role'}}), originalOwnerGrants.length + 4);
     const support = await client.adminRole.findUnique({where: {code: 'SUPPORT_AGENT'}, include: {permissions: true}});
     assert(support.system); assert.deepEqual(support.permissions.map(item => item.permission).sort(), ['accounts.community.manage', 'accounts.read']);
-    deploy(); assert.equal(await client.adminRolePermission.count({where: {roleId: 'fixture_owner_role'}}), 13);
+    deploy(); assert.equal(await client.adminRolePermission.count({where: {roleId: 'fixture_owner_role'}}), originalOwnerGrants.length + 4);
     // A valid pre-upgrade bootstrap can already contain the new system role.
     sqlite.prepare('INSERT INTO characters (id, name, personality, background, creator_id, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run('fixture_character', '保留角色', 'SYNTHETIC_PERSONA', '合成背景', 'fixture_owner', now);
     sqlite.prepare('INSERT INTO admin_roles (id, code, name, system, updated_at) VALUES (?, ?, ?, ?, ?)').run('preexisting_character_manager', 'CHARACTER_MANAGER', '角色管理员', 1, now);
@@ -66,7 +66,7 @@ test('ordered account migration preserves existing data/custom grants and adds o
     assert.deepEqual(sqlite.prepare("SELECT * FROM characters WHERE id='fixture_character'").get(), beforeCharacter);
     assert.deepEqual(sqlite.prepare('SELECT ' + fields.map(name => '"' + name + '"').join(',') + ' FROM users').all(), beforeUser);
     assert.deepEqual(sqlite.prepare("SELECT * FROM admin_role_permissions WHERE role_id='fixture_custom_role'").all(), beforeCustom);
-    assert.equal(await client.adminRolePermission.count({where: {roleId: 'fixture_owner_role'}}), 16);
+    assert.equal(await client.adminRolePermission.count({where: {roleId: 'fixture_owner_role'}}), originalOwnerGrants.length + 4 + 3);
     const characterManager = await client.adminRole.findUnique({where: {code: 'CHARACTER_MANAGER'}, include: {permissions: true}});
     assert.equal(characterManager.id, 'preexisting_character_manager'); assert.equal(characterManager.permissions.length, 3);
     assert(sqlite.prepare("PRAGMA index_list('characters')").all().some(index => index.name === 'characters_review_status_updated_at_id_idx'));

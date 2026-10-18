@@ -24,11 +24,13 @@ export default function ShopPage() {
   const router = useRouter();
   const [packages, setPackages] = useState<CoinPackage[]>([]);
   const [purchaseEnabled, setPurchaseEnabled] = useState(false);
+  const [checkoutReason, setCheckoutReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
   const [shopError, setShopError] = useState<string | null>(null);
-  const [pendingRequest, setPendingRequest] = useState<{ packageId: string; key: string; quote: { amountCnyCents: number; coinAmount: number } } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState('alipay');
+  const [pendingRequest, setPendingRequest] = useState<{ packageId: string; key: string; paymentMethod: string; quote: { amountCnyCents: number; coinAmount: number } } | null>(null);
   const [returnOrder, setReturnOrder] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState('');
   const refreshUserRef = useRef(refreshUser);
@@ -36,10 +38,11 @@ export default function ShopPage() {
 
   useEffect(() => {
     fetch('/api/coins/packages')
-      .then(async r => ({ packages: await r.json(), enabled: r.headers.get('X-Checkout-Enabled') === 'true' }))
+      .then(async r => ({ packages: await r.json(), enabled: r.headers.get('X-Checkout-Enabled') === 'true', reason: r.headers.get('X-Checkout-Reason') ?? '' }))
       .then(data => {
         if (Array.isArray(data.packages)) setPackages(data.packages);
         setPurchaseEnabled(data.enabled);
+        setCheckoutReason(data.reason);
       })
       .catch(() => setShopError('暂时无法读取充值套餐。'))
       .finally(() => setLoading(false));
@@ -79,14 +82,14 @@ export default function ShopPage() {
     if (!purchaseEnabled || !pkg.priceCnyCents) return;
     setShopError(null);
     setPurchasing(pkg.id);
-    const pending = pendingRequest?.packageId === pkg.id ? pendingRequest : { packageId: pkg.id, key: crypto.randomUUID(), quote: { amountCnyCents: pkg.priceCnyCents!, coinAmount: pkg.coins + pkg.bonus } };
+    const pending = pendingRequest?.packageId === pkg.id ? pendingRequest : { packageId: pkg.id, key: crypto.randomUUID(), paymentMethod, quote: { amountCnyCents: pkg.priceCnyCents!, coinAmount: pkg.coins + pkg.bonus } };
     const key = pending.key;
     setPendingRequest(pending);
     try {
       const res = await fetch('/api/coins/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ packageId: pkg.id, idempotencyKey: key, quote: pending.quote }),
+        body: JSON.stringify({ packageId: pkg.id, idempotencyKey: key, paymentMethod: pending.paymentMethod, quote: pending.quote }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -133,6 +136,7 @@ export default function ShopPage() {
             <ShoppingBag className="h-8 w-8 text-white" />
           </div>
           <h1 className="mb-2 text-3xl font-bold text-white">金币充值</h1>
+          <label className="my-4 flex items-center justify-center gap-3 text-sm">支付方式<select className="rounded-lg border border-white/20 bg-zinc-900 px-3 py-2" value={paymentMethod} disabled={Boolean(pendingRequest)} onChange={event => setPaymentMethod(event.target.value)}><option value="alipay">支付宝</option><option value="wxpay">微信支付</option></select></label>
           <p className="text-zinc-400">为喜欢的角色赠送礼物</p>
           {user && (
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-yellow-500/20 bg-yellow-500/10 px-4 py-2">
@@ -172,7 +176,7 @@ export default function ShopPage() {
                       <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />正在创建订单…</span>
                     ) : successId === pkg.id ? (
                       <span className="flex items-center justify-center gap-2"><CheckCircle2 className="h-4 w-4" />已到账</span>
-                    ) : !pkg.priceCnyCents ? '待配置人民币价格' : purchaseEnabled ? `支付 ${formatCny(pkg.priceCnyCents)}` : '支付渠道待配置'}
+                    ) : !pkg.priceCnyCents ? '待配置人民币价格' : purchaseEnabled ? `支付 ${formatCny(pkg.priceCnyCents)}` : checkoutReason === 'CHECKOUT_DISABLED' ? '充值暂未开放' : '支付渠道待配置'}
                   </button>
                 </div>
               );
@@ -182,7 +186,7 @@ export default function ShopPage() {
 
         <div className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-4 text-center">
           <p className="text-sm text-amber-200">
-            {purchaseEnabled ? '支付成功后，服务端核验 EZFP 异步通知再发放金币。' : '支付渠道或人民币套餐价格尚未配置，当前不会发生扣款。'}
+            {purchaseEnabled ? '支付成功后，服务端核验 EZFP 异步通知再发放金币。' : checkoutReason === 'CHECKOUT_DISABLED' ? '充值暂未开放，当前不会发生扣款。' : '支付渠道暂不可用，当前不会发生扣款。'}
           </p>
           {paymentMessage && <p role="status" className="mt-2 text-sm text-green-300">{paymentMessage}</p>}
           {shopError && <p role="alert" className="mt-2 text-sm text-red-300">{shopError}</p>}

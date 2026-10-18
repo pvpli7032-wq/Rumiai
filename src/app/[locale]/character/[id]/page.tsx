@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { db } from '@/lib/db';
+import { listPublicCharacterPosts, readPublicCharacter, resolveCharacterTagLabels } from '@/lib/characters/catalog-service';
 import {
   SITE_URL,
   alternateLanguages,
@@ -14,27 +14,6 @@ import { PublicHeader } from '@/components/public-header';
 
 export const revalidate = 300;
 
-/**
- * Public, indexable character page — the bulk of the live site's sitemap. Only
- * public characters are served here; a private one must not become crawlable.
- */
-async function loadCharacter(id: string) {
-  return db.character.findFirst({
-    where: { id, isPublic: true, reviewStatus: 'APPROVED' },
-    select: {
-      id: true,
-      name: true,
-      tagline: true,
-      greeting: true,
-      personality: true,
-      avatarUrl: true,
-      chatCount: true,
-      tags: true,
-      creator: { select: { username: true, displayName: true } },
-    },
-  });
-}
-
 export async function generateMetadata({
   params: paramsPromise,
 }: {
@@ -44,7 +23,7 @@ export async function generateMetadata({
 
   if (!isLocale(params.locale)) return {};
   const dict = getDictionary(params.locale);
-  const character = await loadCharacter(params.id);
+  const character = await readPublicCharacter(params.id);
   if (!character) return { title: dict.notFound };
 
   const url = `${SITE_URL}/${params.locale}/character/${character.id}`;
@@ -75,23 +54,15 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
 
   const locale = (isLocale(params.locale) ? params.locale : 'th') as Locale;
   const dict = getDictionary(locale);
-  const character = await loadCharacter(params.id);
+  const character = await readPublicCharacter(params.id);
   if (!character) notFound();
 
-  const tagRows = await db.tag.findMany({ select: { key: true, label: true } });
-  const labelByKey = new Map(tagRows.map(t => [t.key, t.label]));
-  const tagLabels = (character.tags ?? '')
-    .split(',')
-    .map(key => labelByKey.get(key.trim()) ?? key.trim())
-    .filter(Boolean);
+  const [tagLabels, communityPosts] = await Promise.all([
+    resolveCharacterTagLabels(character.tags),
+    listPublicCharacterPosts(character.id),
+  ]);
 
   const creatorName = character.creator?.displayName ?? character.creator?.username;
-  const communityPosts = await db.post.findMany({
-    where: { characterId: character.id, status: 'VISIBLE', circle: { status: 'ACTIVE' } },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: 10,
-    select: { id: true, content: true, createdAt: true, circle: { select: { id: true, name: true } } },
-  });
 
   return (
     <main className="flex min-h-[100svh] flex-col">

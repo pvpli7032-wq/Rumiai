@@ -23,8 +23,7 @@ try{for(let i=0;i<4;i++)actors.push(await db.user.create({data:{username:`admin_
 env.MODERATOR_USER_IDS=[actors[1].id,actors[3].id].join(',');env.PAYMENT_ADMIN_USER_IDS=[actors[2].id,actors[3].id].join(',');
 let app,browser;const checks=[],errors=[];
 try{
- const log=await open(path.join(out,'server.log'),'a');
- try{app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','18799'],{env,stdio:['ignore',log.fd,log.fd],windowsHide:true});}finally{await log.close();}
+ app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','18799'],{env,stdio:'ignore',windowsHide:true});
  let ready=false;
  for(let i=0;i<100;i++){
   if(app.exitCode!==null)throw Error('owned app exited before readiness');
@@ -41,7 +40,7 @@ try{
   const {token}=await response.json();
   await context.addInitScript(t=>localStorage.setItem('khuiai_token',t),token);
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
-  const expected={moderation:i===1||i===3,finance:i===2||i===3};
+  const expected={moderation:i===1||i===3,finance:i===2||i===3,analytics:false,growth:false,operations:false,compliance:false};
   const access=await context.request.get(base+'/api/admin/access',{headers:{Authorization:`Bearer ${token}`}});assert.equal(access.status(),200);assert.deepEqual(await access.json(),expected);
   await page.goto(base+'/profile');
   await page.getByRole('link',{name:/我的角色与收藏/}).waitFor();

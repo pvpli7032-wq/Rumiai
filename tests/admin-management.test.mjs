@@ -14,6 +14,7 @@ assert.equal(migration.status, 0, migration.stdout + migration.stderr);
 const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
 const {bootstrapOwner, saveOperator, saveRole, readOperatorManagement, readAdminAudit, closeAdminIdentity} = await import('../src/lib/admin/management-service.ts');
 const {readAdminAuthorization} = await import('../src/lib/admin/authorization.ts');
+const {SYSTEM_ROLES} = await import('../src/lib/admin/permissions.ts');
 const {signToken} = await import('../src/lib/auth.ts');
 const {exportAccountData} = await import('../src/lib/accounts/data-export.ts');
 const {GET: readPackages, POST: createPackage} = await import('../src/app/api/finance/packages/route.ts');
@@ -36,7 +37,7 @@ test('explicit bootstrap requires a registered identity and preserves account da
   await rejected(() => bootstrapOwner(other.email), 409);
   const roles = await db.adminRole.findMany();
   viewer = roles.find(role => role.code === 'FINANCE_VIEWER'); moderator = roles.find(role => role.code === 'MODERATOR'); ownerRole = roles.find(role => role.code === 'OWNER');
-  assert.equal(roles.length, 8); assert(roles.some(role => role.code === 'SUPPORT_AGENT')); assert.equal((await db.user.findUnique({where: {id: owner.id}})).coins, 300);
+  assert.deepEqual(roles.map(role=>role.code).sort(),SYSTEM_ROLES.map(role=>role.code).sort()); assert(roles.some(role => role.code === 'SUPPORT_AGENT')); assert(roles.some(role => role.code === 'SITE_CONTENT_MANAGER')); assert(roles.some(role => role.code === 'AI_PROVIDER_MANAGER')); assert(roles.some(role => role.code === 'AI_MODEL_MANAGER')); assert(roles.some(role => role.code === 'AI_COST_MANAGER')); assert(roles.some(role => role.code === 'PAYMENT_MERCHANT_MANAGER')); assert(roles.some(role => role.code === 'ANALYTICS_VIEWER')); assert(roles.some(role => role.code === 'GROWTH_MANAGER')); assert(roles.some(role=>role.code==='FINANCE_REFUND_APPROVER')); assert(roles.some(role=>role.code==='OPERATIONS_VIEWER')); assert.equal((await db.user.findUnique({where: {id: owner.id}})).coins, 300);
   assert.equal(await db.adminAuditLog.count({where: {action: 'BOOTSTRAP_OWNER'}}), 1);
 });
 test('ordinary users cannot manage roles, including through HTTP', async () => {
@@ -101,4 +102,22 @@ test('audits and account exports include administrative metadata without credent
   assert(exported.adminIdentity?.assignments.some(item => item.role.code === 'OWNER'));
   assert(!JSON.stringify(exported).includes('synthetic-only'));
   assert(!JSON.stringify(report).includes('passwordHash'));
+});
+
+test('audit filters intersect exact identity/action and inclusive UTC dates with stable pagination',async()=>{
+  const actor=(await readAdminAuthorization(owner.id)).owner?owner:other;
+  const target='audit-filter-fixture';
+  await db.adminAuditLog.createMany({data:[
+    ...Array.from({length:26},(_,index)=>({id:`audit-filter-${String(index).padStart(2,'0')}`,actorId:actor.id,targetId:target,action:'FILTER_TEST',reason:'isolated audit',changes:'{}',createdAt:new Date('2026-01-02T23:59:59.999Z')})),
+    {actorId:actor.id,targetId:target,action:'FILTER_TEST',reason:'before window',changes:'{}',createdAt:new Date('2026-01-01T23:59:59.999Z')},
+    {actorId:actor.id,targetId:target,action:'FILTER_TEST',reason:'after window',changes:'{}',createdAt:new Date('2026-01-03T00:00:00.000Z')},
+    {actorId:actor.id,targetId:target,action:'OTHER_TEST',reason:'other action',changes:'{}',createdAt:new Date('2026-01-02T12:00:00.000Z')},
+  ]});
+  const filters={actorId:actor.id,targetId:target,action:'FILTER_TEST',from:'2026-01-02',until:'2026-01-02'};
+  const first=await readAdminAudit(actor.id,1,filters),second=await readAdminAudit(actor.id,2,filters);
+  assert.equal(first.total,26);assert.equal(first.items.length,25);assert.equal(second.total,26);assert.equal(second.items.length,1);
+  assert.equal(new Set([...first.items,...second.items].map(item=>item.id)).size,26);
+  assert.equal((await readAdminAudit(actor.id,1,{...filters,actorId:'not-the-actor'})).total,0);
+  for(const invalid of [{from:'2026-02-30'},{until:'bad'},{from:'2026-01-03',until:'2026-01-02'},{action:'x'.repeat(101)}])await rejected(()=>readAdminAudit(actor.id,1,invalid),400);
+  await rejected(()=>readAdminAudit(staff.id,1,filters),403);
 });

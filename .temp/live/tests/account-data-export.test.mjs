@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import path from 'node:path';
+
+const file = `account-export-${process.pid}-${Date.now()}.db`;
+process.env.DATABASE_URL = `file:./${file}`;
+process.env.JWT_SECRET = 'isolated-account-export-test-secret-abcdefghijklmnopqrstuvwxyz';
+const migrationEnv = { ...process.env };
+// Match other isolated Prisma tests: a machine RUST_LOG can break the Windows engine.
+delete migrationEnv.RUST_LOG;
+const migration = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { env: migrationEnv, encoding: 'utf8' });
+assert.equal(migration.status, 0, migration.stdout + migration.stderr);
+const { db, pragmasReady } = await import('../src/lib/db.ts');
+await pragmasReady;
+const { exportAccountData } = await import('../src/lib/accounts/data-export.ts');
+const { GET } = await import('../src/app/api/users/me/export/route.ts');
+const { signToken } = await import('../src/lib/auth.ts');
+test.after(async () => {
+  await db.$disconnect();
+  for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), { force: true });
+});
+
+test('account export is authenticated, owner-scoped and excludes credentials and foreign persona', async () => {
+  const a = await db.user.create({ data: { username: 'export-a', email: 'a@example.invalid', passwordHash: 'SECRET_HASH', tokenVersion: 7 } });
+  const b = await db.user.create({ data: { username: 'export-b', email: 'b@example.invalid', passwordHash: 'FOREIGN_HASH' } });
+  const role = await db.character.create({ data: { creatorId: b.id, name: 'FOREIGN_PRIVATE_NAME', personality: 'FOREIGN_PRIVATE_PERSONA', background: '', isPublic: false } });
+  await db.conversation.create({ data: { userId: a.id, characterId: role.id, messages: { create: { role: 'USER', content: '我的历史🙂' } } } });
+  await db.conversation.create({ data: { userId: b.id, characterId: role.id, messages: { create: { role: 'USER', content: 'FOREIGN_PRIVATE_MESSAGE' } } } });
+  await db.report.create({ data: { reporterId: a.id, targetType: 'CHARACTER', targetId: role.id, category: 'other', details: '我提交的举报', contactValue: 'my-contact@example.invalid', evidenceContent: 'FOREIGN_HIDDEN_EVIDENCE' } });
+  await db.report.create({ data: { reporterId: b.id, targetType: 'USER', targetId: a.id, category: 'other', details: 'FOREIGN_REPORT_DETAILS' } });
+  await db.communityAppeal.create({ data: { userId: a.id, reason: '我的申诉' } });
+  await db.communityAppeal.create({ data: { userId: b.id, reason: 'FOREIGN_APPEAL' } });
+  await db.follow.create({ data: { followerId: a.id, followingId: b.id } });
+  await db.characterBookmark.create({ data: { userId: a.id, characterId: role.id } });
+  await db.aiCall.create({ data: { userId: a.id, conversationId: 'own', operation: 'SEND', status: 'SUCCEEDED', currency: 'USD', inputTokens: 10 } });
+  await db.aiCall.create({ data: { userId: b.id, conversationId: 'foreign', operation: 'SEND', status: 'SUCCEEDED', model: 'FOREIGN_MODEL', currency: 'USD' } });
+  await db.aiDailyUsage.create({ data: { userId: a.id, day: '2026-10-13', count: 1 } });
+  assert.equal((await GET(new Request('http://localhost/api/users/me/export'))).status, 401);
+  const token = await signToken({ userId: a.id, email: a.email, tokenVersion: a.tokenVersion });
+  const response = await GET(new Request('http://localhost/api/users/me/export?userId=' + b.id, { headers: { Authorization: 'Bearer ' + token } }));
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('cache-control'), /private, no-store/);
+  assert.match(response.headers.get('content-disposition'), /attachment/);
+  const archive = await response.json();
+  assert.equal(archive.account.id, a.id);
+  assert.equal(archive.conversations.length, 1);
+  assert.equal(archive.conversations[0].messages[0].content, '我的历史🙂');
+  assert.equal(archive.characters.length, 0);
+  assert.equal(archive.version, 2);
+  assert.equal(archive.reports.length, 1);
+  assert.equal(archive.reports[0].details, '我提交的举报');
+  assert.equal(archive.reports[0].contactValue, 'my-contact@example.invalid');
+  assert.equal(archive.appeals[0].reason, '我的申诉');
+  assert.equal(archive.following[0].followingId, b.id);
+  assert.equal(archive.bookmarks[0].characterId, role.id);
+  assert.equal(archive.aiCalls.length, 1);
+  assert.equal(archive.aiCalls[0].inputTokens, 10);
+  assert.equal(archive.aiDailyUsage[0].count, 1);
+  assert.equal(archive.transactions.length, 0);
+  const raw = JSON.stringify(archive);
+  for (const secret of ['passwordHash', 'tokenVersion', 'SECRET_HASH', 'FOREIGN_HASH', 'FOREIGN_PRIVATE_NAME', 'FOREIGN_PRIVATE_PERSONA', 'FOREIGN_PRIVATE_MESSAGE', 'FOREIGN_HIDDEN_EVIDENCE', 'FOREIGN_REPORT_DETAILS', 'FOREIGN_APPEAL', 'FOREIGN_MODEL', b.email]) assert(!raw.includes(secret), secret);
+  assert.equal(await exportAccountData('missing'), null);
+});

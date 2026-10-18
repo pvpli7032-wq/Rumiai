@@ -17,6 +17,7 @@ const nextConfig = {
   // server corrupts its route manifest — the running server then 404s on routes it had
   // served a moment earlier.
   distDir:
+    process.env.ISOLATED_BUILD_DIR?.trim() ||
     process.env.NEXT_DIST_DIR ||
     (['build', 'start'].includes(process.env.npm_lifecycle_event ?? '') ? '.next-build' : '.next'),
   async headers() { return [{ source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache' }] }, { source: '/manifest.webmanifest', headers: [{ key: 'Cache-Control', value: 'no-cache' }] }, { source: '/uploads/:path*', headers: [{ key: 'X-Content-Type-Options', value: 'nosniff' }] }]; },

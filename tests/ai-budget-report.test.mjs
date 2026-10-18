@@ -1,6 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDailyBudgets, evaluateDailyBudgets, readDailyBudgetReport } from '../src/lib/ai/budget-report.ts';
+import {openSync,closeSync,rmSync} from 'node:fs';
+import path from 'node:path';
+
+// Imported configuration services initialize the shared SQLite client even though
+// report queries below use explicit fakes. Keep that initialization isolated too.
+const file=`ai-budget-report-${process.pid}-${Date.now()}.db`,database=path.resolve('prisma',file);
+closeSync(openSync(database,'wx'));
+process.env.DATABASE_URL=`file:./${file}`;
+const {parseDailyBudgets,evaluateDailyBudgets,readDailyBudgetReport}=await import('../src/lib/ai/budget-report.ts');
+const {db,pragmasReady}=await import('../src/lib/db.ts');await pragmasReady;
+test.after(async()=>{await db.$disconnect();for(const suffix of ['','-wal','-shm','-journal'])rmSync(database+suffix,{force:true});});
 
 test('budget configuration is optional, explicit and validates currency and amounts', () => {
   assert.equal(parseDailyBudgets(''), null);
@@ -31,7 +41,7 @@ test('daily report uses UTC midnight, excludes mock and future calls, and preser
   const previous = process.env.AI_DAILY_COST_BUDGETS;
   const now = new Date('2026-10-12T15:30:00Z');
   let reads = 0;
-  const tx = { aiCall: { groupBy: async query => {
+  const tx = { aiModel:{findMany:async()=>[]},aiDailyCostBudget:{findMany:async()=>[]},aiCostPolicy:{findUnique:async()=>null},aiCall: { groupBy: async query => {
     reads++;
     assert.equal(query.where.startedAt.gte.toISOString(), '2026-10-12T00:00:00.000Z');
     assert.equal(query.where.startedAt.lte, now);
@@ -59,7 +69,7 @@ test('daily report combines attempt groups per account and excludes partial retr
   const original = process.env.AI_DAILY_COST_BUDGETS;
   process.env.AI_DAILY_COST_BUDGETS = '{"USD":{"site":1,"user":1}}';
   try {
-    const tx = { aiCall: { groupBy: async query => {
+    const tx = { aiModel:{findMany:async()=>[{id:'model-id',key:'unpriced-model'}]},aiModelPrice:{findMany:async()=>[]},aiDailyCostBudget:{findMany:async()=>[]},aiCostPolicy:{findUnique:async()=>null},aiCall: { groupBy: async query => {
       assert(query.by.includes('attempts'));
       return [
         { userId: 'a', currency: 'USD', attempts: 0, _count: { _all: 1, estimatedCost: 1 }, _sum: { estimatedCost: 0.4 } },
@@ -69,6 +79,8 @@ test('daily report combines attempt groups per account and excludes partial retr
     } } };
     const report = await readDailyBudgetReport(tx, new Date());
     assert.equal(report.unknownCostCalls, 1);
+    assert.equal(report.pricingConfigured,false);
+    assert.deepEqual(report.pricingUnpricedModels,['unpriced-model']);
     assert.equal(report.alerts.length, 2);
     assert(report.alerts.every(row => row.knownCost === 1));
   } finally {

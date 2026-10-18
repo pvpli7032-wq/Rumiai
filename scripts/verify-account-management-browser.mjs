@@ -77,5 +77,5 @@ try {
   await browser?.close();
   if (app && app.exitCode === null) {if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(app.pid), '/T', '/F'], {windowsHide: true, stdio: 'ignore'}); else app.kill('SIGTERM'); await new Promise(resolve => {if (app.exitCode !== null) resolve(); else app.once('exit', resolve);});}
   await db.$disconnect(); for (const suffix of ['', '-wal', '-shm', '-journal']) await rm(dbPath + suffix, {force: true});
-  if (passed) await rm(path.join(out, 'server.log'), {force: true});
+  await rm(path.join(out, 'server.log'), {force: true});
 }

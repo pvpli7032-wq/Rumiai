@@ -70,10 +70,13 @@ for (let i = 0; i < ROUNDS; i++) {
 
   // --- mission race: exactly one reward expected ---
   const m = await reg(`ms${i}`);
+  await readJson(await fetch(`${B}/api/checkin`,{method:'POST',headers:auth(m.token)}),'mission prerequisite check-in');
   const missions = await (await fetch(`${B}/api/missions`, { headers: auth(m.token) })).json();
   const list = Array.isArray(missions) ? missions : missions.missions || [];
-  if (list.length) {
-    const mission = list[0];
+  const qualified=list.find(item=>item.qualified&&!item.isCompleted);
+  if (!qualified) throw new Error('Stress test requires the isolated HTTP check-in mission fixture');
+  {
+    const mission = qualified;
     const mBefore = await coins(m.token);
     await Promise.all(
       Array.from({ length: CONCURRENCY }, () =>
@@ -94,7 +97,7 @@ for (let i = 0; i < ROUNDS; i++) {
       fetch(`${B}/api/characters/${publicCharacterId}/gift`, {
         method: 'POST',
         headers: auth(g.token),
-        body: JSON.stringify({ amount: 100 }),
+        body: JSON.stringify({ giftCode:'http-balance-test',amount: 100 }),
       }).then(r => r.status)
     )
   );
@@ -126,7 +129,7 @@ for (let i = 0; i < ROUNDS; i++) {
       fetch(`${B}/api/leaderboard/gifts`, {
         method: 'POST',
         headers: auth(lg.token),
-        body: JSON.stringify({ characterId: publicCharacterId, amount: 100 }),
+        body: JSON.stringify({ characterId: publicCharacterId,giftCode:'http-balance-test', amount: 100 }),
       }).then(r => r.status)
     )
   );

@@ -6,6 +6,9 @@ import { FinanceRefunds } from '@/components/admin/finance/finance-refunds';
 import { AiBudgetReport } from '@/components/admin/finance/ai-budget-report';
 import { PaymentValidationMetrics } from '@/components/admin/finance/payment-validation-metrics';
 import { FinancePackages } from '@/components/admin/finance/finance-packages';
+import {PaymentOrderManagement} from '@/components/admin/finance/payment-orders';
+import {CallbackAlerts} from '@/components/admin/finance/callback-alerts';
+import {ChannelReconciliation} from '@/components/admin/finance/channel-reconciliation';
 import {useAdminAccess} from '@/components/admin/use-admin-access';
 
 export default function FinancePage() {
@@ -42,6 +45,9 @@ export default function FinancePage() {
       <section className="space-y-3 rounded-xl border p-4"><h2 className="font-bold">AI 成本估算</h2>{!report.aiCosts.length && <p>此时间范围暂无调用记录。</p>}{report.aiCosts.map(row => <div key={row.currency} className="break-words"><p>{row.currency} · 已知成本 {row.estimatedCost.toFixed(6)}</p><p className="text-sm">共 {row.calls} 次；有成本记录 {row.knownCostCalls} 次，未知成本 {row.unknownCostCalls} 次，模拟 {row.mockCalls} 次，失败或取消 {row.failedCalls} 次</p></div>)}<p className="text-sm text-muted-foreground">各币种分别统计，未知成本不能视为零；模拟调用不计真实成本。这不是供应商账单。</p></section>
       <p className="text-xs text-muted-foreground">报告时间：{new Date(report.generatedAt).toLocaleString('zh-CN')}</p>
     </>}
-    {token && !error && <FinanceRefunds token={token} canRefund={permissions.includes('finance.refunds.execute')} />}
+    {token&&permissions.includes('finance.read')&&<PaymentOrderManagement token={token}/>}
+    {token&&permissions.includes('finance.read')&&<CallbackAlerts token={token}/>}
+    {token&&permissions.includes('finance.read')&&<ChannelReconciliation token={token} canImport={permissions.includes('finance.reconciliation.import')}/>}
+    {token && !error && <FinanceRefunds token={token} canRequest={permissions.includes('finance.refunds.request')} canApprove={permissions.includes('finance.refunds.approve')} canExecute={permissions.includes('finance.refunds.execute')} />}
   </main>;
 }

@@ -18,7 +18,7 @@ export async function readAdminAuthorization(userId: string, reader: Reader = db
   const permissions: AdminPermission[] = [];
   const roles: string[] = [];
   if (listed(process.env.MODERATOR_USER_IDS, userId)) {roles.push('LEGACY_MODERATOR'); permissions.push('moderation.read', 'moderation.write');}
-  if (listed(process.env.PAYMENT_ADMIN_USER_IDS, userId)) {roles.push('LEGACY_FINANCE'); permissions.push('finance.read', 'finance.packages.write', 'finance.refunds.execute');}
+  if (listed(process.env.PAYMENT_ADMIN_USER_IDS, userId)) {roles.push('LEGACY_FINANCE'); permissions.push('finance.read', 'finance.packages.write', 'finance.refunds.request', 'finance.refunds.execute', 'finance.reconciliation.import');}
   return {managed: false, enabled: permissions.length > 0, owner: false, roles, permissions};
 }
 

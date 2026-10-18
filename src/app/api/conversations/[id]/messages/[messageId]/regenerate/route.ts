@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { logRouteError } from '@/lib/logger';
+import { ConversationError, readConversationForChat } from '@/lib/conversations/conversation-service';
+import { ConversationMessageError, prepareMessageRegeneration, replaceMessageReply } from '@/lib/conversations/message-service';
 import { getAuthUser } from '@/lib/auth';
 import { isAiChatAvailable } from '@/lib/launch-guards';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -9,6 +10,8 @@ import { aiErrorCode, aiUserError } from '@/lib/conversations/chat-stream';
 import type { AiStreamMetrics } from '@/lib/ai/types';
 import { HISTORY_TURNS, CHAT_LIMIT, CHAT_WINDOW_MS } from '@/lib/ai/config';
 import { streamMockResponse, streamOpenAIResponse } from '@/lib/conversations/chat-stream';
+import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
+import {readAiModelPlan} from '@/lib/ai/models/runtime-service';
 
 /**
  * Ask for a different reply.
@@ -32,48 +35,18 @@ export async function POST(
 ) {
   const params = await paramsPromise;
 
-  let reservedCall:{id:string;startedAt:Date}|undefined;
+  let reservedCall:{id:string;startedAt:Date}|undefined;let usingRealAi=Boolean(process.env.OPENAI_API_KEY?.trim());
   try {
     const authUser = await getAuthUser(request);
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const conversation = await db.conversation.findUnique({
-      where: { id: params.id },
-      include: { character: true },
-    });
-    if (!conversation) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (conversation.userId !== authUser.userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    if ((!conversation.character.isPublic || conversation.character.reviewStatus !== 'APPROVED') && conversation.character.creatorId !== authUser.userId) return NextResponse.json({ error: '角色已下架或设为私有，无法继续对话。' }, { status: 403 });
-
-    const target = await db.message.findUnique({
-      where: { id: params.messageId },
-      select: { id: true, conversationId: true, role: true, createdAt: true },
-    });
-    if (!target || target.conversationId !== params.id) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-    }
-    // Given a reply, the line being answered is the most recent user message before it.
-    // Given a user message, that message *is* the line being answered.
-    const prompt =
-      target.role === 'USER'
-        ? await db.message.findUnique({
-            where: { id: target.id },
-            select: { id: true, content: true, createdAt: true },
-          })
-        : await db.message.findFirst({
-            where: { conversationId: params.id, role: 'USER', createdAt: { lt: target.createdAt } },
-            orderBy: { createdAt: 'desc' },
-            select: { id: true, content: true, createdAt: true },
-          });
-    if (!prompt) {
-      return NextResponse.json({ error: 'Nothing to reply to' }, { status: 400 });
-    }
+    const conversation = await readConversationForChat(authUser.userId, params.id);
+    const {prompt, history} = await prepareMessageRegeneration(authUser.userId, params.id, params.messageId, HISTORY_TURNS);
 
     // A failed production provider must never discard the existing reply.
-    if (!isAiChatAvailable(process.env)) {
+    const modelPlan=await readAiModelPlan(conversation.aiModel,conversation.characterId);if(modelPlan?.length===0)return NextResponse.json({error:'当前角色暂无可用模型，请重新选择模型或联系管理员。'},{status:503});
+    const configuredProviders=modelPlan===null?await readActiveAiProviders():[];usingRealAi=usingRealAi||configuredProviders.length>0||Boolean(modelPlan?.length);
+    if (!isAiChatAvailable({...process.env,OPENAI_API_KEY:usingRealAi?'configured':''})) {
       return NextResponse.json({ error: 'AI 服务未配置，暂时无法重新生成回复。' }, { status: 503 });
     }
 
@@ -84,19 +57,11 @@ export async function POST(
         { status: 429, headers: { 'Retry-After': String(burst.retryAfter) } }
       );
     }
-    const call = await reserveAiCall(authUser.userId, params.id, 'REGENERATE');
+    const call = await reserveAiCall(authUser.userId, params.id, 'REGENERATE', modelPlan?.map(model=>model.key));
     reservedCall=call;
 
     // Read only the context before the target user message. Defer deleting the
     // previous reply until after the replacement has successfully completed.
-    const recent = await db.message.findMany({
-      where: { conversationId: params.id, createdAt: { lt: prompt.createdAt } },
-      orderBy: { createdAt: 'desc' },
-      take: HISTORY_TURNS,
-      select: { role: true, content: true },
-    });
-    const history = recent.reverse();
-
     const abort=new AbortController();let cancelled=false;
     const onAbort=()=>{cancelled=true;abort.abort(new DOMException('Client disconnected','AbortError'));};
     request.signal.addEventListener('abort',onAbort,{once:true});
@@ -107,9 +72,9 @@ export async function POST(
         let failure:unknown;let metrics:AiStreamMetrics={};
         const emit=(data:string)=>{if(cancelled)return;try{controller.enqueue(new TextEncoder().encode(data));}catch{onAbort();}};
         try {
-          if (process.env.OPENAI_API_KEY?.trim()) {
+          if (usingRealAi) {
             assistantContent = await streamOpenAIResponse(
-              controller, conversation.character, history, prompt.content, conversation.aiModel, {signal:abort.signal,onMetrics:value=>{metrics=value}}
+              controller, conversation.character, history, prompt.content, conversation.aiModel, {signal:abort.signal,onMetrics:value=>{metrics=value},providers:configuredProviders,models:modelPlan??undefined}
             );
           } else {
             assistantContent = await streamMockResponse(controller, conversation.character, prompt.content, abort.signal);
@@ -121,19 +86,9 @@ export async function POST(
         } finally {
           try {
             if(cancelled)assistantContent='';
-            if (assistantContent.trim()) {
-              // Atomic replacement: failed upstream calls preserve the original reply.
-              await db.$transaction([
-                db.message.deleteMany({
-                  where: { conversationId: params.id, createdAt: { gt: prompt.createdAt } },
-                }),
-                db.message.create({
-                  data: { conversationId: params.id, role: 'ASSISTANT', content: assistantContent },
-                }),
-                db.conversation.update({ where: { id: params.id }, data: { updatedAt: new Date() } }),
-              ]);
-            }
-            await finishAiCall(call.id,call.startedAt,failure&&aiErrorCode(failure)!=='CANCELLED'?'FAILED':cancelled?'CANCELLED':process.env.OPENAI_API_KEY?.trim()?'SUCCEEDED':'MOCK',metrics,failure?aiErrorCode(failure):cancelled?'CANCELLED':undefined);
+            // The service replaces the reply atomically and leaves the original intact on failure or cancellation.
+            await replaceMessageReply(params.id, prompt.createdAt, assistantContent);
+            await finishAiCall(call.id,call.startedAt,failure&&aiErrorCode(failure)!=='CANCELLED'?'FAILED':cancelled?'CANCELLED':usingRealAi?'SUCCEEDED':'MOCK',metrics,failure?aiErrorCode(failure):cancelled?'CANCELLED':undefined);
             emit('data: [DONE]\n\n');
           } catch (error) {
             await finishAiCall(call.id,call.startedAt,'FAILED',metrics,'PERSISTENCE_ERROR').catch(()=>{});
@@ -156,6 +111,8 @@ export async function POST(
       },
     });
   } catch (error) {
+    if (error instanceof ConversationError) return NextResponse.json({error: error.message}, {status: error.status});
+    if (error instanceof ConversationMessageError) return NextResponse.json({error: error.message}, {status: error.status});
     if(error instanceof AiQuotaError)return NextResponse.json({error:error.message},{status:error.status ?? 429,headers:error.retryAfter>0?{'Retry-After':String(error.retryAfter)}:{}});
     if(reservedCall)await finishAiCall(reservedCall.id,reservedCall.startedAt,'FAILED',{},'PERSISTENCE_ERROR').catch(()=>{});
     logRouteError('POST /api/conversations/[id]/messages/[messageId]/regenerate', error);

@@ -9,7 +9,7 @@ import {chromium} from 'playwright';
 const stamp = `${process.pid}-${Date.now()}`, file = `admin-management-browser-${stamp}.db`;
 const out = path.resolve('artifacts/admin-management-browser', stamp), base = 'http://127.0.0.1:18798';
 await mkdir(out, {recursive: true});
-const env = {...process.env, NODE_ENV: 'production', DATABASE_URL: `file:./${file}`, JWT_SECRET: randomBytes(48).toString('hex'), OPENAI_API_KEY: '', EZFP_ENABLED: 'false', EZFP_REFUNDS_ENABLED: 'false', DISABLE_MOCK_AI: 'true', ALLOW_SIMULATED_PURCHASES: 'false', AI_BUDGET_CIRCUIT_BREAKER: 'false', MODERATOR_USER_IDS: '', PAYMENT_ADMIN_USER_IDS: '', NEXT_DIST_DIR: '.next-build', NEXT_PUBLIC_SITE_URL: base}; delete env.RUST_LOG;
+const env = {...process.env, NODE_ENV: 'production', DATABASE_URL: `file:./${file}`, JWT_SECRET: randomBytes(48).toString('hex'), OPENAI_API_KEY: '', EZFP_ENABLED: 'false', EZFP_REFUNDS_ENABLED: 'false', DISABLE_MOCK_AI: 'true', ALLOW_SIMULATED_PURCHASES: 'false', AI_BUDGET_CIRCUIT_BREAKER: 'false', MODERATOR_USER_IDS: '', PAYMENT_ADMIN_USER_IDS: '', NEXT_DIST_DIR: process.env.NEXT_DIST_DIR?.trim() || '.next-build', NEXT_PUBLIC_SITE_URL: base}; delete env.RUST_LOG;
 Object.assign(process.env, env);
 const dbPath = path.resolve('prisma', file), empty = await open(dbPath, 'wx'); await empty.close();
 const migration = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true});
@@ -25,8 +25,7 @@ try {
     const role = await db.adminRole.findUnique({where: {code}});
     await saveOperator(actors[0].id, {userId: actors[index].id, enabled: true, version: 0, roleIds: [role.id], reason: '浏览器合成验收'});
   }
-  const log = await open(path.join(out, 'server.log'), 'a');
-  try {app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', '18798'], {env, stdio: ['ignore', log.fd, log.fd], windowsHide: true});} finally {await log.close();}
+  app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', '18798'], {env, stdio: 'ignore', windowsHide: true});
   let ready = false;
   for (let i = 0; i < 150; i++) {if (app.exitCode !== null) throw Error('owned app exited'); try {if ((await fetch(base + '/api/admin/access')).status === 401) {ready = true; break;}} catch {} await new Promise(resolve => setTimeout(resolve, 100));}
   assert(ready, 'owned app not ready'); browser = await chromium.launch();
@@ -71,6 +70,16 @@ try {
   checks.push('停用管理身份撤销已登录凭据');
   await owner.page.goto(base + '/admin/audit'); await owner.page.getByRole('heading', {name: '管理操作审计', exact: true}).waitFor(); await owner.page.getByText('撤销合成员工管理访问', {exact: true}).waitFor();
   checks.push('页面展示真实管理变更审计');
+  await owner.page.getByLabel('对象ID',{exact:true}).fill(actors[1].id);
+  await owner.page.getByLabel('动作代码',{exact:true}).fill('SAVE_OPERATOR');
+  const filtered=owner.page.waitForResponse(response=>response.url().includes('/api/admin/audit?')&&response.url().includes('action=SAVE_OPERATOR'));
+  await owner.page.getByRole('button',{name:'筛选审计',exact:true}).click();const filteredResponse=await filtered;assert.equal(filteredResponse.status(),200);
+  const filteredReport=await filteredResponse.json();assert(filteredReport.total>=2);assert(filteredReport.items.every(item=>item.targetId===actors[1].id&&item.action==='SAVE_OPERATOR'));
+  await owner.page.getByText('撤销合成员工管理访问',{exact:true}).waitFor();
+  await owner.page.getByLabel('对象ID',{exact:true}).fill('no-such-audit-target');
+  await owner.page.getByRole('button',{name:'筛选审计',exact:true}).click();await owner.page.getByText('暂无管理操作记录。',{exact:true}).waitFor();
+  await owner.page.getByRole('button',{name:'重置筛选',exact:true}).click();await owner.page.getByText('撤销合成员工管理访问',{exact:true}).waitFor();
+  checks.push('审计对象与动作交集筛选、空结果及重置');
   for (const width of [390, 1280]) {
     await owner.page.setViewportSize({width, height: 900});
     for (const route of ['/admin/operators', '/admin/audit']) {

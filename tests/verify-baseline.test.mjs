@@ -15,7 +15,8 @@ function fixture(fn) {
   fs.mkdirSync(path.join(dir,'prisma/migrations'),{recursive:true});
   write('src/app/api/characters/route.ts','export const GET = 1;');
   write('src/lib/conversations/chat-stream.ts','export const streamMockResponse = 1;');
-  write('src/app/api/coins/purchase/route.ts','function simulationAllowed() {}');
+  write('src/app/api/coins/purchase/route.ts','export async function POST() {}');
+  write('src/lib/payments/purchase-service.ts','function simulationAllowed() { return maySimulatePurchase(env) }');
   write('src/app/api/characters/[id]/comments/route.ts','export const GET = 1;');
   write('tests/runner.ts','export default true;');
   write('public/manifest.webmanifest',JSON.stringify({display:'standalone',icons:[{src:'/a.png'}]}));

@@ -1,7 +1,7 @@
 'use client';
 import { zhText, zhError } from '@/lib/zh-text';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -17,13 +17,18 @@ export default function RegisterPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [policy,setPolicy]=useState<{ageGate:{enabled:boolean;minimumAge:number|null;version:string|null};termsVersion:string|null;privacyVersion:string|null}>({ageGate:{enabled:false,minimumAge:null,version:null},termsVersion:null,privacyVersion:null});
+  const [policyReady,setPolicyReady]=useState(false);
+  const [policyLoadError,setPolicyLoadError]=useState(false);
+  const [ageConfirmed,setAgeConfirmed]=useState(false),[termsAccepted,setTermsAccepted]=useState(false),[privacyAccepted,setPrivacyAccepted]=useState(false);
+  useEffect(()=>{let active=true;void fetch('/api/compliance/registration-policy',{cache:'no-store'}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{if(active){setPolicy(data);setPolicyReady(true);}}).catch(()=>{if(active){setPolicyLoadError(true);setError('无法读取注册确认要求，请刷新页面后重试。');}});return()=>{active=false;};},[]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     if (password.length < 6) { setError(zhText("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")); return; }
     setLoading(true);
-    const result = await register(username, email, password);
+    const result = await register(username, email, password, {ageConfirmed,termsAccepted,privacyAccepted});
     setLoading(false);
     if (result.success) {
       router.push(afterLoginTarget());
@@ -66,6 +71,9 @@ export default function RegisterPage() {
                 className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti"
               />
             </div>
+            {policy.ageGate.enabled&&<label className="flex items-start gap-3 text-sm text-zinc-300"><input type="checkbox" checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)} required className="mt-1"/><span>我确认已年满 {policy.ageGate.minimumAge} 周岁（政策版本：{policy.ageGate.version}）。</span></label>}
+            {policy.termsVersion&&<label className="flex items-start gap-3 text-sm text-zinc-300"><input type="checkbox" checked={termsAccepted} onChange={e=>setTermsAccepted(e.target.checked)} required className="mt-1"/><span>我已阅读并接受服务条款（版本：{policy.termsVersion}）。<Link className="text-purple-400 underline" href="/terms-and-policy">查看政策</Link></span></label>}
+            {policy.privacyVersion&&<label className="flex items-start gap-3 text-sm text-zinc-300"><input type="checkbox" checked={privacyAccepted} onChange={e=>setPrivacyAccepted(e.target.checked)} required className="mt-1"/><span>我已阅读隐私政策（版本：{policy.privacyVersion}）。<Link className="text-purple-400 underline" href="/terms-and-policy">查看政策</Link></span></label>}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5 font-athiti">{zhText("อีเมล")}</label>
               <input
@@ -95,10 +103,10 @@ export default function RegisterPage() {
             </div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading||!policyReady||policyLoadError}
               className="w-full py-3 bg-linear-to-r/srgb from-purple-600 to-pink-600 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 mt-2"
             >
-              {loading ? zhText("กำลังสมัคร...") : zhText("สมัครสมาชิกฟรี 🎉")}
+              {loading ? zhText("กำลังสมัคร...") : policyLoadError ? '注册要求读取失败' : !policyReady ? '正在读取注册要求…' : zhText("สมัครสมาชิกฟรี 🎉")}
             </button>
           </form>
 

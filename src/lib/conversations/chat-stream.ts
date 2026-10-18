@@ -10,6 +10,9 @@ import { logWarning } from '@/lib/logger';
 import { readAiInteger } from '@/lib/ai/config';
 import { allowedModels } from '@/lib/ai/ai-models';
 import type { AiStreamMetrics } from '@/lib/ai/types';
+import type {RuntimeAiModel} from '@/lib/ai/models/runtime-service';
+
+export type RuntimeProvider={id:string;name:string;baseUrl:string;apiKey:string};
 
 /**
  * What a character says when every model in the chain has failed.
@@ -99,19 +102,21 @@ export async function openUpstream(
   systemPrompt: string,
   messages: Array<{ role: string; content: string }>,
   userMessage: string,
-  signal?:AbortSignal
+  signal?:AbortSignal,
+  provider?:RuntimeProvider,
+  modelConfig?:Pick<RuntimeAiModel,'timeoutMs'|'maxOutputTokens'>
 ): Promise<Response & { body: ReadableStream<Uint8Array> }> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-  const maxTokens = Number(process.env.AI_MAX_TOKENS) || 800;
+  const apiKey = provider?.apiKey ?? process.env.OPENAI_API_KEY;
+  const baseUrl = provider?.baseUrl ?? process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1';
+  const maxTokens = modelConfig?.maxOutputTokens ?? (Number(process.env.AI_MAX_TOKENS) || 800);
 
   const connect = new AbortController();
-  const timer=setTimeout(()=>connect.abort(new AiStreamError('CONNECT_TIMEOUT')),readAiInteger('AI_CONNECT_TIMEOUT_MS',10000,100,120000));
+  const timer=setTimeout(()=>connect.abort(new AiStreamError('CONNECT_TIMEOUT')),modelConfig?.timeoutMs??readAiInteger('AI_CONNECT_TIMEOUT_MS',10000,100,120000));
   let response:Response;
   try { response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     signal:signal ? AbortSignal.any([signal,connect.signal]) : connect.signal,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    redirect:'error',headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model,
       stream: true,
@@ -175,7 +180,7 @@ const ROLEPLAY_DIRECTION = [
  * artificially coy with an adult reader — that is what the flag is for.
  *
  * The hard limits stay in place and are stated explicitly rather than left implicit: the
- * moderation taxonomy in src/lib/reports.ts exists because these cases are real, and the
+ * moderation taxonomy in src/lib/community/report-types.ts exists because these cases are real, and the
  * upstream provider enforces its own policy regardless of what we ask for here.
  */
 const ADULT_DIRECTION = ['该角色标记为成人内容（18+）。遵守模型服务方的内容规则。','禁止涉及未成年人的性内容；不得冒充真实人物；不得美化未经同意的侵害。'].join('\n');
@@ -211,7 +216,7 @@ export async function streamOpenAIResponse(
   messages: Array<{ role: string; content: string }>,
   userMessage: string,
   preferredModel?: string | null,
-  options:{signal?:AbortSignal;onMetrics?:(metrics:AiStreamMetrics)=>void}={}
+  options:{signal?:AbortSignal;onMetrics?:(metrics:AiStreamMetrics)=>void;providers?:RuntimeProvider[];models?:RuntimeAiModel[]}={}
 ): Promise<string> {
   const deadline=new AbortController();
   const timer=setTimeout(()=>deadline.abort(new AiStreamError('REQUEST_TIMEOUT')),readAiInteger('AI_REQUEST_TIMEOUT_MS',60000,100,300000));
@@ -224,23 +229,27 @@ export async function streamOpenAIResponse(
     let response:(Response & {body:ReadableStream<Uint8Array>})|undefined;
     const retries=readAiInteger('AI_MAX_RETRIES',1,0,2);
     let lastError:unknown=new AiStreamError('UPSTREAM_ERROR');
-    for(const model of modelChain(preferredModel)){
-      for(let attempt=0;attempt<=retries;attempt++){
-        signal.throwIfAborted();metrics.model=model;metrics.attempts=(metrics.attempts||0)+1;
-        try{response=await openUpstream(model,buildSystemPrompt(character),messages,userMessage,signal);break;}
+    const configured=options.providers??[];
+    const providers=configured.length?[
+      ...configured,
+      ...(process.env.OPENAI_API_KEY?.trim()?[{id:'environment',name:'环境配置',baseUrl:process.env.OPENAI_BASE_URL||'https://api.openai.com/v1',apiKey:process.env.OPENAI_API_KEY}]:[]),
+    ]:[{id:'environment',name:'环境配置',baseUrl:process.env.OPENAI_BASE_URL||'https://api.openai.com/v1',apiKey:process.env.OPENAI_API_KEY||''}];
+    const candidates=options.models?.length?options.models.map(model=>({model:model.modelCode,provider:model.provider,config:model,retries:model.maxRetries})):modelChain(preferredModel).flatMap(model=>providers.map(provider=>({model,provider,config:undefined,retries})));
+    for(const candidate of candidates){
+      for(let attempt=0;attempt<=candidate.retries;attempt++){
+        signal.throwIfAborted();metrics.model=candidate.model;metrics.modelKey=candidate.config?.key;metrics.attempts=(metrics.attempts||0)+1;
+        try{response=await openUpstream(candidate.model,buildSystemPrompt(character),messages,userMessage,signal,candidate.provider,candidate.config);break;}
         catch(error){
           if(signal.aborted)throw signal.reason;
           lastError=error;
           const status=error instanceof AiStreamError?error.status:undefined;
           const transient=status===429||(status!==undefined&&status>=500)||aiErrorCode(error)==='UPSTREAM_NETWORK'||aiErrorCode(error)==='CONNECT_TIMEOUT';
-          if(!transient||attempt===retries)break;
+          if(!transient||attempt===candidate.retries)break;
           // Only retry before any reply is exposed; never replay a partial answer.
           await new Promise(resolve=>setTimeout(resolve,100));
         }
       }
       if(response)break;
-      // Bad credentials or invalid requests will not improve on another model.
-      if(lastError instanceof AiStreamError && lastError.status!==undefined && lastError.status>=400 && lastError.status<500 && lastError.status!==429)throw lastError;
     }
     if(!response)throw lastError;
     reader=response.body.getReader();const decoder=new TextDecoder();let buffer='',ended=false,finished=false;

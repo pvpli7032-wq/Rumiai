@@ -1,0 +1,116 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import {rmSync} from 'node:fs';
+import path from 'node:path';
+import bcrypt from 'bcryptjs';
+
+const file = `circle-management-${process.pid}-${Date.now()}.db`;
+process.env.DATABASE_URL = `file:./${file}`; process.env.UPLOADS_DIRECTORY = path.resolve('artifacts', file, 'uploads');
+process.env.JWT_SECRET = randomUUID() + randomUUID(); process.env.MODERATOR_USER_IDS = ''; process.env.PAYMENT_ADMIN_USER_IDS = '';
+const env = {...process.env}; delete env.RUST_LOG;
+const migration = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true}); assert.equal(migration.status, 0, migration.stdout + migration.stderr);
+const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
+const {bootstrapOwner, saveRole, saveOperator} = await import('../src/lib/admin/management-service.ts');
+const {saveManagedCircle, readManagedCircle, listManagedCircles} = await import('../src/lib/circles/management-service.ts');
+const {manageCircleMember, listManagedCircleMembers} = await import('../src/lib/circles/membership-management.ts');
+const {createCircle, listCircles, readCircle, changeCircleSubscription} = await import('../src/lib/circles/service.ts');
+const {hasCircleMembership} = await import('../src/lib/posts/service.ts');
+const {exportAccountData} = await import('../src/lib/accounts/data-export.ts');
+const {closeAccount} = await import('../src/lib/accounts/closure-service.ts');
+const {GET: managementList} = await import('../src/app/api/circles/management/route.ts');
+const {signToken} = await import('../src/lib/auth.ts');
+const users = [];
+const password = randomUUID();
+for (const username of ['owner', 'manager', 'reader', 'writer', 'member-manager', 'ordinary', 'departing-member']) users.push(await db.user.create({data: {username, email: username + '@example.invalid', passwordHash: await bcrypt.hash(password, 10)}}));
+const [owner, manager, reader, writer, memberManager, ordinary, departing] = users;
+await bootstrapOwner(owner.email);
+for (const [user, permissions] of [[manager, ['community.read', 'community.write', 'community.members.manage']], [reader, ['community.read']], [writer, ['community.read', 'community.write']], [memberManager, ['community.read', 'community.members.manage']]]) {
+  const role = await saveRole(owner.id, {name: user.username, permissions, reason: '合成社区权限'});
+  await saveOperator(owner.id, {userId: user.id, roleIds: [role.id], version: 0, enabled: true, reason: '合成运营身份'});
+}
+const denied = (fn, status) => assert.rejects(fn, error => error.status === status);
+const create = (name = '站点圈子') => saveManagedCircle(manager.id, null, {content: {name, description: 'SYNTHETIC_PRIVATE_DESCRIPTION', tags: '原创'}, reason: '合成创建'});
+const apply = (circle, action, content) => saveManagedCircle(manager.id, circle.id, {action, content, updatedAt: circle.updatedAt.toISOString(), reason: '合成状态操作'});
+let circle;
+test.after(async () => {await db.$disconnect(); for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), {force: true});});
+
+test('management is private and circle writes and member actions require distinct read-dependent grants', async () => {
+  assert.equal((await managementList(new Request('http://localhost/api/circles/management'))).status, 401);
+  const token = await signToken({userId: ordinary.id, email: ordinary.email});
+  assert.equal((await managementList(new Request('http://localhost/api/circles/management', {headers: {Authorization: 'Bearer ' + token}}))).status, 403);
+  circle = await create();
+  assert.equal((await readManagedCircle(reader.id, circle.id)).id, circle.id);
+  await denied(() => saveManagedCircle(reader.id, null, {content: {name: '无权', description: '无权'}, reason: '测试'}), 403);
+  await denied(() => saveManagedCircle(memberManager.id, circle.id, {action: 'RESTORE', updatedAt: circle.updatedAt.toISOString(), reason: '测试'}), 403);
+  await denied(() => manageCircleMember(writer.id, circle.id, ordinary.id, {action: 'BLOCK', updatedAt: new Date().toISOString(), reason: '测试'}), 403);
+  await denied(() => saveRole(owner.id, {name: '无读取能力', permissions: ['community.write'], reason: '测试'}), 400);
+});
+test('site ownership, publication, recommendations and stale edits affect the public circle list', async () => {
+  assert.equal(circle.ownerId, null); assert.equal(circle.status, 'HIDDEN'); assert(!JSON.stringify(await listCircles(null, {})).includes(circle.id));
+  await denied(() => apply(circle, 'FEATURE'), 409);
+  await denied(() => saveManagedCircle(manager.id, null, {content: {name: '注入', description: '注入', ownerId: manager.id}, reason: '拒绝归属注入'}), 400);
+  const personal = await createCircle(ordinary.id, {name: '个人圈子', description: '个人介绍'});
+  const personalBefore = await readManagedCircle(manager.id, personal.id);
+  const personalEdited = await apply(personalBefore, 'SAVE', {name: '个人圈子修订', description: '管理员修订', tags: ''}); assert.equal(personalEdited.ownerId, ordinary.id);
+  circle = await apply(circle, 'RESTORE'); circle = await apply(circle, 'FEATURE');
+  const visible = await listCircles(null, {}); assert.equal(visible[0].id, circle.id); assert.equal(visible[0].owner, null); assert.equal(visible[0].isFeatured, true);
+  const stale = circle; circle = await apply(circle, 'HIDE'); assert.equal(circle.isFeatured, false);
+  await denied(() => readCircle(null, circle.id), 404);
+  await denied(() => apply(stale, 'RESTORE'), 409);
+  assert(!JSON.stringify(await listCircles(null, {})).includes(circle.id));
+  circle = await apply(circle, 'RESTORE');
+  assert.equal((await readCircle(null, circle.id)).id, circle.id);
+  assert(!JSON.stringify(await db.adminAuditLog.findMany()).includes('SYNTHETIC_PRIVATE_DESCRIPTION'));
+});
+test('member removal permits rejoining, blocks prevent it, and unblocking requires explicit user consent to rejoin', async () => {
+  await changeCircleSubscription(ordinary.id, circle.id, true);
+  let row = (await listManagedCircleMembers(reader.id, circle.id, {})).items[0]; assert(!JSON.stringify(row).includes(ordinary.email));
+  await manageCircleMember(memberManager.id, circle.id, ordinary.id, {action: 'REMOVE', updatedAt: row.updatedAt.toISOString(), reason: '合成移除'});
+  await changeCircleSubscription(ordinary.id, circle.id, true);
+  row = (await listManagedCircleMembers(reader.id, circle.id, {})).items[0];
+  await manageCircleMember(memberManager.id, circle.id, ordinary.id, {action: 'BLOCK', updatedAt: row.updatedAt.toISOString(), reason: '合成限制'});
+  assert.equal(await hasCircleMembership(circle.id, ordinary.id), false);
+  await denied(() => changeCircleSubscription(ordinary.id, circle.id, true), 403);
+  const restricted = (await listManagedCircleMembers(reader.id, circle.id, {status: 'BLOCKED'})).items[0];
+  assert.equal(restricted.reason, '合成限制');
+  await denied(() => manageCircleMember(memberManager.id, circle.id, ordinary.id, {action: 'UNBLOCK', updatedAt: new Date(restricted.updatedAt.getTime() - 1).toISOString(), reason: '过期'}), 409);
+  await manageCircleMember(memberManager.id, circle.id, ordinary.id, {action: 'UNBLOCK', updatedAt: restricted.updatedAt.toISOString(), reason: '合成解除'});
+  assert.equal(await hasCircleMembership(circle.id, ordinary.id), false);
+  await changeCircleSubscription(ordinary.id, circle.id, true);
+});
+test('member restrictions are in own export, clear at closure and cannot be bypassed by stale or revoked operator calls', async () => {
+  await changeCircleSubscription(departing.id, circle.id, true);
+  const member = (await listManagedCircleMembers(manager.id, circle.id, {q: departing.username})).items[0];
+  await manageCircleMember(manager.id, circle.id, departing.id, {action: 'BLOCK', updatedAt: member.updatedAt.toISOString(), reason: '合成限制'});
+  const exported = await exportAccountData(departing.id); assert.equal(exported.circleRestrictions.length, 1); assert.equal(exported.circleRestrictions[0].reason, '合成限制'); assert(!Object.hasOwn(exported.circleRestrictions[0], 'actorId'));
+  await closeAccount(departing.id, {password, confirmation: '注销我的账号', acknowledgeRetention: true});
+  assert.equal(await db.circleMembershipRestriction.count({where: {userId: departing.id}}), 0); assert.equal((await readManagedCircle(manager.id, circle.id)).name, '站点圈子');
+  const operator = await db.adminOperator.findUnique({where: {userId: memberManager.id}, include: {assignments: true}});
+  await saveOperator(owner.id, {userId: memberManager.id, roleIds: operator.assignments.map(item => item.roleId), version: operator.version, enabled: false, reason: '撤销管理身份'});
+  await denied(() => listManagedCircleMembers(memberManager.id, circle.id, {}), 403);
+});
+test('stored circle and member lists paginate with status, ownership and exact identity filters', async () => {
+  for (let i = 0; i < 26; i++) await create('分页_' + i);
+  const first = await listManagedCircles(reader.id, {q: '分页_', status: 'HIDDEN', ownership: 'SITE', featured: 'NO'}), second = await listManagedCircles(reader.id, {q: '分页_', page: 2});
+  assert.equal(first.total, 26); assert.equal(first.items.length, 25); assert.equal(second.items.length, 1);
+  const members = Array.from({length: 26}, (_, i) => ({id: randomUUID(), username: '分页成员_' + i, email: `paged-${i}@example.invalid`, passwordHash: 'synthetic-only'}));
+  await db.user.createMany({data: members}); await db.circleMember.createMany({data: members.map(user => ({circleId: circle.id, userId: user.id}))});
+  const firstMembers = await listManagedCircleMembers(reader.id, circle.id, {q: '分页成员_'}), secondMembers = await listManagedCircleMembers(reader.id, circle.id, {q: '分页成员_', page: 2});
+  assert.equal(firstMembers.total, 26); assert.equal(firstMembers.items.length, 25); assert.equal(secondMembers.items.length, 1);
+  await db.circle.createMany({data: Array.from({length: 101}, (_, i) => ({name: '公开目录_' + i, description: '合成目录内容', status: 'ACTIVE'}))});
+  assert(!(await listCircles(null, {})).some(item => item.id === circle.id));
+  assert.equal((await readCircle(null, circle.id)).id, circle.id);
+  for (const query of [{status: 'BAD'}, {ownership: 'BAD'}, {page: NaN}]) await denied(() => listManagedCircles(reader.id, query), 400);
+  await denied(() => listManagedCircleMembers(reader.id, circle.id, {status: 'ALL'}), 400);
+});
+test('operator closure preserves every site circle and erases only personally authored circle content', async () => {
+  const select = {id: true, name: true, description: true, status: true, isFeatured: true};
+  const before = await db.circle.findMany({where: {ownerId: null}, select, orderBy: {id: 'asc'}});
+  const personal = await createCircle(manager.id, {name: '运营个人圈子', description: '个人内容'});
+  await closeAccount(manager.id, {password, confirmation: '注销我的账号', acknowledgeRetention: true});
+  assert.deepEqual(await db.circle.findMany({where: {ownerId: null}, select, orderBy: {id: 'asc'}}), before);
+  assert.equal((await db.circle.findUnique({where: {id: personal.id}})).description, '');
+  await denied(() => listManagedCircles(manager.id, {}), 403);
+});

@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      # A throwaway database per run: the suite writes real rows, so it must never
+      # point at anything shared. The signing secret is generated in the first step.
+      DATABASE_URL: file:./ci.db
+      # NODE_ENV is deliberately NOT set here. Exporting NODE_ENV=development into
+      # `next build` makes it emit the production server runtime while loading the
+      # development React build, and prerendering then dies with a null useContext
+      # and a bogus "<Html> should not be imported outside of pages/_document".
+      # `next build` picks production on its own, and `next dev` picks development.
+      TEST_BASE_URL: http://localhost:3000
+      # No AI key on CI. The development test server uses a labeled mock streamer, which
+      # keeps the SSE contract identical without spending the shared daily quota.
+      AI_MODEL: ci-mock
+      # Development test server only. Production build still blocks demo currency.
+      ALLOW_SIMULATED_PURCHASES: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Validate the Node.js version required by the implementation plan.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Generate isolated auth secret
+        run: node -e "const secret = require('crypto').randomBytes(48).toString('hex'); console.log('::add-mask::' + secret); require('fs').appendFileSync(process.env.GITHUB_ENV, 'JWT_SECRET=' + secret + '\n')"
+
+      - run: npm ci
+
+      - name: Apply migrations
+        run: |
+          npx prisma migrate deploy
+          npx prisma generate
+
+      - name: Seed
+        run: |
+          npm run db:seed
+          npm run db:seed:site
+
+      - name: Prepare isolated moderation reviewer
+        run: |
+          node --input-type=module <<'NODE'
+          import { PrismaClient } from '@prisma/client';
+          import bcrypt from 'bcryptjs';
+          import { randomBytes } from 'node:crypto';
+          import { appendFileSync } from 'node:fs';
+          import { seedHttpFixtures } from './tests/helpers/seed-http-fixtures.mjs';
+          const db = new PrismaClient();
+          const password = randomBytes(24).toString('hex');
+          console.log('::add-mask::' + password);
+          try {
+            await seedHttpFixtures(db);
+            const user = await db.user.create({ data: { username: 'ci-reviewer', email: 'reviewer@example.invalid', passwordHash: await bcrypt.hash(password, 10) } });
+            appendFileSync(process.env.GITHUB_ENV, `MODERATOR_USER_IDS=${user.id}\nTEST_REVIEWER_EMAIL=${user.email}\nTEST_REVIEWER_PASSWORD=${password}\n`);
+          } finally { await db.$disconnect(); }
+          NODE
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Domain, migration, safety and recovery checks
+        run: |
+          npm run test:m0
+          npm run test:auth-config
+          npm run test:accounts:registration
+          npm run test:admin:access
+          npm run test:admin:management
+          npm run test:accounts:management
+          npm run test:community:reports
+          npm run test:conversations:service
+          npm run test:conversations:messages
+          npm run test:creators:follow
+          npm run test:discovery:read
+          npm run test:middleware:locale
+          npm run test:characters:review
+          npm run test:characters:management
+          npm run test:circles:service
+          npm run test:circles:management
+          npm run test:database:upgrade
+          npm run test:posts:management
+          npm run test:site-content:management
+          npm run test:ai:providers
+          npm run test:ai:models
+          npm run test:ai:costs
+          npm run test:payments:merchants
+          npm run test:payments:orders
+          npm run test:payments:reconciliation
+          npm run test:payments:alerts
+          npm run test:analytics
+          npm run test:growth
+          npm run test:operations
+          npm run test:m2:context
+          npm run test:m4:ezfp
+          npm run test:m4:budget
+          npm run test:m4:budget-guard
+          npm run test:m4:metrics
+          npm run test:m5:export
+          npm run test:m5:closure
+          npm run test:m5:backup
+          npm run test:m5:state-backup
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify restored state runs as an isolated production instance
+        run: NEXT_DIST_DIR=.next npm run test:m5:recovery-runtime
+
+      - name: Verify production launch guards
+        run: npm run test:production:guards
+
+      - name: Start server
+        run: |
+          npm run dev > dev.log 2>&1 &
+          for i in $(seq 1 60); do
+            if grep -q "Ready in" dev.log; then exit 0; fi
+            if grep -qE "^ *⨯|Error:" dev.log; then cat dev.log; exit 1; fi
+            sleep 2
+          done
+          echo "server did not become ready"; cat dev.log; exit 1
+
+      - name: E2E suite
+        run: npm test
+
+      - name: Verify the prompt sent to the model
+        run: node scripts/verify-ai-context.mjs
+
+      - name: Verify rate limiting
+        run: node scripts/verify-rate-limit.mjs
+
+      - name: Stress the coin economy
+        run: STRESS_ROUNDS=3 node scripts/stress-economy.mjs
+
+      - name: Server log on failure
+        if: failure()
+        run: tail -200 dev.log || true

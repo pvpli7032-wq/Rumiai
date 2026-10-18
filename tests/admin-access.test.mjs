@@ -27,7 +27,7 @@ test('anonymous, ordinary, moderation, finance and dual roles retain independent
  process.env.MODERATOR_USER_IDS=` ${users[1].id},${users[3].id} `;
  process.env.PAYMENT_ADMIN_USER_IDS=` ${users[2].id},${users[3].id} `;
  const anonymous=await GET(request());assert.equal(anonymous.status,401);
- const expected=[{moderation:false,finance:false},{moderation:true,finance:false},{moderation:false,finance:true},{moderation:true,finance:true}];
+ const expected=[{moderation:false,finance:false,analytics:false,growth:false,operations:false,compliance:false},{moderation:true,finance:false,analytics:false,growth:false,operations:false,compliance:false},{moderation:false,finance:true,analytics:false,growth:false,operations:false,compliance:false},{moderation:true,finance:true,analytics:false,growth:false,operations:false,compliance:false}];
  for(let i=0;i<users.length;i++){
   const req=request(users[i]);const response=await GET(req);
   assert.equal(response.status,200);assert.deepEqual(await response.json(),expected[i]);
@@ -38,7 +38,7 @@ test('anonymous, ordinary, moderation, finance and dual roles retain independent
 });
 test('revoking configured privileges affects the same token immediately',async()=>{
  process.env.MODERATOR_USER_IDS='';process.env.PAYMENT_ADMIN_USER_IDS='';
- const req=request(users[3]);assert.deepEqual(await (await GET(req)).json(),{moderation:false,finance:false});
+ const req=request(users[3]);assert.deepEqual(await (await GET(req)).json(),{moderation:false,finance:false,analytics:false,growth:false,operations:false,compliance:false});
  assert.equal((await getFinanceAdmin(req)).status,403);assert.equal(await getModerator(req),null);
 });
 test('retired credentials cannot obtain administration capabilities',async()=>{
