@@ -1,25 +1,28 @@
-import { NextResponse } from 'next/server';
-import { getFinanceAdmin } from '@/lib/payments/finance-auth';
-import { readPackageManagement, createManagedPackage, PackageManagementError } from '@/lib/coins/package-management';
-import { logRouteError } from '@/lib/logger';
+import {NextResponse} from 'next/server';
+import {getFinanceAdmin} from '@/lib/payments/finance-auth';
+import {readPackageManagement, createManagedPackage} from '@/lib/coins/package-management';
+import {apiError, badRequest, jsonError, privateHeaders} from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const access = await getFinanceAdmin(request);
-    if (!access.user) return NextResponse.json({ error: access.error }, { status: access.status });
-    return NextResponse.json(await readPackageManagement(), { headers: { 'Cache-Control': 'private, no-store' } });
-  } catch (error) { logRouteError('GET /api/admin/finance/packages', error); return NextResponse.json({ error: '套餐管理加载失败。' }, { status: 500 }); }
+    if (!access.user) return apiError(access.status, access.error);
+    return NextResponse.json(await readPackageManagement(), {headers: privateHeaders});
+  } catch (error) {
+    return jsonError(error, 'GET /api/admin/finance/packages', '套餐管理加载失败。');
+  }
 }
+
 export async function POST(request: Request) {
   try {
     const access = await getFinanceAdmin(request, 'finance.packages.write');
-    if (!access.user) return NextResponse.json({ error: access.error }, { status: access.status });
+    if (!access.user) return apiError(access.status, access.error);
     let body: unknown;
-    try { body = await request.json(); } catch { return NextResponse.json({ error: '套餐数据格式错误。' }, { status: 400 }); }
-    return NextResponse.json(await createManagedPackage(access.user.userId, body), { status: 201 });
+    try { body = await request.json(); } catch { return badRequest('套餐数据格式错误。'); }
+    return NextResponse.json(await createManagedPackage(access.user.userId, body), {status: 201, headers: privateHeaders});
   } catch (error) {
-    if (error instanceof PackageManagementError) return NextResponse.json({ error: error.message }, { status: error.status });
-    logRouteError('POST /api/admin/finance/packages', error); return NextResponse.json({ error: '套餐创建失败。' }, { status: 500 });
+    return jsonError(error, 'POST /api/admin/finance/packages', '套餐创建失败。');
   }
 }

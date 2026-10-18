@@ -1,15 +1,13 @@
 import {NextResponse} from 'next/server';
-import {getModerator} from '@/lib/moderator';
-import {readCharacterReviewQueue, CharacterReviewError} from '@/lib/characters/review-service';
-import {logRouteError} from '@/lib/logger';
+import {readCharacterReviewQueue} from '@/lib/characters/review-service';
+import {forbidden, jsonError, privateHeaders, requireAdmin, unauthorized} from '@/lib/http';
+
 export async function GET(request: Request) {
   try {
-    const actor = await getModerator(request, 'moderation.read');
-    if (!actor) return NextResponse.json({error: '此页面仅限审核人员访问。'}, {status: 403});
-    return NextResponse.json(await readCharacterReviewQueue(actor.userId), {headers: {'Cache-Control': 'private, no-store'}});
+    const access = await requireAdmin(request, 'moderation.read');
+    if (!access.ok) return access.reason === 'anonymous' ? unauthorized() : forbidden('此页面仅限审核人员访问。');
+    return NextResponse.json(await readCharacterReviewQueue(access.user.userId), {headers: privateHeaders});
   } catch (error) {
-    if (error instanceof CharacterReviewError) return NextResponse.json({error: error.message}, {status: error.status});
-    logRouteError('GET moderation characters', error);
-    return NextResponse.json({error: '审核列表加载失败。'}, {status: 500});
+    return jsonError(error, 'GET /api/admin/moderation/characters', '审核列表加载失败。');
   }
 }

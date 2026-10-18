@@ -1,18 +1,16 @@
-import { NextResponse } from 'next/server';
-import { getModerator } from '@/lib/moderator';
-import { listCommunityAppeals, ModerationReadError } from '@/lib/community/moderation-read-service';
-import { logRouteError } from '@/lib/logger';
+import {NextResponse} from 'next/server';
+import {listCommunityAppeals} from '@/lib/community/moderation-read-service';
+import {forbidden, jsonError, privateHeaders, requireAdmin, unauthorized} from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  if (!await getModerator(request, 'moderation.read')) return NextResponse.json({error: '此队列仅限审核人员访问。'}, {status: 403});
+  const access = await requireAdmin(request, 'moderation.read');
+  if (!access.ok) return access.reason === 'anonymous' ? unauthorized() : forbidden('此队列仅限审核人员访问。');
   const status = new URL(request.url).searchParams.get('status') || 'OPEN';
   try {
-    return NextResponse.json(await listCommunityAppeals(status), {headers: {'Cache-Control': 'private, no-store'}});
+    return NextResponse.json(await listCommunityAppeals(status), {headers: privateHeaders});
   } catch (error) {
-    if (error instanceof ModerationReadError) return NextResponse.json({error: error.message}, {status: error.status});
-    logRouteError('GET /api/admin/moderation/appeals', error);
-    return NextResponse.json({error: '申诉队列加载失败。'}, {status: 500});
+    return jsonError(error, 'GET /api/admin/moderation/appeals', '申诉队列加载失败。');
   }
 }

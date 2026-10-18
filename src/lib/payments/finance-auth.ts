@@ -1,13 +1,14 @@
-import { getAuthUser } from '@/lib/auth';
 import {hasAdminPermission} from '@/lib/admin/authorization';
+import {requireAdmin} from '@/lib/http/auth';
 
 export function isFinanceAdmin(userId: string) {
   return hasAdminPermission(userId, 'finance.read');
 }
 
+/** Thin wrapper over the route layer's permission check; the shape is kept for existing callers and tests. */
 export async function getFinanceAdmin(request: Request, permission: 'finance.read' | 'finance.packages.write' | 'finance.refunds.request' | 'finance.refunds.approve' | 'finance.refunds.execute' | 'finance.reconciliation.import' = 'finance.read') {
-  const user = await getAuthUser(request);
-  if (!user) return { user: null, status: 401, error: '请先登录。' } as const;
-  if (!await hasAdminPermission(user.userId, permission)) return { user: null, status: 403, error: '当前账号没有此财务操作权限。' } as const;
-  return { user, status: 200, error: '' } as const;
+  const access = await requireAdmin(request, permission);
+  if (access.ok) return {user: access.user, status: 200, error: ''} as const;
+  if (access.reason === 'anonymous') return {user: null, status: 401, error: '请先登录。'} as const;
+  return {user: null, status: 403, error: '当前账号没有此财务操作权限。'} as const;
 }

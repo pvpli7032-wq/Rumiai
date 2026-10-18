@@ -1,14 +1,25 @@
 import {NextResponse} from 'next/server';
-import {getAuthUser} from '@/lib/auth';
-import {readManagedCharacterModels,saveManagedCharacterModels} from '@/lib/characters/model-access-service';
-import {managementError,privateHeaders} from '../../_response';
+import {readManagedCharacterModels, saveManagedCharacterModels} from '@/lib/characters/model-access-service';
+import {jsonError, privateHeaders, requireUser, unauthorized} from '@/lib/http';
 
-type Context={params:Promise<{id:string}>};
-export async function GET(request:Request,context:Context){
-  try{const actor=await getAuthUser(request);if(!actor)return NextResponse.json({error:'请先登录。'},{status:401,headers:privateHeaders});return NextResponse.json(await readManagedCharacterModels(actor.userId,(await context.params).id),{headers:privateHeaders});}
-  catch(error){return managementError(error,'GET /api/admin/characters/[id]/models');}
+type Context = {params: Promise<{id: string}>};
+
+export async function GET(request: Request, context: Context) {
+  try {
+    const actor = await requireUser(request);
+    if (!actor) return unauthorized();
+    return NextResponse.json(await readManagedCharacterModels(actor.userId, (await context.params).id), {headers: privateHeaders});
+  } catch (error) {
+    return jsonError(error, 'GET /api/admin/characters/[id]/models', '角色管理操作失败，请稍后重试。');
+  }
 }
-export async function PUT(request:Request,context:Context){
-  try{const actor=await getAuthUser(request);if(!actor)return NextResponse.json({error:'请先登录。'},{status:401,headers:privateHeaders});return NextResponse.json(await saveManagedCharacterModels(actor.userId,(await context.params).id,await request.json().catch(()=>null)),{headers:privateHeaders});}
-  catch(error){return managementError(error,'PUT /api/admin/characters/[id]/models');}
+
+export async function PUT(request: Request, context: Context) {
+  try {
+    const actor = await requireUser(request);
+    if (!actor) return unauthorized();
+    return NextResponse.json(await saveManagedCharacterModels(actor.userId, (await context.params).id, await request.json().catch(() => null)), {headers: privateHeaders});
+  } catch (error) {
+    return jsonError(error, 'PUT /api/admin/characters/[id]/models', '角色管理操作失败，请稍后重试。');
+  }
 }
