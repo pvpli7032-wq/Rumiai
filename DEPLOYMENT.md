@@ -285,3 +285,17 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 测试：新增 `test:coins:ledger`（3 项：匿名 401 与错误体、余额与首充判定、跨用户隔离、游标分页不重复）。服务器发布目录 17 个套件 **138 项断言全绿**；隔离库构建 46 页 / 129 接口；3106 预启动 38 项状态码全符合预期。
 
 线上实测：`/shop`、`/shop/ledger`、`/zh` 均 200；`/api/coins/ledger` 匿名 401 + `cache-control: private, no-store` + `{error, code}`；新文案（共到账 / 最划算 / 余额与流水 / 金币流水 / 首充提示）全部进了前端产物；PM2 error.log 零错误。
+
+## 2026-10-18 阶段 8 收口发布
+
+当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261018-phase8`（源码 = `9a8076c`），`BUILD_ID=LxBR3VgZIPlL4MUVD6myz`；回滚位 `-shop`、`-wizard`、`-fixes` 保留。无新增迁移，生产库 45 条。
+
+**兼容期结束**：删除 `/api/finance`、`/api/moderation`、`/api/accounts|characters|circles/management` 五条重写与 `/finance`、`/moderation` 页面跳转；`maintenance-routing.ts` 的免维护拦截白名单收窄为 `/api/admin`。产物路由清单实测：`redirects` 仅剩框架自带的尾斜杠归一化，`beforeFiles` 只有 `/uploads/:name`，`afterFiles` 为空。线上 `/finance`、`/moderation`、`/api/finance/orders`、`/api/accounts/management` 全部 404；`/api/admin/*` 匿名仍是 401。
+
+**令牌收口**：新增 `--brand-strong`、`--brand-accent-1/2`、`--brand-gradient-accent`，组件中 62 处品牌色字面量与内联渐变改为令牌类名。十六进制只留在 `globals.css`（令牌定义）与 `lib/site-content/brand-defaults.ts`（服务端默认值）。
+
+**完成定义门禁**：新增 `npm run verify:done`，把计划书第 7 章八条硬指标做成脚本，白名单在代码里写明理由。服务器发布目录实测 **8/8 通过**（`DONE_CHECK=0`）。它抓到的第一个问题就是自己：文档里出现了旧品牌名，改的是措辞而不是白名单。
+
+**前后台隔离**：个人页原来引用 `components/admin/admin-entry.tsx`，现改为前台自己的 `components/admin-entry.tsx`（读 `/api/admin/session` 判断可见性）；`components/admin/` 不再被前台引用。
+
+验收：`verify:done` 8/8、`verify:build` 通过（`sqlite_pragmas_failed=0`）、17 个套件 138 项断言全绿、3107 预启动 13×200 / 17×401 / 8×404（旧前缀按预期变 404）。线上 `/zh`、`/discover`、`/shop`、`/shop/ledger`、`/creator`、`/admin`、`/admin/finance` 均 200，PM2 error.log 零错误。
