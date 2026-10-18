@@ -255,3 +255,13 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 1. **构建期 SQLite 锁竞争（P2010/P1008）**：根因是 `src/lib/db.ts` 先切 `journal_mode = WAL` 再设 `busy_timeout`。切换 WAL 需要排他锁，而这时还没有等待预算，构建期 116 页并发连接一抢就失败，连接退回回滚日志，预渲染查询随后超时。现在顺序改为先 `busy_timeout = 8000`、再切 WAL，切换失败按 120/240/360ms 退避重试 4 次；`scripts/start-production.mjs` 在启动 `next start` 之前用 `node:sqlite` 把库文件设成 WAL（WAL 是文件级设置，设一次后续连接直接继承）；`scripts/verify-production-build.mjs` 在 `migrate deploy` 之后、`next build` 之前对隔离库做同样处理。连续两次 `verify:build` 均通过、`sqlite_pragmas_failed` 为 0。
 2. **健康检查单元指向旧发布目录**：脚本本身没有任何项目依赖，现固定为 `/www/wwwroot/khui-ai/shared/bin/check-site-health.mjs`，unit 的 `WorkingDirectory` 改为 `shared`。`systemctl daemon-reload` + 重启 timer 后实测 `site_health_ok`。以后切换发布不用再改 unit，`deploy/baota/khui-ai-health.service` 已同步。
 3. **泰语落地页沿用英文**：补 `LANDING_TH`，`/th` 现在输出泰语价值主张、三步、示例、合规与 FAQ；仍建议上线前请母语同事过一遍用词。
+
+## 2026-10-18 创作表单改分步向导
+
+`creator/creator-form.tsx` 原来是「五个分区一次性铺开 + 右侧分区轨 + 滚动联动」的长表单，现在改成真正的分步向导：一次只渲染当前步骤，底部固定「上一步 / 第 N 步 / 下一步」，最后一步才出现提交按钮（移动端底栏同样处理）。
+
+每一步都有独立闸门：身份要求名称与一句话简介、个性要求至少 40 字描述、开场要求开场白、标签要求至少一个、发布步骤在申请公开时要求版权声明。不满足就停在原地并给出中文提示，不会走到最后一步才发现缺项。
+
+滚动联动（scroll spy）必须一起删：向导一次只挂载一个分区，滚动时它会把 active 依据「第一个分区」重置，导致每滚动一次就弹回第一步；`sectionRefs` / `scrollRoot` / `Card.refFn` 也随之移除，不留死代码。
+
+部署备注：本轮发布期间 SSH 短时间被服务器限流，表现为 `Connection closed by 43.242.194.115 port 22`（站点本身正常，HTTPS 200）。恢复后重试即可，不是发布失败。
