@@ -39,7 +39,7 @@ npm-debug.log*
 Thumbs.db
 ~$*.docx
 
-# claude code — local overrides only, ส่วนที่แชร์ทีมได้ commit ปกติ
+# claude code — 仅本地覆盖；团队共享配置正常提交
 .claude/settings.local.json
 
 # sqlite WAL sidecars

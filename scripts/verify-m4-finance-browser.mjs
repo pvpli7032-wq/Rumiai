@@ -74,7 +74,7 @@ try {
     return route.fulfill({ json: orders });
   });
   await page.route('**/api/finance/report?*', route => route.fulfill({ status: denied ? 403 : 200, json: denied ? { error: '仅财务管理员可查看。' } : report }));
-  await page.evaluate(() => localStorage.setItem('khuiai_token', 'ui-fixture-only'));
+  await page.evaluate(() => localStorage.setItem('xingban_token', 'ui-fixture-only'));
   await page.reload();
   await page.getByText('已付款 2 笔 · ¥2.25', { exact: true }).waitFor();
   await page.getByText(/未知成本 1 次/).waitFor();

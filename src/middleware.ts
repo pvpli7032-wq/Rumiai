@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DEFAULT_LOCALE, isLocale, SITE_URL, type Locale } from '@/lib/i18n';
+import { DEFAULT_LOCALE, isLocale, SITE_URL } from '@/lib/i18n';
 import {isMaintenanceProtectedWrite} from '@/lib/operations/maintenance-routing';
 import {logRouteError} from '@/lib/logger';
 
@@ -9,13 +9,6 @@ import {logRouteError} from '@/lib/logger';
  * paths (/discover, /chat, …) are left alone until they move under the segment too.
  */
 const LOCALISED_ROOTS = ['', 'about', 'explore', 'terms-and-policy', 'character', 'auth'];
-
-function preferredLocale(request: NextRequest): Locale {
-  const cookie = request.cookies.get('khuiai_locale')?.value;
-  if (cookie && isLocale(cookie)) return cookie;
-
-  return DEFAULT_LOCALE;
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -38,15 +31,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Every request lands on DEFAULT_LOCALE: the old `khuiai_locale` cookie this used to
+  // read was never written anywhere, so the lookup only ever fell through to the default.
   if (pathname === '/') {
-    const url = new URL(`/${preferredLocale(request)}${request.nextUrl.search}`, SITE_URL);
+    const url = new URL(`/${DEFAULT_LOCALE}${request.nextUrl.search}`, SITE_URL);
     return NextResponse.redirect(url);
   }
 
   // A known root without a locale prefix, e.g. /explore -> /th/explore.
   const [, first] = pathname.split('/');
   if (first && !isLocale(first) && LOCALISED_ROOTS.includes(first)) {
-    const url = new URL(`/${preferredLocale(request)}${pathname}${request.nextUrl.search}`, SITE_URL);
+    const url = new URL(`/${DEFAULT_LOCALE}${pathname}${request.nextUrl.search}`, SITE_URL);
     return NextResponse.redirect(url);
   }
 

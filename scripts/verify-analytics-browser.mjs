@@ -34,7 +34,7 @@ try{
   browser=await chromium.launch();
   const context=await browser.newContext({viewport:{width:1280,height:900},locale:'zh-CN'});
   const login=await context.request.post(base+'/api/auth/login',{data:{email:viewer.email,password}});assert.equal(login.status(),200);
-  const {token}=await login.json();await context.addInitScript(value=>localStorage.setItem('khuiai_token',value),token);
+  const {token}=await login.json();await context.addInitScript(value=>localStorage.setItem('xingban_token',value),token);
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+'/admin/analytics');await page.getByRole('heading',{name:'运营分析',exact:true}).waitFor();
   await page.getByText('新注册用户',{exact:true}).waitFor();await page.getByText('活跃账号',{exact:true}).waitFor();

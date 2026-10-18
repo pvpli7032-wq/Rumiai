@@ -30,7 +30,7 @@ try {
   async function login(actor) {
     const context = await browser.newContext({viewport: {width: 1280, height: 900}});
     const response = await context.request.post(base + '/api/auth/login', {data: {email: actor.email, password}}); assert.equal(response.status(), 200);
-    const {token} = await response.json(); await context.addInitScript(value => localStorage.setItem('khuiai_token', value), token);
+    const {token} = await response.json(); await context.addInitScript(value => localStorage.setItem('xingban_token', value), token);
     const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message)); page.on('dialog', dialog => void dialog.accept());
     return {context, page, token, headers: {Authorization: `Bearer ${token}`}};
   }

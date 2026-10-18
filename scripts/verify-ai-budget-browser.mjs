@@ -101,7 +101,7 @@ try {
   browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'zh-CN' });
   const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${base}/login`); await page.evaluate(token => localStorage.setItem('khuiai_token', token), a.token);
+  await page.goto(`${base}/login`); await page.evaluate(token => localStorage.setItem('xingban_token', token), a.token);
   await page.goto(`${base}/chat?character=${a.character.id}&conversation=${a.conversation.id}`);
   const input = page.locator('input[maxlength="5000"]'); await input.waitFor();
   await input.fill('预算拒绝后的草稿'); await page.locator('button[type="submit"]').click();
@@ -119,7 +119,7 @@ try {
   assert.equal(login.status, 200); const { token: adminToken } = await login.json();
   const finance = await request(adminToken, '/api/admin/finance/report'); assert.equal(finance.status, 200);
   const report = await finance.json(); assert.equal(report.aiBudget.circuitBreaker, 'enabled'); assert.equal(report.aiBudget.alerts.filter(row => row.scope === 'user').length, 2);
-  await page.evaluate(token => localStorage.setItem('khuiai_token', token), adminToken); await page.goto(`${base}/admin/finance`);
+  await page.evaluate(token => localStorage.setItem('xingban_token', token), adminToken); await page.goto(`${base}/admin/finance`);
   await page.getByText(/已开启自动熔断：/).waitFor();
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   assert.deepEqual(errors, []); await page.screenshot({ path: path.join(output, 'finance-budget.png') });

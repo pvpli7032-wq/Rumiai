@@ -28,7 +28,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical: url, languages: alternateLanguages(`/character/${character.id}`) },
     openGraph: {
-      title: `${character.name} | Khui AI`,
+      title: `${character.name} | 星伴`,
       description,
       url,
       type: 'website',

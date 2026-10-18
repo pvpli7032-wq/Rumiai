@@ -11,6 +11,7 @@ import {
 import { useTheme } from 'next-themes';
 import { useSiteContent } from '@/lib/use-site-content';
 import { CHAT_LIST_CHANGED } from '@/lib/conversations/chat-events';
+import { isPrimaryNavActive, PRIMARY_NAV } from '@/lib/navigation';
 
 interface ChatItem {
   id: string;
@@ -122,7 +123,23 @@ export function Sidebar() {
           </div>
         </Link>
 
-        <nav aria-label="桌面主导航" className="grid grid-cols-2 gap-2">{[['/discover','发现'],['/chat','聊天'],['/circles','圈子'],['/profile','我的']].map(([href,label])=><Link key={href} href={href} scroll={false} className="flex min-h-11 items-center justify-center rounded-xl bg-muted text-sm">{label}</Link>)}</nav>
+        <nav aria-label="桌面主导航" className="grid grid-cols-2 gap-2">
+          {PRIMARY_NAV.map(({ href, label, icon: Icon }) => {
+            const active = isPrimaryNavActive(pathname, href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                scroll={false}
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-muted text-sm last:col-span-2 ${active ? 'text-brand' : ''}`}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                <span>{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
         {/* Quick actions */}
         <div className="flex flex-col gap-2">
           <Link

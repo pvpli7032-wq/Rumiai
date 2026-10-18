@@ -59,7 +59,7 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${base}/admin/moderation`);
-  await page.evaluate(token => localStorage.setItem('khuiai_token', token), admin);
+  await page.evaluate(token => localStorage.setItem('xingban_token', token), admin);
   await page.reload();
   await page.getByRole('heading', { name: '社区管理台' }).waitFor();
   await page.getByLabel('举报状态').selectOption('REVIEWING');
@@ -130,7 +130,7 @@ try {
   mark('申诉可查、重复开放申诉被阻止；审核接受后原子解封，封禁/申诉/复核均留审计');
 
   await page.goto(`${base}/community-appeal`);
-  await page.evaluate(token => localStorage.setItem('khuiai_token', token), bannedUser);
+  await page.evaluate(token => localStorage.setItem('xingban_token', token), bannedUser);
   await page.reload();
   await page.getByRole('heading', { name: '社区申诉' }).waitFor();
   await page.getByText('复核后确认误判，解除社区限制。', { exact: false }).waitFor();

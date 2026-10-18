@@ -1,5 +1,5 @@
 /**
- * Tier 3: Cross-Feature Workflows E2E Test Suite for Khui AI Platform.
+ * Tier 3: Cross-Feature Workflows E2E Test Suite for 星伴 Platform.
  * Tests complex cross-domain interactions combining state, data flow, and control flow across multiple domains.
  *
  * Workflows Covered:

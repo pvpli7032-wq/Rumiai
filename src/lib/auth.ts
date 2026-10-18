@@ -7,14 +7,21 @@ import {logActivityStorageUnavailable,recordUserActivityDay} from '@/lib/analyti
  * a token for any account if it were ever used in production. Refuse to start
  * signing with it there instead of failing silently.
  */
-const DEV_JWT_SECRET = 'khuiai-secret-jwt-key-2026';
+const DEV_JWT_SECRET = 'xingban-dev-placeholder-do-not-use';
 /** Anything short enough to brute-force is not a secret. */
 const MIN_SECRET_LENGTH = 32;
 export class AuthConfigurationError extends Error {
   readonly code = 'AUTH_CONFIG';
   constructor(message: string) { super(message); this.name = 'AuthConfigurationError'; }
 }
-const PUBLISHED_SECRETS = new Set([DEV_JWT_SECRET, 'replace-with-a-random-secret-at-least-32-characters', 'ci-only-secret-not-used-anywhere-else-000000']);
+const PUBLISHED_SECRETS = new Set([
+  DEV_JWT_SECRET,
+  // Pre-rename development literal. It shipped in this file and in the public repo,
+  // so it stays banned even though it is no longer the fallback.
+  'khuiai-secret-jwt-key-2026',
+  'replace-with-a-random-secret-at-least-32-characters',
+  'ci-only-secret-not-used-anywhere-else-000000',
+]);
 
 function resolveSecret(): string {
   const configured = process.env.JWT_SECRET;

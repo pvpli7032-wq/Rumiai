@@ -1,5 +1,5 @@
 /**
- * Tier 1: Feature Coverage E2E Test Suite for Khui AI Platform.
+ * Tier 1: Feature Coverage E2E Test Suite for 星伴 Platform.
  * Covers all key functional areas: Auth, Characters, Chat SSE, User Profile,
  * Checkin/Streak, Missions, Leaderboard, Horoscope, and Coins.
  *

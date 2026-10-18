@@ -138,7 +138,7 @@ export class TestRunner {
     const suiteMap = new Map<string, SuiteSummary>();
 
     console.log('\n==================================================');
-    console.log('         KHUI AI E2E TEST RUNNER HARNESS          ');
+    console.log('           星伴 E2E TEST RUNNER HARNESS          ');
     console.log('==================================================\n');
 
     let currentGroup = '';

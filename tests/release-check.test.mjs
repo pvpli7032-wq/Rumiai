@@ -8,7 +8,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 
 test('release check rejects older, pending, unfinished and unavailable histories without modifying the database',()=>{
-  const root=mkdtempSync(path.join(tmpdir(),'khui-release-')),file=path.join(root,'database.db');
+  const root=mkdtempSync(path.join(tmpdir(),'xingban-release-')),file=path.join(root,'database.db');
   try{
     const migrations=path.join(root,'prisma','migrations');mkdirSync(migrations,{recursive:true});
     mkdirSync(path.join(migrations,'a'));mkdirSync(path.join(migrations,'b'));
@@ -31,7 +31,7 @@ test('release check rejects older, pending, unfinished and unavailable histories
 });
 
 test('production startup stops before launching Next when the selected release is older than its database',()=>{
-  const root=mkdtempSync(path.join(tmpdir(),'khui-start-gate-')),file=path.join(root,'database.db');
+  const root=mkdtempSync(path.join(tmpdir(),'xingban-start-gate-')),file=path.join(root,'database.db');
   try{
     const db=new DatabaseSync(file);db.exec('CREATE TABLE _prisma_migrations(migration_name TEXT, finished_at INTEGER, rolled_back_at INTEGER); INSERT INTO _prisma_migrations VALUES(\'unknown-release-migration\',1,NULL)');db.close();
     const databaseUrl=pathToFileURL(file).href;

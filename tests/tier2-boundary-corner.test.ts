@@ -1,5 +1,5 @@
 /**
- * Tier 2: Boundary & Corner Case E2E Test Suite for Khui AI Platform.
+ * Tier 2: Boundary & Corner Case E2E Test Suite for 星伴 Platform.
  * Tests edge cases, validation rules, error handling, unauthorized access,
  * and input limits across Auth, Characters, Economy, Horoscope, and Chat.
  */

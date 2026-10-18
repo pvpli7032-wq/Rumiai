@@ -43,7 +43,7 @@ try {
     markStarted(); await oldGate;
     await route.fulfill({ json: { user: oldSession.user } }); markFinished();
   });
-  await page.evaluate(value => localStorage.setItem('khuiai_token', value), oldSession.token);
+  await page.evaluate(value => localStorage.setItem('xingban_token', value), oldSession.token);
   await page.reload(); await started;
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').fill(password);
@@ -52,7 +52,7 @@ try {
   releaseOld(); await finished;
   await page.locator('a[href="/profile"]:visible').last().click();
   await page.getByRole('heading', { name: user.username, exact: true }).waitFor();
-  assert.notEqual(await page.evaluate(() => localStorage.getItem('khuiai_token')), oldSession.token);
+  assert.notEqual(await page.evaluate(() => localStorage.getItem('xingban_token')), oldSession.token);
   await page.unroute('**/api/auth/me');
   await page.getByText('注销账号', { exact: true }).click();
   const button = page.getByRole('button', { name: '确认注销账号', exact: true });
@@ -68,7 +68,7 @@ try {
   await button.click();
   assert.equal((await closeResponse).status(), 200);
   await page.getByRole('status').filter({ hasText: '账号已注销' }).waitFor();
-  assert.equal(await page.evaluate(() => localStorage.getItem('khuiai_token')), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem('xingban_token')), null);
   assert.equal((await page.request.get(`${base}/api/users/me`, { headers: { Authorization: `Bearer ${token}` } })).status(), 401);
   assert.equal((await page.request.post(`${base}/api/auth/login`, { data: { email, password } })).status(), 401);
   assert.equal((await page.request.get(base + url)).status(), 404);

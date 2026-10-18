@@ -29,7 +29,7 @@ try {
   assert(ready, 'owned server not ready'); browser = await chromium.launch();
   async function login(actor) {
     const context = await browser.newContext({viewport: {width: 1280, height: 900}}); const response = await context.request.post(base + '/api/auth/login', {data: {email: actor.email, password}}); assert.equal(response.status(), 200);
-    const {token} = await response.json(); await context.addInitScript(value => localStorage.setItem('khuiai_token', value), token);
+    const {token} = await response.json(); await context.addInitScript(value => localStorage.setItem('xingban_token', value), token);
     const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message)); page.on('dialog', dialog => void dialog.accept()); return {context, page, token};
   }
   const editor = await login(actors[1]); await editor.page.goto(base + '/admin'); await editor.page.getByRole('link', {name: /角色管理.*全部状态/}).click(); await editor.page.waitForURL('**/admin/characters');

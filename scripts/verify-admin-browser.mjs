@@ -38,7 +38,7 @@ try{
   const context=await browser.newContext({viewport:{width:390,height:844}});
   const response=await context.request.post(base+'/api/auth/login',{data:{email:actors[i].email,password}});assert.equal(response.status(),200);
   const {token}=await response.json();
-  await context.addInitScript(t=>localStorage.setItem('khuiai_token',t),token);
+  await context.addInitScript(t=>localStorage.setItem('xingban_token',t),token);
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   const expected={moderation:i===1||i===3,finance:i===2||i===3,analytics:false,growth:false,operations:false,compliance:false};
   const access=await context.request.get(base+'/api/admin/access',{headers:{Authorization:`Bearer ${token}`}});assert.equal(access.status(),200);assert.deepEqual(await access.json(),expected);

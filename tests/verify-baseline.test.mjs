@@ -6,7 +6,7 @@ import path from 'node:path';
 import { inspect } from '../scripts/verify-baseline.mjs';
 
 function fixture(fn) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(),'khui-gate-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(),'xingban-gate-'));
   const write=(file,text)=>{const dst=path.join(dir,file);fs.mkdirSync(path.dirname(dst),{recursive:true});fs.writeFileSync(dst,text,'utf8')};
   write('package.json',JSON.stringify({dependencies:{next:'14',react:'18','@prisma/client':'5'},scripts:{build:'next build',test:'tsx tests/runner.ts'}}));
   write('package-lock.json','{}');

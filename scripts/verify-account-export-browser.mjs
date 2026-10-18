@@ -18,7 +18,7 @@ try {
   assert.equal(registered.status(), 201, await registered.text());
   const { user, token } = await registered.json();
   await page.goto(`${base}/login`);
-  await page.evaluate(value => localStorage.setItem('khuiai_token', value), token);
+  await page.evaluate(value => localStorage.setItem('xingban_token', value), token);
   await page.goto(`${base}/profile`);
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出数据', exact: true }).click();

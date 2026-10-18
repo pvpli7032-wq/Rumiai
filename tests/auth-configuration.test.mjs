@@ -32,7 +32,9 @@ test('production refuses published/blank/short signing secrets before signup wri
   const originalMode = process.env.NODE_ENV, originalSecret = process.env.JWT_SECRET;
   process.env.NODE_ENV = 'production';
   try {
-    for (const secret of ['', ' '.repeat(40), 'short', 'khuiai-secret-jwt-key-2026', 'replace-with-a-random-secret-at-least-32-characters', 'ci-only-secret-not-used-anywhere-else-000000']) {
+    // 'khuiai-secret-jwt-key-2026' is the pre-rename development literal: it is published
+    // in this repository, so it must stay rejected even though it is no longer the fallback.
+    for (const secret of ['', ' '.repeat(40), 'short', 'xingban-dev-placeholder-do-not-use', 'khuiai-secret-jwt-key-2026', 'replace-with-a-random-secret-at-least-32-characters', 'ci-only-secret-not-used-anywhere-else-000000']) {
       process.env.JWT_SECRET = secret;
       assert.throws(ensureAuthSigningConfiguration);
       const response = await register(new Request('http://localhost/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'authcfg_test', email: 'authcfg@example.invalid', password: 'LocalOnly!12345' }) }));

@@ -1,5 +1,5 @@
 /**
- * Main executable E2E Test Runner entrypoint for Khui AI Platform.
+ * Main executable E2E Test Runner entrypoint for 星伴 Platform.
  * Imports and executes Tier 1 Feature Coverage and Tier 2 Boundary test suites.
  */
 

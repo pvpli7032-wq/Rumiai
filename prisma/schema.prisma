@@ -1,4 +1,4 @@
-// khuiai-fullstack/prisma/schema.prisma
+// xingban/prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -257,7 +257,7 @@ model Character {
   reviewedBy String? @map("reviewed_by")
   reviewedAt DateTime? @map("reviewed_at")
   chatCount   Int      @default(0) @map("chat_count")
-  /// Shown with the "Only on Khui AI" badge on cards
+  /// Shown with the "Only on 星伴" badge on cards
   isExclusive Boolean  @default(false) @map("is_exclusive")
   /// Comma-separated feature emojis rendered on the card (e.g. "☺️,🎹")
   badges      String?

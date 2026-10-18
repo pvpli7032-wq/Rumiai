@@ -47,7 +47,7 @@ try{
   const login=await context.request.post(base+'/api/auth/login',{data:{email:finance.email,password}});
   assert.equal(login.status(),200);
   const {token}=await login.json();
-  await context.addInitScript(value=>localStorage.setItem('khuiai_token',value),token);
+  await context.addInitScript(value=>localStorage.setItem('xingban_token',value),token);
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+'/admin/finance');await page.getByRole('heading',{name:'充值订单',exact:true}).waitFor();
   await page.getByText('共 31 笔 · 第 1 / 2 页',{exact:true}).waitFor();

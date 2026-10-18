@@ -1,5 +1,5 @@
 /**
- * Tier 4: Real-World Application Scenarios E2E Test Suite for Khui AI Platform.
+ * Tier 4: Real-World Application Scenarios E2E Test Suite for 星伴 Platform.
  * Tests realistic, end-to-end user journeys mirroring complete end-user interactions.
  *
  * Journeys Covered:

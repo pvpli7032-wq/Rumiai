@@ -32,6 +32,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const TOKEN_STORAGE_KEY = 'xingban_token';
+/**
+ * Key used before the rename. It is still read once at boot and migrated in
+ * place, so renaming it does not sign out every session that already exists.
+ * Delete the legacy read after one release, once no browser can still hold it.
+ */
+const LEGACY_TOKEN_STORAGE_KEY = 'khuiai_token';
+
+/** Reads the token, moving a pre-rename value onto the current key on first read. */
+function readStoredToken(): string | null {
+  const current = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (current) return current;
+  const legacy = localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY);
+  if (!legacy) return null;
+  localStorage.setItem(TOKEN_STORAGE_KEY, legacy);
+  localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+  return legacy;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -39,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionToken = useRef<string | null>(null);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('khuiai_token');
+    const storedToken = readStoredToken();
     if (storedToken) {
       sessionToken.current = storedToken;
       setToken(storedToken);
@@ -59,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user);
       } else {
         sessionToken.current = null;
-        localStorage.removeItem('khuiai_token');
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
         setToken(null);
         setUser(null);
       }
@@ -82,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (!res.ok) return { success: false, error: zhError(data.error || '') || 'Login failed' };
       sessionToken.current = data.token;
-      localStorage.setItem('khuiai_token', data.token);
+      localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
       setToken(data.token);
       setUser(data.user);
       return { success: true };
@@ -110,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (!res.ok) return { success: false, error: zhError(data.error || '') || 'Registration failed' };
       sessionToken.current = data.token;
-      localStorage.setItem('khuiai_token', data.token);
+      localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
       setToken(data.token);
       setUser(data.user);
       return { success: true };
@@ -131,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         keepalive: true,
       }).catch(() => {});
     }
-    localStorage.removeItem('khuiai_token');
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
     setToken(null);
     setUser(null);
   }

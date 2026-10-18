@@ -1,12 +1,12 @@
 name: 🚀 Feature Request
-description: Propose a new feature or idea for the Khui AI platform
+description: Propose a new feature or idea for 星伴
 title: "[FEAT]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for suggesting a feature to improve Khui AI!
+        Thank you for suggesting a feature to improve 星伴!
   - type: textarea
     id: problem
     attributes:

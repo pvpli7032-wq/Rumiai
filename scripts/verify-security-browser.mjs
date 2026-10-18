@@ -61,7 +61,7 @@ try {
 
   await page.addInitScript(() => { window.__securityXss = false; });
   await page.goto(`${base}/login`);
-  await page.evaluate(token => localStorage.setItem('khuiai_token', token), owner.token);
+  await page.evaluate(token => localStorage.setItem('xingban_token', token), owner.token);
   await page.goto(`${base}/circles/${circle.id}`);
   await page.getByText(payload, { exact: true }).waitFor();
   assert.equal(await page.locator('img[src="x"], script').evaluateAll(elements => elements.some(element => element.textContent?.includes('window.__securityXss=true') || element.getAttribute('src') === 'x')), false);

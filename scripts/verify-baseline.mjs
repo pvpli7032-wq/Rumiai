@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Khui AI baseline and release-gate audit.
+ * 星伴 baseline and release-gate audit.
  * Run from repo root: node scripts/verify-baseline.mjs --root . --mode development
  * Zero third-party dependencies; no network calls; never prints secrets.
  * This is a static readiness check, NOT a vulnerability scanner or passing E2E proof.
@@ -27,7 +27,8 @@ function parseDotEnv(source) {
   }
   return result;
 }
-const badSecret = (s) => !s || s.length < 32 || /^(your-|change-me|replace-me|test-|example|sk-xxx)/i.test(s) || s === 'khuiai-secret-jwt-key-2026';
+const publishedSecrets = new Set(['xingban-dev-placeholder-do-not-use', 'khuiai-secret-jwt-key-2026']);
+const badSecret = (s) => !s || s.length < 32 || /^(your-|change-me|replace-me|test-|example|sk-xxx)/i.test(s) || publishedSecrets.has(s);
 const badKey = (s) => !s || /^(your-|change-me|replace-me|test-|example|sk-xxx)/i.test(s);
 
 /** @returns {{mode:string, root:string, checks:Array, summary:object}} */
@@ -99,7 +100,7 @@ export function inspect(root, mode = 'development', env = process.env) {
 }
 
 function printResult(report) {
-  console.log(`\nKhui AI 基线检查 · ${report.mode}\n仓库：${report.root}\n`);
+  console.log(`\n星伴 基线检查 · ${report.mode}\n仓库：${report.root}\n`);
   for (const c of report.checks) console.log(`[${c.status.padEnd(5)}] ${c.id} ${c.message} (${c.evidence})`);
   const s=report.summary;
   console.log(`\n汇总：PASS ${s.passed} | WARN ${s.warned} | BLOCK ${s.blocked}`);

@@ -1,5 +1,5 @@
 /**
- * Opaque-box HTTP test client for E2E testing of Khui AI API endpoints.
+ * Opaque-box HTTP test client for E2E testing of 星伴 API endpoints.
  * Utilizes native Node fetch (Node 18+) for HTTP operations.
  */
 

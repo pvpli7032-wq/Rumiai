@@ -79,7 +79,7 @@ try {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto(`${base}/profile/${encodeURIComponent(creatorUser.username)}`);
-  await page.evaluate(token => localStorage.setItem('khuiai_token', token), follower);
+  await page.evaluate(token => localStorage.setItem('xingban_token', token), follower);
   await page.reload();
   await page.getByRole('heading', { name: '创作者动态', exact: true }).waitFor();
   await page.getByRole('button', { name: '已关注 · 取消关注' }).click();

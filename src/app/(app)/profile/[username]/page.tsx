@@ -40,7 +40,7 @@ export async function generateMetadata({ params: paramsPromise }: { params: Prom
   if (!data) return { title: "创作者不存在 | 星伴" };
   const name = data.creator.displayName ?? data.creator.username;
   return {
-    title: `${name} (@${data.creator.username}) | Khui AI`,
+    title: `${name} (@${data.creator.username}) | 星伴`,
     description: "创作者的全部角色：" + (name) + " · 星伴",
   };
 }

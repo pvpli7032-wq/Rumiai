@@ -12,7 +12,7 @@ export async function generateMetadata({ params: paramsPromise }: { params: Prom
   if (!isLocale(params.locale)) return {};
   const dict = getDictionary(params.locale);
   return {
-    title: `${dict.charactersSection} | Khui AI`,
+    title: `${dict.charactersSection} | 星伴`,
     description: dict.exploreSubhead,
     alternates: {
       canonical: `${SITE_URL}/${params.locale}/explore`,
