@@ -50,3 +50,6 @@ prisma/backups/
 prisma/restores/
 screens/
 artifacts/
+
+# local scratch (docx extraction, remote helper scripts)
+.temp/
