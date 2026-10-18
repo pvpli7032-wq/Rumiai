@@ -72,6 +72,7 @@ export const API = {
     packages: '/api/coins/packages',
     orders: '/api/coins/orders',
     order: (orderNo: string) => `/api/coins/orders/${e(orderNo)}`,
+    ledger: (query?: string) => `/api/coins/ledger${query ? `?${query}` : ''}`,
   },
 
   users: {

@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { loginWithNext } from '@/lib/next-path';
-import { Coins, ShoppingBag, Loader2, CheckCircle2 } from 'lucide-react';
+import { Coins, ShoppingBag, Loader2, CheckCircle2, ReceiptText } from 'lucide-react';
+import { api } from '@/lib/api-client';
+import { API } from '@/lib/api-paths';
+import type { CoinLedgerPage } from '@/lib/api-types/coins';
 
 interface CoinPackage {
   id: string;
@@ -33,6 +37,7 @@ export default function ShopPage() {
   const [pendingRequest, setPendingRequest] = useState<{ packageId: string; key: string; paymentMethod: string; quote: { amountCnyCents: number; coinAmount: number } } | null>(null);
   const [returnOrder, setReturnOrder] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState('');
+  const [firstPurchase, setFirstPurchase] = useState<boolean | null>(null);
   const refreshUserRef = useRef(refreshUser);
   refreshUserRef.current = refreshUser;
 
@@ -49,6 +54,16 @@ export default function ShopPage() {
     const returned = new URLSearchParams(window.location.search).get('payment');
     if (returned && /^[A-Z0-9]{20,40}$/.test(returned)) setReturnOrder(returned);
   }, []);
+
+  // 首充提示只看有没有充值入账；没有额外赠送就如实说不送，不编优惠。
+  useEffect(() => {
+    if (!token) { setFirstPurchase(null); return; }
+    let stopped = false;
+    void api.get<CoinLedgerPage>(API.coins.ledger('take=1'), { token })
+      .then(page => { if (!stopped) setFirstPurchase(page.firstPurchase); })
+      .catch(() => {});
+    return () => { stopped = true; };
+  }, [token]);
 
   useEffect(() => {
     if (!returnOrder || !token) return;
@@ -119,6 +134,17 @@ export default function ShopPage() {
     }
   }
 
+  /** 到账总量与每元折算，全部由实际套餐数据算出，不预设价格。 */
+  const perYuanOf = (pkg: CoinPackage) => (pkg.priceCnyCents ? (pkg.coins + pkg.bonus) / (pkg.priceCnyCents / 100) : null);
+  const bestValueId = useMemo(() => {
+    let best: { id: string; ratio: number } | null = null;
+    for (const pkg of packages) {
+      const ratio = perYuanOf(pkg);
+      if (ratio !== null && (!best || ratio > best.ratio)) best = { id: pkg.id, ratio };
+    }
+    return best?.id ?? null;
+  }, [packages]);
+
   const PKG_COLORS = [
     'border-zinc-700 hover:border-zinc-500',
     'border-blue-500/30 hover:border-blue-500/60 bg-blue-500/5',
@@ -139,10 +165,24 @@ export default function ShopPage() {
           <label className="my-4 flex items-center justify-center gap-3 text-sm">支付方式<select className="rounded-lg border border-white/20 bg-zinc-900 px-3 py-2" value={paymentMethod} disabled={Boolean(pendingRequest)} onChange={event => setPaymentMethod(event.target.value)}><option value="alipay">支付宝</option><option value="wxpay">微信支付</option></select></label>
           <p className="text-zinc-400">为喜欢的角色赠送礼物</p>
           {user && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-yellow-500/20 bg-yellow-500/10 px-4 py-2">
-              <Coins className="h-4 w-4 text-yellow-400" />
-              <span className="font-bold text-yellow-400">{user.coins.toLocaleString()} 金币</span>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-yellow-500/20 bg-yellow-500/10 px-4 py-2">
+                <Coins className="h-4 w-4 text-yellow-400" />
+                <span className="font-bold text-yellow-400">{user.coins.toLocaleString()} 金币</span>
+              </div>
+              <Link
+                href="/shop/ledger"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-white/30 hover:text-white"
+              >
+                <ReceiptText className="h-3.5 w-3.5" />
+                余额与流水
+              </Link>
             </div>
+          )}
+          {firstPurchase && (
+            <p className="mx-auto mt-3 max-w-md rounded-xl border border-sky-500/25 bg-sky-500/10 px-4 py-2.5 text-xs leading-relaxed text-sky-200">
+              这是你的第一笔充值。当前没有额外的首充赠送，页面写多少到账就是多少；到账后可在「余额与流水」逐条核对。
+            </p>
           )}
         </div>
 
@@ -156,13 +196,23 @@ export default function ShopPage() {
               const canBuy = purchaseEnabled && Boolean(pkg.priceCnyCents);
               return (
                 <div key={pkg.id} className={`relative rounded-2xl border p-5 transition-all ${PKG_COLORS[i % PKG_COLORS.length]}`}>
+                  {bestValueId === pkg.id && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-linear-to-r/srgb from-yellow-500 to-amber-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow">
+                      最划算
+                    </span>
+                  )}
                   <div className="mb-4 text-center">
                     <div className="mb-2 text-4xl">🪙</div>
                     <p className="text-2xl font-bold text-yellow-400">{pkg.coins.toLocaleString()}</p>
                     {pkg.bonus > 0 && <p className="text-xs text-green-400">额外赠送 {pkg.bonus.toLocaleString()} 金币</p>}
                     <p className="mt-1 text-sm text-zinc-400">{pkg.label}</p>
                   </div>
-                  <div className="mb-4 text-center text-lg font-bold text-white">{formatCny(pkg.priceCnyCents)}</div>
+                  <div className="mb-1 text-center text-lg font-bold text-white">{formatCny(pkg.priceCnyCents)}</div>
+                  <p className="mb-4 text-center text-[11px] leading-relaxed text-zinc-400">
+                    {pkg.bonus > 0 && <>赠送 {Math.round((pkg.bonus / Math.max(pkg.coins, 1)) * 100)}% · </>}
+                    共到账 {(pkg.coins + pkg.bonus).toLocaleString()} 金币
+                    {perYuanOf(pkg) !== null && <> · 每 1 元约 {perYuanOf(pkg)!.toLocaleString('zh-CN', { maximumFractionDigits: 1 })} 金币</>}
+                  </p>
                   <button
                     onClick={() => void handlePurchase(pkg)}
                     disabled={!canBuy || purchasing === pkg.id}

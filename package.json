@@ -79,6 +79,7 @@
     "test:database:upgrade": "node --import tsx --test tests/database-upgrade.test.mjs",
     "test:middleware:locale": "node --import tsx --test tests/locale-middleware.test.mjs",
     "test:api:client": "node --import tsx --test tests/api-client.test.mjs",
+    "test:coins:ledger": "node --import tsx --test tests/coin-ledger.test.mjs",
     "test:circles:browser": "node --import tsx scripts/verify-circle-management-browser.mjs",
     "test:posts:management": "node --import tsx --test tests/post-management.test.mjs tests/post-management-migration.test.mjs",
     "test:posts:browser": "node --import tsx scripts/verify-post-management-browser.mjs",
