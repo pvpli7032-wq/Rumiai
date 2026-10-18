@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -29,18 +28,18 @@ export interface ConversationState {
 }
 
 /**
- * Relationship tiers. The live site shows "ค่าความโรแมนติก 1100" with the bar around half
+ * Relationship tiers. The live site shows "浪漫值 1100" with the bar around half
  * full, so the meter is not a percentage of 100 — it fills relative to the band the value
  * currently sits in. The real thresholds are a product decision we do not have yet, so
  * these are placeholders and the raw number is always shown next to the bar.
  */
 const TIERS = [
-  { name: zhText("คนไม่รู้จัก"), from: 0 },
-  { name: zhText("คนรู้จัก"), from: 500 },
-  { name: zhText("เพื่อน"), from: 1500 },
-  { name: zhText("คนสนิท"), from: 3000 },
-  { name: zhText("แฟน"), from: 6000 },
-  { name: zhText("คนรัก"), from: 12000 },
+  { name: "陌生人", from: 0 },
+  { name: "相识", from: 500 },
+  { name: "朋友", from: 1500 },
+  { name: "亲密朋友", from: 3000 },
+  { name: "伴侣", from: 6000 },
+  { name: "爱人", from: 12000 },
 ];
 
 function tierOf(value: number) {
@@ -112,7 +111,7 @@ export function RelationshipPanel({
     });
     setSaving(false);
     if (!res.ok) {
-      setNotice(zhText("บันทึกไม่สำเร็จ"));
+      setNotice("保存失败");
       return null;
     }
     const data = await res.json().catch(() => ({}));
@@ -160,7 +159,7 @@ export function RelationshipPanel({
               href={`/chat?character=${state.character.id}&new=1`}
               className="mt-2 rounded-full border border-white/15 px-3 py-1 font-athiti text-[11px] font-bold text-zinc-300 hover:bg-white/5"
             >
-              {zhText("แชทใหม่")}</Link>
+              {"新建聊天"}</Link>
           </div>
         )}
 
@@ -168,19 +167,19 @@ export function RelationshipPanel({
         <div className="space-y-3 rounded-2xl border border-white/10 bg-zinc-800/40 p-3">
           {state.relationshipStatus && (
             <p className="font-athiti text-xs text-zinc-400">
-              {zhText("สถานะ:")}<span className="font-bold text-white">{state.relationshipStatus}</span>
+              {"状态："}<span className="font-bold text-white">{state.relationshipStatus}</span>
             </p>
           )}
           <Meter
             icon={<Heart className="h-3.5 w-3.5 text-pink-400" />}
-            label={zhText("ค่าความโรแมนติก")}
+            label={"浪漫值"}
             raw={state.romance}
             tier={romance}
             barClass="bg-linear-to-r/srgb from-pink-500 to-rose-400"
           />
           <Meter
             icon={<Flame className="h-3.5 w-3.5 text-orange-400" />}
-            label={zhText("ค่าความสนิทสนม")}
+            label={"亲密值"}
             raw={state.intimacy}
             tier={intimacy}
             barClass="bg-linear-to-r/srgb from-orange-500 to-amber-400"
@@ -189,11 +188,11 @@ export function RelationshipPanel({
 
         {/* Chat facts */}
         <div className="grid grid-cols-2 gap-2">
-          <Fact icon={<CalendarDays className="h-4 w-4" />} value={`${state.daysChatting}`} label={zhText("วันที่คุยกัน")} />
+          <Fact icon={<CalendarDays className="h-4 w-4" />} value={`${state.daysChatting}`} label={"聊天天数"} />
           <Fact
             icon={<MessageSquare className="h-4 w-4" />}
             value={compactNumber(state.messageCount)}
-            label={zhText("ข้อความ")}
+            label={"消息"}
           />
         </div>
 
@@ -202,7 +201,7 @@ export function RelationshipPanel({
           onClick={() => patch({ relationship_mode: !state.relationshipMode })}
           className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-zinc-800/40 px-3 py-2.5 text-left hover:border-white/25"
         >
-          <span className="font-athiti text-xs text-zinc-300">{zhText("โหมดความสัมพันธ์")}</span>
+          <span className="font-athiti text-xs text-zinc-300">{"关系模式"}</span>
           <span
             className={`flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${
               state.relationshipMode ? 'justify-end bg-[#F2572B]' : 'justify-start bg-zinc-600'
@@ -217,20 +216,20 @@ export function RelationshipPanel({
           <div className="rounded-2xl border border-white/10 bg-zinc-800/40 p-3">
             <p className="mb-2 flex items-center gap-1.5 font-athiti text-xs font-bold text-zinc-400">
               <Cpu className="h-3.5 w-3.5" />
-              {zhText("โมเดลที่ใช้ในแชทนี้")}</p>
+              {"本次聊天使用的模型"}</p>
             <div className="space-y-1">
               {state.aiModel&&!models.includes(state.aiModel)&&<p className="mb-2 text-xs text-amber-400">原选择模型已不可用，请选择当前范围内模型或恢复默认。</p>}
               <ModelOption
-                label={zhText("ค่าเริ่มต้น") + (defaultModel ? ` (${modelLabels[defaultModel]??defaultModel})` : '') + zhText("")}
+                label={"默认" + (defaultModel ? ` (${modelLabels[defaultModel]??defaultModel})` : '')}
                 selected={!state.aiModel}
-                onClick={() => patch({ ai_model: null }, zhText("กลับไปใช้โมเดลค่าเริ่มต้น"))}
+                onClick={() => patch({ ai_model: null }, "恢复默认模型")}
               />
               {models.map((m) => (
                 <ModelOption
                   key={m}
                   label={modelLabels[m]??m}
                   selected={state.aiModel === m}
-                  onClick={() => patch({ ai_model: m }, zhText("เปลี่ยนเป็น") + (m) + zhText(""))}
+                  onClick={() => patch({ ai_model: m }, "切换为 " + (m))}
                 />
               ))}
             </div>
@@ -242,35 +241,35 @@ export function RelationshipPanel({
         <div className="rounded-2xl border border-white/10 bg-zinc-800/40 p-3">
           <p className="mb-2 flex items-center gap-1.5 font-athiti text-xs font-bold text-zinc-400">
             <NotebookPen className="h-3.5 w-3.5" />
-            {zhText("บันทึกของฉัน")}</p>
+            {"我的笔记"}</p>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
-            placeholder={zhText("จดอะไรก็ได้เกี่ยวกับแชทนี้")}
+            placeholder={"记录与这个角色的故事"}
             className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
           />
           <button
             onClick={async () => {
-              const updated = await patch({ notes }, zhText("บันทึกแล้ว"));
+              const updated = await patch({ notes }, "已保存");
               if (updated) setSavedNotes(notes);
             }}
             disabled={saving || notes === savedNotes}
             className="mt-2 w-full rounded-full bg-zinc-700 py-1.5 font-athiti text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
           >
-            {notes === savedNotes ? zhText("บันทึกไว้แล้ว") : saving ? zhText("กำลังบันทึก...") : zhText("บันทึก")}
+            {notes === savedNotes ? "已保存" : saving ? "正在保存…" : "保存"}
           </button>
         </div>
 
         <button
           onClick={async () => {
-            const updated = await patch({ archived: !archived }, archived ? zhText("เอาออกจากที่จัดเก็บ") : zhText("จัดเก็บแชทแล้ว"));
+            const updated = await patch({ archived: !archived }, archived ? "取消归档" : "已归档聊天");
             if (updated && !archived) onArchived?.();
           }}
           className="flex w-full items-center justify-center gap-1.5 rounded-full border border-white/10 py-2 font-athiti text-xs font-bold text-zinc-300 hover:bg-white/5"
         >
           <Archive className="h-3.5 w-3.5" />
-          {archived ? zhText("เอาออกจากที่จัดเก็บ") : zhText("จัดเก็บแชทนี้")}
+          {archived ? "取消归档" : "归档聊天"}
         </button>
 
         {notice && (

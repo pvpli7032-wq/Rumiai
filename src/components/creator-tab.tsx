@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useEffect, useState } from 'react';
 import { Search, Users } from 'lucide-react';
@@ -21,12 +20,12 @@ interface Creator {
 }
 
 const SORTS = [
-  { key: 'popularByFollowerCount', label: zhText("ผู้ติดตามมากที่สุด") },
-  { key: 'popularByMessageCount', label: zhText("ข้อความมากที่สุด") },
-  { key: 'popularByChatCount', label: zhText("แชทมากที่สุด") },
-  { key: 'popularByUniverseMessageCount', label: zhText("ข้อความจักรวาลมากที่สุด") },
-  { key: 'popularByUniverseChatCount', label: zhText("แชทจักรวาลมากที่สุด") },
-  { key: 'trendingByFollowerCount', label: zhText("มาแรงสัปดาห์นี้") },
+  { key: 'popularByFollowerCount', label: "关注者最多" },
+  { key: 'popularByMessageCount', label: "消息最多" },
+  { key: 'popularByChatCount', label: "聊天最多" },
+  { key: 'popularByUniverseMessageCount', label: "世界观消息最多" },
+  { key: 'popularByUniverseChatCount', label: "世界观聊天最多" },
+  { key: 'trendingByFollowerCount', label: "本周热门" },
 ] as const;
 
 /** 10800 -> "10.8K" */
@@ -69,7 +68,7 @@ export function CreatorTab() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={zhText("ค้นหาครีเอเตอร์")}
+            placeholder={"搜索创作者"}
             className="h-12 w-full rounded-lg bg-zinc-100 pl-10 pr-4 text-sm outline-hidden dark:bg-[#27272A]"
           />
         </div>
@@ -147,10 +146,10 @@ export function CreatorTab() {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
                       <Users className="h-3 w-3 shrink-0" />
-                      <span className="text-[10px] leading-4">{compact(c.followerCount)} {zhText("ผู้ติดตาม")}</span>
+                      <span className="text-[10px] leading-4">{compact(c.followerCount)} {"关注者"}</span>
                     </div>
                     <span className="whitespace-nowrap text-[10px] leading-4 text-muted-foreground">
-                      {c.characterCount} {zhText("ตัวละคร")}</span>
+                      {c.characterCount} {"角色"}</span>
                     <span className="whitespace-nowrap text-[10px] leading-4 text-muted-foreground">
                       {metricLabel(c, sort)}
                     </span>
@@ -161,7 +160,7 @@ export function CreatorTab() {
           ))}
           {visible.length === 0 && (
             <p className="col-span-full py-16 text-center font-athiti text-sm text-muted-foreground">
-              {zhText("ไม่พบครีเอเตอร์ที่ตรงกับ “")}{query}”
+              {"没有找到匹配的创作者：“"}{query}”
             </p>
           )}
         </div>
@@ -174,17 +173,17 @@ export function CreatorTab() {
 function metricLabel(c: Creator, sort: string) {
   switch (sort) {
     case 'popularByMessageCount':
-      return zhText("💬") + (compact(c.messageCount)) + zhText("ข้อความ");
+      return "💬" + (compact(c.messageCount)) + "消息";
     case 'popularByChatCount':
-      return zhText("💬") + (compact(c.chatCount)) + zhText("แชท");
+      return "💬" + (compact(c.chatCount)) + "聊天";
     case 'popularByUniverseMessageCount':
-      return zhText("🌍") + (compact(c.universeMessageCount)) + zhText("ข้อความ");
+      return "🌍" + (compact(c.universeMessageCount)) + "消息";
     case 'popularByUniverseChatCount':
-      return zhText("🌍") + (compact(c.universeChatCount)) + zhText("แชท");
+      return "🌍" + (compact(c.universeChatCount)) + "聊天";
     case 'trendingByFollowerCount':
-      return zhText("📈 +") + (compact(c.weeklyFollowerGain)) + zhText("สัปดาห์นี้");
+      return "📈 +" + (compact(c.weeklyFollowerGain)) + "本周";
     default:
-      return zhText("💬") + (compact(c.messageCount)) + zhText("ข้อความ");
+      return "💬" + (compact(c.messageCount)) + "消息";
   }
 }
 

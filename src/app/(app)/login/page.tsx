@@ -1,5 +1,5 @@
 'use client';
-import { zhText, zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -31,7 +31,7 @@ export default function LoginPage() {
     if (result.success) {
       router.push(afterLoginTarget());
     } else {
-      setError(zhError(result.error || '') || zhText("เข้าสู่ระบบไม่สำเร็จ"));
+      setError(zhError(result.error || '') || "登录失败");
     }
   }
 
@@ -47,8 +47,8 @@ export default function LoginPage() {
             <div className="w-14 h-14 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-purple-500/30">
               <LogIn className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold font-athiti text-white">{zhText("เข้าสู่ระบบ")}</h1>
-            <p className="text-zinc-400 font-athiti mt-1 text-sm">{zhText("ยินดีต้อนรับกลับ!")}</p>
+            <h1 className="text-2xl font-bold font-athiti text-white">{"登录"}</h1>
+            <p className="text-zinc-400 font-athiti mt-1 text-sm">{"欢迎回来"}</p>
           </div>
 
           {error && (
@@ -60,7 +60,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5 font-athiti">{zhText("อีเมล")}</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5 font-athiti">{"邮箱"}</label>
               <input
                 type="email"
                 value={email}
@@ -71,7 +71,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5 font-athiti">{zhText("รหัสผ่าน")}</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5 font-athiti">{"密码"}</label>
               <div className="relative">
                 <input
                   type={showPwd ? 'text' : 'password'}
@@ -91,15 +91,15 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-3 bg-linear-to-r/srgb from-purple-600 to-pink-600 rounded-xl text-white font-semibold font-athiti hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 mt-2"
             >
-              {loading ? zhText("กำลังเข้าสู่ระบบ...") : zhText("เข้าสู่ระบบ")}
+              {loading ? "正在登录…" : "登录"}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-zinc-400 text-sm font-athiti">
-              {zhText("ยังไม่มีบัญชี?")}{' '}
+              {"还没有账号？"}{' '}
               <Link href="/register" className="text-purple-400 hover:text-purple-300 font-medium transition-colors">
-                {zhText("สมัครสมาชิกฟรี")}</Link>
+                {"免费注册"}</Link>
             </p>
           </div>
 

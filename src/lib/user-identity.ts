@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
  * `username` is the unique @handle shown on creator cards; `displayName` is the
  * free-text name a user can change at will. Registration accepts either, so the
  * helpers below keep the two from being conflated — two people are allowed to
- * both call themselves "สมชาย", but only one can hold the handle @somchai.
+ * both call themselves "小明", but only one can hold the handle @xiaoming.
  */
 
 /** Turn arbitrary text (a display name, or an email local-part) into a handle. */

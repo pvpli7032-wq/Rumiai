@@ -1,5 +1,5 @@
 'use client';
-import { zhText, zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -31,16 +31,16 @@ interface CommentNode {
 
 const MAX_BODY = 2_000;
 
-/** "3 นาทีที่แล้ว" — relative time, since a comment's age matters more than its date. */
+/** "3 分钟前" — relative time, since a comment's age matters more than its date. */
 function ago(iso: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  if (seconds < 60) return zhText("เมื่อสักครู่");
+  if (seconds < 60) return "刚刚";
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return zhText("") + (minutes) + zhText("นาทีที่แล้ว");
+  if (minutes < 60) return "" + (minutes) + "分钟前";
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return zhText("") + (hours) + zhText("ชั่วโมงที่แล้ว");
+  if (hours < 24) return "" + (hours) + "小时前";
   const days = Math.floor(hours / 24);
-  if (days < 30) return zhText("") + (days) + zhText("วันที่แล้ว");
+  if (days < 30) return "" + (days) + "天前";
   return new Date(iso).toLocaleDateString('th-TH');
 }
 
@@ -69,7 +69,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
       // The token is sent so each comment comes back with whether *this* reader liked it.
       const url = `/api/characters/${characterId}/comments${cursor ? `?cursor=${cursor}` : ''}`;
       const res = await fetch(url, { headers: headers() });
-      if (!res.ok) { setError(zhText("โหลดคอมเมนต์ไม่สำเร็จ")); return; }
+      if (!res.ok) { setError("评论加载失败"); return; }
       const data = await res.json();
       setComments((prev) => (cursor ? [...prev, ...data.comments] : data.comments));
       setNextCursor(data.nextCursor);
@@ -100,7 +100,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
     setBusy(false);
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
-      setError(zhError(payload.error || '') || zhText("ส่งคอมเมนต์ไม่สำเร็จ"));
+      setError(zhError(payload.error || '') || "评论发送失败");
       return;
     }
     // Re-read rather than splicing: a reply belongs under its root, and the server decides
@@ -167,7 +167,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value.slice(0, MAX_BODY))}
           rows={2}
-          placeholder={token ? zhText("เขียนคอมเมนต์...") : zhText("เข้าสู่ระบบเพื่อคอมเมนต์")}
+          placeholder={token ? "写下评论…" : "登录后发表评论"}
           onFocus={() => { if (!token) router.push(loginWithNext()); }}
           className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
         />
@@ -179,7 +179,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
             className="flex items-center gap-1.5 rounded-full bg-[#F2572B] px-4 py-1.5 font-athiti text-xs font-bold text-white hover:bg-[#d94a22] disabled:opacity-40"
           >
             <Send className="h-3.5 w-3.5" />
-            {zhText("ส่ง")}</button>
+            {"发送"}</button>
         </div>
       </div>
 
@@ -187,7 +187,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
 
       {comments.length === 0 ? (
         <p className="py-6 text-center font-athiti text-sm text-zinc-500">
-          {zhText("ยังไม่มีคอมเมนต์ มาเป็นคนแรกกัน")}</p>
+          {"暂无评论，来发表第一条吧"}</p>
       ) : (
         <ul className="space-y-3">
           {comments.map((c) => (
@@ -214,7 +214,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                     onChange={(e) => setReplyDraft(e.target.value.slice(0, MAX_BODY))}
                     rows={2}
                     autoFocus
-                    placeholder={zhText("ตอบ") + (c.author.name || c.author.username) + zhText("")}
+                    placeholder={"回复 " + (c.author.name || c.author.username)}
                     className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
                   />
                   <div className="mt-1 flex justify-end gap-2">
@@ -222,13 +222,13 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                       onClick={() => setReplyTo(null)}
                       className="rounded-full border border-white/10 px-3 py-1 font-athiti text-[11px] text-zinc-400 hover:bg-white/5"
                     >
-                      {zhText("ยกเลิก")}</button>
+                      {"取消"}</button>
                     <button
                       onClick={() => post(replyDraft, c.id)}
                       disabled={busy || !replyDraft.trim()}
                       className="rounded-full bg-zinc-700 px-3 py-1 font-athiti text-[11px] font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
                     >
-                      {zhText("ตอบ")}</button>
+                      {"回复"}</button>
                   </div>
                 </div>
               )}
@@ -265,14 +265,14 @@ export function CharacterComments({ characterId }: { characterId: string }) {
           onClick={() => load(nextCursor)}
           className="mt-4 w-full rounded-full border border-white/10 py-2 font-athiti text-xs text-zinc-300 hover:bg-white/5"
         >
-          {zhText("ดูคอมเมนต์เพิ่ม")}</button>
+          {"加载更多评论"}</button>
       )}
 
       {reportingId && (
         <ReportDialog
           targetType="COMMENT"
           targetId={reportingId}
-          targetName={zhText("คอมเมนต์นี้")}
+          targetName={"这条评论"}
           onClose={() => setReportingId(null)}
         />
       )}
@@ -364,13 +364,13 @@ function CommentRow({
                 onClick={onCancelEdit}
                 className="rounded-full border border-white/10 px-3 py-1 font-athiti text-[11px] text-zinc-400 hover:bg-white/5"
               >
-                {zhText("ยกเลิก")}</button>
+                {"取消"}</button>
               <button
                 onClick={onSaveEdit}
                 disabled={busy || !editDraft.trim()}
                 className="rounded-full bg-zinc-700 px-3 py-1 font-athiti text-[11px] font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
               >
-                {zhText("บันทึก")}</button>
+                {"保存"}</button>
             </div>
           </div>
         ) : (
@@ -382,7 +382,7 @@ function CommentRow({
         <div className="mt-1 flex items-center gap-1">
           <button
             onClick={onLike}
-            aria-label={node.hasLiked ? zhText("เลิกถูกใจคอมเมนต์") : zhText("ถูกใจคอมเมนต์")}
+            aria-label={node.hasLiked ? "取消评论点赞" : "点赞评论"}
             className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 font-barlow text-[11px] transition-colors ${
               node.hasLiked ? 'text-pink-400' : 'text-zinc-500 hover:text-pink-400'
             }`}
@@ -397,23 +397,23 @@ function CommentRow({
               className="flex items-center gap-1 rounded-full px-1.5 py-0.5 font-athiti text-[11px] text-zinc-500 hover:text-zinc-200"
             >
               <Reply className="h-3 w-3" />
-              {zhText("ตอบ")}{node.replyCount ? ` (${node.replyCount})` : ''}
+              {"回复"}{node.replyCount ? ` (${node.replyCount})` : ''}
             </button>
           )}
 
           {node.isMine && !editing && (
             <>
-              <IconOnly label={zhText("แก้ไขคอมเมนต์")} onClick={onStartEdit}>
+              <IconOnly label={"编辑评论"} onClick={onStartEdit}>
                 <Pencil className="h-3 w-3" />
               </IconOnly>
-              <IconOnly label={zhText("ลบคอมเมนต์")} onClick={onDelete}>
+              <IconOnly label={"删除评论"} onClick={onDelete}>
                 <Trash2 className="h-3 w-3" />
               </IconOnly>
             </>
           )}
 
           {!node.isMine && (
-            <IconOnly label={zhText("รายงานคอมเมนต์")} onClick={onReport}>
+            <IconOnly label={"举报评论"} onClick={onReport}>
               <Flag className="h-3 w-3" />
             </IconOnly>
           )}

@@ -96,7 +96,7 @@ export async function claimCharacterQuest(userId: string, characterId: string, q
         throw error;
       }
     }
-    const newBalance = await grantEarnedCoins(tx, userId, quest.rewardCoins, `ภารกิจตัวละคร: ${quest.title}`, 'CHARACTER_QUEST_REWARD');
+    const newBalance = await grantEarnedCoins(tx, userId, quest.rewardCoins, `角色任务：${quest.title}`, 'CHARACTER_QUEST_REWARD');
     return {coinsEarned: quest.rewardCoins, newBalance};
   }, {maxWait: 10_000, timeout: 15_000});
 }

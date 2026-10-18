@@ -91,7 +91,7 @@ export async function createCharacterComment(authorId: string, characterId: stri
   }
 
   const limit = checkRateLimit(`comment:${authorId}`, COMMENT_LIMIT, COMMENT_WINDOW_MS);
-  if (!limit.allowed) throw new CharacterCommentError('คอมเมนต์ถี่เกินไป กรุณารอสักครู่', 429, limit.retryAfter);
+  if (!limit.allowed) throw new CharacterCommentError('评论太频繁了，请稍后再试', 429, limit.retryAfter);
 
   const comment = await db.comment.create({
     data: {characterId, authorId, parentId, body: text},

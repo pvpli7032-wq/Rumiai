@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { Heart, RotateCcw, Pencil, Volume2, VolumeX, Copy, Check, Flag } from 'lucide-react';
 import { useState } from 'react';
@@ -53,7 +52,7 @@ export function MessageActions({
     <div className="flex shrink-0 items-center gap-0.5">
       {isReply && onLike && (
         <Action
-          label={liked ? zhText("เลิกถูกใจข้อความนี้") : zhText("ถูกใจข้อความนี้")}
+          label={liked ? "取消消息点赞" : "点赞消息"}
           onClick={onLike}
           // A set like must not fade out with the rest, or its state is invisible.
           alwaysVisible={liked}
@@ -63,13 +62,13 @@ export function MessageActions({
         </Action>
       )}
 
-      <Action label={copied ? zhText("คัดลอกแล้ว") : zhText("คัดลอกข้อความ")} onClick={copy} alwaysVisible={copied}>
+      <Action label={copied ? "已复制" : "复制消息"} onClick={copy} alwaysVisible={copied}>
         {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
       </Action>
 
       {isReply && onSpeak && speechSupported() && (
         <Action
-          label={speaking ? zhText("หยุดอ่าน") : zhText("อ่านออกเสียง")}
+          label={speaking ? "停止朗读" : "朗读"}
           onClick={onSpeak}
           alwaysVisible={speaking}
           className={speaking ? 'text-[#F2572B]' : ''}
@@ -79,7 +78,7 @@ export function MessageActions({
       )}
 
       {isReply && onRegenerate && (
-        <Action label={zhText("ขอคำตอบใหม่")} onClick={onRegenerate} disabled={disabled || busy}>
+        <Action label={"重新生成"} onClick={onRegenerate} disabled={disabled || busy}>
           <RotateCcw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
         </Action>
       )}
@@ -87,7 +86,7 @@ export function MessageActions({
       {isReply && onReport && <Action label="举报这条 AI 回复" onClick={onReport} disabled={disabled}><Flag className="h-3.5 w-3.5" /></Action>}
 
       {!isReply && onEdit && (
-        <Action label={zhText("แก้ไขข้อความ")} onClick={onEdit} disabled={disabled || busy}>
+        <Action label={"编辑消息"} onClick={onEdit} disabled={disabled || busy}>
           <Pencil className="h-3.5 w-3.5" />
         </Action>
       )}

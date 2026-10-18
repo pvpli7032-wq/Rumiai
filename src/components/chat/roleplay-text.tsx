@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
@@ -56,7 +55,7 @@ function Thought({ value }: { value: string }) {
         className="inline-flex items-center gap-1 rounded-full bg-zinc-700/60 px-2 py-0.5 font-athiti text-[11px] text-zinc-300 hover:bg-zinc-700"
       >
         <span aria-hidden="true">💭</span>
-        {open ? zhText("ซ่อนความในใจ") : zhText("ความในใจ")}
+        {open ? "隐藏内心想法" : "内心想法"}
         <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (

@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useEffect, useMemo, useState } from 'react';
 import { BookUser, MessageCircle, Search, Tag } from 'lucide-react';
@@ -16,12 +15,12 @@ interface Universe {
   createdAt: string;
 }
 
-const RANGES = [zhText("วันนี้"), zhText("สัปดาห์นี้"), zhText("เดือนนี้"), zhText("ตลอดกาล")] as const;
+const RANGES = ["今天", "本周", "本月", "全部"] as const;
 const TABS = [
-  { emoji: '🔥', label: zhText("กำลังมาแรง"), key: 'trending' },
-  { emoji: '🌱', label: zhText("ใหม่ล่าสุด"), key: 'new' },
-  { emoji: '🏆', label: zhText("ยอดนิยม"), key: 'popular' },
-  { emoji: '👥', label: zhText("จากคนที่ติดตาม"), key: 'following' },
+  { emoji: '🔥', label: "热门趋势", key: 'trending' },
+  { emoji: '🌱', label: "最新", key: 'new' },
+  { emoji: '🏆', label: "热门", key: 'popular' },
+  { emoji: '👥', label: "关注的创作者", key: 'following' },
 ] as const;
 
 /** 3900 -> "3.9k" */
@@ -65,7 +64,7 @@ export function UniverseTab() {
     <div className="w-full">
       {/* Search row */}
       <div className="flex items-center gap-3 px-4 py-2 md:px-12">
-        <button aria-label={zhText("แท็ก")} className="relative flex items-center bg-transparent">
+        <button aria-label={"标签"} className="relative flex items-center bg-transparent">
           <Tag className="h-5 w-5 text-muted-foreground" />
         </button>
         <div className="relative flex-1">
@@ -73,15 +72,15 @@ export function UniverseTab() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={zhText("ค้นหาจักรวาล")}
+            placeholder={"搜索世界观"}
             className="h-12 w-full rounded-lg bg-zinc-100 pl-10 pr-4 text-sm outline-hidden dark:bg-[#27272A]"
           />
         </div>
       </div>
 
       <div className="mt-2 w-full space-y-6 pb-8">
-        <Rail emoji="✨" title={zhText("แนะนำสำหรับคุณ")} items={recommended} />
-        <Rail emoji="🔥" title={zhText("จักรวาลยอดนิยม")} items={popular} />
+        <Rail emoji="✨" title={"为你推荐"} items={recommended} />
+        <Rail emoji="🔥" title={"热门世界观"} items={popular} />
 
         {/* Tabs + grid */}
         <div className="space-y-3">
@@ -112,7 +111,7 @@ export function UniverseTab() {
             </div>
             {grid.length === 0 && (
               <p className="py-16 text-center font-athiti text-sm text-muted-foreground">
-                {zhText("ยังไม่มีจักรวาล — ลองรัน")}<code className="rounded-sm bg-muted px-1">npm run db:seed:universes</code>
+                {"暂无世界观"}<code className="rounded-sm bg-muted px-1">npm run db:seed:universes</code>
               </p>
             )}
           </div>
@@ -123,7 +122,7 @@ export function UniverseTab() {
 }
 
 function Rail({ emoji, title, items }: { emoji: string; title: string; items: Universe[] }) {
-  const [range, setRange] = useState<(typeof RANGES)[number]>(zhText("สัปดาห์นี้"));
+  const [range, setRange] = useState<(typeof RANGES)[number]>("本周");
   if (items.length === 0) return null;
 
   return (
@@ -180,7 +179,7 @@ function UniverseCard({ universe, index }: { universe: Universe; index: number }
           </span>
         )}
 
-        <button type="button" aria-label={zhText("แท็ก")} className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/50">
+        <button type="button" aria-label={"标签"} className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/50">
           <Tag className="h-3 w-3 text-white" />
         </button>
 

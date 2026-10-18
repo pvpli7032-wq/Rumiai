@@ -5,14 +5,12 @@ import assert from 'node:assert/strict';
 
 const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:18780';
 const out = path.resolve(process.env.BROWSER_TEST_OUT || '../../browser-m0');
-const chinese = process.env.TEST_UI_LANGUAGE === 'zh';
 const real = process.env.TEST_REAL_AI === 'true';
-const copy = chinese ? {
+// The interface is Chinese-only now, so the selectors are Chinese literals. The old
+// Thai branch matched a locale that no longer renders.
+const copy = {
   start: '开始聊天', comments: '评论', send: '发送', report: '举报', cancel: '取消',
   publish: '发布角色', sex: '色情内容', submitReport: '提交举报', reported: '举报已提交',
-} : {
-  start: 'เริ่มคุย', comments: 'คอมเมนต์', send: 'ส่ง', report: 'รายงาน', cancel: 'ยกเลิก',
-  publish: 'เผยแพร่ตัวละคร', sex: 'เนื้อหาทางเพศ', submitReport: 'ส่งรายงาน', reported: 'ส่งรายงานแล้ว',
 };
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch();
@@ -48,7 +46,7 @@ try {
   await page.getByRole('button', { name: copy.submitReport, exact: true }).click();
   await page.getByText(copy.reported, { exact: true }).waitFor();
   await page.screenshot({ path: path.join(out, 'report.png') });
-  await page.getByRole('dialog', { name: copy.reported, exact: true }).getByRole('button', { name: chinese ? '关闭' : 'ปิด', exact: true }).last().click();
+  await page.getByRole('dialog', { name: copy.reported, exact: true }).getByRole('button', { name: '关闭', exact: true }).last().click();
   check('浏览器提交举报');
   await page.getByRole('button', { name: copy.start, exact: true }).click();
   await page.waitForURL(/\/chat/);
@@ -84,7 +82,7 @@ try {
   check('浏览器创建角色并进入聊天');
   await page.goto(`${base}/shop`);
   await page.getByRole('button', { name: /模拟充值/ }).first().click();
-  await page.getByText(chinese ? '模拟充值成功' : 'ซื้อสำเร็จ!', { exact: true }).waitFor();
+  await page.getByText('模拟充值成功', { exact: true }).waitFor();
   check('浏览器模拟金币充值');
   await page.setViewportSize({ width: 390, height: 844 });
   for (const route of ['/discover', '/creator', '/profile', '/chat', '/shop']) {

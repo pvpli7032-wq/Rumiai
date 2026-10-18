@@ -1,10 +1,9 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useState } from 'react';
 import { CharacterCard, type CharacterCardData } from '@/components/character-card';
 
-const RANGES = [zhText("วันนี้"), zhText("สัปดาห์นี้"), zhText("เดือนนี้"), zhText("ตลอดกาล")];
+const RANGES = ["今天", "本周", "本月", "全部"];
 
 /** Horizontal scrolling rail of character cards with a time-range filter. */
 export function CharacterRail({
@@ -16,7 +15,7 @@ export function CharacterRail({
   title: string;
   characters: CharacterCardData[];
 }) {
-  const [range, setRange] = useState(zhText("สัปดาห์นี้"));
+  const [range, setRange] = useState("本周");
   if (characters.length === 0) return null;
 
   return (

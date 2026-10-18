@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -92,11 +91,11 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
       .then(([detail, questList, giftCatalog]) => {
         if (!alive) return;
         if (detail?.character) setCharacter(detail.character);
-        else setError(zhText("โหลดข้อมูลตัวละครไม่สำเร็จ"));
+        else setError("角色详情加载失败");
         if (Array.isArray(questList)) setQuests(questList);
         if(Array.isArray(giftCatalog?.gifts))setGiftOptions(giftCatalog.gifts);
       })
-      .catch(() => alive && setError(zhText("โหลดข้อมูลตัวละครไม่สำเร็จ")));
+      .catch(() => alive && setError("角色详情加载失败"));
     return () => {
       alive = false;
     };
@@ -145,7 +144,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
     setPendingMark(false);
     if (!res.ok) return;
     setCharacter((c) => (c ? { ...c, viewer: { ...c.viewer, hasBookmarked: method === 'POST' } } : c));
-    setNotice(method === 'POST' ? zhText("บันทึกไว้แล้ว") : zhText("เอาออกจากที่บันทึกแล้ว"));
+    setNotice(method === 'POST' ? "已收藏" : "已取消收藏");
   }
 
   async function claimQuest(questId: string) {
@@ -158,11 +157,11 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
     setClaiming(null);
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setNotice(body.error === 'Quest already completed' ? zhText("ภารกิจนี้รับรางวัลไปแล้ว") : body.error==='Quest condition not met'?`还需发送 ${Math.max(0,(body.target??0)-(body.progress??0))} 条消息` : zhText("รับรางวัลไม่สำเร็จ"));
+      setNotice(body.error === 'Quest already completed' ? "该任务奖励已经领取" : body.error==='Quest condition not met'?`还需发送 ${Math.max(0,(body.target??0)-(body.progress??0))} 条消息` : "领取奖励失败");
       return;
     }
     setQuests((qs) => qs.map((q) => (q.id === questId ? { ...q, isCompleted: true } : q)));
-    setNotice(zhText("ได้รับ") + (body.coinsEarned) + zhText("คอยน์"));
+    setNotice("获得" + (body.coinsEarned) + "金币");
   }
 
   async function sendGift(gift:GiftOption){
@@ -226,7 +225,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                     <button
                       key={url}
                       onClick={() => setSlide(i)}
-                      aria-label={zhText("รูปที่") + (i + 1) + zhText("")}
+                      aria-label={"图片 " + (i + 1)}
                       className={`h-1.5 rounded-full transition-all ${i === slide ? 'w-5 bg-white' : 'w-1.5 bg-white/40'}`}
                     />
                   ))}
@@ -241,7 +240,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             )}
             <button
               onClick={onClose}
-              aria-label={zhText("ปิด")}
+              aria-label={"关闭"}
               className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
             >
               <X className="h-4 w-4" />
@@ -267,9 +266,9 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             )}
 
             <div className="mt-3 flex flex-wrap items-center gap-3 font-barlow text-xs text-zinc-400">
-              <Stat icon={<MessageSquare className="h-3.5 w-3.5" />} value={character.chatCount} label={zhText("แชท")} />
-              <Stat icon={<Heart className="h-3.5 w-3.5" />} value={character.likeCount} label={zhText("ไลก์")} />
-              <Stat icon={<Gift className="h-3.5 w-3.5" />} value={character.giftCount} label={zhText("ของขวัญ")} />
+              <Stat icon={<MessageSquare className="h-3.5 w-3.5" />} value={character.chatCount} label={"聊天"} />
+              <Stat icon={<Heart className="h-3.5 w-3.5" />} value={character.likeCount} label={"点赞"} />
+              <Stat icon={<Gift className="h-3.5 w-3.5" />} value={character.giftCount} label={"礼物"} />
             </div>
 
             {tags.length > 0 && (
@@ -289,12 +288,12 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] py-3 font-athiti text-sm font-bold text-white transition-opacity hover:opacity-90"
               >
                 <MessageSquare className="h-4 w-4" />
-                {zhText("เริ่มคุย")}</button>
+                {"开始聊天"}</button>
               <button
                 onClick={() => startChat(true)}
                 className="rounded-full border border-white/15 px-4 font-athiti text-sm font-bold text-zinc-200 hover:bg-white/5"
               >
-                {zhText("แชทใหม่")}</button>
+                {"新建聊天"}</button>
             </div>
 
             <div className="mt-2 flex gap-2">
@@ -302,15 +301,15 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                 active={character.viewer.hasLiked}
                 onClick={toggleLike}
                 icon={<Heart className={`h-4 w-4 ${character.viewer.hasLiked ? 'fill-current' : ''}`} />}
-                label={character.viewer.hasLiked ? zhText("ถูกใจแล้ว") : zhText("ถูกใจ")}
+                label={character.viewer.hasLiked ? "已点赞" : "点赞"}
               />
               <IconAction
                 active={character.viewer.hasBookmarked}
                 onClick={toggleBookmark}
                 icon={<Bookmark className={`h-4 w-4 ${character.viewer.hasBookmarked ? 'fill-current' : ''}`} />}
-                label={character.viewer.hasBookmarked ? zhText("บันทึกแล้ว") : zhText("บันทึก")}
+                label={character.viewer.hasBookmarked ? "已收藏" : "保存"}
               />
-              <IconAction onClick={() => setReporting(true)} icon={<Flag className="h-4 w-4" />} label={zhText("รายงาน")} />
+              <IconAction onClick={() => setReporting(true)} icon={<Flag className="h-4 w-4" />} label={"举报"} />
             </div>
 
             {notice && <p className="mt-2 font-athiti text-xs text-emerald-400">{notice}</p>}
@@ -318,32 +317,32 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             {/* Tabs */}
             <div className="mt-5 flex gap-1 border-b border-white/10">
               <TabButton active={tab === 'about'} onClick={() => setTab('about')}>
-                {zhText("เกี่ยวกับ")}</TabButton>
+                {"介绍"}</TabButton>
               <TabButton active={tab === 'quests'} onClick={() => setTab('quests')}>
-                {zhText("ภารกิจ")}{quests.length > 0 ? ` (${quests.length})` : ''}
+                {"任务"}{quests.length > 0 ? ` (${quests.length})` : ''}
                 {openQuests > 0 && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-[#F2572B]" />}
               </TabButton>
               {character.supportCast.length > 0 && (
                 <TabButton active={tab === 'cast'} onClick={() => setTab('cast')}>
-                  {zhText("ตัวละครร่วม (")}{character.supportCast.length})
+                  {"配角（"}{character.supportCast.length})
                 </TabButton>
               )}
               <TabButton active={tab === 'comments'} onClick={() => setTab('comments')}>
-                {zhText("คอมเมนต์")}</TabButton>
+                {"评论"}</TabButton>
             </div>
 
             <div className="pt-4">
               {tab === 'about' && (
                 <div className="space-y-4">
-                  <Section title={zhText("บุคลิก")}>{character.personality}</Section>
-                  {character.scenario && <Section title={zhText("สถานการณ์")}>{character.scenario}</Section>}
+                  <Section title={"个性"}>{character.personality}</Section>
+                  {character.scenario && <Section title={"场景"}>{character.scenario}</Section>}
                   {character.copyrightStatement && <Section title="版权声明">{character.copyrightStatement}</Section>}
-                  {character.background && <Section title={zhText("เรื่องราว")}>{character.background}</Section>}
+                  {character.background && <Section title={"故事"}>{character.background}</Section>}
                   {giftOptions.length>0&&<section className="space-y-2"><h3 className="font-athiti text-xs font-bold text-zinc-500">赠送礼物</h3><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{giftOptions.map(gift=><button key={gift.id} onClick={()=>void sendGift(gift)} disabled={!token||!!sendingGift} className="flex min-h-14 items-center gap-2 rounded-xl border border-white/10 bg-zinc-800/50 px-3 text-left hover:border-[#F2572B]/50 disabled:opacity-50"><span className="text-xl">{gift.emoji}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm">{gift.name}</span><span className="text-xs text-amber-400">{gift.coinPrice} 金币</span></span></button>)}</div>{!token&&<p className="text-xs text-zinc-500">登录后可赠送礼物</p>}</section>}
-                  {character.greeting && <Section title={zhText("คำทักทาย")}>{character.greeting}</Section>}
+                  {character.greeting && <Section title={"开场白"}>{character.greeting}</Section>}
                   {character.emojis.length > 0 && (
                     <div>
-                      <p className="mb-2 font-athiti text-xs font-bold text-zinc-500">{zhText("อารมณ์")}</p>
+                      <p className="mb-2 font-athiti text-xs font-bold text-zinc-500">{"情绪"}</p>
                       <div className="flex flex-wrap gap-2">
                         {character.emojis.map((e) => (
                           <div key={e.id} className="flex flex-col items-center gap-1">
@@ -361,7 +360,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                 <div className="space-y-2">
                   {quests.length === 0 ? (
                     <p className="py-6 text-center font-athiti text-sm text-zinc-500">
-                      {zhText("ตัวละครนี้ยังไม่มีภารกิจ")}</p>
+                      {"该角色暂无任务"}</p>
                   ) : (
                     quests.map((q) => (
                       <div
@@ -391,7 +390,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                           disabled={q.isCompleted || !q.isQualified || claiming === q.id}
                           className="shrink-0 rounded-full bg-zinc-700 px-3 py-1.5 font-athiti text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
                         >
-                          {q.isCompleted ? zhText("รับแล้ว") : claiming === q.id ? '...' : q.isQualified?zhText("รับรางวัล"):'尚未达成'}
+                          {q.isCompleted ? "已领取" : claiming === q.id ? '...' : q.isQualified?"领取奖励":'尚未达成'}
                         </button>
                       </div>
                     ))
@@ -463,7 +462,7 @@ function GalleryArrow({ side, onClick }: { side: 'left' | 'right'; onClick: () =
   return (
     <button
       onClick={onClick}
-      aria-label={side === 'left' ? zhText("รูปก่อนหน้า") : zhText("รูปถัดไป")}
+      aria-label={side === 'left' ? "上一张图片" : "下一张图片"}
       className={`absolute top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 ${
         side === 'left' ? 'left-2' : 'right-2'
       }`}

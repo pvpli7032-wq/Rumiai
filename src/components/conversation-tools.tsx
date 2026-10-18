@@ -1,7 +1,7 @@
  'use client';
 import { useState } from 'react';
 import { notifyChatListChanged } from '@/lib/conversations/chat-events';
-import { zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 export function ConversationTools({conversationId,token,title,disabled,onDeleted}:{conversationId:string;token:string;title?:string;disabled?:boolean;onDeleted:()=>void}){
  const [busy,setBusy]=useState(false),[confirm,setConfirm]=useState(false),[error,setError]=useState('');
  async function download(format:'json'|'txt'){

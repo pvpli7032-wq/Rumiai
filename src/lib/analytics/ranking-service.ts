@@ -1,13 +1,13 @@
 import { db } from '@/lib/db';
 
-const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const chineseMonths = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
 function weekLabel(now: Date) {
   const from = new Date(now.getTime() - 7 * 86_400_000);
   const buddhistYear = now.getFullYear() + 543;
   return from.getMonth() === now.getMonth()
-    ? `${from.getDate()}-${now.getDate()} ${thaiMonths[now.getMonth()]} ${buddhistYear}`
-    : `${from.getDate()} ${thaiMonths[from.getMonth()]} - ${now.getDate()} ${thaiMonths[now.getMonth()]} ${buddhistYear}`;
+    ? `${from.getDate()}-${now.getDate()}日 ${chineseMonths[now.getMonth()]} ${buddhistYear}`
+    : `${from.getDate()}日 ${chineseMonths[from.getMonth()]} - ${now.getDate()}日 ${chineseMonths[now.getMonth()]} ${buddhistYear}`;
 }
 
 export async function readWeeklyRankings(now = new Date()) {

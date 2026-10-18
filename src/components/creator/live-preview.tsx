@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { Tag, User } from 'lucide-react';
 
@@ -27,15 +26,15 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-linear-to-br/srgb from-[#3b1d4d] to-[#141428] text-white/40">
               <User className="h-8 w-8" />
-              <span className="text-[11px]">{zhText("ยังไม่มีรูป")}</span>
+              <span className="text-[11px]">{"尚未添加图片"}</span>
             </div>
           )}
           <div className="absolute inset-0 bg-linear-to-t/srgb from-black/60 via-transparent to-black/20" />
 
           {data.isExclusive && (
             <span className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-[#1A1A1A]/90 py-0.5 pl-2 pr-1 text-[9px] font-semibold text-white ring-1 ring-[#2A2A2A]">
-              <span>{zhText("Only on")}</span>
-              <span className="text-[#F2572B]">{zhText("Khui AI")}</span>
+              <span>{"原创"}</span>
+              <span className="text-[#F2572B]">{"星伴"}</span>
             </span>
           )}
 
@@ -56,9 +55,9 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
           </div>
         </div>
 
-        <p className="mt-2 line-clamp-1 font-athiti text-sm font-bold md:text-base">{data.name || zhText("ชื่อตัวละคร")}</p>
+        <p className="mt-2 line-clamp-1 font-athiti text-sm font-bold md:text-base">{data.name || "角色名称"}</p>
         <p className="mt-0.5 line-clamp-2 font-athiti text-xs text-muted-foreground md:text-sm">
-          {data.tagline || zhText("คำโปรยตัวละคร")}
+          {data.tagline || "角色一句话简介"}
         </p>
       </div>
 
@@ -74,7 +73,7 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
       )}
 
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-[#2A2A2A] dark:bg-[#141414]">
-        <p className="mb-2 font-athiti text-xs font-bold text-muted-foreground">{zhText("ข้อความแรกในห้องแชท")}</p>
+        <p className="mb-2 font-athiti text-xs font-bold text-muted-foreground">{"聊天中的第一句话"}</p>
         <div className="flex gap-2">
           <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-linear-to-br/srgb from-[#EE4036] to-[#FAAF40]">
             {data.avatarUrl && <img src={data.avatarUrl} alt="" className="h-full w-full object-cover" />}
@@ -91,7 +90,7 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
                 ),
               )
             ) : (
-              <p className="text-muted-foreground">{zhText("ยังไม่ได้เขียนคำทักทาย…")}</p>
+              <p className="text-muted-foreground">{"尚未填写开场白…"}</p>
             )}
           </div>
         </div>

@@ -1,7 +1,7 @@
 'use client';
 import { ChatInbox } from '@/components/chat-inbox';
 import { ConversationTools } from '@/components/conversation-tools';
-import { zhText, zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 
 import { useEffect, useRef, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -108,7 +108,7 @@ function ChatContent() {
   const charId = searchParams.get('character') || resolvedCharId;
   useEffect(()=>{setStreaming(false);setStreamingText('');setBusyId(null);return()=>{activeRequest.current?.abort();};},[charId,requestedConversation,conversationId]);
   useEffect(()=>{setResolvedCharId(null);if(!requestedConversation)return;if(!token){if(!authLoading)router.push(loginWithNext());return;}fetch('/api/conversations/'+encodeURIComponent(requestedConversation),{headers:{Authorization:'Bearer '+token}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>setResolvedCharId(data.conversation.character.id)).catch(()=>{setChatError('无法打开该对话，请返回聊天列表。');setLoading(false)});},[requestedConversation,token,authLoading,router]);
-  // "แชทใหม่" on the detail dialog asks for a fresh room instead of reopening the last one.
+  // "新建聊天" on the detail dialog asks for a fresh room instead of reopening the last one.
   const wantsNewChat = searchParams.get('new') === '1';
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, streamingText]);
@@ -360,12 +360,12 @@ function ChatContent() {
             </div>
           </>
         )}
-        {streaming && <div className="ml-auto flex items-center gap-2 text-xs text-purple-400 font-athiti"><div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />{zhText("กำลังพิมพ์...")}</div>}
+        {streaming && <div className="ml-auto flex items-center gap-2 text-xs text-purple-400 font-athiti"><div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />{"正在输入…"}</div>}
         {character && (
           <button
             onClick={() => setReporting(true)}
-            aria-label={zhText("รายงานตัวละคร")}
-            title={zhText("รายงานตัวละคร")}
+            aria-label={"举报角色"}
+            title={"举报角色"}
             className={`${streaming ? '' : 'ml-auto '}rounded-full p-2 text-zinc-500 transition-colors hover:bg-white/5 hover:text-white`}
           >
             <Flag className="h-4 w-4" />
@@ -382,7 +382,7 @@ function ChatContent() {
             <p className="text-zinc-400 font-athiti text-sm">
               {character.greeting
                 ? <RoleplayText text={character.greeting} />
-                : zhText("สวัสดีครับ/ค่ะ! ฉันคือ") + (character.name) + zhText("ยินดีที่ได้รู้จักนะ ✨")}
+                : "你好！我是" + (character.name) + "，很高兴认识你。"}
             </p>
           </div>
         )}
@@ -402,19 +402,19 @@ function ChatContent() {
                     className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-3 py-2 font-athiti text-sm text-white focus:border-purple-500/50 focus:outline-hidden"
                   />
                   <p className="mt-1 font-athiti text-[11px] text-zinc-500">
-                    {zhText("แก้แล้วคำตอบเดิมจะถูกแทนที่ด้วยคำตอบใหม่")}</p>
+                    {"编辑后将重新生成回复"}</p>
                   <div className="mt-2 flex gap-2">
                     <button
                       onClick={() => setEditingId(null)}
                       className="flex-1 rounded-full border border-white/10 py-1.5 font-athiti text-xs text-zinc-300 hover:bg-white/5"
                     >
-                      {zhText("ยกเลิก")}</button>
+                      {"取消"}</button>
                     <button
                       onClick={() => saveEdit(msg.id)}
                       disabled={!editDraft.trim() || busyId === msg.id}
                       className="flex-1 rounded-full bg-purple-600 py-1.5 font-athiti text-xs font-bold text-white hover:bg-purple-500 disabled:opacity-40"
                     >
-                      {busyId === msg.id ? zhText("กำลังบันทึก...") : zhText("บันทึกและตอบใหม่")}
+                      {busyId === msg.id ? "正在保存…" : "保存并重新生成"}
                     </button>
                   </div>
                 </div>
@@ -499,7 +499,7 @@ function ChatContent() {
             onChange={e => setInput(e.target.value)}
             disabled={streaming}
             maxLength={5000}
-            placeholder={zhText("พิมพ์ข้อความถึง") + (character?.name || '角色') + zhText("...")}
+            placeholder={"发送消息给" + (character?.name || '角色') + "..."}
             className="flex-1 px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all font-athiti disabled:opacity-50"
           />
           <button type="submit" disabled={streaming || !input.trim()}

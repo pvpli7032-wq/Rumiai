@@ -1,5 +1,5 @@
 'use client';
-import { zhText, zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 
 import { useEffect, useState } from 'react';
 import { BookOpen, Ban, Zap, Plus, Trash2, Check } from 'lucide-react';
@@ -35,7 +35,7 @@ export function ReaderPreferences() {
         setShortcuts(parseShortcuts(me.shortcuts));
         setLoaded(true);
       })
-      .catch(() => setError(zhText("โหลดการตั้งค่าไม่สำเร็จ")));
+      .catch(() => setError("设置加载失败"));
   }, [token]);
 
   async function save() {
@@ -54,11 +54,11 @@ export function ReaderPreferences() {
     setSaving(false);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(zhError(body.error || '') || zhText("บันทึกไม่สำเร็จ"));
+      setError(zhError(body.error || '') || "保存失败");
       return;
     }
     await refreshUser();
-    setNotice(zhText("บันทึกการตั้งค่าแล้ว"));
+    setNotice("阅读设置已保存");
     setTimeout(() => setNotice(''), 2500);
   }
 
@@ -72,7 +72,7 @@ export function ReaderPreferences() {
 
   return (
     <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-      <h2 className="mb-4 font-athiti text-lg font-bold text-white">{zhText("การตั้งค่าการอ่าน")}</h2>
+      <h2 className="mb-4 font-athiti text-lg font-bold text-white">{"阅读设置"}</h2>
 
       {error && (
         <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 font-athiti text-sm text-red-400">
@@ -88,8 +88,8 @@ export function ReaderPreferences() {
         <span className="flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-zinc-400" />
           <span>
-            <span className="block font-athiti text-sm text-white">{zhText("โหมดอ่าน")}</span>
-            <span className="block font-athiti text-xs text-zinc-500">{zhText("ตัวอักษรใหญ่ขึ้น อ่านยาวๆ สบายตา")}</span>
+            <span className="block font-athiti text-sm text-white">{"阅读模式"}</span>
+            <span className="block font-athiti text-xs text-zinc-500">{"放大文字，让长篇阅读更舒适"}</span>
           </span>
         </span>
         <span
@@ -105,14 +105,14 @@ export function ReaderPreferences() {
       <div className="mt-4">
         <p className="mb-1 flex items-center gap-1.5 font-athiti text-sm font-bold text-zinc-300">
           <Ban className="h-4 w-4 text-zinc-500" />
-          {zhText("คำที่ไม่ต้องการ")}</p>
+          {"屏蔽词"}</p>
         <p className="mb-2 font-athiti text-xs text-zinc-500">
-          {zhText("บรรทัดละหนึ่งคำ ข้อความที่มีคำเหล่านี้จะถูกซ่อนไว้ให้กดดูเอง ไม่ได้ลบทิ้ง")}</p>
+          {"每行一个词。含有这些词的回复将被折叠，点击仍可查看。"}</p>
         <textarea
           value={bannedWords}
           onChange={(e) => setBannedWords(e.target.value.slice(0, 4000))}
           rows={4}
-          placeholder={zhText("เลือด\nความรุนแรง")}
+          placeholder={"血腥\n暴力"}
           className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 font-athiti text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
         />
       </div>
@@ -121,9 +121,9 @@ export function ReaderPreferences() {
       <div className="mt-4">
         <p className="mb-1 flex items-center gap-1.5 font-athiti text-sm font-bold text-zinc-300">
           <Zap className="h-4 w-4 text-zinc-500" />
-          {zhText("ปุ่มลัดในกล่องพิมพ์")}</p>
+          {"聊天快捷短语"}</p>
         <p className="mb-2 font-athiti text-xs text-zinc-500">
-          {zhText("ประโยคที่ใช้บ่อย กดแล้วเติมลงกล่องพิมพ์ได้เลย (สูงสุด")}{MAX_SHORTCUTS})
+          {"点击填入常用句子（最多"}{MAX_SHORTCUTS})
         </p>
 
         <div className="space-y-2">
@@ -138,7 +138,7 @@ export function ReaderPreferences() {
                     )
                   )
                 }
-                placeholder={zhText("ชื่อปุ่ม")}
+                placeholder={"按钮名称"}
                 className="w-28 shrink-0 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
               />
               <input
@@ -150,12 +150,12 @@ export function ReaderPreferences() {
                     )
                   )
                 }
-                placeholder={zhText("ข้อความที่จะเติม")}
+                placeholder={"填入的文字"}
                 className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 font-athiti text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
               />
               <button
                 onClick={() => setShortcuts((list) => list.filter((_, j) => j !== i))}
-                aria-label={zhText("ลบปุ่มลัด")}
+                aria-label={"删除快捷短语"}
                 className="shrink-0 rounded-xl px-2 text-zinc-500 hover:bg-white/5 hover:text-red-400"
               >
                 <Trash2 className="h-4 w-4" />
@@ -170,7 +170,7 @@ export function ReaderPreferences() {
             className="mt-2 flex items-center gap-1 rounded-full border border-white/10 px-3 py-1.5 font-athiti text-xs text-zinc-300 hover:bg-white/5"
           >
             <Plus className="h-3.5 w-3.5" />
-            {zhText("เพิ่มปุ่มลัด")}</button>
+            {"添加快捷短语"}</button>
         )}
       </div>
 
@@ -179,7 +179,7 @@ export function ReaderPreferences() {
         disabled={saving}
         className="mt-5 w-full rounded-xl bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] py-3 font-athiti text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {saving ? zhText("กำลังบันทึก...") : zhText("บันทึกการตั้งค่า")}
+        {saving ? "正在保存…" : "保存设置"}
       </button>
 
       {notice && (

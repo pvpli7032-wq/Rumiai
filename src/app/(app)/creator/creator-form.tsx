@@ -1,6 +1,6 @@
 'use client';
 import { CHARACTER_LIMITS } from '@/lib/characters/validation';
-import { zhText, zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -21,11 +21,11 @@ const DRAFT_KEY = 'khuiai:character-draft';
 const LIMITS = { ...CHARACTER_LIMITS, description: CHARACTER_LIMITS.personality, bio: CHARACTER_LIMITS.background };
 
 const SECTIONS = [
-  { id: 'identity', label: zhText("ตัวตน"), desc: zhText("ชื่อ คำโปรย รูป"), icon: UserRound },
-  { id: 'persona', label: zhText("บุคลิก"), desc: zhText("นิสัยและฉากหลัง"), icon: Sparkles },
-  { id: 'opening', label: zhText("บทเปิด"), desc: zhText("ประโยคแรกที่พูด"), icon: MessageSquareQuote },
-  { id: 'tags', label: zhText("แท็ก"), desc: zhText("ช่วยให้คนหาเจอ"), icon: Tags },
-  { id: 'publish', label: zhText("เผยแพร่"), desc: zhText("สาธารณะหรือส่วนตัว"), icon: Eye },
+  { id: 'identity', label: "身份", desc: "名称、简介和头像", icon: UserRound },
+  { id: 'persona', label: "个性", desc: "性格与背景", icon: Sparkles },
+  { id: 'opening', label: "开场", desc: "第一句话", icon: MessageSquareQuote },
+  { id: 'tags', label: "标签", desc: "方便其他人发现", icon: Tags },
+  { id: 'publish', label: "发布", desc: "公开或私密", icon: Eye },
 ] as const;
 
 interface Draft {
@@ -148,10 +148,10 @@ export default function CreatorForm({ editId }: { editId?: string }) {
   // ── validation & completeness ────────────────────────────────────────
   const errors = useMemo(() => {
     const e: Record<string, string | null> = {};
-    e.name = draft.name.trim() ? null : zhText("ต้องมีชื่อตัวละคร");
-    e.tagline = draft.tagline.trim() ? null : zhText("ต้องมีคำโปรย");
+    e.name = draft.name.trim() ? null : "请填写角色名称";
+    e.tagline = draft.tagline.trim() ? null : "请填写一句话简介";
     e.description =
-      draft.description.trim().length >= 40 ? null : zhText("อธิบายบุคลิกอย่างน้อย 40 ตัวอักษร เพื่อให้ AI จับโทนได้");
+      draft.description.trim().length >= 40 ? null : "请用至少 40 个字符描述角色个性";
     return e;
   }, [draft]);
 
@@ -178,7 +178,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
     }
     if (!requiredOk) {
       setTouched({ name: true, tagline: true, description: true });
-      setError(zhText("ยังกรอกข้อมูลที่จำเป็นไม่ครบ"));
+      setError("请补全必填信息");
       goTo(errors.name || errors.tagline ? 'identity' : 'persona');
       return;
     }
@@ -218,7 +218,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
   }
 
   function reset() {
-    if (!confirm(zhText("ล้างข้อมูลทั้งหมดและเริ่มใหม่?"))) return;
+    if (!confirm("清空草稿并重新开始？")) return;
     localStorage.removeItem(draftKey);
     setDraft(EMPTY);
     setTouched({});
@@ -246,13 +246,13 @@ export default function CreatorForm({ editId }: { editId?: string }) {
       {/* Toolbar */}
       <div className="sticky top-16 z-30 border-b bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 md:px-8">
-          <Link href="/" aria-label={zhText("กลับหน้าหลัก")} className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-accent">
+          <Link href="/" aria-label={"返回发现"} className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-accent">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0 flex-1">
             <h1 className="truncate font-athiti text-base font-bold leading-tight">{editId ? '编辑角色' : '创建角色'}</h1>
             <p className="truncate text-[11px] text-muted-foreground">
-              {savedAt ? zhText("บันทึกร่างอัตโนมัติ") + (savedAt) + zhText("น.") : zhText("ร่างจะถูกบันทึกให้อัตโนมัติ")}
+              {savedAt ? "草稿已自动保存于" + (savedAt) : "草稿会自动保存"}
             </p>
           </div>
 
@@ -266,7 +266,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{progress}%</span>
           </div>
 
-          <button onClick={reset} aria-label={zhText("ล้างข้อมูล")} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-red-500">
+          <button onClick={reset} aria-label={"清空草稿"} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-red-500">
             <RotateCcw className="h-4 w-4" />
           </button>
           <button
@@ -274,7 +274,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             className="flex h-9 items-center gap-1.5 rounded-lg border border-input px-3 text-xs font-medium transition-colors hover:bg-accent xl:hidden"
           >
             <Eye className="h-3.5 w-3.5" />
-            {zhText("ตัวอย่าง")}</button>
+            {"预览"}</button>
           <button
             onClick={submit}
             disabled={saving || !loaded}
@@ -339,71 +339,71 @@ export default function CreatorForm({ editId }: { editId?: string }) {
           )}
 
           {/* 1 ── identity */}
-          <Card refFn={(el) => (sectionRefs.current.identity = el)} id="identity" title={zhText("ตัวตน")} desc={zhText("สิ่งที่คนเห็นก่อนกดเข้ามาคุย")}>
-            <Field label={zhText("ชื่อตัวละคร")} required error={touched.name ? errors.name : null} hint={zhText("แสดงบนการ์ดและในห้องแชท")}>
+          <Card refFn={(el) => (sectionRefs.current.identity = el)} id="identity" title={"身份"} desc={"读者开始聊天前看到的信息"}>
+            <Field label={"角色名称"} required error={touched.name ? errors.name : null} hint={"显示在角色卡和聊天中"}>
               <input
                 value={draft.name}
                 onChange={(e) => set('name', e.target.value)}
                 onBlur={() => blur('name')}
                 maxLength={LIMITS.name}
-                placeholder={zhText("เช่น เซียวเฉิงเยี่ยน, มิรุโกะ, คริส — NOIR")}
+                placeholder={"例如：林澈、星野、晴川"}
                 className={inputCls}
               />
               <Counter value={draft.name.length} max={LIMITS.name} />
             </Field>
 
-            <Field label={zhText("คำโปรย")} required error={touched.tagline ? errors.tagline : null} hint={zhText("ประโยคเดียวที่ทำให้คนอยากกดเข้ามา")}>
+            <Field label={"一句话简介"} required error={touched.tagline ? errors.tagline : null} hint={"用一句话介绍角色的特点"}>
               <input
                 value={draft.tagline}
                 onChange={(e) => set('tagline', e.target.value)}
                 onBlur={() => blur('tagline')}
                 maxLength={LIMITS.tagline}
-                placeholder={zhText("เช่น \"ถ้าเธอคิดมาก… อย่าเริ่ม\"")}
+                placeholder={"例如：“愿意陪你读完这个故事。”"}
                 className={inputCls}
               />
               <Counter value={draft.tagline.length} max={LIMITS.tagline} />
             </Field>
 
-            <Field label={zhText("รูปโปรไฟล์")} hint={zhText("ภาพโปสเตอร์แนวตั้งที่โชว์บนการ์ดในหน้าหลัก")}>
+            <Field label={"头像"} hint={"角色卡使用竖版头像"}>
               <ImageUpload value={draft.avatarUrl} onChange={(url) => set('avatarUrl', url)} token={token} />
             </Field>
 
             <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-3 dark:border-[#2A2A2A] dark:bg-[#141414]">
               <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium leading-tight">{zhText("มีแค่ที่ Khui AI เท่านั้น")}</span>
-                <span className="text-xs text-muted-foreground">{zhText("ติดป้าย Only on Khui AI บนการ์ด")}</span>
+                <span className="text-sm font-medium leading-tight">{"本站原创角色"}</span>
+                <span className="text-xs text-muted-foreground">{"在角色卡显示原创标记"}</span>
               </span>
-              <Toggle checked={draft.isExclusive} onChange={(v) => set('isExclusive', v)} label={zhText("Only on Khui AI")} />
+              <Toggle checked={draft.isExclusive} onChange={(v) => set('isExclusive', v)} label={"本站原创"} />
             </label>
           </Card>
 
           {/* 2 ── persona */}
-          <Card refFn={(el) => (sectionRefs.current.persona = el)} id="persona" title={zhText("บุคลิก")} desc={zhText("ส่วนนี้ถูกส่งให้ AI ใช้สวมบทบาทโดยตรง")}>
-            <Field label={zhText("นิสัยและน้ำเสียง")} required error={touched.description ? errors.description : null}>
+          <Card refFn={(el) => (sectionRefs.current.persona = el)} id="persona" title={"个性"} desc={"这部分会传给 AI 作为角色设定"}>
+            <Field label={"个性与说话方式"} required error={touched.description ? errors.description : null}>
               <textarea
                 value={draft.description}
                 onChange={(e) => set('description', e.target.value)}
                 onBlur={() => blur('description')}
                 maxLength={LIMITS.description}
-                placeholder={zhText("เย็นชา พูดสั้น ไม่สัญญาอะไรกับใคร ซื่อสัตย์แบบโหดร้าย เรียกตัวเองว่า 'ฉัน' และเรียกผู้เล่นว่า 'เธอ'")}
+                placeholder={"安静、真诚，善于倾听。自称“我”，称呼读者为“你”。"}
                 className={`${inputCls} h-44 resize-y`}
               />
               <Counter value={draft.description.length} max={LIMITS.description} />
               <Checklist
                 items={[
-                  { done: draft.description.trim().length >= 40, label: zhText("ยาวพอให้ AI จับโทนได้ (40+ ตัวอักษร)") },
-                  { done: /['"‘“]/.test(draft.description) || draft.description.includes(zhText("เรียก")), label: zhText("ระบุคำแทนตัว / วิธีเรียกผู้เล่น") },
-                  { done: draft.description.split(/[ ,\n]+/).filter(Boolean).length >= 8, label: zhText("มีลักษณะนิสัยหลายด้าน ไม่ใช่คำเดียว") },
+                  { done: draft.description.trim().length >= 40, label: "至少 40 个字符，让 AI 理解角色特点" },
+                  { done: /['"‘“]/.test(draft.description) || draft.description.includes("称"), label: "说明角色的自称和对读者的称呼" },
+                  { done: draft.description.split(/[ ,\n]+/).filter(Boolean).length >= 8, label: "描述多个个性特点" },
                 ]}
               />
             </Field>
 
-            <Field label={zhText("ฉากหลังและปมเรื่อง")} hint={zhText("ความสัมพันธ์กับผู้เล่น สถานการณ์ตั้งต้น")}>
+            <Field label={"背景故事"} hint={"与读者的关系和故事的起点"}>
               <textarea
                 value={draft.bio}
                 onChange={(e) => set('bio', e.target.value)}
                 maxLength={LIMITS.bio}
-                placeholder={zhText("บาร์เทนเดอร์กะดึกของบาร์ NOIR ที่ไม่คบใครนานเกินสองสัปดาห์ ผู้เล่นมานั่งเก้าอี้ตัวเดิมทุกคืนศุกร์มาสองเดือนแล้ว")}
+                placeholder={"图书馆值班管理员，喜欢文学和历史。读者每周五都会来借书。"}
                 className={`${inputCls} h-40 resize-y`}
               />
               <Counter value={draft.bio.length} max={LIMITS.bio} />
@@ -411,42 +411,42 @@ export default function CreatorForm({ editId }: { editId?: string }) {
           </Card>
 
           {/* 3 ── opening */}
-          <Card refFn={(el) => (sectionRefs.current.opening = el)} id="opening" title={zhText("บทเปิด")} desc={zhText("ประโยคแรกกำหนดว่าบทสนทนาจะไปทางไหน")}>
-            <Field label={zhText("คำทักทาย")} hint={zhText("ใช้ *ข้อความ* สำหรับบรรยายท่าทาง")}>
+          <Card refFn={(el) => (sectionRefs.current.opening = el)} id="opening" title={"开场"} desc={"开场白决定故事的起点"}>
+            <Field label={"开场白"} hint={"用 *文字* 描述动作"}>
               <textarea
                 value={draft.greeting}
                 onChange={(e) => set('greeting', e.target.value)}
                 maxLength={LIMITS.greeting}
-                placeholder={zhText("*เขาดันแก้วมาให้โดยไม่ต้องถามว่าจะสั่งอะไร*\n\n\"เธอมาที่นี่บ่อยเกินไปแล้วนะ\"")}
+                placeholder={"*他把书轻轻放在桌上*\n\n“今天想读什么故事？”"}
                 className={`${inputCls} h-48 resize-y`}
               />
               <Counter value={draft.greeting.length} max={LIMITS.greeting} />
               <Checklist
                 items={[
-                  { done: draft.greeting.includes('*'), label: zhText("มีบรรยายท่าทางด้วย *ดอกจัน*") },
-                  { done: /["“]/.test(draft.greeting), label: zhText("มีบทพูดในเครื่องหมายคำพูด") },
-                  { done: draft.greeting.trim().length >= 30, label: zhText("ยาวพอให้เห็นภาพฉาก") },
+                  { done: draft.greeting.includes('*'), label: "用 *星号* 描述动作" },
+                  { done: /["“]/.test(draft.greeting), label: "用引号标记对话" },
+                  { done: draft.greeting.trim().length >= 30, label: "描述清晰的场景" },
                 ]}
               />
             </Field>
 
-            <Field label={zhText("สถานการณ์ตอนนี้")} hint={zhText("ฉากที่บทสนทนาเริ่มขึ้น — ส่งเข้าโมเดลด้วย ตัวละครจะรับรู้ฉากนี้")}>
+            <Field label={"当前场景"} hint={"聊天开始时的场景，也会传给模型"}>
               <textarea
                 value={draft.scenario}
                 onChange={(e) => set('scenario', e.target.value)}
                 maxLength={LIMITS.scenario}
-                placeholder={zhText("เราเป็นรูมเมทกัน คุณเพิ่งกลับห้องตอนตีสอง และเขายังไม่นอน")}
+                placeholder={"你刚走进图书馆，窗外开始下雨，他仍在整理书架。"}
                 className={`${inputCls} h-28 resize-y`}
               />
               <Counter value={draft.scenario.length} max={LIMITS.scenario} />
             </Field>
 
-            <Field label={zhText("แนวทางการสวมบทบาท")} hint={zhText("บอกโมเดลว่าจะเล่นบทนี้ยังไง เช่น เล่นสองคนสลับกัน หรือเป็นผู้บรรยาย")}>
+            <Field label={"扮演方式"} hint={"说明模型如何扮演角色或叙述故事"}>
               <textarea
                 value={draft.roleTemplate}
                 onChange={(e) => set('roleTemplate', e.target.value)}
                 maxLength={LIMITS.roleTemplate}
-                placeholder={zhText("เล่นเป็นอลันและไทเปสลับกัน ระบุชื่อก่อนบทพูดทุกครั้ง")}
+                placeholder={"以图书馆管理员的身份回复，不替读者做决定。"}
                 className={`${inputCls} h-24 resize-y`}
               />
               <Counter value={draft.roleTemplate.length} max={LIMITS.roleTemplate} />
@@ -454,13 +454,13 @@ export default function CreatorForm({ editId }: { editId?: string }) {
           </Card>
 
           {/* 4 ── tags */}
-          <Card refFn={(el) => (sectionRefs.current.tags = el)} id="tags" title={zhText("แท็ก")} desc={zhText("เลือกแล้ว") + (draft.tags.length) + zhText("แท็ก")}>
+          <Card refFn={(el) => (sectionRefs.current.tags = el)} id="tags" title={"标签"} desc={"已选择" + (draft.tags.length) + "标签"}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={tagQuery}
                 onChange={(e) => setTagQuery(e.target.value)}
-                placeholder={zhText("ค้นหาแท็ก…")}
+                placeholder={"搜索标签…"}
                 className={`${inputCls} pl-9`}
               />
             </div>
@@ -501,13 +501,13 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                 </div>
               </div>
             ))}
-            {filteredGroups.length === 0 && <p className="text-sm text-muted-foreground">{zhText("ไม่พบแท็กที่ตรงกับ “")}{tagQuery}”</p>}
+            {filteredGroups.length === 0 && <p className="text-sm text-muted-foreground">{"没有找到匹配的标签：“"}{tagQuery}”</p>}
           </Card>
 
           {/* 5 ── publish */}
-          <Card refFn={(el) => (sectionRefs.current.publish = el)} id="publish" title={zhText("เผยแพร่")} desc={zhText("ตรวจครั้งสุดท้ายก่อนปล่อยออกไป")}>
+          <Card refFn={(el) => (sectionRefs.current.publish = el)} id="publish" title={"发布"} desc={"发布前检查信息"}>
             <div className="space-y-2">
-              <p className="text-sm font-medium">{zhText("ฟีเจอร์ที่ติดบนการ์ด")}</p>
+              <p className="text-sm font-medium">{"角色卡特征"}</p>
               <div className="flex flex-wrap gap-2">
                 {badges.map((b) => {
                   const on = draft.badges.includes(b.emoji);
@@ -533,19 +533,19 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               <p className="text-sm text-muted-foreground">申请公开后进入审核，通过后才会展示在广场。修改公开内容需重新审核。</p>
             <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-3 dark:border-[#2A2A2A] dark:bg-[#141414]">
               <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium leading-tight">{zhText("เผยแพร่สู่สาธารณะ")}</span>
-                <span className="text-xs text-muted-foreground">{zhText("ปิดไว้ถ้าอยากเก็บตัวละครนี้ไว้คุยคนเดียว")}</span>
+                <span className="text-sm font-medium leading-tight">{"公开发布"}</span>
+                <span className="text-xs text-muted-foreground">{"关闭后仅自己可查看和聊天"}</span>
               </span>
-              <Toggle checked={draft.isPublic} onChange={(v) => set('isPublic', v)} label={zhText("เผยแพร่สู่สาธารณะ")} />
+              <Toggle checked={draft.isPublic} onChange={(v) => set('isPublic', v)} label={"公开发布"} />
             </label>
 
             <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-3 dark:border-[#2A2A2A] dark:bg-[#141414]">
               <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium leading-tight">{zhText("เนื้อหาผู้ใหญ่ (18+)")}</span>
+                <span className="text-sm font-medium leading-tight">{"成人内容（18+）"}</span>
                 <span className="text-xs text-muted-foreground">
-                  {zhText("ตัวละครจะคุยเรื่องผู้ใหญ่ตามบริบทของฉากได้ ไม่เลี่ยงโดยไม่มีเหตุผล")}</span>
+                  {"该角色包含成人主题，仅面向成年人"}</span>
               </span>
-              <Toggle checked={draft.isAdult} onChange={(v) => set('isAdult', v)} label={zhText("เนื้อหาผู้ใหญ่ 18+")} />
+              <Toggle checked={draft.isAdult} onChange={(v) => set('isAdult', v)} label={"成人内容 18+"} />
             </label>
 
             <ul className="space-y-1.5 rounded-xl border bg-muted/20 p-3.5">
@@ -554,7 +554,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                 return (
                   <li key={s.id} className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{s.label}</span>
-                    <span className={ok ? 'text-emerald-500' : 'text-amber-500'}>{ok ? zhText("ครบแล้ว") : zhText("ยังไม่ครบ")}</span>
+                    <span className={ok ? 'text-emerald-500' : 'text-amber-500'}>{ok ? "已完成" : "未完成"}</span>
                   </li>
                 );
               })}
@@ -564,7 +564,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
 
         {/* Live preview — desktop */}
         <aside className="sticky top-36 hidden h-fit xl:block">
-          <p className="mb-3 font-athiti text-sm font-bold text-muted-foreground">{zhText("ตัวอย่างจริง")}</p>
+          <p className="mb-3 font-athiti text-sm font-bold text-muted-foreground">{"实时预览"}</p>
           <LivePreview data={draft} tagLabel={labelOf} />
         </aside>
       </div>
@@ -576,7 +576,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-linear-to-r/srgb from-[#EE4036] to-[#FAAF40] transition-all" style={{ width: `${progress}%` }} />
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">{zhText("กรอกแล้ว")}{progress}%</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{"已填写"}{progress}%</p>
           </div>
           <button
             onClick={submit}
@@ -590,8 +590,8 @@ export default function CreatorForm({ editId }: { editId?: string }) {
 
       {/* Live preview — mobile sheet */}
       {showPreview && (
-        <div className="fixed inset-0 z-[70] flex items-end xl:hidden" role="dialog" aria-modal="true" aria-label={zhText("ตัวอย่างตัวละคร")}>
-          <button className="absolute inset-0 bg-black/60" aria-label={zhText("ปิด")} onClick={() => setShowPreview(false)} />
+        <div className="fixed inset-0 z-[70] flex items-end xl:hidden" role="dialog" aria-modal="true" aria-label={"角色预览"}>
+          <button className="absolute inset-0 bg-black/60" aria-label={"关闭"} onClick={() => setShowPreview(false)} />
           <div className="relative max-h-[85svh] w-full overflow-y-auto rounded-t-3xl border-t bg-background p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-muted" />
             <LivePreview data={draft} tagLabel={labelOf} />
@@ -599,7 +599,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               onClick={() => setShowPreview(false)}
               className="mt-5 h-11 w-full rounded-xl border border-input font-athiti font-bold transition-colors hover:bg-accent"
             >
-              {zhText("ปิด")}</button>
+              {"关闭"}</button>
           </div>
         </div>
       )}

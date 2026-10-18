@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useEffect, useState } from 'react';
 import { Trophy, Medal, Star, Loader2, Gift } from 'lucide-react';
@@ -32,8 +31,8 @@ export default function LeaderboardPage() {
           <div className="w-16 h-16 rounded-full bg-linear-to-br/srgb from-yellow-500 to-amber-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-yellow-500/30">
             <Trophy className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold font-athiti text-white mb-2">{zhText("อันดับตัวละคร")}</h1>
-          <p className="text-zinc-400 font-athiti">{zhText("Gift Leaderboard — ตัวละครที่ได้รับของขวัญมากที่สุด")}</p>
+          <h1 className="text-3xl font-bold font-athiti text-white mb-2">{"角色榜单"}</h1>
+          <p className="text-zinc-400 font-athiti">{"收到礼物最多的角色"}</p>
         </div>
 
         {loading ? (
@@ -41,8 +40,8 @@ export default function LeaderboardPage() {
         ) : entries.length === 0 ? (
           <div className="text-center py-20">
             <Gift className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-            <p className="text-zinc-500 font-athiti">{zhText("ยังไม่มีข้อมูล Leaderboard")}</p>
-            <p className="text-zinc-600 font-athiti text-sm mt-1">{zhText("ส่ง Gift ให้ตัวละครที่ชอบเพื่อเข้าสู่อันดับ!")}</p>
+            <p className="text-zinc-500 font-athiti">{"暂无榜单数据"}</p>
+            <p className="text-zinc-600 font-athiti text-sm mt-1">{"给喜欢的角色送礼物"}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -62,7 +61,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold font-athiti text-white truncate">{entry.name}</p>
-                  <p className="text-xs text-zinc-500 font-athiti">{entry.giftCount} {zhText("ครั้ง")}</p>
+                  <p className="text-xs text-zinc-500 font-athiti">{entry.giftCount} {"次"}</p>
                 </div>
                 <div className="flex items-center gap-1 text-yellow-400 shrink-0">
                   <Gift className="w-4 h-4" />
@@ -75,8 +74,8 @@ export default function LeaderboardPage() {
 
         {entries.length > 0 && (
           <div className="mt-8 p-4 bg-zinc-900 border border-white/10 rounded-2xl text-center">
-            <p className="text-zinc-400 font-athiti text-sm">{zhText("ส่ง Gift เพื่อสนับสนุนตัวละครโปรดของคุณ!")}</p>
-            <p className="text-zinc-500 font-athiti text-xs mt-1">{zhText("ไปที่หน้าแชทแล้วกด 🎁 Gift")}</p>
+            <p className="text-zinc-400 font-athiti text-sm">{"支持喜欢的原创角色"}</p>
+            <p className="text-zinc-500 font-athiti text-xs mt-1">{"在角色详情中点击礼物按钮"}</p>
           </div>
         )}
       </div>

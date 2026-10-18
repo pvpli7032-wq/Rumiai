@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -12,17 +11,17 @@ import { UniverseTab } from '@/components/universe-tab';
 import { useSiteContent } from '@/lib/use-site-content';
 
 const CATEGORIES = [
-  { emoji: '👨🏻‍✈️', label: zhText("ตัวละคร") },
-  { emoji: '🌍', label: zhText("จักรวาล") },
-  { emoji: '✍🏻', label: zhText("ครีเอเตอร์") },
-  { emoji: '🏆', label: zhText("จัดอันดับ") },
+  { emoji: '👨🏻‍✈️', label: "角色" },
+  { emoji: '🌍', label: "世界观" },
+  { emoji: '✍🏻', label: "创作者" },
+  { emoji: '🏆', label: "榜单" },
 ];
 
 const TABS = [
-  { emoji: '🌱', label: zhText("ใหม่ล่าสุด"), key: 'new' },
-  { emoji: '🔥', label: zhText("กำลังมาแรง"), key: 'trending' },
-  { emoji: '🏆', label: zhText("ยอดนิยม"), key: 'popular' },
-  { emoji: '👥', label: zhText("จากคนที่ติดตาม"), key: 'following' },
+  { emoji: '🌱', label: "最新", key: 'new' },
+  { emoji: '🔥', label: "热门趋势", key: 'trending' },
+  { emoji: '🏆', label: "热门", key: 'popular' },
+  { emoji: '👥', label: "关注的创作者", key: 'following' },
 ] as const;
 
 interface ApiCharacter extends CharacterCardData {
@@ -35,7 +34,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [characters, setCharacters] = useState<ApiCharacter[]>([]);
-  const [category, setCategory] = useState(zhText("ตัวละคร"));
+  const [category, setCategory] = useState("角色");
   const [banner, setBanner] = useState(0);
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('new');
   const [types, setTypes] = useState<string[]>([]);
@@ -60,7 +59,7 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, [banners.hero.length]);
 
-  // Filter chip rows and their Thai labels both come from the tag table.
+  // Filter chip rows and their labels both come from the tag table.
   const typeFilters = useMemo(() => tags.filter((t) => t.filterRow === 'type'), [tags]);
   const roleFilters = useMemo(() => tags.filter((t) => t.filterRow === 'role'), [tags]);
 
@@ -117,7 +116,7 @@ export default function HomePage() {
             <button
               key={b.id}
               onClick={() => setBanner(i)}
-              aria-label={zhText("ไปที่แบนเนอร์") + (i + 1) + zhText("")}
+              aria-label={"切换横幅" + (i + 1)}
               className={`h-1.5 rounded-full transition-all duration-200 ${
                 i === banner ? 'w-4 bg-foreground' : 'w-1.5 bg-foreground/40'
               }`}
@@ -149,17 +148,17 @@ export default function HomePage() {
         })}
       </div>
 
-      {category === zhText("จัดอันดับ") ? (
+      {category === "榜单" ? (
         <RankingsTab />
-      ) : category === zhText("จักรวาล") ? (
+      ) : category === "世界观" ? (
         <UniverseTab />
-      ) : category === zhText("ครีเอเตอร์") ? (
+      ) : category === "创作者" ? (
         <CreatorTab />
       ) : (
       <>
       {/* Search row */}
       <div className="flex items-center gap-3 px-4 py-2 md:px-12">
-        <button aria-label={zhText("แท็ก")} className="relative flex items-center bg-transparent">
+        <button aria-label={"标签"} className="relative flex items-center bg-transparent">
           <Tag className="h-5 w-5 text-muted-foreground" />
           <span className="absolute -right-1 -top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
         </button>
@@ -172,7 +171,7 @@ export default function HomePage() {
         >
           <span className="relative z-10 text-lg">🎲</span>
           <span className="relative z-10 hidden whitespace-nowrap font-athiti text-sm font-medium text-white md:inline">
-            {zhText("ปัดตัวละคร")}</span>
+            {"浏览角色"}</span>
         </button>
 
         <div className="hidden shrink-0 desktop:block">
@@ -217,8 +216,8 @@ export default function HomePage() {
               })}
             </div>
 
-            <FilterRow label={zhText("ประเภท:")} options={typeFilters} selected={types} onToggle={(v) => toggle(types, setTypes, v)} />
-            <FilterRow label={zhText("บทบาท:")} options={roleFilters} selected={roles} onToggle={(v) => toggle(roles, setRoles, v)} />
+            <FilterRow label={"类型："} options={typeFilters} selected={types} onToggle={(v) => toggle(types, setTypes, v)} />
+            <FilterRow label={"角色："} options={roleFilters} selected={roles} onToggle={(v) => toggle(roles, setRoles, v)} />
           </div>
 
           {loading && <div role="status" aria-label="正在加载角色" className="grid grid-cols-3 gap-2 px-4">{[0,1,2,3,4,5].map(n=><div key={n} className="h-48 animate-pulse rounded-xl bg-muted"/>)}</div>}
@@ -231,7 +230,7 @@ export default function HomePage() {
 
           {!loading && !loadError && grid.length === 0 && (
             <p className="py-16 text-center font-athiti text-sm text-muted-foreground">
-              {zhText("ยังไม่มีตัวละคร — ลองรัน")}<code className="rounded-sm bg-muted px-1">npm run db:seed</code>
+              {"暂无角色，创建你的第一个角色"}<code className="rounded-sm bg-muted px-1">npm run db:seed</code>
             </p>
           )}
         </div>

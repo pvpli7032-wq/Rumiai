@@ -2,7 +2,7 @@
  * A one-line signal that the chat list changed.
  *
  * The sidebar refetches on route change, but a conversation is created *after* the chat
- * page mounts — so arriving at a brand new chat left the sidebar reading "ยังไม่มีแชท"
+ * page mounts — so arriving at a brand new chat left the sidebar reading "暂无聊天"
  * while the reader was already talking to someone. An event keeps the two components from
  * having to know about each other.
  */

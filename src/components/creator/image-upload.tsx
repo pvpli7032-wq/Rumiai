@@ -1,5 +1,5 @@
 'use client';
-import { zhText, zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 
 import { useRef, useState } from 'react';
 import { AlertCircle, Check, Link2, Loader2, Trash2, UploadCloud } from 'lucide-react';
@@ -33,7 +33,7 @@ function readSize(file: File): Promise<{ w: number; h: number }> {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error(zhText("อ่านไฟล์รูปไม่ได้")));
+      reject(new Error("无法读取图片"));
     };
     img.src = url;
   });
@@ -61,11 +61,11 @@ export function ImageUpload({
     setWarn(null);
 
     if (!ACCEPT.includes(file.type)) {
-      setError(zhText("รองรับเฉพาะ") + (SPEC.types) + zhText(""));
+      setError("仅支持 " + (SPEC.types));
       return;
     }
     if (file.size > SPEC.maxMB * 1024 * 1024) {
-      setError(zhText("ไฟล์ใหญ่") + ((file.size / 1024 / 1024).toFixed(1)) + zhText("MB — จำกัดไม่เกิน") + (SPEC.maxMB) + zhText("MB"));
+      setError("文件大小为" + ((file.size / 1024 / 1024).toFixed(1)) + "MB，最多" + (SPEC.maxMB) + "MB");
       return;
     }
 
@@ -78,18 +78,18 @@ export function ImageUpload({
     }
 
     if (size.w < SPEC.min.w || size.h < SPEC.min.h) {
-      setError(zhText("รูปเล็กเกินไป (") + (size.w) + zhText("×") + (size.h) + zhText(") — ต้องอย่างน้อย") + (SPEC.min.w) + zhText("×") + (SPEC.min.h) + zhText("px"));
+      setError("图片尺寸过小（" + (size.w) + "×" + (size.h) + "），至少需要" + (SPEC.min.w) + "×" + (SPEC.min.h) + "px");
       return;
     }
     const ratio = size.w / size.h;
     if (Math.abs(ratio - RATIO) > 0.12) {
       setWarn(
-        zhText("สัดส่วนรูปคือ") + (ratio.toFixed(2)) + zhText(":1 แต่การ์ดใช้") + (SPEC.ratio) + zhText("— รูปจะถูกครอปขอบให้พอดี"),
+        "图片比例为" + (ratio.toFixed(2)) + ":1，角色卡比例为" + (SPEC.ratio) + "，图片边缘会被裁剪",
       );
     }
 
     if (!token) {
-      setError(zhText("กรุณาเข้าสู่ระบบก่อนอัปโหลดรูป"));
+      setError("请先登录再上传图片");
       return;
     }
 
@@ -101,7 +101,7 @@ export function ImageUpload({
     setBusy(false);
 
     if (!res.ok) {
-      setError(zhError(data.error || '') || zhText("อัปโหลดไม่สำเร็จ"));
+      setError(zhError(data.error || '') || "图片上传失败");
       return;
     }
     setMeta({ w: size.w, h: size.h, kb: Math.round(file.size / 1024) });
@@ -114,12 +114,12 @@ export function ImageUpload({
       {value ? (
         <div className="flex gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-[#2A2A2A] dark:bg-[#141414]">
           <div className="relative h-[104px] w-[78px] shrink-0 overflow-hidden rounded-lg bg-[#1A1A2E]">
-            <img src={value} alt={zhText("รูปที่เลือก")} className="h-full w-full object-cover" />
+            <img src={value} alt={"已选图片"} className="h-full w-full object-cover" />
           </div>
           <div className="flex min-w-0 flex-1 flex-col justify-between">
             <div className="min-w-0">
               <p className="flex items-center gap-1 text-sm font-medium text-emerald-500">
-                <Check className="h-3.5 w-3.5" /> {zhText("ใส่รูปแล้ว")}</p>
+                <Check className="h-3.5 w-3.5" /> {"已添加图片"}</p>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{value}</p>
               {meta && (
                 <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
@@ -133,7 +133,7 @@ export function ImageUpload({
                 onClick={() => inputRef.current?.click()}
                 className="h-8 rounded-lg border border-input px-3 text-xs font-medium transition-colors hover:bg-accent"
               >
-                {zhText("เปลี่ยนรูป")}</button>
+                {"更换图片"}</button>
               <button
                 type="button"
                 onClick={() => {
@@ -143,7 +143,7 @@ export function ImageUpload({
                 }}
                 className="flex h-8 items-center gap-1 rounded-lg border border-input px-3 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10"
               >
-                <Trash2 className="h-3 w-3" /> {zhText("ลบ")}</button>
+                <Trash2 className="h-3 w-3" /> {"删除"}</button>
             </div>
           </div>
         </div>
@@ -174,10 +174,10 @@ export function ImageUpload({
             </span>
           )}
           <span className="font-athiti text-sm font-bold">
-            {busy ? zhText("กำลังอัปโหลด…") : zhText("ลากรูปมาวาง หรือคลิกเพื่อเลือกไฟล์")}
+            {busy ? "正在上传…" : "拖放图片，或点击选择文件"}
           </span>
           <span className="text-xs text-muted-foreground">
-            {zhText("แนะนำ")}{SPEC.recommended.w} × {SPEC.recommended.h} {zhText("px · สัดส่วน")}{SPEC.ratio} {zhText("· ไม่เกิน")}{SPEC.maxMB} MB
+            {"建议"}{SPEC.recommended.w} × {SPEC.recommended.h} {"px，比例"}{SPEC.ratio} {"，不超过"}{SPEC.maxMB} MB
           </span>
         </button>
       )}
@@ -209,13 +209,13 @@ export function ImageUpload({
 
       {/* Spec sheet */}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-xl border bg-muted/20 p-3 text-xs">
-        <dt className="text-muted-foreground">{zhText("ขนาดแนะนำ")}</dt>
+        <dt className="text-muted-foreground">{"建议尺寸"}</dt>
         <dd className="text-right tabular-nums font-medium">{SPEC.recommended.w} × {SPEC.recommended.h} px</dd>
-        <dt className="text-muted-foreground">{zhText("สัดส่วน")}</dt>
-        <dd className="text-right font-medium">{SPEC.ratio} {zhText("แนวตั้ง")}</dd>
-        <dt className="text-muted-foreground">{zhText("ขนาดต่ำสุด")}</dt>
+        <dt className="text-muted-foreground">{"图片比例"}</dt>
+        <dd className="text-right font-medium">{SPEC.ratio} {"竖版"}</dd>
+        <dt className="text-muted-foreground">{"最小尺寸"}</dt>
         <dd className="text-right tabular-nums font-medium">{SPEC.min.w} × {SPEC.min.h} px</dd>
-        <dt className="text-muted-foreground">{zhText("ไฟล์")}</dt>
+        <dt className="text-muted-foreground">{"文件"}</dt>
         <dd className="text-right font-medium">{SPEC.types} · ≤ {SPEC.maxMB} MB</dd>
       </dl>
 
@@ -225,7 +225,7 @@ export function ImageUpload({
           <input
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={zhText("https://… หรือ /characters/xxxx.jpeg")}
+            placeholder={"https://… 或 /uploads/你的图片.png"}
             className="w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-sm shadow-xs focus-visible:border-[#F2572B] focus-visible:outline-hidden"
           />
           <button
@@ -233,7 +233,7 @@ export function ImageUpload({
             onClick={() => setShowUrl(false)}
             className="shrink-0 rounded-xl border border-input px-3 text-xs transition-colors hover:bg-accent"
           >
-            {zhText("ปิด")}</button>
+            {"关闭"}</button>
         </div>
       ) : (
         <button
@@ -242,7 +242,7 @@ export function ImageUpload({
           className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           <Link2 className="h-3 w-3" />
-          {zhText("หรือวางลิงก์รูปแทน")}</button>
+          {"也可以填写图片链接"}</button>
       )}
     </div>
   );

@@ -74,7 +74,7 @@ export async function createOrReuseConversation(userId: string, input: unknown) 
 
     const conversation = await tx.conversation.create({
       data: {
-        userId, characterId, title: `แชทกับ ${character.name}`,
+        userId, characterId, title: `与 ${character.name} 的对话`,
         relationshipStatus: character.relationshipStatus,
         romance: character.initialRomance,
         intimacy: character.initialIntimacy,

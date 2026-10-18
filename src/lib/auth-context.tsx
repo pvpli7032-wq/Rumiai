@@ -1,5 +1,5 @@
 'use client';
-import { zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 
 interface User {
@@ -92,12 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * `displayName` is what the form labels "ชื่อที่ใช้แสดง", and it is sent as `name`.
+   * `displayName` is what the form labels "昵称", and it is sent as `name`.
    *
    * It used to be sent as `username`, which the API reads as a handle the user picked for
    * themselves — so a taken handle came back as 409 and two people who typed the same
    * display name could not both register. It also stored the raw text as the @handle,
-   * which is why seeded rows have handles like "สมชาย สายแชท" that need URL-encoding.
+   * which is why seeded rows have handles like "张三 爱聊天" that need URL-encoding.
    * Sending `name` lets the server allocate a free handle from the email instead.
    */
   async function register(displayName: string, email: string, password: string, consents?: {ageConfirmed?:boolean;termsAccepted?:boolean;privacyAccepted?:boolean}) {

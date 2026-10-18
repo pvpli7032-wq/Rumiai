@@ -4,7 +4,17 @@ import { Providers } from './providers';
 import { DEFAULT_LOCALE, HTML_LANG, SITE_URL, getDictionary } from '@/lib/i18n';
 import './globals.css';
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#09090b', interactiveWidget: 'resizes-content' };
+// theme-color follows the OS appearance; the --theme-color token in globals.css mirrors these values.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#09090b' },
+  ],
+  interactiveWidget: 'resizes-content',
+};
 const dict = getDictionary(DEFAULT_LOCALE);
 
 export const metadata: Metadata = {

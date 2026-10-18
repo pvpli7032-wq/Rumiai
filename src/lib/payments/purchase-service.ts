@@ -52,7 +52,7 @@ export async function simulateCoinPurchase(userId: string, packageId: unknown) {
         sourceKey: 'PAYMENT_PURCHASE',
         amount: totalCoins,
         type: 'PURCHASE',
-        description: `ซื้อ ${pkg.coins} + ${pkg.bonus} bonus coins`,
+        description: `购买 ${pkg.coins} + ${pkg.bonus} 赠送金币`,
       },
     }),
   ]);

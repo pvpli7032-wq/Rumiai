@@ -17,7 +17,7 @@ export type RuntimeProvider={id:string;name:string;baseUrl:string;apiKey:string}
 /**
  * What a character says when every model in the chain has failed.
  *
- * These used to be seven chirpy assistant lines — "สวัสดีครับ! ดีใจมากที่ได้คุยด้วยนะ~ 😊" —
+ * These used to be seven chirpy assistant lines — "你好！很高兴和你聊天~ 😊" —
  * served regardless of who the character was, which broke the role completely at exactly
  * the moment the reader was most likely to notice. They are now written as stage direction
  * around the character's own name, holding the scene without claiming to know anything
@@ -150,7 +150,7 @@ export interface PromptCharacter {
   name: string;
   personality: string;
   background?: string | null;
-  /** The setup the reader is shown on the detail dialog — "สถานการณ์". */
+  /** The setup the reader is shown on the detail dialog — "场景". */
   scenario?: string | null;
   /** How the character is meant to be played, e.g. a narrator vs. a single persona. */
   roleTemplate?: string | null;

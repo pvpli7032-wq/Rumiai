@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';import Link from 'next/link';import {useAuth} from '@/lib/auth-context';import {zhError} from '@/lib/zh-text';
+import {useEffect,useState} from 'react';import Link from 'next/link';import {useAuth} from '@/lib/auth-context';import {zhError} from '@/lib/copy/zh';
 type Role={id:string;name:string;tagline:string;isPublic:boolean;publicationRequested:boolean;reviewStatus:string;reviewReason?:string;openReportCount?:number;avatarUrl?:string};
 export default function MyCharacters(){const {token,isLoading}=useAuth();const [roles,setRoles]=useState<Role[]>([]),[scope,setScope]=useState('mine'),[loading,setLoading]=useState(true),[error,setError]=useState(''),[busy,setBusy]=useState('');
 async function load(){if(!token)return;setLoading(true);setError('');try{const r=await fetch('/api/characters?scope='+scope,{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw Error('加载角色失败，请重试。');setRoles(await r.json())}catch(e){setError((e as Error).message)}finally{setLoading(false)}}

@@ -9,16 +9,16 @@
  */
 export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
-    <html lang="th">
+    <html lang="zh-CN">
       <body className="flex min-h-[100svh] flex-col items-center justify-center gap-5 bg-zinc-950 px-6 text-center">
-        <h1 className="text-xl font-semibold text-white">เกิดข้อผิดพลาดบางอย่าง</h1>
-        <p className="max-w-sm text-zinc-400">ลองโหลดหน้านี้ใหม่อีกครั้ง</p>
+        <h1 className="text-xl font-semibold text-white">页面出了点问题</h1>
+        <p className="max-w-sm text-zinc-400">请重新加载这个页面</p>
         <button
           type="button"
           onClick={() => reset()}
           className="rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-6 py-2.5 font-semibold text-white"
         >
-          ลองอีกครั้ง
+          重试
         </button>
       </body>
     </html>

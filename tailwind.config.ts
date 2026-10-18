@@ -14,9 +14,7 @@ const config: Config = {
         desktop: '1024px',
       },
       fontFamily: {
-        sans: ['var(--font-barlow)', 'var(--font-athiti)', 'sans-serif'],
-        athiti: ['var(--font-athiti)', 'sans-serif'],
-        barlow: ['var(--font-barlow)', 'sans-serif'],
+        sans: ['var(--font-sans)', 'sans-serif'],
       },
       colors: {
         ...legacyColors,
@@ -53,14 +51,15 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        khui: {
-          gold: '#FFB800',
-          'gold-light': '#e7c98a',
-          'gold-dark': '#A8652F',
-          dark: '#0e0e0e',
-          card: '#19191a',
-          border: '#27272a',
+        brand: {
+          DEFAULT: 'var(--brand)',
+          2: 'var(--brand-2)',
+          foreground: 'var(--brand-foreground)',
+          soft: 'var(--brand-soft)',
         },
+      },
+      backgroundImage: {
+        'brand-gradient': 'var(--brand-gradient)',
       },
       borderRadius: {
         xs: 'calc(var(--radius) - 4px)',

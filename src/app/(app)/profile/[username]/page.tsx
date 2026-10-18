@@ -1,4 +1,3 @@
-import { zhText } from '@/lib/zh-text';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -38,11 +37,11 @@ export async function generateMetadata({ params: paramsPromise }: { params: Prom
   const params = await paramsPromise;
 
   const data = await loadCreator(params.username);
-  if (!data) return { title: zhText("ไม่พบครีเอเตอร์ | Khui AI") };
+  if (!data) return { title: "创作者不存在 | 星伴" };
   const name = data.creator.displayName ?? data.creator.username;
   return {
     title: `${name} (@${data.creator.username}) | Khui AI`,
-    description: zhText("ตัวละครทั้งหมดของ") + (name) + zhText("บน Khui AI"),
+    description: "创作者的全部角色：" + (name) + " · 星伴",
   };
 }
 
@@ -73,18 +72,18 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
           <h1 className="truncate font-athiti text-2xl font-bold text-white">{name}</h1>
           <p className="font-barlow text-sm text-zinc-400">@{creator.username}</p>
           <p className="mt-1 font-barlow text-xs text-zinc-500">
-            {creator.tier} · {compactNumber(creator.followerCount)} {zhText("ผู้ติดตาม ·")}{' '}
-            {compactNumber(creator.publicCharacterCount)} {zhText("ตัวละคร ·")}{' '}
-            {compactNumber(creator.chatCount)} {zhText("แชท")}</p>
+            {creator.tier} · {compactNumber(creator.followerCount)} {"位关注者 ·"}{' '}
+            {compactNumber(creator.publicCharacterCount)} {"个角色 ·"}{' '}
+            {compactNumber(creator.chatCount)} {"聊天"}</p>
         </div>
       </header>
 
       <CreatorCommunity username={creator.username} initialFollowerCount={creator.followerCount} />
 
-      <h2 className="mb-4 mt-8 font-athiti text-lg font-semibold text-white">{zhText("ตัวละคร")}</h2>
+      <h2 className="mb-4 mt-8 font-athiti text-lg font-semibold text-white">{"角色"}</h2>
 
       {characters.length === 0 ? (
-        <p className="font-athiti text-zinc-500">{zhText("ครีเอเตอร์คนนี้ยังไม่มีตัวละครสาธารณะ")}</p>
+        <p className="font-athiti text-zinc-500">{"这位创作者还没有公开角色"}</p>
       ) : (
         <ul className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-5">
           {characters.map(character => (
@@ -109,8 +108,8 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
                     <p className="mt-0.5 truncate font-athiti text-xs text-zinc-500">{character.tagline}</p>
                   )}
                   <div className="mt-2 flex items-center gap-3 font-barlow text-[11px] text-zinc-500">
-                    <span title={zhText("ไลก์")}>{compactNumber(character.likeCount)}</span>
-                    <span title={zhText("แชท")}>{compactNumber(character.chatCount)}</span>
+                    <span title={"点赞"}>{compactNumber(character.likeCount)}</span>
+                    <span title={"聊天"}>{compactNumber(character.chatCount)}</span>
                     {character.isAdult && <span className="text-amber-500/80">18+</span>}
                   </div>
                 </div>

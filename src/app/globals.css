@@ -4,6 +4,17 @@
 
 @layer base {
   :root {
+    /* Brand tokens: the live site's orange-red -> gold ramp, one source of truth. */
+    --brand: #ee4036;
+    --brand-2: #faaf40;
+    --brand-foreground: #ffffff;
+    --brand-soft: rgba(238, 64, 54, 0.12);
+    --brand-gradient: linear-gradient(135deg, #ee4036 0%, #faaf40 100%);
+    /* Chinese-first system stack: PingFang, HarmonyOS/Noto, Microsoft YaHei. */
+    --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'HarmonyOS Sans SC', 'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+    /* Keep in sync with <meta name="theme-color"> in src/app/layout.tsx. */
+    --theme-color: #ffffff;
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -27,6 +38,9 @@
   }
 
   .dark {
+    color-scheme: dark;
+    --theme-color: #09090b;
+    --brand-soft: rgba(238, 64, 54, 0.2);
     --background: 0 0% 5.49%;
     --foreground: 0 0% 98%;
     --card: 240 4% 10%;
@@ -58,9 +72,9 @@
   }
 }
 
-/* M1 mobile viewport, safe areas and system Chinese typography. */
-:root { --app-height: 100dvh; --font-barlow: system-ui; --font-athiti: system-ui; }
-body { font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+/* M1 mobile viewport and safe areas. Typography comes from --font-sans (Tailwind font-sans). */
+:root { --app-height: 100dvh; }
+body { font-family: var(--font-sans); }
 .app-frame { height: var(--app-height); padding-top: env(safe-area-inset-top); }
 .app-content { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
 .mobile-primary-nav { padding-bottom: env(safe-area-inset-bottom); }
@@ -74,4 +88,14 @@ html[data-keyboard="true"] .app-content { padding-bottom: env(safe-area-inset-bo
 @layer base {
   button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
   input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
+}
+
+/* Respect the OS "reduce motion" setting for every animation and transition. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

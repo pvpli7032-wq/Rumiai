@@ -1,5 +1,5 @@
 'use client';
-import { zhError } from '@/lib/zh-text';
+import { zhError } from '@/lib/copy/zh';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
@@ -129,7 +129,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
               <button
                 type="button"
                 onClick={() => setShowPwd((v) => !v)}
-                aria-label={showPwd ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                aria-label={showPwd ? '隐藏密码' : '显示密码'}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
               >
                 {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

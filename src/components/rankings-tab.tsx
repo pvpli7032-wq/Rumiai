@@ -1,5 +1,4 @@
 'use client';
-import { zhText } from '@/lib/zh-text';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -45,7 +44,7 @@ export function RankingsTab() {
   }, []);
 
   if (!data) {
-    return <p className="px-4 py-16 text-center font-athiti text-sm text-muted-foreground md:px-12">{zhText("กำลังโหลดอันดับ…")}</p>;
+    return <p className="px-4 py-16 text-center font-athiti text-sm text-muted-foreground md:px-12">{"正在加载榜单…"}</p>;
   }
 
   return (
@@ -69,14 +68,14 @@ export function RankingsTab() {
         </div>
         <div className="absolute left-[22px] right-0 top-[8px] h-[29px] rounded-r-[9px] bg-linear-to-r/srgb from-orange-100 via-amber-50 to-orange-200/80 dark:from-[rgba(255,162,2,0.5)] dark:via-[rgba(255,90,0,0.45)] dark:to-[rgba(255,19,0,0.5)]" />
         <span className="absolute left-[51px] right-2 top-[13px] truncate text-center font-athiti text-sm font-semibold leading-5">
-          {zhText("จัดอันดับสัปดาห์ที่แล้ว วันที่")}{data.weekLabel}
+          {"上周榜单日期："}{data.weekLabel}
         </span>
       </div>
 
       <div className="space-y-6">
         {/* Characters */}
         <section className="flex flex-col gap-3">
-          <Header title={zhText("🚀 ตัวละครมาแรงประจำสัปดาห์")} href="/leaderboard" />
+          <Header title={"🚀 本周热门角色"} href="/leaderboard" />
           <div className="-mx-4 flex items-center gap-4 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {data.characters.map((c) => (
               <Link key={c.id} href={`/chat?character=${c.id}`} className="flex shrink-0 items-start">
@@ -105,7 +104,7 @@ export function RankingsTab() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground md:text-sm">💬 {compact(c.chatCount)}</span>
                       {c.isNew && (
-                        <span className="rounded-sm bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{zhText("ใหม่")}</span>
+                        <span className="rounded-sm bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{"新"}</span>
                       )}
                     </div>
                   </div>
@@ -118,7 +117,7 @@ export function RankingsTab() {
         {/* New creators marquee */}
         {data.newCreators.length > 0 && (
           <section className="flex flex-col gap-3">
-            <Header title={zhText("🎨 ยินดีต้อนรับ Khuiator Club หน้าใหม่")} />
+            <Header title={"🎨 欢迎新创作者"} />
             <div className="-mx-4 flex flex-wrap gap-3 px-4">
               {data.newCreators.map((u) => (
                 <div key={u.id} className="flex w-fit items-center gap-2 rounded-[43px] bg-muted py-1 pl-1 pr-2">
@@ -135,7 +134,7 @@ export function RankingsTab() {
         {/* Creators */}
         {data.creators.length > 0 && (
           <section className="flex flex-col gap-3">
-            <Header title={zhText("🍾 ครีเอเตอร์มาแรงประจำสัปดาห์")} href="/leaderboard" />
+            <Header title={"🍾 本周热门创作者"} href="/leaderboard" />
             <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {data.creators.map((c) => (
                 <div
@@ -160,7 +159,7 @@ export function RankingsTab() {
                       </span>
                       <div className="flex items-center gap-1 rounded-[19px] bg-muted px-2 py-[2px]">
                         <User className="h-3 w-3" />
-                        <span className="text-[10px] leading-4 md:text-xs">{c.characterCount} {zhText("ตัวละคร")}</span>
+                        <span className="text-[10px] leading-4 md:text-xs">{c.characterCount} {"角色"}</span>
                       </div>
                     </div>
                   </div>
@@ -174,10 +173,10 @@ export function RankingsTab() {
         {/* Best of the week */}
         {data.topGifted.length > 0 && (
           <section className="flex flex-col gap-4">
-            <span className="font-athiti text-base font-semibold leading-5">{zhText("⭐ สุดในรุ่นของสัปดาห์ที่แล้ว")}</span>
+            <span className="font-athiti text-base font-semibold leading-5">{"⭐ 上周榜单"}</span>
             <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-w-[240px] shrink-0 flex-col gap-2">
-                <span className="flex items-center gap-1.5 font-athiti text-sm font-semibold">{zhText("🎁 ได้รับของขวัญมากสุด")}</span>
+                <span className="flex items-center gap-1.5 font-athiti text-sm font-semibold">{"🎁 收到礼物最多"}</span>
                 <div className="flex flex-col gap-1">
                   {data.topGifted.map((g) => (
                     <Link
@@ -216,7 +215,7 @@ function Header({ title, href }: { title: string; href?: string }) {
           href={href}
           className="flex shrink-0 items-center gap-1 rounded-full border border-border px-3 py-2 font-athiti text-xs font-semibold transition-colors hover:bg-muted"
         >
-          {zhText("ดูทั้งหมด")}<ChevronRight className="h-3 w-3" />
+          {"查看全部"}<ChevronRight className="h-3 w-3" />
         </Link>
       )}
     </div>

@@ -4,15 +4,15 @@
  * Two forms carry almost all of it and are in the seeded data today — 223 greetings and
  * 80 messages use them:
  *
- *   *เขายืนพิงกำแพง*   narration / stage direction
- *   "กลับดึกจังนะ"      spoken dialogue
+ *   *他靠在墙边*   narration / stage direction
+ *   "回来得真晚"   spoken dialogue
  *
  * The chat rendered raw text, so readers saw the asterisks. Three more forms come from
  * the live site's own richer markup:
  *
- *   /grad{ข้อความ}/       gradient-highlighted text
- *   /underline{ข้อความ}/  underlined text
- *   [💭 ความในใจ]         an inner thought, collapsed behind a toggle
+ *   /grad{文字}/       gradient-highlighted text
+ *   /underline{文字}/  underlined text
+ *   [💭 内心想法]       an inner thought, collapsed behind a toggle
  *
  * Parsing is deliberately non-destructive: anything that does not match falls through as
  * plain text, and an unclosed marker stays literal rather than swallowing the rest of the
