@@ -196,3 +196,15 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 线上实测（`https://lh.y-98.cn`）：21 个页面入口全 200（`/` 307 → `/zh`），`/finance`、`/moderation` 307 跳 `/admin/*`；公开接口 `/api/site`、`/api/characters`、`/api/circles`、`/api/coins/packages`、`/api/operations/status`、`/api/ai/models` 均 200；11 个匿名管理接口全部 401 且响应体 `{"error":"请先登录。","code":"UNAUTHORIZED"}`；5 条旧前缀兼容路径返回 401 而非 404；`/api/coins/orders`、`/api/coins/purchase`、`/api/conversations` 匿名 401，`/api/auth/login` 空体 400；`robots.txt` 含 `Disallow: /admin`；首页 0 处泰文字符，标题仍为「星伴 · AI 角色社区」。PM2 `error.log` 切换后零错误行。
 
 回滚：`payment-amount-20261017` 目录与联合备份均保留，切回只需用同样参数在新旧目录间重建 PM2 条目；本次无迁移变更，回滚无数据库风险。已知遗留：`khui-ai-health.service` 的 `WorkingDirectory`/`ExecStart` 仍指向 `payment-amount-20261017`，属服务器配置，按底线未擅自改动，待负责人确认后再对齐到当前发布。
+
+## 2026-10-18 B6 前端接口合同发布
+
+当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261018-b6`（源码 = `17c0301`），上一发布 `commercial-20261018` 保留为回滚位。无新增迁移，生产库仍 45 条，启动门禁通过；构建 `BUILD_ID=n7V19Z2UhQoI9un8T6r0x`。
+
+新增 `src/lib/api-paths.ts`（前端接口路径唯一来源）、`src/lib/api-client.ts`（`ApiError` + `apiFetch`/`apiBlob`/`apiRaw`）、`src/lib/api-types/`；`STATUS_CODES` 从 `lib/http/errors.ts` 抽到 `lib/http/status-codes.ts`，服务端与客户端共用。8 个管理组件删掉各自的 `request` 封装改为调用 `apiFetch`，6 处客户端 `: any` 清零。同时清掉上一发布记录的 3 个遗留：中文支付文案的 `฿`、3 处 `font-athithi` 死类、品牌色字面量收敛到 `site-content/brand-defaults.ts`。
+
+本地环境注意：本机 Prisma schema engine 无法创建 SQLite 文件（`unable to open database file`，node:sqlite 正常），所有依赖 `migrate deploy` 的套件在本机全部失败，属环境问题而非代码缺陷。本次改为在服务器发布目录内跑完整套件：16 个套件全绿，共 134 项断言（原 126 项 + 新增 `test:api:client` 8 项）。`npx tsc --noEmit` 本机 0 错误。
+
+线上实测与上一发布一致：21 个页面入口全 200，11 个匿名管理接口全 401 且 `{error, code}`，5 条旧前缀兼容路径 401，公开接口与静态路由正常，首页 0 处泰文字符，PM2 error.log 切换后零错误。
+
+回滚：`commercial-20261018`、`payment-amount-20261017` 两个目录均保留；无迁移变更，回滚无数据库风险。

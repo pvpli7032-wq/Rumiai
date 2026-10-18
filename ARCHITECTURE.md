@@ -91,6 +91,14 @@ payments/validation-metrics.ts 负责同期新注册用户付费率及同期付�
 
 src按页面、展示组件及业务领域分工；prisma保存模型与完整有序迁移，deploy保存脱敏运维配置，scripts和tests保存仍在使用的运维及隔离验证入口。docs只维护业务规则、实施范围和内容来源。数据库、上传、备份、环境配置不进入源码归档。node_modules、.next、.next-build与artifacts为依赖或生成资料，按用途清理，不以删除目录代替业务核查。开发工具配置与AGENTS仅影响维护，不属于产品权限。
 
+## 前端接口合同
+
+`lib/api-paths.ts` 是前端可见接口路径的唯一来源，参数一律 `encodeURIComponent`；组件不再拼 `/api/...` 字面量，改路径只改这一处。`lib/api-client.ts` 是浏览器侧唯一的 HTTP 入口：拼 `Authorization: Bearer`、序列化 body、把非 2xx 统一抛成带 `status`/`code`/`body` 的 `ApiError`。`lib/api-types/` 按域存放响应类型，只声明前端真正读到的字段。
+
+服务端有两套错误体：迁移到 `lib/http` 的 30 个管理路由返回 `{error, code}`，其余 93 个旧路由只有 `{error}`。因此客户端的 `code` 是可选值，缺失时按 `lib/http/status-codes.ts` 用状态码兜底，两侧共用同一张映射表。404 可能返回 HTML，解析失败不能盖住真实状态码。
+
+`apiFetch` 解析 JSON，`apiBlob` 用于导出，`apiRaw` 用于 SSE 和需要读响应头的场景（如商城 `X-Checkout-Enabled`）。`AbortError` 原样抛出，否则组件里的 `signal.aborted` 判断会失效。服务端只认 Bearer，不信 cookie，客户端不发 `credentials: 'include'`。
+
 ## 管理权限
 
 lib/admin拥有角色、权限、管理身份及审计事务。数据库管理身份优先于兼容的环境名单，所有者由服务器命令显式初始化到已注册账号。系统角色固定，自定义角色可以撤销全部权限；操作权限必须包含所属领域的查看权限。后台页面位于app/admin，复用审核和财务页面；展示组件按admin/finance和admin/moderation分组。停用身份撤销已有会话，最后所有者不可降权、停用或注销。
