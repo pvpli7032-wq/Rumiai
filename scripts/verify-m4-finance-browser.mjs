@@ -8,7 +8,7 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   assert.equal((await page.request.get(`${base}/api/finance/report`)).status(), 401);
-  await page.goto(`${base}/finance`);
+  await page.goto(`${base}/admin/finance`);
   await page.getByText('请先登录财务管理员账号。', { exact: true }).waitFor();
   // UI fixtures only; actual API authorization and database invariants are tested
   // in ezfp-route-integration.test.mjs against an independent migrated database.

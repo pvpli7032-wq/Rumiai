@@ -58,7 +58,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${base}/moderation`);
+  await page.goto(`${base}/admin/moderation`);
   await page.evaluate(token => localStorage.setItem('khuiai_token', token), admin);
   await page.reload();
   await page.getByRole('heading', { name: '社区管理台' }).waitFor();

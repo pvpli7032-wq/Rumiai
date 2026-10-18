@@ -119,7 +119,7 @@ try {
   assert.equal(login.status, 200); const { token: adminToken } = await login.json();
   const finance = await request(adminToken, '/api/finance/report'); assert.equal(finance.status, 200);
   const report = await finance.json(); assert.equal(report.aiBudget.circuitBreaker, 'enabled'); assert.equal(report.aiBudget.alerts.filter(row => row.scope === 'user').length, 2);
-  await page.evaluate(token => localStorage.setItem('khuiai_token', token), adminToken); await page.goto(`${base}/finance`);
+  await page.evaluate(token => localStorage.setItem('khuiai_token', token), adminToken); await page.goto(`${base}/admin/finance`);
   await page.getByText(/已开启自动熔断：/).waitFor();
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   assert.deepEqual(errors, []); await page.screenshot({ path: path.join(output, 'finance-budget.png') });

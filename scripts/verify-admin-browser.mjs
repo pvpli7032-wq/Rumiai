@@ -53,15 +53,15 @@ try{
    assert.equal(await page.getByRole('link',{name:/财务与充值/}).count(),expected.finance?1:0);
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
    await page.screenshot({path:path.join(out,`admin-${i}.png`)});
-   await page.getByRole('link',{name:new RegExp(first)}).click();await page.waitForURL(expected.moderation?'**/moderation':'**/finance');
+   await page.getByRole('link',{name:new RegExp(first)}).click();await page.waitForURL(expected.moderation?'**/admin/moderation':'**/admin/finance');
    if(i===3){
     for(const width of [360,390,768,1280]){
      await page.setViewportSize({width,height:900});
-     for(const route of ['/admin','/finance','/moderation']){
+     for(const route of ['/admin','/admin/finance','/admin/moderation']){
       await page.goto(base+route);await page.waitForLoadState('networkidle');
       if(route==='/admin')await page.getByRole('link',{name:/财务与充值/}).waitFor();
-      if(route==='/finance')await page.getByRole('heading',{name:'充值套餐与赠送活动'}).waitFor();
-      if(route==='/moderation')await page.getByRole('heading',{name:'布局验收角色'}).waitFor();
+      if(route==='/admin/finance')await page.getByRole('heading',{name:'充值套餐与赠送活动'}).waitFor();
+      if(route==='/admin/moderation')await page.getByRole('heading',{name:'布局验收角色'}).waitFor();
       const region=page.getByRole('region',{name:'后台工作区'});
       const size=await region.evaluate(e=>({client:e.clientWidth,scroll:e.scrollWidth}));assert(size.scroll<=size.client+1,`${route} content overflow at ${width}`);
       assert.equal(await page.getByRole('navigation',{name:'主导航'}).count(),0,'public navigation must not surround admin pages');
@@ -72,7 +72,7 @@ try{
     }
     checks.push('后台三页四种宽度、独立导航及长内容无工作区溢出');
     page.on('dialog',dialog=>void dialog.accept());
-    await page.goto(base+'/moderation');await page.getByRole('heading',{name:'布局验收角色',exact:true}).waitFor();
+    await page.goto(base+'/admin/moderation');await page.getByRole('heading',{name:'布局验收角色',exact:true}).waitFor();
     for(const name of ['布局验收角色','批量验收角色'])await page.getByLabel('选择角色 '+name,{exact:true}).check();
     let batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/moderation/characters/batch')&&r.request().method()==='POST');
     await page.getByRole('button',{name:'批量通过公开',exact:true}).click();assert.equal((await batchResponse).status(),200);

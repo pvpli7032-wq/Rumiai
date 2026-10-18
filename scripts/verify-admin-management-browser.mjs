@@ -50,10 +50,10 @@ try {
   await owner.page.getByRole('button', {name: '保存管理身份', exact: true}).click();
   await owner.page.getByText('管理身份已保存。', {exact: true}).waitFor();
   checks.push('通过页面查找账号并分配管理身份');
-  const staff = await login(actors[1]); await staff.page.goto(base + '/moderation'); await staff.page.getByRole('heading', {name: '角色审核', exact: true}).waitFor();
+  const staff = await login(actors[1]); await staff.page.goto(base + '/admin/moderation'); await staff.page.getByRole('heading', {name: '角色审核', exact: true}).waitFor();
   await staff.page.waitForLoadState('networkidle'); assert.equal(await staff.page.getByRole('button', {name: '通过公开', exact: true}).count(), 0);
   assert.equal((await staff.context.request.get(base + '/api/admin/operators', {headers: {Authorization: `Bearer ${staff.token}`}})).status(), 403);
-  const viewer = await login(actors[2]); await viewer.page.goto(base + '/finance'); await viewer.page.getByRole('heading', {name: '充值套餐与赠送活动'}).waitFor();
+  const viewer = await login(actors[2]); await viewer.page.goto(base + '/admin/finance'); await viewer.page.getByRole('heading', {name: '充值套餐与赠送活动'}).waitFor();
   assert.equal(await viewer.page.getByRole('button', {name: '保存套餐', exact: true}).count(), 0); assert.equal(await viewer.page.getByLabel('退款原因', {exact: true}).count(), 0);
   const auditor = await login(actors[3]); await auditor.page.goto(base + '/admin/operators'); await auditor.page.getByRole('heading', {name: '角色与权限', exact: true}).waitFor();
   assert.equal(await auditor.page.getByRole('button', {name: '保存角色', exact: true}).count(), 0); assert.equal(await auditor.page.getByRole('button', {name: '查找账号', exact: true}).count(), 0);

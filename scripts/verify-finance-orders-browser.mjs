@@ -49,7 +49,7 @@ try{
   const {token}=await login.json();
   await context.addInitScript(value=>localStorage.setItem('khuiai_token',value),token);
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
-  await page.goto(base+'/finance');await page.getByRole('heading',{name:'充值订单',exact:true}).waitFor();
+  await page.goto(base+'/admin/finance');await page.getByRole('heading',{name:'充值订单',exact:true}).waitFor();
   await page.getByText('共 31 笔 · 第 1 / 2 页',{exact:true}).waitFor();
   const listResponse=await context.request.get(base+'/api/finance/orders/all?page=1&pageSize=25&status=ALL',{headers:{Authorization:'Bearer '+token}});
   assert.equal(listResponse.status(),200);const list=await listResponse.json();assert.equal(list.total,31);assert.equal(list.items.length,25);
