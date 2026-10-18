@@ -1,5 +1,6 @@
 import {randomBytes, randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
+import {DatabaseSync} from 'node:sqlite';
 import {rmSync, existsSync, writeFileSync, mkdirSync} from 'node:fs';
 import path from 'node:path';
 
@@ -31,9 +32,25 @@ function run(command, args) {
   if (result.status !== 0) process.exitCode = result.status ?? 1;
 }
 
+/**
+ * 先把库切成 WAL 再构建。构建会同时开很多连接，谁先去切换 journal mode
+ * 都要抢排他锁，抢不到就退回回滚日志，接着预渲染查询超时（P1008）。
+ * WAL 是文件级设置，在这里设一次，后续连接就不必再抢。
+ */
+function enableWal() {
+  const client = new DatabaseSync(databasePath);
+  try {
+    client.exec('PRAGMA journal_mode = WAL;');
+    client.exec('PRAGMA busy_timeout = 8000;');
+  } finally {
+    client.close();
+  }
+}
+
 try {
   run(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy']);
   if (!process.exitCode) {
+    enableWal();
     run(process.execPath, ['node_modules/next/dist/bin/next', 'build']);
   }
 } finally {
