@@ -59,8 +59,6 @@ export default function CreatorForm({ editId }: { editId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const scrollRoot = useRef<HTMLDivElement | null>(null);
-  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
   const blur = (key: string) => setTouched((t) => ({ ...t, [key]: true }));
@@ -122,27 +120,12 @@ export default function CreatorForm({ editId }: { editId?: string }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [draft, persist]);
 
-  // ── scroll spy over the layout's scroll container ────────────────────
-  useEffect(() => {
-    const root = scrollRoot.current?.closest('.overflow-y-auto') as HTMLElement | null;
-    const target: HTMLElement | Window = root ?? window;
-    const onScroll = () => {
-      const top = root ? root.getBoundingClientRect().top + 140 : 140;
-      let current: string = SECTIONS[0].id;
-      for (const s of SECTIONS) {
-        const el = sectionRefs.current[s.id];
-        if (el && el.getBoundingClientRect().top <= top) current = s.id;
-      }
-      setActive(current);
-    };
-    target.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => target.removeEventListener('scroll', onScroll);
-  }, []);
 
+  /** 步骤导航：切到某一步，并回到顶部，免得停在上一步的滚动位置。 */
   const goTo = (id: string) => {
-    sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setActive(id);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // ── validation & completeness ────────────────────────────────────────
@@ -168,6 +151,36 @@ export default function CreatorForm({ editId }: { editId?: string }) {
 
   const requiredOk = !errors.name && !errors.tagline && !errors.description;
   const progress = Math.round((Object.values(done).filter(Boolean).length / SECTIONS.length) * 100);
+
+  // ── 分步向导 ─────────────────────────────────────────────────────────
+  const stepIndex = Math.max(0, SECTIONS.findIndex((section) => section.id === active));
+  const isLast = stepIndex === SECTIONS.length - 1;
+
+  /** 每步的必填项：不满足就停在原地，别让人走到最后才发现缺东西。 */
+  function stepBlocker(id: string): string | null {
+    if (id === 'identity') return errors.name || errors.tagline;
+    if (id === 'persona') return errors.description;
+    if (id === 'opening') return draft.greeting.trim() ? null : '请填写开场白，它是故事的起点。';
+    if (id === 'tags') return draft.tags.length ? null : '至少选择一个标签，方便别人找到这个角色。';
+    if (draft.isPublic && !draft.copyrightStatement.trim()) return '申请公开前请填写角色及素材版权声明。';
+    return null;
+  }
+  function nextStep() {
+    const blocker = stepBlocker(active);
+    if (blocker) {
+      setTouched({ name: true, tagline: true, description: true });
+      setError(blocker);
+      return;
+    }
+    setError(null);
+    setActive(SECTIONS[Math.min(stepIndex + 1, SECTIONS.length - 1)].id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function prevStep() {
+    setError(null);
+    setActive(SECTIONS[Math.max(stepIndex - 1, 0)].id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   // ── submit ───────────────────────────────────────────────────────────
   async function submit() {
@@ -242,7 +255,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
     'w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-base shadow-xs transition-colors placeholder:text-muted-foreground/70 focus-visible:border-[#F2572B] focus-visible:outline-hidden';
 
   return (
-    <div ref={scrollRoot} className="min-h-screen bg-background pb-40 desktop:pb-24">
+    <div className="min-h-screen bg-background pb-40 desktop:pb-24">
       {/* Toolbar */}
       <div className="sticky top-16 z-30 border-b bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 md:px-8">
@@ -339,7 +352,8 @@ export default function CreatorForm({ editId }: { editId?: string }) {
           )}
 
           {/* 1 ── identity */}
-          <Card refFn={(el) => (sectionRefs.current.identity = el)} id="identity" title={"身份"} desc={"读者开始聊天前看到的信息"}>
+          {active === 'identity' && (
+          <Card id="identity" title={"身份"} desc={"读者开始聊天前看到的信息"}>
             <Field label={"角色名称"} required error={touched.name ? errors.name : null} hint={"显示在角色卡和聊天中"}>
               <input
                 value={draft.name}
@@ -376,9 +390,11 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               <Toggle checked={draft.isExclusive} onChange={(v) => set('isExclusive', v)} label={"本站原创"} />
             </label>
           </Card>
+          )}
 
           {/* 2 ── persona */}
-          <Card refFn={(el) => (sectionRefs.current.persona = el)} id="persona" title={"个性"} desc={"这部分会传给 AI 作为角色设定"}>
+          {active === 'persona' && (
+          <Card id="persona" title={"个性"} desc={"这部分会传给 AI 作为角色设定"}>
             <Field label={"个性与说话方式"} required error={touched.description ? errors.description : null}>
               <textarea
                 value={draft.description}
@@ -409,9 +425,11 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               <Counter value={draft.bio.length} max={LIMITS.bio} />
             </Field>
           </Card>
+          )}
 
           {/* 3 ── opening */}
-          <Card refFn={(el) => (sectionRefs.current.opening = el)} id="opening" title={"开场"} desc={"开场白决定故事的起点"}>
+          {active === 'opening' && (
+          <Card id="opening" title={"开场"} desc={"开场白决定故事的起点"}>
             <Field label={"开场白"} hint={"用 *文字* 描述动作"}>
               <textarea
                 value={draft.greeting}
@@ -452,9 +470,11 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               <Counter value={draft.roleTemplate.length} max={LIMITS.roleTemplate} />
             </Field>
           </Card>
+          )}
 
           {/* 4 ── tags */}
-          <Card refFn={(el) => (sectionRefs.current.tags = el)} id="tags" title={"标签"} desc={"已选择" + (draft.tags.length) + "标签"}>
+          {active === 'tags' && (
+          <Card id="tags" title={"标签"} desc={"已选择" + (draft.tags.length) + "标签"}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -503,9 +523,11 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             ))}
             {filteredGroups.length === 0 && <p className="text-sm text-muted-foreground">{"没有找到匹配的标签：“"}{tagQuery}”</p>}
           </Card>
+          )}
 
           {/* 5 ── publish */}
-          <Card refFn={(el) => (sectionRefs.current.publish = el)} id="publish" title={"发布"} desc={"发布前检查信息"}>
+          {active === 'publish' && (
+          <Card id="publish" title={"发布"} desc={"发布前检查信息"}>
             <div className="space-y-2">
               <p className="text-sm font-medium">{"角色卡特征"}</p>
               <div className="flex flex-wrap gap-2">
@@ -560,6 +582,38 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               })}
             </ul>
           </Card>
+          )}
+
+          {/* 步骤导航：上一步 / 下一步 / 提交 */}
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-background/95 p-3">
+            <button
+              onClick={prevStep}
+              disabled={stepIndex === 0}
+              className="inline-flex h-11 items-center rounded-lg border border-input px-4 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-40"
+            >
+              上一步
+            </button>
+            <span className="flex-1 text-center text-xs tabular-nums text-muted-foreground">
+              第 {stepIndex + 1} / {SECTIONS.length} 步 · {SECTIONS[stepIndex].label}
+            </span>
+            {isLast ? (
+              <button
+                onClick={submit}
+                disabled={saving || !loaded}
+                className="inline-flex h-11 items-center gap-1.5 rounded-lg bg-[linear-gradient(90deg,#FFA202,#FF1300)] px-5 text-sm font-semibold text-white shadow-[0_6px_20px_-8px_rgba(255,47,0,0.7)] transition-opacity hover:opacity-95 disabled:opacity-60"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {editId ? '保存修改' : draft.isPublic ? '提交审核' : '保存私有角色'}
+              </button>
+            ) : (
+              <button
+                onClick={nextStep}
+                className="inline-flex h-11 items-center rounded-lg bg-brand-gradient px-5 text-sm font-semibold text-white"
+              >
+                下一步
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Live preview — desktop */}
@@ -578,13 +632,23 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">{"已填写"}{progress}%</p>
           </div>
-          <button
-            onClick={submit}
-            disabled={saving || !loaded}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[linear-gradient(90deg,#FFA202,#FF1300)] px-5 py-3 text-sm font-semibold text-white shadow-[0_6px_20px_-6px_rgba(255,47,0,0.6)] transition-opacity hover:opacity-95 disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {editId ? '保存修改' : draft.isPublic ? '提交审核' : '保存私有角色'}</button>
+          {isLast ? (
+            <button
+              onClick={submit}
+              disabled={saving || !loaded}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[linear-gradient(90deg,#FFA202,#FF1300)] px-5 py-3 text-sm font-semibold text-white shadow-[0_6px_20px_-6px_rgba(255,47,0,0.6)] transition-opacity hover:opacity-95 disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {editId ? '保存修改' : draft.isPublic ? '提交审核' : '保存私有角色'}
+            </button>
+          ) : (
+            <button
+              onClick={nextStep}
+              className="inline-flex shrink-0 items-center rounded-xl bg-brand-gradient px-5 py-3 text-sm font-semibold text-white"
+            >
+              下一步
+            </button>
+          )}
         </div>
       </div>
 
@@ -608,18 +672,16 @@ export default function CreatorForm({ editId }: { editId?: string }) {
 }
 
 function Card({
-  id, title, desc, children, refFn,
+  id, title, desc, children,
 }: {
   id: string;
   title: string;
   desc: string;
   children: React.ReactNode;
-  refFn: (el: HTMLElement | null) => void;
 }) {
   return (
     <section
       id={id}
-      ref={refFn}
       className="scroll-mt-40 space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-[#2A2A2A] dark:bg-[#141414]"
     >
       <header>
