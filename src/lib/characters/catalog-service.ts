@@ -61,7 +61,7 @@ export async function listCharacters(options: {
   search?: string; scope?: string | null; sort?: string; tags?: string[]; userId?: string;
 }) {
   const {search = '', scope = null, sort = 'popular', tags = [], userId} = options;
-  if (scope && !['mine', 'bookmarked'].includes(scope)) throw new CharacterCatalogError('未知角色列表类型。', 400);
+  if (scope && !['mine', 'bookmarked', 'following'].includes(scope)) throw new CharacterCatalogError('未知角色列表类型。', 400);
   if (scope && !userId) throw new CharacterCatalogError('请先登录。', 401);
   if (!['new', 'popular'].includes(sort)) throw new CharacterCatalogError('未知排序方式。', 400);
 
@@ -70,6 +70,8 @@ export async function listCharacters(options: {
     where: {
       ...(scope === 'mine' ? {creatorId: userId} : {isPublic: true, reviewStatus: 'APPROVED'}),
       ...(scope === 'bookmarked' && {bookmarks: {some: {userId}}}),
+      // 关注的创作者：只取已公开且审核通过的角色，关注关系挂在创作者身上。
+      ...(scope === 'following' && {creator: {followers: {some: {followerId: userId}}}}),
       ...(normalizedTags.length && {AND: normalizedTags.map(tag => ({OR: [
         {tags: tag}, {tags: {startsWith: tag + ','}}, {tags: {endsWith: ',' + tag}}, {tags: {contains: ',' + tag + ','}},
       ]}))}),
@@ -80,7 +82,8 @@ export async function listCharacters(options: {
     select: {
       id: true, name: true, tagline: true, personality: true, background: true, greeting: true, avatarUrl: true,
       creatorId: true, isPublic: true, publicationRequested: true, reviewStatus: true, reviewReason: true,
-      copyrightStatement: true, chatCount: true, isExclusive: true, badges: true, tags: true, createdAt: true,
+      copyrightStatement: true, chatCount: true, likeCount: true, isExclusive: true, badges: true, tags: true, createdAt: true,
+      creator: {select: {username: true, displayName: true}},
     },
   });
   if (scope !== 'mine') return characters;

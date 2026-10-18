@@ -18,6 +18,7 @@ const {listManagedCharacters, readManagedCharacter, saveManagedCharacter, publis
 const {createCreatorCharacter, updateCreatorCharacter, deleteCreatorCharacter} = await import('../src/lib/characters/creator-service.ts');
 const {listCharacters, readPublicCharacter, resolveCharacterTagLabels, listPublicCharacterPosts} = await import('../src/lib/characters/catalog-service.ts');
 const {likeCharacter, unlikeCharacter, bookmarkCharacter, unbookmarkCharacter} = await import('../src/lib/characters/engagement-service.ts');
+const {followCreator} = await import('../src/lib/creators/follow-service.ts');
 const {createCharacterComment, listCharacterComments, updateCharacterComment, deleteCharacterComment, likeCharacterComment, unlikeCharacterComment} = await import('../src/lib/characters/comment-service.ts');
 const {GET: publicList, POST: createCharacterRoute} = await import('../src/app/api/characters/route.ts');
 const {GET: publicDetail} = await import('../src/app/api/characters/[id]/route.ts');
@@ -274,4 +275,26 @@ test('site assets survive staff departure and closure while personal assets are 
   await denied(() => readVisibleUpload(path.basename(site.url), staff.id), 404);
   await publish(publisher, retained);
   assert.deepEqual((await readVisibleUpload(path.basename(site.url), null)).bytes, pixel);
+});
+
+test('catalog projects like counts and creator handles, and the following scope stays scoped', async () => {
+  const followed = await db.character.create({data: {
+    creatorId: author.id, name: '被关注创作者角色', personality: '合成设定', background: '',
+    isPublic: true, reviewStatus: 'APPROVED', likeCount: 7, chatCount: 3, tags: 'Female',
+  }});
+  const stranger = await db.character.create({data: {
+    creatorId: editor.id, name: '未关注创作者角色', personality: '合成设定', background: '',
+    isPublic: true, reviewStatus: 'APPROVED', likeCount: 99,
+  }});
+  await followCreator(ordinary.id, author.id);
+
+  const rows = await listCharacters({scope: 'following', userId: ordinary.id});
+  const ids = rows.map(row => row.id);
+  assert(ids.includes(followed.id), '被关注创作者的角色应出现在关注分区');
+  assert(!ids.includes(stranger.id), '未关注创作者的角色不得进入关注分区');
+
+  const row = rows.find(item => item.id === followed.id);
+  assert.equal(row.likeCount, 7);
+  assert.equal(row.creator.username, author.username);
+  await denied(() => listCharacters({scope: 'following'}), 401);
 });

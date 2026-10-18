@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "verify:build": "node scripts/verify-production-build.mjs",
+    "db:local": "node scripts/make-local-db.mjs",
     "start": "node scripts/start-production.mjs",
     "lint": "next lint",
     "db:seed": "tsx prisma/seed.ts",

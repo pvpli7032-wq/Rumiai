@@ -10,6 +10,11 @@ export interface CharacterCardData {
   personality: string;
   avatarUrl?: string | null;
   chatCount: number;
+  /** 后台冗余的点赞数，列表接口已投影。 */
+  likeCount?: number;
+  creator?: {username: string; displayName?: string | null} | null;
+  /** 由页面按站点标签表映射好的中文标签，卡片最多显示两个。 */
+  tagLabels?: string[];
   isExclusive?: boolean;
   /** Comma-separated emojis, e.g. "☺️,🎹" */
   badges?: string | null;
@@ -26,6 +31,7 @@ const GRADIENTS = [
 ];
 
 function formatCount(n: number) {
+  if (n >= 10000) return `${Math.round(n / 1000)}k`;
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
   return String(n);
 }
@@ -96,11 +102,17 @@ export function CharacterCard({
               </span>
             ))}
           </div>
-          <div className="flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5">
-            <span className="text-[10px]">💬</span>
-            <span className="text-[10px] font-semibold text-white">
-              {formatCount(character.chatCount)}
-            </span>
+          <div className="flex items-center gap-1">
+            {character.likeCount !== undefined && (
+              <div className="flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5" title={`${character.likeCount} 次点赞`}>
+                <span className="text-[10px]">♥</span>
+                <span className="text-[10px] font-semibold text-white">{formatCount(character.likeCount)}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5" title={`${character.chatCount} 次对话`}>
+              <span className="text-[10px]">💬</span>
+              <span className="text-[10px] font-semibold text-white">{formatCount(character.chatCount)}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -109,6 +121,20 @@ export function CharacterCard({
       <p className="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-slate-200 md:text-sm">
         {character.tagline || character.personality}
       </p>
+      {(character.creator || (character.tagLabels?.length ?? 0) > 0) && (
+        <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+          {character.creator && (
+            <span className="shrink-0 truncate max-w-[45%]" title={`创作者 @${character.creator.username}`}>
+              @{character.creator.displayName || character.creator.username}
+            </span>
+          )}
+          {(character.tagLabels ?? []).slice(0, 2).map((label) => (
+            <span key={label} className="shrink-0 truncate rounded-full bg-muted px-1.5 py-0.5 text-[10px] leading-none">
+              {label}
+            </span>
+          ))}
+        </div>
+      )}
     </button>
     {open && <CharacterDetailDialog characterId={character.id} onClose={() => setOpen(false)} />}
     </>

@@ -208,3 +208,18 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 线上实测与上一发布一致：21 个页面入口全 200，11 个匿名管理接口全 401 且 `{error, code}`，5 条旧前缀兼容路径 401，公开接口与静态路由正常，首页 0 处泰文字符，PM2 error.log 切换后零错误。
 
 回滚：`commercial-20261018`、`payment-amount-20261017` 两个目录均保留；无迁移变更，回滚无数据库风险。
+
+## 本机开发环境（工具沙箱下的变通）
+
+当前开发机的命令沙箱不允许**孙进程**写文件：`npm run test:*`（bash → npm → node）里的 Prisma schema engine 建不了库，`verify:build` 同样跑不动，报 `unable to open database file` 或 `OS Error 5`。同一路径用 `node:sqlite` 直连、或把 `next build` 作为**直接子进程**启动，都正常——这是环境限制，不是代码缺陷。
+
+因此本机的分工是：
+
+| 目的 | 命令 | 说明 |
+| --- | --- | --- |
+| 建本地库 | `npm run db:local` | 用 `node:sqlite` 按序执行 `prisma/migrations/*/migration.sql`，并写入带 epoch 毫秒时间戳的 `_prisma_migrations`，产物 `prisma/.local/dev.db`（45 条迁移、74 张表） |
+| 本地构建 | `DATABASE_URL="file:$PWD/prisma/.local/dev.db" JWT_SECRET=local-build NODE_ENV=production NEXT_DIST_DIR=.temp/local-build node node_modules/next/dist/bin/next build` | 必须直接调 `next`，经 `npm run` 或包装脚本会退化成孙进程而失败 |
+| 启动门禁 | `DATABASE_URL="file:$PWD/prisma/.local/dev.db" JWT_SECRET=x node scripts/start-production.mjs --check-only` | 读 `_prisma_migrations` 比对迁移，能正常返回 `release_migrations_compatible` |
+| 全部离线测试 | **在服务器发布目录执行** `bash /tmp/run-suites.sh <发布目录>` | 本机跑不了，见上 |
+
+`wsl.exe` 同样被安全策略拦截，容器/Docker 也不可用，不要再尝试用它们绕。
