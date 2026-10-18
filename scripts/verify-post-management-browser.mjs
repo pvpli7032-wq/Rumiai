@@ -33,7 +33,7 @@ try {
   assert(featured.isFeatured);
   app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', '18802'], {env, stdio: 'ignore', windowsHide: true});
   let ready = false;
-  for (let i = 0; i < 150; i++) {if (app.exitCode !== null) throw Error('owned app exited'); try {if ((await fetch(base + '/api/circles/management')).status === 401) {ready = true; break;}} catch {} await new Promise(resolve => setTimeout(resolve, 100));}
+  for (let i = 0; i < 150; i++) {if (app.exitCode !== null) throw Error('owned app exited'); try {if ((await fetch(base + '/api/admin/circles')).status === 401) {ready = true; break;}} catch {} await new Promise(resolve => setTimeout(resolve, 100));}
   assert(ready, 'owned server not ready'); browser = await chromium.launch();
   async function login(user) {
     const context = await browser.newContext({viewport: {width: 1280, height: 900}}), response = await context.request.post(base + '/api/auth/login', {data: {email: user.email, password}}); assert.equal(response.status(), 200);

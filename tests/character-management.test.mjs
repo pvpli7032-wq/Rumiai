@@ -22,7 +22,7 @@ const {createCharacterComment, listCharacterComments, updateCharacterComment, de
 const {GET: publicList, POST: createCharacterRoute} = await import('../src/app/api/characters/route.ts');
 const {GET: publicDetail} = await import('../src/app/api/characters/[id]/route.ts');
 const {GET: listCommentsRoute, POST: createCommentRoute} = await import('../src/app/api/characters/[id]/comments/route.ts');
-const {GET: managementList} = await import('../src/app/api/characters/management/route.ts');
+const {GET: managementList} = await import('../src/app/api/admin/characters/route.ts');
 const {signToken} = await import('../src/lib/auth.ts');
 const {saveAccountUpload} = await import('../src/lib/uploads/storage-service.ts');
 const {readVisibleUpload, mayAttachAccountUpload} = await import('../src/lib/uploads/read-service.ts');
@@ -36,7 +36,7 @@ for (const [user, permissions] of [[editor, ['characters.read', 'characters.writ
   const role = await saveRole(owner.id, {name: user.username, permissions, reason: '角色权限验收'});
   await saveOperator(owner.id, {userId: user.id, roleIds: [role.id], enabled: true, version: 0, reason: '角色权限验收'});
 }
-const request = async user => new Request('http://localhost/api/characters/management', {headers: user ? {Authorization: `Bearer ${await signToken({userId: user.id, email: user.email})}`} : {}});
+const request = async user => new Request('http://localhost/api/admin/characters', {headers: user ? {Authorization: `Bearer ${await signToken({userId: user.id, email: user.email})}`} : {}});
 const create = (actor = editor, content = {}) => saveManagedCharacter(actor.id, null, {content: {name: '管理角色', personality: 'PRIVATE_PERSONA', background: '合成背景', ...content}, reason: '创建合成角色'});
 const publish = (actor, character, action = 'PUBLISH') => publishManagedCharacter(actor.id, character.id, {action, reason: '合成发布动作', updatedAt: character.updatedAt.toISOString()});
 const denied = (fn, status) => assert.rejects(fn, error => error.status === status);

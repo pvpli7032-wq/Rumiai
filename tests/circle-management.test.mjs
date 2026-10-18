@@ -19,7 +19,7 @@ const {createCircle, listCircles, readCircle, changeCircleSubscription} = await 
 const {hasCircleMembership} = await import('../src/lib/posts/service.ts');
 const {exportAccountData} = await import('../src/lib/accounts/data-export.ts');
 const {closeAccount} = await import('../src/lib/accounts/closure-service.ts');
-const {GET: managementList} = await import('../src/app/api/circles/management/route.ts');
+const {GET: managementList} = await import('../src/app/api/admin/circles/route.ts');
 const {signToken} = await import('../src/lib/auth.ts');
 const users = [];
 const password = randomUUID();
@@ -37,9 +37,9 @@ let circle;
 test.after(async () => {await db.$disconnect(); for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), {force: true});});
 
 test('management is private and circle writes and member actions require distinct read-dependent grants', async () => {
-  assert.equal((await managementList(new Request('http://localhost/api/circles/management'))).status, 401);
+  assert.equal((await managementList(new Request('http://localhost/api/admin/circles'))).status, 401);
   const token = await signToken({userId: ordinary.id, email: ordinary.email});
-  assert.equal((await managementList(new Request('http://localhost/api/circles/management', {headers: {Authorization: 'Bearer ' + token}}))).status, 403);
+  assert.equal((await managementList(new Request('http://localhost/api/admin/circles', {headers: {Authorization: 'Bearer ' + token}}))).status, 403);
   circle = await create();
   assert.equal((await readManagedCircle(reader.id, circle.id)).id, circle.id);
   await denied(() => saveManagedCircle(reader.id, null, {content: {name: '无权', description: '无权'}, reason: '测试'}), 403);

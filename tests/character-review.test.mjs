@@ -12,7 +12,7 @@ const env = {...process.env}; delete env.RUST_LOG;
 const result = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true}); assert.equal(result.status, 0, result.stdout + result.stderr);
 const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
 const {reviewCharacter, reviewCharacters, readCharacterReviewQueue} = await import('../src/lib/characters/review-service.ts');
-const {POST: batchRoute} = await import('../src/app/api/moderation/characters/batch/route.ts');
+const {POST: batchRoute} = await import('../src/app/api/admin/moderation/characters/batch/route.ts');
 const {GET: publicRoles} = await import('../src/app/api/characters/route.ts');
 const {signToken} = await import('../src/lib/auth.ts');
 const users = [];
@@ -65,7 +65,7 @@ test('ordinary, read-only and suspended users cannot review even through direct 
   const role = await fixture('authority');
   await rejected(() => reviewCharacters(ordinary.id, body([role])), 403); await rejected(() => reviewCharacters(viewer.id, body([role])), 403);
   const token = await signToken({userId: viewer.id, email: viewer.email});
-  const response = await batchRoute(new Request('http://localhost/api/moderation/characters/batch', {method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify(body([role]))})); assert.equal(response.status, 403);
+  const response = await batchRoute(new Request('http://localhost/api/admin/moderation/characters/batch', {method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify(body([role]))})); assert.equal(response.status, 403);
   await db.user.update({where: {id: moderator.id}, data: {suspendedAt: new Date()}}); await rejected(() => reviewCharacters(moderator.id, body([role])), 403);
 });
 

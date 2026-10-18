@@ -65,7 +65,7 @@ try {
   await owner.page.getByRole('button', {name: '保存管理身份', exact: true}).click();
   assert.equal((await stopped).status(), 200);
   await owner.page.getByText('管理身份已保存。', {exact: true}).waitFor();
-  assert.equal((await staff.context.request.get(base + '/api/moderation/characters', {headers: {Authorization: `Bearer ${staff.token}`}})).status(), 403);
+  assert.equal((await staff.context.request.get(base + '/api/admin/moderation/characters', {headers: {Authorization: `Bearer ${staff.token}`}})).status(), 403);
   assert.equal((await staff.context.request.get(base + '/api/auth/me', {headers: {Authorization: `Bearer ${staff.token}`}})).status(), 401);
   checks.push('停用管理身份撤销已登录凭据');
   await owner.page.goto(base + '/admin/audit'); await owner.page.getByRole('heading', {name: '管理操作审计', exact: true}).waitFor(); await owner.page.getByText('撤销合成员工管理访问', {exact: true}).waitFor();

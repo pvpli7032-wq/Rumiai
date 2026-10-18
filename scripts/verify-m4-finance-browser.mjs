@@ -7,7 +7,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'zh-CN' });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  assert.equal((await page.request.get(`${base}/api/finance/report`)).status(), 401);
+  assert.equal((await page.request.get(`${base}/api/admin/finance/report`)).status(), 401);
   await page.goto(`${base}/admin/finance`);
   await page.getByText('请先登录财务管理员账号。', { exact: true }).waitFor();
   // UI fixtures only; actual API authorization and database invariants are tested

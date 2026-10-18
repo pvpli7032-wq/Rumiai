@@ -25,7 +25,7 @@ try {
   const log = await open(path.join(out, 'server.log'), 'a');
   try {app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', '18801'], {env, stdio: ['ignore', log.fd, log.fd], windowsHide: true});} finally {await log.close();}
   let ready = false;
-  for (let i = 0; i < 150; i++) {if (app.exitCode !== null) throw Error('owned server exited'); try {if ((await fetch(base + '/api/circles/management')).status === 401) {ready = true; break;}} catch {} await new Promise(resolve => setTimeout(resolve, 100));}
+  for (let i = 0; i < 150; i++) {if (app.exitCode !== null) throw Error('owned server exited'); try {if ((await fetch(base + '/api/admin/circles')).status === 401) {ready = true; break;}} catch {} await new Promise(resolve => setTimeout(resolve, 100));}
   assert(ready); browser = await chromium.launch();
   async function login(actor) {
     const context = await browser.newContext({viewport: {width: 1280, height: 900}});
@@ -65,8 +65,8 @@ try {
   checks.push('后台内容编辑实际保存并同步前台');
   const draft = '并发冲突时保留的本地草稿';
   await owner.page.getByLabel('管理圈子介绍', {exact: true}).fill(draft);
-  const snapshot = await (await owner.context.request.get(base + '/api/circles/management/' + circle.id, {headers: owner.headers})).json();
-  const concurrent = await owner.context.request.patch(base + '/api/circles/management/' + circle.id, {headers: owner.headers, data: {action: 'SAVE', updatedAt: snapshot.updatedAt, reason: '合成并发编辑', content: {name, description: '另一个运营保存的版本', tags: '原创,治愈', universeId: null}}}); assert.equal(concurrent.status(), 200);
+  const snapshot = await (await owner.context.request.get(base + '/api/admin/circles/' + circle.id, {headers: owner.headers})).json();
+  const concurrent = await owner.context.request.patch(base + '/api/admin/circles/' + circle.id, {headers: owner.headers, data: {action: 'SAVE', updatedAt: snapshot.updatedAt, reason: '合成并发编辑', content: {name, description: '另一个运营保存的版本', tags: '原创,治愈', universeId: null}}}); assert.equal(concurrent.status(), 200);
   await owner.page.getByLabel('圈子操作理由', {exact: true}).fill('拒绝旧版本覆盖');
   const stale = owner.page.waitForResponse(r => r.url().endsWith('/management/' + circle.id) && r.request().method() === 'PATCH');
   await owner.page.getByRole('button', {name: '保存圈子内容', exact: true}).click(); assert.equal((await stale).status(), 409);
@@ -75,7 +75,7 @@ try {
   await owner.page.getByRole('status').filter({hasText: '详情已重新读取。'}).waitFor();
   assert.equal(await owner.page.getByLabel('管理圈子介绍', {exact: true}).inputValue(), '另一个运营保存的版本');
   checks.push('并发版本拒绝覆盖、保留草稿并由用户明确刷新');
-  const ordinary = await login(actors[3]); assert.equal((await ordinary.context.request.get(base + '/api/circles/management', {headers: ordinary.headers})).status(), 403);
+  const ordinary = await login(actors[3]); assert.equal((await ordinary.context.request.get(base + '/api/admin/circles', {headers: ordinary.headers})).status(), 403);
   const join = () => ordinary.context.request.put(base + '/api/circles/' + circle.id + '/subscription', {headers: ordinary.headers});
   assert.equal((await join()).status(), 200);
   async function selectCircle(page) {

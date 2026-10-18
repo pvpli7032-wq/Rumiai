@@ -13,8 +13,8 @@ assert.equal(migration.status,0,migration.stdout+migration.stderr);
 const {db}=await import('../src/lib/db.ts');
 const {signToken}=await import('../src/lib/auth.ts');
 const {bootstrapOwner}=await import('../src/lib/admin/management-service.ts');
-const {GET:readBatches,POST:importRoute}=await import('../src/app/api/finance/reconciliation/route.ts');
-const {GET:readBatch}=await import('../src/app/api/finance/reconciliation/[id]/route.ts');
+const {GET:readBatches,POST:importRoute}=await import('../src/app/api/admin/finance/reconciliation/route.ts');
+const {GET:readBatch}=await import('../src/app/api/admin/finance/reconciliation/[id]/route.ts');
 const owner=await db.user.create({data:{username:`recon_owner_${process.pid}`,email:`recon-owner-${process.pid}@example.invalid`,passwordHash:'synthetic'}});
 const ordinary=await db.user.create({data:{username:`recon_user_${process.pid}`,email:`recon-user-${process.pid}@example.invalid`,passwordHash:'synthetic'}});
 await bootstrapOwner(owner.email);
@@ -35,16 +35,16 @@ test('statement CSV imports immutable normalized rows, reconciles order totals, 
     `${wrongAmount.providerTradeNo},${wrongAmount.orderNo},6.00,0.20,${paidAt},1`,
     `${unknownTrade},${unknownOrder},3.00,0.10,${paidAt},PAID`,
   ].join('\r\n');
-  assert.equal((await importRoute(await request(null,'/api/finance/reconciliation','POST',{csv,reason:'未授权导入'}))).status,401);
-  assert.equal((await importRoute(await request(ordinary,'/api/finance/reconciliation','POST',{csv,reason:'普通用户导入'}))).status,403);
+  assert.equal((await importRoute(await request(null,'/api/admin/finance/reconciliation','POST',{csv,reason:'未授权导入'}))).status,401);
+  assert.equal((await importRoute(await request(ordinary,'/api/admin/finance/reconciliation','POST',{csv,reason:'普通用户导入'}))).status,403);
   const balanceBefore=(await db.user.findUniqueOrThrow({where:{id:buyer.id}})).coins;
-  const first=await importRoute(await request(owner,'/api/finance/reconciliation','POST',{csv,reason:'EZFP 测试账单',periodStart,periodEnd}));
+  const first=await importRoute(await request(owner,'/api/admin/finance/reconciliation','POST',{csv,reason:'EZFP 测试账单',periodStart,periodEnd}));
   assert.equal(first.status,201);const batch=await first.json();assert.equal(batch.rowCount,4);assert.equal(batch.matchedRowCount,1);assert.equal(batch.exceptionRowCount,3);assert.equal(batch.grossCnyCents,2134);assert.equal(batch.feeCnyCents,67);assert.equal(batch.netCnyCents,2067);
-  const detail=await readBatch(await request(owner,`/api/finance/reconciliation/${batch.id}?page=1&pageSize=25`),{params:Promise.resolve({id:batch.id})});
+  const detail=await readBatch(await request(owner,`/api/admin/finance/reconciliation/${batch.id}?page=1&pageSize=25`),{params:Promise.resolve({id:batch.id})});
   assert.equal(detail.status,200);const payload=await detail.json();assert.deepEqual(payload.entries.map(row=>row.matchStatus),['MATCHED','AMOUNT_MISMATCH','ORDER_NOT_FOUND','MISSING_IN_STATEMENT']);assert.equal(payload.entries[0].internalAmountCnyCents,1234);assert.equal(payload.entries[1].exceptionCode,'amount_mismatch');assert.equal(payload.entries[3].paymentOrderId,undefined);assert.equal(payload.entries[3].internalAmountCnyCents,700);
   assert.equal((await db.paymentOrder.findUniqueOrThrow({where:{id:matched.id}})).status,'PAID');assert.equal((await db.user.findUniqueOrThrow({where:{id:buyer.id}})).coins,balanceBefore);
-  const duplicate=await importRoute(await request(owner,'/api/finance/reconciliation','POST',{csv,reason:'同一账单重复提交',periodStart,periodEnd}));assert.equal(duplicate.status,200);assert.equal((await duplicate.json()).id,batch.id);assert.equal((await db.paymentReconciliationBatch.count()),1);
-  const listed=await readBatches(await request(owner,'/api/finance/reconciliation'));assert.equal((await listed.json()).batches.length,1);
-  const malformed=await importRoute(await request(owner,'/api/finance/reconciliation','POST',{csv:csv.replace('0.37','-0.37'),reason:'无效费用',periodStart,periodEnd}));assert.equal(malformed.status,400);
+  const duplicate=await importRoute(await request(owner,'/api/admin/finance/reconciliation','POST',{csv,reason:'同一账单重复提交',periodStart,periodEnd}));assert.equal(duplicate.status,200);assert.equal((await duplicate.json()).id,batch.id);assert.equal((await db.paymentReconciliationBatch.count()),1);
+  const listed=await readBatches(await request(owner,'/api/admin/finance/reconciliation'));assert.equal((await listed.json()).batches.length,1);
+  const malformed=await importRoute(await request(owner,'/api/admin/finance/reconciliation','POST',{csv:csv.replace('0.37','-0.37'),reason:'无效费用',periodStart,periodEnd}));assert.equal(malformed.status,400);
   assert.equal((await db.paymentReconciliationEntry.count({where:{batchId:batch.id}})),4);
 });

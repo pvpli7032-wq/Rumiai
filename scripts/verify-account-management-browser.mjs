@@ -27,7 +27,7 @@ try {
   const log = await open(path.join(out, 'server.log'), 'a');
   try {app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', '18797'], {env, stdio: ['ignore', log.fd, log.fd], windowsHide: true});} finally {await log.close();}
   let ready = false;
-  for (let i = 0; i < 150; i++) {if (app.exitCode !== null) throw Error('owned server exited'); try {if ((await fetch(base + '/api/accounts/management')).status === 401) {ready = true; break;}} catch {} await new Promise(resolve => setTimeout(resolve, 100));}
+  for (let i = 0; i < 150; i++) {if (app.exitCode !== null) throw Error('owned server exited'); try {if ((await fetch(base + '/api/admin/accounts')).status === 401) {ready = true; break;}} catch {} await new Promise(resolve => setTimeout(resolve, 100));}
   assert(ready, 'owned server not ready'); browser = await chromium.launch();
   async function login(actor) {
     const context = await browser.newContext({viewport: {width: 1280, height: 900}});

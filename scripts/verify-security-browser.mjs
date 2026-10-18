@@ -41,7 +41,7 @@ try {
   assert.equal((await context.request.get(`${base}/api/auth/me`, { headers: { Authorization: `Bearer ${forged}` } })).status(), 401);
   // The media cookie from login must never authenticate a mutating API.
   assert.equal((await context.request.post(`${base}/api/circles`, { data: { name: 'Cookie-only write', description: 'must reject without bearer token' } })).status(), 401);
-  assert.equal((await context.request.get(`${base}/api/finance/report`, { headers })).status(), 403);
+  assert.equal((await context.request.get(`${base}/api/admin/finance/report`, { headers })).status(), 403);
   pass('伪造 JWT、仅图片 Cookie 的写操作及普通账号财务访问被拒绝');
 
   const circleName = `安全验收-${suffix}`;

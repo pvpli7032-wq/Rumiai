@@ -7,7 +7,27 @@ process.env.NEXT_TELEMETRY_DISABLED ??= '1';
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: fileURLToPath(new URL('.', import.meta.url)),
-  async rewrites() { return { beforeFiles: [{ source: '/uploads/:name', destination: '/api/uploads/:name' }] }; },
+  async rewrites() {
+    return {
+      beforeFiles: [{ source: '/uploads/:name', destination: '/api/uploads/:name' }],
+      // Compatibility window for the /api/admin migration (A3). Administration
+      // handlers now live under /api/admin/<domain>; these rewrites keep the old
+      // prefixes answering for callers that have not moved yet. Remove them —
+      // together with the matching legacy roots in
+      // src/lib/operations/maintenance-routing.ts — once nothing calls the old
+      // prefixes any more.
+      afterFiles: [
+        { source: '/api/finance/:path*', destination: '/api/admin/finance/:path*' },
+        { source: '/api/moderation/:path*', destination: '/api/admin/moderation/:path*' },
+        { source: '/api/accounts/management', destination: '/api/admin/accounts' },
+        { source: '/api/accounts/management/:path*', destination: '/api/admin/accounts/:path*' },
+        { source: '/api/characters/management', destination: '/api/admin/characters' },
+        { source: '/api/characters/management/:path*', destination: '/api/admin/characters/:path*' },
+        { source: '/api/circles/management', destination: '/api/admin/circles' },
+        { source: '/api/circles/management/:path*', destination: '/api/admin/circles/:path*' },
+      ],
+    };
+  },
   // Administration used to live at the top level (/finance, /moderation). It now
   // sits under /admin as its own route group. Temporary redirects until a release
   // has shipped and external links have been updated.

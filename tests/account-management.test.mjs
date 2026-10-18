@@ -25,8 +25,8 @@ const {readCommunityWriteRestriction, setCommunityRestriction} = await import('.
 const {POST: submitAppeal, GET: listAppeals} = await import('../src/app/api/community-appeals/route.ts');
 const {POST: followCreator}=await import('../src/app/api/creators/[username]/follow/route.ts');
 const {moderateCommunityReport, reviewCommunityAppeal} = await import('../src/lib/community/moderation-service.ts');
-const {GET: listRoute} = await import('../src/app/api/accounts/management/route.ts');
-const {PATCH: changeRoute} = await import('../src/app/api/accounts/management/[id]/route.ts');
+const {GET: listRoute} = await import('../src/app/api/admin/accounts/route.ts');
+const {PATCH: changeRoute} = await import('../src/app/api/admin/accounts/[id]/route.ts');
 const {POST: loginRoute} = await import('../src/app/api/auth/login/route.ts');
 const {GET: readProfileRoute, PUT: updateProfileRoute} = await import('../src/app/api/users/me/route.ts');
 const password = `LocalOnly!${randomUUID()}`, hash = await bcrypt.hash(password, 10);
@@ -40,7 +40,7 @@ const readRole = await saveRole(owner.id, {name: '只读用户查看', permissio
 await saveOperator(owner.id, {userId: viewer.id, enabled: true, roleIds: [readRole.id], version: 0, reason: '只读验收'});
 const manageRole = await saveRole(owner.id, {name: '用户状态主管', permissions: ['accounts.read', 'accounts.manage', 'accounts.sessions.revoke'], reason: '合成角色'});
 await saveOperator(owner.id, {userId: supervisor.id, enabled: true, roleIds: [manageRole.id], version: 0, reason: '主管验收'});
-const request = async (user, method = 'GET', body, token) => new Request('http://localhost/api/accounts/management', {method, headers: {'Content-Type': 'application/json', ...(user || token ? {Authorization: `Bearer ${token ?? await signToken({userId: user.id, email: user.email, tokenVersion: (await db.user.findUnique({where: {id: user.id}})).tokenVersion})}`} : {})}, ...(body !== undefined ? {body: JSON.stringify(body)} : {})});
+const request = async (user, method = 'GET', body, token) => new Request('http://localhost/api/admin/accounts', {method, headers: {'Content-Type': 'application/json', ...(user || token ? {Authorization: `Bearer ${token ?? await signToken({userId: user.id, email: user.email, tokenVersion: (await db.user.findUnique({where: {id: user.id}})).tokenVersion})}`} : {})}, ...(body !== undefined ? {body: JSON.stringify(body)} : {})});
 const act = async (actor, user, action, reason = '合成操作') => updateManagedAccount(actor.id, user.id, {action, reason, version: (await db.user.findUnique({where: {id: user.id}})).accountVersion});
 const denied = (fn, status) => assert.rejects(fn, error => error.status === status);
 test.after(async () => {await db.$disconnect(); for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), {force: true});});

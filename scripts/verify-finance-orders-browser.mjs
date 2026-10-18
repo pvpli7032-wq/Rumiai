@@ -38,7 +38,7 @@ try{
   let ready=false;
   for(let i=0;i<180;i++){
     if(app.exitCode!==null)throw Error('isolated production server exited');
-    try{if((await fetch(base+'/api/finance/orders/all')).status===401){ready=true;break;}}catch{}
+    try{if((await fetch(base+'/api/admin/finance/orders/all')).status===401){ready=true;break;}}catch{}
     await new Promise(resolve=>setTimeout(resolve,100));
   }
   assert(ready,'isolated production server did not become ready');
@@ -51,7 +51,7 @@ try{
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+'/admin/finance');await page.getByRole('heading',{name:'充值订单',exact:true}).waitFor();
   await page.getByText('共 31 笔 · 第 1 / 2 页',{exact:true}).waitFor();
-  const listResponse=await context.request.get(base+'/api/finance/orders/all?page=1&pageSize=25&status=ALL',{headers:{Authorization:'Bearer '+token}});
+  const listResponse=await context.request.get(base+'/api/admin/finance/orders/all?page=1&pageSize=25&status=ALL',{headers:{Authorization:'Bearer '+token}});
   assert.equal(listResponse.status(),200);const list=await listResponse.json();assert.equal(list.total,31);assert.equal(list.items.length,25);
   assert.equal(Object.hasOwn(list.items[0],'userId'),false);assert.equal(Object.hasOwn(list.items[0],'providerPayInfo'),false);
   checks.push('财务订单区显示分页快照，接口仅返回运营需要的字段');
@@ -60,7 +60,7 @@ try{
   await page.locator('tbody').getByText('OPSORDER-007',{exact:false}).waitFor({state:'visible'});
   await page.locator('tbody').getByText('入账 · OPS-TRADE-007',{exact:false}).waitFor({state:'visible'});
   await page.locator('tbody').getByText('业务校验拒绝 · amount_mismatch',{exact:false}).waitFor({state:'visible'});
-  assert.equal((await context.request.get(base+'/api/finance/orders/all?q=OPS-TRADE-007',{headers:{Authorization:'Bearer '+token}})).status(),200);
+  assert.equal((await context.request.get(base+'/api/admin/finance/orders/all?q=OPS-TRADE-007',{headers:{Authorization:'Bearer '+token}})).status(),200);
   const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:/导出 CSV/}).click()]);
   const csv=await readFile(await download.path(),'utf8');assert(csv.includes('OPSORDER-007'));assert(csv.includes('OPS-TRADE-007'));assert.equal(csv.includes('providerPayInfo'),false);
   checks.push('订单号与渠道单号搜索返回匹配订单、展示入账与已验签拒绝原因，并按当前筛选导出 CSV');

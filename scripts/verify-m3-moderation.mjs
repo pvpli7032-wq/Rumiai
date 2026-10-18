@@ -46,12 +46,12 @@ try {
   const commentId = comment.data.comment.id;
   const postReport = await req(reporter, '/api/reports', 'POST', { targetType: 'POST', targetId: postId, category: 'spam', details: '请核查' });
   assert.equal(postReport.status, 201);
-  assert.equal((await req(null, '/api/moderation/reports')).status, 403);
-  assert.equal((await req(reporter, '/api/moderation/reports')).status, 403);
-  let queue = await req(admin, '/api/moderation/reports?status=OPEN');
+  assert.equal((await req(null, '/api/admin/moderation/reports')).status, 403);
+  assert.equal((await req(reporter, '/api/admin/moderation/reports')).status, 403);
+  let queue = await req(admin, '/api/admin/moderation/reports?status=OPEN');
   assert.equal(queue.status, 200); assert(queue.data.some(row => row.id === postReport.data.report.id && row.target.content.includes(String(stamp))));
-  assert.equal((await req(admin, `/api/moderation/reports/${postReport.data.report.id}`, 'PATCH', { action: 'REVIEWING', reason: '需要核对内容上下文' })).status, 200);
-  assert((await req(admin, '/api/moderation/reports?status=REVIEWING')).data.some(row => row.id === postReport.data.report.id));
+  assert.equal((await req(admin, `/api/admin/moderation/reports/${postReport.data.report.id}`, 'PATCH', { action: 'REVIEWING', reason: '需要核对内容上下文' })).status, 200);
+  assert((await req(admin, '/api/admin/moderation/reports?status=REVIEWING')).data.some(row => row.id === postReport.data.report.id));
   mark('社区举报队列仅审核员可读，并返回目标内容、举报理由和举报人');
 
   browser = await chromium.launch();
@@ -70,12 +70,12 @@ try {
   await reportCard.getByRole('button', { name: '隐藏内容', exact: true }).click();
   await page.getByLabel('举报状态').selectOption('OPEN');
   await reportCard.waitFor({ state: 'detached' });
-  assert(!(await req(admin, '/api/moderation/reports?status=OPEN')).data.some(row => row.id === postReport.data.report.id));
+  assert(!(await req(admin, '/api/admin/moderation/reports?status=OPEN')).data.some(row => row.id === postReport.data.report.id));
   assert(!(await req(null, `/api/circles/${circleId}/posts`)).data.posts.some(row => row.id === postId));
   const hiddenCommentReport = await req(reporter, '/api/reports', 'POST', { targetType: 'POST_COMMENT', targetId: commentId, category: 'abuse', details: '评论也需核查' });
   assert.equal(hiddenCommentReport.status, 201);
-  await req(admin, `/api/moderation/reports/${hiddenCommentReport.data.report.id}`, 'PATCH', { action: 'REVIEWING', reason: '需要核对评论上下文' });
-  await req(admin, `/api/moderation/reports/${hiddenCommentReport.data.report.id}`, 'PATCH', { action: 'HIDE', reason: '违规评论，先行隐藏' });
+  await req(admin, `/api/admin/moderation/reports/${hiddenCommentReport.data.report.id}`, 'PATCH', { action: 'REVIEWING', reason: '需要核对评论上下文' });
+  await req(admin, `/api/admin/moderation/reports/${hiddenCommentReport.data.report.id}`, 'PATCH', { action: 'HIDE', reason: '违规评论，先行隐藏' });
   assert.equal(await db.postComment.findUnique({ where: { id: commentId }, select: { status: true } }).then(row => row.status), 'HIDDEN');
   assert.deepEqual(errors, []);
   mark('手机审核台可隐藏帖子；公开动态随即不可见，评论也可独立隐藏');
@@ -83,8 +83,8 @@ try {
   const racePost = await req(author, `/api/circles/${circleId}/posts`, 'POST', { content: `并发审核测试 ${stamp}` });
   const raceReport = await req(reporter, '/api/reports', 'POST', { targetType: 'POST', targetId: racePost.data.post.id, category: 'spam', details: '测试审核并发处理' });
   const raceResults = await Promise.all([
-    req(admin, `/api/moderation/reports/${raceReport.data.report.id}`, 'PATCH', { action: 'HIDE', reason: '审核员一处置' }),
-    req(admin, `/api/moderation/reports/${raceReport.data.report.id}`, 'PATCH', { action: 'DISMISS', reason: '审核员二处置' }),
+    req(admin, `/api/admin/moderation/reports/${raceReport.data.report.id}`, 'PATCH', { action: 'HIDE', reason: '审核员一处置' }),
+    req(admin, `/api/admin/moderation/reports/${raceReport.data.report.id}`, 'PATCH', { action: 'DISMISS', reason: '审核员二处置' }),
   ]);
   assert.deepEqual(raceResults.map(result => result.status).sort(), [200, 409]);
   mark('同一举报的并发处置仅有一个审核动作成功');
@@ -92,7 +92,7 @@ try {
   const userReport = await req(reporter, '/api/reports', 'POST', { targetType: 'USER', targetId: targetProfile.id, category: 'spam', details: '社区持续刷屏' });
   assert.equal(userReport.status, 201);
   const reportId = userReport.data.report.id;
-  const ban = await req(admin, `/api/moderation/reports/${reportId}`, 'PATCH', { action: 'BAN', reason: '重复发布广告，经人工核查' });
+  const ban = await req(admin, `/api/admin/moderation/reports/${reportId}`, 'PATCH', { action: 'BAN', reason: '重复发布广告，经人工核查' });
   assert.equal(ban.status, 200);
   assert.equal(await db.user.findUnique({ where: { id: targetProfile.id }, select: { communityBannedAt: true } }).then(row => Boolean(row.communityBannedAt)), true);
   assert.equal((await req(bannedUser, `/api/circles/${circleId}/posts`, 'POST', { content: 'ban bypass' })).status, 403);
@@ -107,21 +107,21 @@ try {
   assert.equal(appeal.status, 201);
   assert.equal((await req(bannedUser, '/api/community-appeals', 'POST', { reason: '这是重复申诉请求说明文字。' })).status, 409);
   assert.equal((await req(bannedUser, '/api/community-appeals')).data[0].id, appeal.data.id);
-  assert.equal((await req(null, '/api/moderation/appeals')).status, 403);
-  assert.equal((await req(reporter, '/api/moderation/audit')).status, 403);
-  const appeals = await req(admin, '/api/moderation/appeals?status=OPEN');
+  assert.equal((await req(null, '/api/admin/moderation/appeals')).status, 403);
+  assert.equal((await req(reporter, '/api/admin/moderation/audit')).status, 403);
+  const appeals = await req(admin, '/api/admin/moderation/appeals?status=OPEN');
   assert(appeals.data.some(row => row.id === appeal.data.id && row.user.username === targetProfile.username));
-  const accepted = await req(admin, `/api/moderation/appeals/${appeal.data.id}`, 'PATCH', { status: 'ACCEPTED', resolution: '复核后确认误判，解除社区限制。' });
+  const accepted = await req(admin, `/api/admin/moderation/appeals/${appeal.data.id}`, 'PATCH', { status: 'ACCEPTED', resolution: '复核后确认误判，解除社区限制。' });
   assert.equal(accepted.status, 200);
   assert.equal(await db.user.findUnique({ where: { id: targetProfile.id }, select: { communityBannedAt: true } }).then(row => row.communityBannedAt), null);
   assert.equal((await req(bannedUser, `/api/circles/${circleId}/posts`, 'POST', { content: `解封后恢复发帖 ${stamp}` })).status, 201);
-  assert.equal((await req(admin, `/api/moderation/appeals/${appeal.data.id}`, 'PATCH', { status: 'REJECTED', resolution: '重复处理' })).status, 409);
+  assert.equal((await req(admin, `/api/admin/moderation/appeals/${appeal.data.id}`, 'PATCH', { status: 'REJECTED', resolution: '重复处理' })).status, 409);
   const secondUserReport = await req(author, '/api/reports', 'POST', { targetType: 'USER', targetId: targetProfile.id, category: 'spam', details: '再次核查用户社区行为' });
   assert.equal(secondUserReport.status, 201);
-  assert.equal((await req(admin, `/api/moderation/reports/${secondUserReport.data.report.id}`, 'PATCH', { action: 'BAN', reason: '新举报复核确认' })).status, 200);
-  assert.equal((await req(admin, `/api/moderation/reports/${secondUserReport.data.report.id}`, 'PATCH', { action: 'UNBAN', reason: '后续复核解除限制' })).status, 200);
+  assert.equal((await req(admin, `/api/admin/moderation/reports/${secondUserReport.data.report.id}`, 'PATCH', { action: 'BAN', reason: '新举报复核确认' })).status, 200);
+  assert.equal((await req(admin, `/api/admin/moderation/reports/${secondUserReport.data.report.id}`, 'PATCH', { action: 'UNBAN', reason: '后续复核解除限制' })).status, 200);
   assert.equal(await db.user.findUnique({ where: { id: targetProfile.id }, select: { communityBannedAt: true } }).then(row => row.communityBannedAt), null);
-  const audit = await req(admin, '/api/moderation/audit');
+  const audit = await req(admin, '/api/admin/moderation/audit');
   assert.equal(audit.status, 200);
   assert(audit.data.some(row => row.action === 'BAN' && row.targetId === targetProfile.id));
   assert(audit.data.some(row => row.action === 'APPEAL_SUBMITTED' && row.targetId === targetProfile.id));

@@ -83,7 +83,7 @@ export class TestClient {
     const login=await fetch(this.baseUrl+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:process.env.TEST_REVIEWER_EMAIL||'reviewer@example.invalid',password:process.env.TEST_REVIEWER_PASSWORD||'ReviewTest123!'})});
     if(!login.ok)throw Error('Reviewed fixture requires an isolated test reviewer account configured in MODERATOR_USER_IDS.');
     const {token}=await login.json();
-    const approval=await fetch(this.baseUrl+'/api/moderation/characters/'+role.id,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({status:'APPROVED',reason:'Regression fixture approval',updatedAt:role.updatedAt})});
+    const approval=await fetch(this.baseUrl+'/api/admin/moderation/characters/'+role.id,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({status:'APPROVED',reason:'Regression fixture approval',updatedAt:role.updatedAt})});
     if(!approval.ok)throw Error('Fixture approval failed: '+await approval.text());
     const refreshed=await this.get('/api/characters/'+role.id);const data=await refreshed.json();
     return new Response(JSON.stringify({character:data.character}),{status:response.status,headers:{'Content-Type':'application/json'}});

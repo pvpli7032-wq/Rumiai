@@ -117,7 +117,7 @@ try {
   assert.equal(other.status, 200); await other.text(); assert.equal(providerRequests, 2);
   const login = await request(null, '/api/auth/login', 'POST', { email: admin.email, password: adminPassword });
   assert.equal(login.status, 200); const { token: adminToken } = await login.json();
-  const finance = await request(adminToken, '/api/finance/report'); assert.equal(finance.status, 200);
+  const finance = await request(adminToken, '/api/admin/finance/report'); assert.equal(finance.status, 200);
   const report = await finance.json(); assert.equal(report.aiBudget.circuitBreaker, 'enabled'); assert.equal(report.aiBudget.alerts.filter(row => row.scope === 'user').length, 2);
   await page.evaluate(token => localStorage.setItem('khuiai_token', token), adminToken); await page.goto(`${base}/admin/finance`);
   await page.getByText(/已开启自动熔断：/).waitFor();

@@ -14,12 +14,12 @@ const {db}=await import('../src/lib/db.ts');
 const {signToken}=await import('../src/lib/auth.ts');
 const {bootstrapOwner}=await import('../src/lib/admin/management-service.ts');
 const {recordCallbackRejectionSample,readCallbackAlertSummary}=await import('../src/lib/payments/callback-alert-service.ts');
-const {GET}=await import('../src/app/api/finance/callback-alerts/route.ts');
+const {GET}=await import('../src/app/api/admin/finance/callback-alerts/route.ts');
 const owner=await db.user.create({data:{username:`callback_owner_${process.pid}`,email:`callback-owner-${process.pid}@example.invalid`,passwordHash:'synthetic'}});
 const ordinary=await db.user.create({data:{username:`callback_user_${process.pid}`,email:`callback-user-${process.pid}@example.invalid`,passwordHash:'synthetic'}});
 await bootstrapOwner(owner.email);
 const token=user=>signToken({userId:user.id,email:user.email,tokenVersion:user.tokenVersion});
-const request=async user=>new Request('http://localhost/api/finance/callback-alerts?hours=24',{headers:user?{Authorization:'Bearer '+await token(user)}:{}});
+const request=async user=>new Request('http://localhost/api/admin/finance/callback-alerts?hours=24',{headers:user?{Authorization:'Bearer '+await token(user)}:{}});
 test.after(async()=>{await db.$disconnect();for(const suffix of ['','-wal','-shm','-journal'])rmSync(path.resolve('prisma',file+suffix),{force:true});});
 
 test('callback alert samples enforce a global reason/minute key and expose only low-cardinality data to finance readers',async()=>{
@@ -38,6 +38,6 @@ test('callback alert samples enforce a global reason/minute key and expose only 
   const response=await GET(await request(owner));assert.equal(response.status,200);assert.match(response.headers.get('cache-control'),/private, no-store/);
   const data=await response.json();assert.equal(data.sampledMinutes,3);assert.equal(data.retentionDays,30);assert.equal(data.reasons.find(row=>row.reasonCode==='signature_or_timestamp').sampledMinutes,2);
   const serialized=JSON.stringify(data);for(const sensitive of ['out_trade_no','trade_no','orderNo','providerTradeNo','clientIp','rawPayload'])assert.equal(serialized.includes(sensitive),false);
-  assert.equal((await GET(new Request('http://localhost/api/finance/callback-alerts?hours=48',{headers:{Authorization:'Bearer '+await token(owner)}}))).status,400);
+  assert.equal((await GET(new Request('http://localhost/api/admin/finance/callback-alerts?hours=48',{headers:{Authorization:'Bearer '+await token(owner)}}))).status,400);
   await assert.rejects(()=>readCallbackAlertSummary(ordinary.id,24),error=>error.status===403);
 });
