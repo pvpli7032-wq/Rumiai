@@ -237,3 +237,15 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 测试：`test:characters:management` 从 17 项增至 18 项，新增用例覆盖「关注分区只返回被关注创作者的角色」与「投影带 likeCount 与 creator」；服务器发布目录 16 个套件 135 项断言全绿。
 
 线上实测：`/zh`、`/discover`、`/zh/explore`、`/shop`、`/admin` 均 200；`/api/characters?sort=popular` 返回 6 个角色且带 `likeCount`/`creator`/`tags`；`scope=following` 匿名 401、`scope=bogus` 400；PM2 error.log 零错误。
+
+## 2026-10-18 B2 公开落地页发布
+
+当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261018-landing`（源码 = `4be03ec`），`commercial-20261018-b2` 保留为回滚位。无新增迁移；构建 `BUILD_ID=s0wxStcIk2wrnt9RG2RQG`；16 个套件 135 项断言全绿。
+
+`/{locale}` 从「居中 Logo + 一行描述 + 一个按钮」改成建议书要求的七块结构：价值主张（含 AI 生成内容提示）、热门角色（取目录接口前 6 名，链接到公开角色页）、三步玩法、标注为示例的对话片段、安全与合规、原生 `<details>` 折叠的 FAQ、收尾 CTA；后台配置的首页横幅仍在顶部展示。SEO 侧补了 `generateMetadata`：标题为「价值主张 · 站点名」，带 canonical 与十语言 hreflang。
+
+文案放在 `src/lib/i18n.ts` 新增的 `landing` 块（`LandingCopy` 类型）。中文与英文为人工撰写；泰语等其余语言暂时沿用英文——`getDictionary` 对未定义词典的 locale 本来回退英文，这里保持同样的可见缺口，没有机器翻译冒充。
+
+一次构建告警：首次 `verify:build` 在 `/[locale]/explore` 预渲染时出现 11 次 `sqlite_pragmas_failed`（P2010）与两条 P1008 超时，删除 `.next-validation-build` 重跑后完全复现不了（0 次告警、构建通过）。判断是隔离库上的瞬时锁竞争，不是代码问题；重跑即通过，后续遇到同样报错先重跑一次再排查。
+
+线上实测：`/zh` 七块文案全部服务端直出（各命中 1 次）、6 个角色链接、`<title>` 为「和你喜欢的角色，聊出属于你的故事 · 星伴 · AI 角色社区」、canonical 正确；`/en` 走英文文案；PM2 error.log 零错误。
