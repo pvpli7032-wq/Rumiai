@@ -223,3 +223,17 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 | 全部离线测试 | **在服务器发布目录执行** `bash /tmp/run-suites.sh <发布目录>` | 本机跑不了，见上 |
 
 `wsl.exe` 同样被安全策略拦截，容器/Docker 也不可用，不要再尝试用它们绕。
+
+## 2026-10-18 B2 发现页分区与角色卡发布
+
+当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261018-b2`（源码 = `125e584`），`commercial-20261018-b6` 保留为回滚位。无新增迁移，生产库 45 条；构建 `BUILD_ID=B5erSpRaITBX3ieyLqkwN`。切换前联合备份沿用 `database-before-commercial-20261018`；本轮无库结构变化。
+
+`/discover` 从「一串横滑 + 一个大网格」改成五个分区：今日推荐（独家优先的去重列表，桌面 3×2 网格）、热门（按对话数）、新角色（按创建时间）、关注的创作者（登录后出现）、榜单（复用排行榜组件，带「完整榜单」入口）。顶部搜索与类型/角色筛选改成只作用于页尾「全部角色」那一段，命中时整页切换为「筛选结果」并给出清除入口，不再把上面的分区一起压平。
+
+分区数据来源：`/api/characters?sort=popular|new`、新增的 `scope=following`、以及既有的 `/api/rankings`。`scope=following` 走 `lib/characters/catalog-service` 的同一条查询，条件是「创作者被你关注 + 角色已公开且审核通过」，没有再开新接口。匿名访问返回 401，未知 scope 返回 400。列表投影新增 `likeCount` 与 `creator{username,displayName}`。
+
+角色卡按建议书补齐信息密度：在原有封面、名称、一句话简介、徽章、对话框数之外，增加点赞数（与对话数并列）、创作者账号、最多两个中文标签（标签键由站点标签表映射）。`CharacterRail` 已删除——重构后它没有调用方，且其中的「今天/本周/本月/全部」范围按钮本来就不影响取数。
+
+测试：`test:characters:management` 从 17 项增至 18 项，新增用例覆盖「关注分区只返回被关注创作者的角色」与「投影带 likeCount 与 creator」；服务器发布目录 16 个套件 135 项断言全绿。
+
+线上实测：`/zh`、`/discover`、`/zh/explore`、`/shop`、`/admin` 均 200；`/api/characters?sort=popular` 返回 6 个角色且带 `likeCount`/`creator`/`tags`；`scope=following` 匿名 401、`scope=bogus` 400；PM2 error.log 零错误。
