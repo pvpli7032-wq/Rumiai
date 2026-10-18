@@ -2,14 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { listPublicCharacterPosts, readPublicCharacter, resolveCharacterTagLabels } from '@/lib/characters/catalog-service';
-import {
-  SITE_URL,
-  alternateLanguages,
-  compactNumber,
-  getDictionary,
-  isLocale,
-  type Locale,
-} from '@/lib/i18n';
+import {SITE_URL, alternateLanguages, compactNumber, getDictionary, isLocale, type Locale, DEFAULT_LOCALE} from '@/lib/i18n';
 import { PublicHeader } from '@/components/public-header';
 
 export const revalidate = 300;
@@ -52,7 +45,7 @@ export async function generateMetadata({
 export default async function CharacterPage({ params: paramsPromise }: { params: Promise<{ locale: string; id: string }> }) {
   const params = await paramsPromise;
 
-  const locale = (isLocale(params.locale) ? params.locale : 'th') as Locale;
+  const locale = (isLocale(params.locale) ? params.locale : DEFAULT_LOCALE) as Locale;
   const dict = getDictionary(locale);
   const character = await readPublicCharacter(params.id);
   if (!character) notFound();

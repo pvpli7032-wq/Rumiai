@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { SITE_URL, alternateLanguages, getDictionary, isLocale, type Locale } from '@/lib/i18n';
+import {SITE_URL, alternateLanguages, getDictionary, isLocale, type Locale, DEFAULT_LOCALE} from '@/lib/i18n';
 import { PublicHeader } from '@/components/public-header';
 import { AuthForm } from './auth-form';
 
@@ -26,7 +26,7 @@ export async function generateMetadata({ params: paramsPromise }: { params: Prom
 export default async function AuthPage({ params: paramsPromise }: { params: Promise<{ locale: string }> }) {
   const params = await paramsPromise;
 
-  const locale = (isLocale(params.locale) ? params.locale : 'th') as Locale;
+  const locale = (isLocale(params.locale) ? params.locale : DEFAULT_LOCALE) as Locale;
   const dict = getDictionary(locale);
 
   return (
