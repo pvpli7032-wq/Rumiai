@@ -320,7 +320,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                 {"介绍"}</TabButton>
               <TabButton active={tab === 'quests'} onClick={() => setTab('quests')}>
                 {"任务"}{quests.length > 0 ? ` (${quests.length})` : ''}
-                {openQuests > 0 && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-[#F2572B]" />}
+                {openQuests > 0 && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-brand-strong" />}
               </TabButton>
               {character.supportCast.length > 0 && (
                 <TabButton active={tab === 'cast'} onClick={() => setTab('cast')}>
@@ -338,7 +338,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                   {character.scenario && <Section title={"场景"}>{character.scenario}</Section>}
                   {character.copyrightStatement && <Section title="版权声明">{character.copyrightStatement}</Section>}
                   {character.background && <Section title={"故事"}>{character.background}</Section>}
-                  {giftOptions.length>0&&<section className="space-y-2"><h3 className="text-xs font-bold text-zinc-500">赠送礼物</h3><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{giftOptions.map(gift=><button key={gift.id} onClick={()=>void sendGift(gift)} disabled={!token||!!sendingGift} className="flex min-h-14 items-center gap-2 rounded-xl border border-white/10 bg-zinc-800/50 px-3 text-left hover:border-[#F2572B]/50 disabled:opacity-50"><span className="text-xl">{gift.emoji}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm">{gift.name}</span><span className="text-xs text-amber-400">{gift.coinPrice} 金币</span></span></button>)}</div>{!token&&<p className="text-xs text-zinc-500">登录后可赠送礼物</p>}</section>}
+                  {giftOptions.length>0&&<section className="space-y-2"><h3 className="text-xs font-bold text-zinc-500">赠送礼物</h3><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{giftOptions.map(gift=><button key={gift.id} onClick={()=>void sendGift(gift)} disabled={!token||!!sendingGift} className="flex min-h-14 items-center gap-2 rounded-xl border border-white/10 bg-zinc-800/50 px-3 text-left hover:border-brand-strong/50 disabled:opacity-50"><span className="text-xl">{gift.emoji}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm">{gift.name}</span><span className="text-xs text-amber-400">{gift.coinPrice} 金币</span></span></button>)}</div>{!token&&<p className="text-xs text-zinc-500">登录后可赠送礼物</p>}</section>}
                   {character.greeting && <Section title={"开场白"}>{character.greeting}</Section>}
                   {character.emojis.length > 0 && (
                     <div>
@@ -369,7 +369,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                       >
                         <span
                           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                            q.isCompleted ? 'bg-emerald-500/15 text-emerald-400' : 'bg-[#F2572B]/15 text-[#F2572B]'
+                            q.isCompleted ? 'bg-emerald-500/15 text-emerald-400' : 'bg-brand-strong/15 text-brand-strong'
                           }`}
                         >
                           {q.isCompleted ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
@@ -497,7 +497,7 @@ function IconAction({
       onClick={onClick}
       className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border py-2 text-xs font-bold transition-colors ${
         active
-          ? 'border-[#F2572B]/50 bg-[#F2572B]/10 text-[#F2572B]'
+          ? 'border-brand-strong/50 bg-brand-strong/10 text-brand-strong'
           : 'border-white/10 text-zinc-300 hover:bg-white/5'
       }`}
     >

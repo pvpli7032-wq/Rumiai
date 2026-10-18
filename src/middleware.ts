@@ -31,8 +31,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Every request lands on DEFAULT_LOCALE: the old `khuiai_locale` cookie this used to
-  // read was never written anywhere, so the lookup only ever fell through to the default.
+  // Every request lands on DEFAULT_LOCALE. The locale cookie this used to read was never
+  // written anywhere, so the lookup only ever fell through to the default.
   if (pathname === '/') {
     const url = new URL(`/${DEFAULT_LOCALE}${request.nextUrl.search}`, SITE_URL);
     return NextResponse.redirect(url);

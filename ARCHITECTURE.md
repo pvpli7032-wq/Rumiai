@@ -91,6 +91,16 @@ payments/validation-metrics.ts 负责同期新注册用户付费率及同期付�
 
 src按页面、展示组件及业务领域分工；prisma保存模型与完整有序迁移，deploy保存脱敏运维配置，scripts和tests保存仍在使用的运维及隔离验证入口。docs只维护业务规则、实施范围和内容来源。数据库、上传、备份、环境配置不进入源码归档。node_modules、.next、.next-build与artifacts为依赖或生成资料，按用途清理，不以删除目录代替业务核查。开发工具配置与AGENTS仅影响维护，不属于产品权限。
 
+## 设计令牌与完成定义
+
+颜色只走令牌：`globals.css` 的 `:root` 定义 `--brand`、`--brand-2`、`--brand-strong`、`--brand-accent-1/2`、`--brand-gradient`、`--brand-gradient-accent`，`tailwind.config.ts` 把它们映射成 `brand`、`brand-strong`、`brand-gradient-accent` 等类。组件里不写十六进制品牌色；服务端默认值集中在 `lib/site-content/brand-defaults.ts`，与令牌保持同值。
+
+`npm run verify:done` 把计划书第 7 章的完成定义做成可执行检查：品牌色字面量、旧字体类名、词典外泰语、`zhText` 残留、旧管理前缀、兼容重写、前后台隔离、khui 命名，逐条输出 ok/FAIL。白名单写在脚本里并注明理由，新增例外必须同时改脚本，不能靠人肉判断。
+
+## 管理接口的路由边界
+
+管理接口全部位于 `/api/admin/**`。A3 的兼容窗口已结束：`next.config.mjs` 不再重写旧前缀，`/finance`、`/moderation` 页面跳转也已删除，`maintenance-routing.ts` 的免拦截白名单只剩 `/api/admin`。旧前缀现在与未知路径一样返回 404，维护模式下与普通业务写一样被 503 拦下。
+
 ## 前端接口合同
 
 `lib/api-paths.ts` 是前端可见接口路径的唯一来源，参数一律 `encodeURIComponent`；组件不再拼 `/api/...` 字面量，改路径只改这一处。`lib/api-client.ts` 是浏览器侧唯一的 HTTP 入口：拼 `Authorization: Bearer`、序列化 body、把非 2xx 统一抛成带 `status`/`code`/`body` 的 `ApiError`。`lib/api-types/` 按域存放响应类型，只声明前端真正读到的字段。

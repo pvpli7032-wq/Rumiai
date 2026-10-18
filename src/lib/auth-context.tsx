@@ -33,22 +33,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const TOKEN_STORAGE_KEY = 'xingban_token';
-/**
- * Key used before the rename. It is still read once at boot and migrated in
- * place, so renaming it does not sign out every session that already exists.
- * Delete the legacy read after one release, once no browser can still hold it.
- */
-const LEGACY_TOKEN_STORAGE_KEY = 'khuiai_token';
-
-/** Reads the token, moving a pre-rename value onto the current key on first read. */
+/** Reads the stored session token. */
 function readStoredToken(): string | null {
-  const current = localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (current) return current;
-  const legacy = localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY);
-  if (!legacy) return null;
-  localStorage.setItem(TOKEN_STORAGE_KEY, legacy);
-  localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
-  return legacy;
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

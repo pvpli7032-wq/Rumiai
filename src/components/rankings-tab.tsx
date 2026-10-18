@@ -31,7 +31,7 @@ function compact(n: number) {
 }
 
 /** Medal colours for the creator card ribbons. */
-const RIBBON = ['#FFA202', '#A8B0B8', '#B56800'];
+const RIBBON = ['var(--brand-accent-1)', '#A8B0B8', '#B56800'];
 
 export function RankingsTab() {
   const [data, setData] = useState<Rankings | null>(null);

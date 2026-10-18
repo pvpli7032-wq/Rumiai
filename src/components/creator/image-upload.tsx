@@ -163,13 +163,13 @@ export function ImageUpload({
             if (f) handleFile(f);
           }}
           className={`flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors ${
-            dragging ? 'border-[#F2572B] bg-[#F2572B]/5' : 'border-zinc-300 hover:bg-accent/40 dark:border-[#2A2A2A]'
+            dragging ? 'border-brand-strong bg-brand-strong/5' : 'border-zinc-300 hover:bg-accent/40 dark:border-[#2A2A2A]'
           }`}
         >
           {busy ? (
-            <Loader2 className="h-6 w-6 animate-spin text-[#F2572B]" />
+            <Loader2 className="h-6 w-6 animate-spin text-brand-strong" />
           ) : (
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F2572B]/12 text-[#F2572B]">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-strong/12 text-brand-strong">
               <UploadCloud className="h-5 w-5" />
             </span>
           )}
@@ -226,7 +226,7 @@ export function ImageUpload({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={"https://… 或 /uploads/你的图片.png"}
-            className="w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-sm shadow-xs focus-visible:border-[#F2572B] focus-visible:outline-hidden"
+            className="w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-sm shadow-xs focus-visible:border-brand-strong focus-visible:outline-hidden"
           />
           <button
             type="button"

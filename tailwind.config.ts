@@ -56,10 +56,14 @@ const config: Config = {
           2: 'var(--brand-2)',
           foreground: 'var(--brand-foreground)',
           soft: 'var(--brand-soft)',
+          strong: 'var(--brand-strong)',
+          'accent-1': 'var(--brand-accent-1)',
+          'accent-2': 'var(--brand-accent-2)',
         },
       },
       backgroundImage: {
         'brand-gradient': 'var(--brand-gradient)',
+        'brand-gradient-accent': 'var(--brand-gradient-accent)',
       },
       borderRadius: {
         xs: 'calc(var(--radius) - 4px)',

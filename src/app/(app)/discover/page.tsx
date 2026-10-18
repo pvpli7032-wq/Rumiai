@@ -229,7 +229,7 @@ export default function DiscoverPage() {
               className={`flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all md:flex-none md:px-6 ${
                 active ? 'text-white' : 'border border-zinc-200 text-foreground dark:border-[#2A2A2A]'
               }`}
-              style={active ? { background: 'linear-gradient(225deg, #FFA202 0%, #FF1300 100%)' } : undefined}
+              style={active ? { background: 'linear-gradient(225deg, var(--brand-accent-1) 0%, var(--brand-accent-2) 100%)' } : undefined}
             >
               <span aria-hidden>{c.emoji}</span>
               <span>{c.label}</span>

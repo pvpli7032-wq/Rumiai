@@ -117,7 +117,7 @@ export function ReportDialog({
             onClick={() => setCategory(key)}
             className={`rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
               category === key
-                ? 'border-[#F2572B] bg-[#F2572B]/10 text-white'
+                ? 'border-brand-strong bg-brand-strong/10 text-white'
                 : 'border-white/10 bg-zinc-800/60 text-zinc-300 hover:border-white/25'
             }`}
           >
@@ -137,7 +137,7 @@ export function ReportDialog({
                 onClick={() => setImageReason(reason)}
                 className={`rounded-full border px-3 py-1 text-xs ${
                   imageReason === reason
-                    ? 'border-[#F2572B] bg-[#F2572B]/10 text-white'
+                    ? 'border-brand-strong bg-brand-strong/10 text-white'
                     : 'border-white/10 text-zinc-300 hover:border-white/25'
                 }`}
               >
@@ -155,7 +155,7 @@ export function ReportDialog({
             <input
               value={workTitle}
               onChange={(e) => setWorkTitle(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-hidden"
+              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-brand-strong/60 focus:outline-hidden"
               placeholder={"涉及的作品"}
             />
           </div>
@@ -169,7 +169,7 @@ export function ReportDialog({
                   onClick={() => setRelationship(rel)}
                   className={`rounded-full border px-3 py-1 text-xs ${
                     relationship === rel
-                      ? 'border-[#F2572B] bg-[#F2572B]/10 text-white'
+                      ? 'border-brand-strong bg-brand-strong/10 text-white'
                       : 'border-white/10 text-zinc-300 hover:border-white/25'
                   }`}
                 >
@@ -183,7 +183,7 @@ export function ReportDialog({
             <input
               value={sourceLink}
               onChange={(e) => setSourceLink(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-hidden"
+              className="w-full rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-brand-strong/60 focus:outline-hidden"
               placeholder="https://..."
             />
           </div>
@@ -195,7 +195,7 @@ export function ReportDialog({
         value={details}
         onChange={(e) => setDetails(e.target.value.slice(0, MAX_DETAILS))}
         rows={4}
-        className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-[#F2572B]/60 focus:outline-hidden"
+        className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-brand-strong/60 focus:outline-hidden"
         placeholder={"描述你发现的问题"}
       />
       <p className="mt-1 text-right text-[11px] text-zinc-500">
@@ -211,7 +211,7 @@ export function ReportDialog({
         <button
           onClick={submit}
           disabled={busy || !category}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-[#F2572B] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#d94a22] disabled:opacity-40"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-strong py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#d94a22] disabled:opacity-40"
         >
           <Flag className="h-4 w-4" />
           {busy ? "正在提交…" : "提交举报"}

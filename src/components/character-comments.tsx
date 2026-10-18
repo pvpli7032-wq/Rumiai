@@ -169,14 +169,14 @@ export function CharacterComments({ characterId }: { characterId: string }) {
           rows={2}
           placeholder={token ? "写下评论…" : "登录后发表评论"}
           onFocus={() => { if (!token) router.push(loginWithNext()); }}
-          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
         />
         <div className="mt-1 flex items-center justify-between">
           <span className="text-[11px] text-zinc-600">{draft.length}/{MAX_BODY}</span>
           <button
             onClick={() => post(draft)}
             disabled={busy || !draft.trim()}
-            className="flex items-center gap-1.5 rounded-full bg-[#F2572B] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#d94a22] disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-full bg-brand-strong px-4 py-1.5 text-xs font-bold text-white hover:bg-[#d94a22] disabled:opacity-40"
           >
             <Send className="h-3.5 w-3.5" />
             {"发送"}</button>
@@ -215,7 +215,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                     rows={2}
                     autoFocus
                     placeholder={"回复 " + (c.author.name || c.author.username)}
-                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
                   />
                   <div className="mt-1 flex justify-end gap-2">
                     <button
@@ -357,7 +357,7 @@ function CommentRow({
               onChange={(e) => onEditDraft(e.target.value.slice(0, MAX_BODY))}
               rows={2}
               autoFocus
-              className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-xs text-white focus:border-[#F2572B]/50 focus:outline-hidden"
+              className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-xs text-white focus:border-brand-strong/50 focus:outline-hidden"
             />
             <div className="mt-1 flex justify-end gap-2">
               <button

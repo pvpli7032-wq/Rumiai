@@ -204,7 +204,7 @@ export function RelationshipPanel({
           <span className="text-xs text-zinc-300">{"关系模式"}</span>
           <span
             className={`flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${
-              state.relationshipMode ? 'justify-end bg-[#F2572B]' : 'justify-start bg-zinc-600'
+              state.relationshipMode ? 'justify-end bg-brand-strong' : 'justify-start bg-zinc-600'
             }`}
           >
             <span className="h-4 w-4 rounded-full bg-white" />
@@ -247,7 +247,7 @@ export function RelationshipPanel({
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
             placeholder={"记录与这个角色的故事"}
-            className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+            className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
           />
           <button
             onClick={async () => {
@@ -340,11 +340,11 @@ function ModelOption({
     <button
       onClick={onClick}
       className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-[11px] transition-colors ${
-        selected ? 'bg-[#F2572B]/15 text-white' : 'text-zinc-400 hover:bg-white/5'
+        selected ? 'bg-brand-strong/15 text-white' : 'text-zinc-400 hover:bg-white/5'
       }`}
     >
       <span className="truncate">{label}</span>
-      {selected && <Check className="h-3 w-3 shrink-0 text-[#F2572B]" />}
+      {selected && <Check className="h-3 w-3 shrink-0 text-brand-strong" />}
     </button>
   );
 }

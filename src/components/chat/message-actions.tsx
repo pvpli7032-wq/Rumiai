@@ -71,7 +71,7 @@ export function MessageActions({
           label={speaking ? "停止朗读" : "朗读"}
           onClick={onSpeak}
           alwaysVisible={speaking}
-          className={speaking ? 'text-[#F2572B]' : ''}
+          className={speaking ? 'text-brand-strong' : ''}
         >
           {speaking ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
         </Action>

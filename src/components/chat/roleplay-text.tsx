@@ -37,7 +37,7 @@ function Piece({ node }: { node: Node }) {
         </span>
       );
     case 'underline':
-      return <span className="underline decoration-[#F2572B]/60 underline-offset-2">{node.value}</span>;
+      return <span className="underline decoration-brand-strong/60 underline-offset-2">{node.value}</span>;
     case 'thought':
       return <Thought value={node.value} />;
     default:

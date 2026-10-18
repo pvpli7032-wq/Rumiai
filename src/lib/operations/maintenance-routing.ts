@@ -1,15 +1,8 @@
-// Only these established administration workflows bypass the business-write gate.
-// Their own domain services continue to enforce authentication and fine-grained permissions.
-// Administration handlers all live under /api/admin now. Middleware sees the request
-// path before next.config.mjs rewrites it, so the legacy roots below must stay listed
-// for the compatibility window; otherwise old-prefix writes are blocked in maintenance
-// mode even though the rewrites still route them. Remove them once nothing calls the
-// old prefixes (the same condition for dropping the afterFiles rewrites).
-const administrationRoots = [
-  '/api/admin',
-  '/api/finance', '/api/moderation',
-  '/api/accounts/management', '/api/characters/management', '/api/circles/management',
-];
+// Only established administration workflows bypass the business-write gate; their own
+// domain services still enforce authentication and fine-grained permissions.
+// The compatibility window is over: every handler lives under /api/admin and the old
+// prefixes no longer reach a route, so there is nothing else to exempt here.
+const administrationRoots = ['/api/admin'];
 const continuingEndpoints = new Set([
   '/api/auth/login', '/api/auth/logout',
 ]);

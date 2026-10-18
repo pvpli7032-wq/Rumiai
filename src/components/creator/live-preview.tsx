@@ -34,7 +34,7 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
           {data.isExclusive && (
             <span className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-[#1A1A1A]/90 py-0.5 pl-2 pr-1 text-[9px] font-semibold text-white ring-1 ring-[#2A2A2A]">
               <span>{"原创"}</span>
-              <span className="text-[#F2572B]">{"星伴"}</span>
+              <span className="text-brand-strong">{"星伴"}</span>
             </span>
           )}
 

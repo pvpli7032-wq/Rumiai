@@ -10,6 +10,11 @@
     --brand-foreground: #ffffff;
     --brand-soft: rgba(238, 64, 54, 0.12);
     --brand-gradient: linear-gradient(135deg, #ee4036 0%, #faaf40 100%);
+    /* 强调态与按钮渐变：旧站沿用的橙红配色，组件一律引用这里的令牌。 */
+    --brand-strong: #f2572b;
+    --brand-accent-1: #ffa202;
+    --brand-accent-2: #ff1300;
+    --brand-gradient-accent: linear-gradient(90deg, var(--brand-accent-1), var(--brand-accent-2));
     /* Chinese-first system stack: PingFang, HarmonyOS/Noto, Microsoft YaHei. */
     --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'HarmonyOS Sans SC', 'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
     /* Keep in sync with <meta name="theme-color"> in src/app/layout.tsx. */

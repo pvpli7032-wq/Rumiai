@@ -14,7 +14,7 @@ try {
   // in ezfp-route-integration.test.mjs against an independent migrated database.
   await page.route('**/api/auth/me', route => route.fulfill({ json: { user: { id: 'fixture', username: 'fixture', email: 'fixture@example.invalid', tier: 'FREE', coins: 0, streakCount: 0 } } }));
   await page.route('**/api/admin/session',route=>route.fulfill({json:{enabled:true,managed:true,owner:false,roles:['FINANCE_MANAGER','FINANCE_REFUND_APPROVER'],permissions:['finance.read','finance.packages.write','finance.refunds.request','finance.refunds.approve','finance.refunds.execute','finance.reconciliation.import']}}));
-  await page.route('**/api/finance/callback-alerts**',route=>route.fulfill({json:{provider:'EZFP',hours:24,generatedAt:new Date().toISOString(),since:new Date(Date.now()-24*60*60*1000).toISOString(),retentionDays:30,sampling:'UI fixture sampled windows',sampledMinutes:2,reasons:[{reasonCode:'signature_or_timestamp',label:'签名或时间戳校验失败',sampledMinutes:2,firstSeenAt:new Date(Date.now()-60000).toISOString(),lastSeenAt:new Date().toISOString()}]}}));
+  await page.route('**/api/admin/finance/callback-alerts**',route=>route.fulfill({json:{provider:'EZFP',hours:24,generatedAt:new Date().toISOString(),since:new Date(Date.now()-24*60*60*1000).toISOString(),retentionDays:30,sampling:'UI fixture sampled windows',sampledMinutes:2,reasons:[{reasonCode:'signature_or_timestamp',label:'签名或时间戳校验失败',sampledMinutes:2,firstSeenAt:new Date(Date.now()-60000).toISOString(),lastSeenAt:new Date().toISOString()}]}}));
   const report = {
     days: 7, since: new Date().toISOString(), generatedAt: new Date().toISOString(), paidOrders: 2, paidAmountCnyCents: 225,
     orderAnomalies: [{ orderNo: 'FIXTURE-ORDER', userId: 'fixture', status: 'PAID', expectedCoins: 50, actualCoins: null }],
@@ -28,7 +28,7 @@ try {
   const managedPackages = [];
   let packageConflict = false;
   const savedPackages = [];
-  await page.route('**/api/finance/packages**', async route => {
+  await page.route('**/api/admin/finance/packages**', async route => {
     const req = route.request();
     if (req.method() === 'GET') return route.fulfill({ json: { packages: managedPackages, changes: [] } });
     const body = req.postDataJSON();
@@ -43,13 +43,13 @@ try {
   const actions = [];
   let outcome = 'unknown';
   const reconciliationBatch={id:'fixture-recon-batch',provider:'EZFP',importedById:'finance-fixture',importReason:'UI fixture statement',rowCount:2,matchedRowCount:1,exceptionRowCount:1,grossCnyCents:2000,feeCnyCents:50,netCnyCents:1950,periodStart:new Date(Date.now()-3600000).toISOString(),periodEnd:new Date().toISOString(),createdAt:new Date().toISOString()};
-  await page.route('**/api/finance/reconciliation',async route=>{
+  await page.route('**/api/admin/finance/reconciliation',async route=>{
     if(route.request().method()==='GET')return route.fulfill({json:{batches:[reconciliationBatch],matchLabels:{}}});
     const requestBody=route.request().postDataJSON();assert(requestBody.csv.includes('trade_no,out_trade_no,money,fee,paid_at,status'));assert.equal(requestBody.reason,'浏览器核对渠道账单');assert.match(requestBody.periodStart,/Z$/);assert.match(requestBody.periodEnd,/Z$/);
     return route.fulfill({status:201,json:{...reconciliationBatch,created:true,duplicate:false}});
   });
-  await page.route('**/api/finance/reconciliation/*',route=>route.fulfill({json:{batch:reconciliationBatch,page:1,pageSize:25,total:2,entries:[{entrySource:'STATEMENT',lineNumber:2,providerTradeNo:'FIXTURE-TRADE',orderNo:'FIXTURE-ORDER-001',grossCnyCents:1000,feeCnyCents:25,netCnyCents:975,paidAt:new Date().toISOString(),matchStatus:'MATCHED',matchLabel:'已匹配',exceptionCode:null,internalAmountCnyCents:1000,internalOrderStatus:'PAID'},{entrySource:'STATEMENT',lineNumber:3,providerTradeNo:'UNKNOWN-TRADE',orderNo:'FIXTURE-ORDER-002',grossCnyCents:1000,feeCnyCents:25,netCnyCents:975,paidAt:new Date().toISOString(),matchStatus:'ORDER_NOT_FOUND',matchLabel:'本地订单不存在',exceptionCode:'order_not_found',internalAmountCnyCents:null,internalOrderStatus:null}]}}));
-  await page.route('**/api/finance/orders**', async route => {
+  await page.route('**/api/admin/finance/reconciliation/*',route=>route.fulfill({json:{batch:reconciliationBatch,page:1,pageSize:25,total:2,entries:[{entrySource:'STATEMENT',lineNumber:2,providerTradeNo:'FIXTURE-TRADE',orderNo:'FIXTURE-ORDER-001',grossCnyCents:1000,feeCnyCents:25,netCnyCents:975,paidAt:new Date().toISOString(),matchStatus:'MATCHED',matchLabel:'已匹配',exceptionCode:null,internalAmountCnyCents:1000,internalOrderStatus:'PAID'},{entrySource:'STATEMENT',lineNumber:3,providerTradeNo:'UNKNOWN-TRADE',orderNo:'FIXTURE-ORDER-002',grossCnyCents:1000,feeCnyCents:25,netCnyCents:975,paidAt:new Date().toISOString(),matchStatus:'ORDER_NOT_FOUND',matchLabel:'本地订单不存在',exceptionCode:'order_not_found',internalAmountCnyCents:null,internalOrderStatus:null}]}}));
+  await page.route('**/api/admin/finance/orders**', async route => {
     const request = route.request();
     if (request.method() === 'POST') {
       const body = request.postDataJSON(); actions.push(body);
@@ -73,7 +73,7 @@ try {
     }
     return route.fulfill({ json: orders });
   });
-  await page.route('**/api/finance/report?*', route => route.fulfill({ status: denied ? 403 : 200, json: denied ? { error: '仅财务管理员可查看。' } : report }));
+  await page.route('**/api/admin/finance/report?*', route => route.fulfill({ status: denied ? 403 : 200, json: denied ? { error: '仅财务管理员可查看。' } : report }));
   await page.evaluate(() => localStorage.setItem('xingban_token', 'ui-fixture-only'));
   await page.reload();
   await page.getByText('已付款 2 笔 · ¥2.25', { exact: true }).waitFor();

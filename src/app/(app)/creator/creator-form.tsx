@@ -16,7 +16,9 @@ import {
   RotateCcw, Search, Sparkles, Tags, UserRound, X,
 } from 'lucide-react';
 
-const DRAFT_KEY = 'khuiai:character-draft';
+const DRAFT_KEY = 'xingban:character-draft';
+/** 改名前的键，第一次读取时迁移过来再删掉。 */
+const LEGACY_DRAFT_KEY = 'khuiai:character-draft';
 
 const LIMITS = { ...CHARACTER_LIMITS, description: CHARACTER_LIMITS.personality, bio: CHARACTER_LIMITS.background };
 
@@ -35,6 +37,15 @@ interface Draft {
   scenario: string; roleTemplate: string;
   /** Unlocks the adult direction in the system prompt. */
   isAdult: boolean; copyrightStatement: string;
+}
+
+/** 把改名前的草稿搬到新键上，只搬一次。 */
+function migrateLegacyDraft(draftKey: string): string | null {
+  const legacy = localStorage.getItem(LEGACY_DRAFT_KEY);
+  if (!legacy) return null;
+  localStorage.setItem(draftKey, legacy);
+  localStorage.removeItem(LEGACY_DRAFT_KEY);
+  return legacy;
 }
 
 const EMPTY: Draft = {
@@ -72,7 +83,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
   // Only the current load may update the form; stale StrictMode/navigation requests are cancelled.
   useEffect(() => {
     if (!editId) {
-      const raw = localStorage.getItem(draftKey);
+      const raw = localStorage.getItem(draftKey) ?? migrateLegacyDraft(draftKey);
       if (raw) try { setDraft({ ...EMPTY, ...JSON.parse(raw) }); } catch {}
       return;
     }
@@ -252,7 +263,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
   const labelOf = (key: string) => allTags.find((t) => t.key === key)?.label ?? key;
 
   const inputCls =
-    'w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-base shadow-xs transition-colors placeholder:text-muted-foreground/70 focus-visible:border-[#F2572B] focus-visible:outline-hidden';
+    'w-full rounded-xl border border-input bg-transparent px-3.5 py-2.5 text-base shadow-xs transition-colors placeholder:text-muted-foreground/70 focus-visible:border-brand-strong focus-visible:outline-hidden';
 
   return (
     <div className="min-h-screen bg-background pb-40 desktop:pb-24">
@@ -291,7 +302,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
           <button
             onClick={submit}
             disabled={saving || !loaded}
-            className="hidden h-9 items-center gap-1.5 rounded-lg bg-[linear-gradient(90deg,#FFA202,#FF1300)] px-4 text-sm font-semibold text-white shadow-[0_6px_20px_-8px_rgba(255,47,0,0.7)] transition-opacity hover:opacity-95 disabled:opacity-60 desktop:inline-flex"
+            className="hidden h-9 items-center gap-1.5 rounded-lg bg-brand-gradient-accent px-4 text-sm font-semibold text-white shadow-[0_6px_20px_-8px_rgba(255,47,0,0.7)] transition-opacity hover:opacity-95 disabled:opacity-60 desktop:inline-flex"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {editId ? '保存修改' : draft.isPublic ? '提交审核' : '保存私有角色'}</button>
@@ -331,7 +342,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               >
                 <span
                   className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] ${
-                    isDone ? 'bg-emerald-500/15 text-emerald-500' : isActive ? 'bg-[#F2572B]/15 text-[#F2572B]' : 'bg-muted text-muted-foreground'
+                    isDone ? 'bg-emerald-500/15 text-emerald-500' : isActive ? 'bg-brand-strong/15 text-brand-strong' : 'bg-muted text-muted-foreground'
                   }`}
                 >
                   {isDone ? <Check className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
@@ -511,7 +522,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                         key={t.key}
                         onClick={() => toggleIn('tags', t.key)}
                         className={`flex h-8 items-center rounded-full px-3 text-sm font-semibold transition-all ${
-                          on ? 'bg-[#F2572B]/15 text-[#F2572B] ring-1 ring-[#F2572B]/40' : 'border border-zinc-200 hover:bg-accent dark:border-[#2A2A2A]'
+                          on ? 'bg-brand-strong/15 text-brand-strong ring-1 ring-brand-strong/40' : 'border border-zinc-200 hover:bg-accent dark:border-[#2A2A2A]'
                         }`}
                       >
                         {t.label}
@@ -538,7 +549,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
                       key={b.emoji}
                       onClick={() => toggleIn('badges', b.emoji)}
                       className={`flex h-9 items-center gap-2 rounded-full px-3 text-sm transition-all ${
-                        on ? 'bg-[#F2572B]/15 text-[#F2572B] ring-1 ring-[#F2572B]/40' : 'border border-zinc-200 dark:border-[#2A2A2A]'
+                        on ? 'bg-brand-strong/15 text-brand-strong ring-1 ring-brand-strong/40' : 'border border-zinc-200 dark:border-[#2A2A2A]'
                       }`}
                     >
                       <span>{b.emoji}</span>
@@ -600,7 +611,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
               <button
                 onClick={submit}
                 disabled={saving || !loaded}
-                className="inline-flex h-11 items-center gap-1.5 rounded-lg bg-[linear-gradient(90deg,#FFA202,#FF1300)] px-5 text-sm font-semibold text-white shadow-[0_6px_20px_-8px_rgba(255,47,0,0.7)] transition-opacity hover:opacity-95 disabled:opacity-60"
+                className="inline-flex h-11 items-center gap-1.5 rounded-lg bg-brand-gradient-accent px-5 text-sm font-semibold text-white shadow-[0_6px_20px_-8px_rgba(255,47,0,0.7)] transition-opacity hover:opacity-95 disabled:opacity-60"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {editId ? '保存修改' : draft.isPublic ? '提交审核' : '保存私有角色'}
@@ -636,7 +647,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
             <button
               onClick={submit}
               disabled={saving || !loaded}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[linear-gradient(90deg,#FFA202,#FF1300)] px-5 py-3 text-sm font-semibold text-white shadow-[0_6px_20px_-6px_rgba(255,47,0,0.6)] transition-opacity hover:opacity-95 disabled:opacity-60"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-gradient-accent px-5 py-3 text-sm font-semibold text-white shadow-[0_6px_20px_-6px_rgba(255,47,0,0.6)] transition-opacity hover:opacity-95 disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {editId ? '保存修改' : draft.isPublic ? '提交审核' : '保存私有角色'}

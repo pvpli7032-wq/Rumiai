@@ -94,7 +94,7 @@ export function ReaderPreferences() {
         </span>
         <span
           className={`flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors ${
-            readingMode ? 'justify-end bg-[#F2572B]' : 'justify-start bg-zinc-600'
+            readingMode ? 'justify-end bg-brand-strong' : 'justify-start bg-zinc-600'
           }`}
         >
           <span className="h-5 w-5 rounded-full bg-white" />
@@ -113,7 +113,7 @@ export function ReaderPreferences() {
           onChange={(e) => setBannedWords(e.target.value.slice(0, 4000))}
           rows={4}
           placeholder={"血腥\n暴力"}
-          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+          className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
         />
       </div>
 
@@ -139,7 +139,7 @@ export function ReaderPreferences() {
                   )
                 }
                 placeholder={"按钮名称"}
-                className="w-28 shrink-0 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+                className="w-28 shrink-0 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
               />
               <input
                 value={s.text}
@@ -151,7 +151,7 @@ export function ReaderPreferences() {
                   )
                 }
                 placeholder={"填入的文字"}
-                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-[#F2572B]/50 focus:outline-hidden"
+                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-zinc-800 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
               />
               <button
                 onClick={() => setShortcuts((list) => list.filter((_, j) => j !== i))}

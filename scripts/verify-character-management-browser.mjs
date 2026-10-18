@@ -40,7 +40,7 @@ try {
   await editor.page.getByRole('button', {name: '新增表情项', exact: true}).click(); await editor.page.getByLabel('表情名称 1', {exact: true}).fill('happy'); await editor.page.getByLabel('表情图片 1', {exact: true}).fill('/brand/icon.svg');
   await editor.page.getByRole('button', {name: '新增配角', exact: true}).click(); await editor.page.getByLabel('配角名称 1', {exact: true}).fill('合成配角'); await editor.page.getByLabel('配角说明 1', {exact: true}).fill('合成说明');
   await editor.page.getByLabel('操作理由', {exact: true}).fill('浏览器创建结构化角色');
-  const created = editor.page.waitForResponse(response => response.url().endsWith('/api/characters/management') && response.request().method() === 'POST');
+  const created = editor.page.waitForResponse(response => response.url().endsWith('/api/admin/characters') && response.request().method() === 'POST');
   await editor.page.getByRole('button', {name: '保存角色内容', exact: true}).click(); const createdResponse = await created; assert.equal(createdResponse.status(), 201); const role = await createdResponse.json();
   assert.equal(role.creatorId, null);
   await editor.page.getByRole('heading', {name: '角色详情 · 运营测试角色', exact: true}).waitFor();

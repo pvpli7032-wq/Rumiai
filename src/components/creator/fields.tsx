@@ -20,7 +20,7 @@ export function Field({
       <div className="mb-2 flex items-center gap-2">
         <label className="text-sm font-medium leading-none">
           {label}
-          {required && <span className="ml-0.5 text-[#F2572B]">*</span>}
+          {required && <span className="ml-0.5 text-brand-strong">*</span>}
         </label>
         {hint && (
           <span title={hint} className="cursor-help text-muted-foreground transition-colors hover:text-foreground">
@@ -67,7 +67,7 @@ export function Toggle({
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={`inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${
-        checked ? 'bg-[#F2572B]' : 'bg-input'
+        checked ? 'bg-brand-strong' : 'bg-input'
       }`}
     >
       <span

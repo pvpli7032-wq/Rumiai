@@ -42,7 +42,7 @@ try {
   await owner.page.getByLabel('管理圈子介绍', {exact: true}).fill('站点圈子合成介绍。'.repeat(35));
   await owner.page.getByLabel('管理圈子标签', {exact: true}).fill('原创,治愈');
   await owner.page.getByLabel('圈子操作理由', {exact: true}).fill('浏览器创建站点圈子');
-  let response = owner.page.waitForResponse(r => r.url().endsWith('/api/circles/management') && r.request().method() === 'POST');
+  let response = owner.page.waitForResponse(r => r.url().endsWith('/api/admin/circles') && r.request().method() === 'POST');
   await owner.page.getByRole('button', {name: '创建站点圈子', exact: true}).click(); const created = await response; assert.equal(created.status(), 201); const circle = await created.json(); assert.equal(circle.ownerId, null); assert.equal(circle.status, 'HIDDEN');
   assert.equal((await owner.context.request.get(base + '/api/circles/' + circle.id)).status(), 404);
   checks.push('站点圈子实际创建，独立归属且未公开');

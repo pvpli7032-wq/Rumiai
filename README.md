@@ -2,6 +2,16 @@
 
 基于 [Khui AI](https://github.com/Gubbitkeytoday/khuiai-fullstack) 的 MIT 源码维护。技术栈：Next.js 15、React 19、TypeScript、Prisma 5、SQLite、Tailwind 4。保留原始[许可](LICENSE)及[第三方声明](THIRD_PARTY_NOTICES.md)。支持 Safari 16.4、Chrome 111、Firefox 128 及更新浏览器。
 
+## 验收命令
+
+```bash
+npm run typecheck     # 类型检查
+npm run verify:build  # 隔离库迁移 + 生产构建（需 Prisma schema engine 可用）
+npm run verify:done   # 计划书第 7 章完成定义的可执行检查
+```
+
+本机若提示 `unable to open database file`，是工具沙箱拦住 Prisma 引擎写文件，不是代码问题；用 `npm run db:local` 建本地库、直接调 `next build` 构建，详见 [DEPLOYMENT](DEPLOYMENT.md)。
+
 ## 本地开发
 
 推荐 Node.js 24。复制 `.env.example` 为 `.env`，设置数据库地址和至少32字符的随机 `JWT_SECRET`。真实模型及支付按需配置。

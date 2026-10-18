@@ -46,7 +46,7 @@ try {
   owner.page.on('dialog', dialog => void dialog.accept());
   async function execute(page, action, reason) {
     await page.getByLabel('操作类型', {exact: true}).selectOption(action); await page.getByLabel('操作理由', {exact: true}).fill(reason);
-    const response = page.waitForResponse(value => value.url().includes('/api/accounts/management/') && value.request().method() === 'PATCH');
+    const response = page.waitForResponse(value => value.url().includes('/api/admin/accounts/') && value.request().method() === 'PATCH');
     await page.getByRole('button', {name: '执行账号操作', exact: true}).click(); return response;
   }
   assert.equal((await execute(owner.page, 'SUSPEND', '浏览器临时停用')).status(), 200); await owner.page.getByText('停用网站账号已完成。', {exact: true}).waitFor();

@@ -74,13 +74,13 @@ try{
     page.on('dialog',dialog=>void dialog.accept());
     await page.goto(base+'/admin/moderation');await page.getByRole('heading',{name:'布局验收角色',exact:true}).waitFor();
     for(const name of ['布局验收角色','批量验收角色'])await page.getByLabel('选择角色 '+name,{exact:true}).check();
-    let batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/moderation/characters/batch')&&r.request().method()==='POST');
+    let batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/admin/moderation/characters/batch')&&r.request().method()==='POST');
     await page.getByRole('button',{name:'批量通过公开',exact:true}).click();assert.equal((await batchResponse).status(),200);
     let publicRows=await (await context.request.get(base+'/api/characters')).json();assert.equal(publicRows.filter(r=>['布局验收角色','批量验收角色'].includes(r.name)).length,2);
     await page.waitForFunction(()=>{const boxes=[...document.querySelectorAll('input[type=checkbox]')];return boxes.length===2&&boxes.every(box=>!box.checked);});
     for(const name of ['布局验收角色','批量验收角色'])await page.getByLabel('选择角色 '+name,{exact:true}).check();
     await page.getByLabel('批量审核说明',{exact:true}).fill('合成批量下架验证');
-    batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/moderation/characters/batch')&&r.request().method()==='POST');
+    batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/admin/moderation/characters/batch')&&r.request().method()==='POST');
     await page.getByRole('button',{name:'批量退回 / 下架',exact:true}).click();assert.equal((await batchResponse).status(),200);
     await page.getByText('暂无待处理角色。',{exact:true}).waitFor();
     publicRows=await (await context.request.get(base+'/api/characters')).json();assert.equal(publicRows.filter(r=>['布局验收角色','批量验收角色'].includes(r.name)).length,0);

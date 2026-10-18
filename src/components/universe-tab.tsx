@@ -92,9 +92,9 @@ export function UniverseTab() {
                   key={t.key}
                   onClick={() => setTab(t.key)}
                   className={`flex h-[52px] shrink-0 items-center justify-center gap-1 px-4 text-sm font-semibold transition-all ${
-                    active ? 'text-[#F2572B]' : 'text-[#8A8A8A]'
+                    active ? 'text-brand-strong' : 'text-[#8A8A8A]'
                   }`}
-                  style={{ borderBottom: `2px solid ${active ? '#F2572B' : 'transparent'}`, marginBottom: -1 }}
+                  style={{ borderBottom: `2px solid ${active ? 'var(--brand-strong)' : 'transparent'}`, marginBottom: -1 }}
                 >
                   <span aria-hidden>{t.emoji}</span>
                   <span>{t.label}</span>

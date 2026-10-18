@@ -37,14 +37,16 @@ test('maintenance policy is permissioned, versioned and blocks new business writ
     ['PATCH','/api/users/me'],['DELETE','/api/posts/p1'],['PUT','/api/characters/c1'],['POST','/api/posts/p1.json'],
     ['POST','/api/administer'],['POST','/api/characters/management-extra'],['POST','/api/auth/login/extra'],
     ['POST','/api/coins/payments/ezfp/notify/extra'],
+    // 兼容期已结束：旧管理前缀不再有任何路由，写请求与普通业务写一样被拦。
+    ['PUT','/api/characters/management/c1/models'],
+    ['POST','/api/finance/orders/order1/refund'],['PATCH','/api/moderation/reports/r1'],
+    ['POST','/api/accounts/management/u1'],['PATCH','/api/circles/management/c1'],
   ];
   for(const [method,pathname] of protectedWrites){const response=await middleware(new NextRequest(`http://local.test${pathname}`,{method}));assert.equal(response.status,503,pathname);assert.equal(response.headers.get('retry-after'),'120');assert.equal(response.headers.get('cache-control'),'no-store');assert.deepEqual(await response.json(),{error:payload.message,code:'MAINTENANCE_MODE'});}
   for(const [method,pathname] of [
     ['GET','/api/conversations'],['HEAD','/api/site'],['OPTIONS','/api/checkin'],['GET','/discover'],
     ['POST','/api/auth/login'],['POST','/api/auth/logout'],['GET','/api/coins/payments/ezfp/notify'],
-    ['PATCH','/api/admin/operations/maintenance'],['PUT','/api/characters/management/c1/models'],
-    ['POST','/api/finance/orders/order1/refund'],['PATCH','/api/moderation/reports/r1'],
-    ['POST','/api/accounts/management/u1'],['PATCH','/api/circles/management/c1'],
+    ['PATCH','/api/admin/operations/maintenance'],['PUT','/api/admin/characters/c1/models'],
   ])assert.equal((await middleware(new NextRequest(`http://local.test${pathname}`,{method}))).headers.get('x-middleware-next'),'1',pathname);
   const viewerToken=await signToken({userId:viewer.id,email:viewer.email});
   assert.equal((await settingsRoute(new Request('http://local.test/api/admin/operations/maintenance'))).status,401);
