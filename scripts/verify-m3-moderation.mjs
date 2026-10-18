@@ -46,7 +46,7 @@ try {
   const commentId = comment.data.comment.id;
   const postReport = await req(reporter, '/api/reports', 'POST', { targetType: 'POST', targetId: postId, category: 'spam', details: '请核查' });
   assert.equal(postReport.status, 201);
-  assert.equal((await req(null, '/api/admin/moderation/reports')).status, 403);
+  assert.equal((await req(null, '/api/admin/moderation/reports')).status, 401);
   assert.equal((await req(reporter, '/api/admin/moderation/reports')).status, 403);
   let queue = await req(admin, '/api/admin/moderation/reports?status=OPEN');
   assert.equal(queue.status, 200); assert(queue.data.some(row => row.id === postReport.data.report.id && row.target.content.includes(String(stamp))));
@@ -107,7 +107,7 @@ try {
   assert.equal(appeal.status, 201);
   assert.equal((await req(bannedUser, '/api/community-appeals', 'POST', { reason: '这是重复申诉请求说明文字。' })).status, 409);
   assert.equal((await req(bannedUser, '/api/community-appeals')).data[0].id, appeal.data.id);
-  assert.equal((await req(null, '/api/admin/moderation/appeals')).status, 403);
+  assert.equal((await req(null, '/api/admin/moderation/appeals')).status, 401);
   assert.equal((await req(reporter, '/api/admin/moderation/audit')).status, 403);
   const appeals = await req(admin, '/api/admin/moderation/appeals?status=OPEN');
   assert(appeals.data.some(row => row.id === appeal.data.id && row.user.username === targetProfile.username));
