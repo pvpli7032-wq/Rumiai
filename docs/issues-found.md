@@ -36,3 +36,14 @@
 ## 未执行项
 
 （暂无）
+
+## 上线验收阶段新发现（2026-10-18，线上 `commercial-20261018` 实测）
+
+| 问题 | 位置 | 实测 | 处理建议 |
+| --- | --- | --- | --- |
+| 支付文案含泰铢符号 | `src/lib/i18n/dictionaries/zh.json:705` | `"payAmount": "点击支付 ฿{amount}"`，`zh.json` 中唯一一处泰文字符 | key 在全仓无调用方（死 key），改文案或删 key 均可；下次发布带上 |
+| 死字体类 3 处 | `[locale]/page.tsx`、`[locale]/about/page.tsx`、`[locale]/terms-and-policy/page.tsx` | Tailwind 已不产出 `.font-athithi`，线上 `/zh` 仍输出 1 处该 class，仅浪费字节 | 删 class，归入前端清理 |
+| 硬编码品牌色兜底 | `src/components/admin/content-editor.tsx:43` | 仍有 `#EE4036`/`#FAAF40` 作为兜底 | 换 brand 令牌 |
+| 健康检查单元指向旧发布 | `khui-ai-health.service` | `WorkingDirectory`/`ExecStart` 仍为 `releases/payment-amount-20261017`，定时器每 5 分钟跑一次旧目录脚本 | 属服务器配置，按底线未改；需负责人确认后对齐到 `commercial-20261018` |
+| 误判修正 | `public/brand/persona-0..5.svg` | 6 个文件仍在仓库，但 `grep -rn "persona-" src` 为 0 引用；此前"有引用"的结论来自 `scripts/` 与 `prisma/seed*.ts` | 文件保留，不动 |
+

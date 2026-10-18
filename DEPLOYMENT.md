@@ -182,3 +182,17 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261014-1250`。服务器 Rocky Linux 9.2 / Node 24.14.1；PM2 `khui-ai` 与 `khui-ai-pm2.service` active/enabled。发布前在隔离目录以服务器 Node 原生执行 `npm run verify:build`，39 条迁移均在临时数据库验证。正式切换前保留了当前数据库联合备份：`/www/wwwroot/khui-ai/releases/760e82a/prisma/backups/database-before-commercial-39-20261014` 与 `database-before-commercial-39-cutover`；异地下载按用户决定暂缓。
 
 正式 SQLite 应用至 39 条迁移。迁移后检查 `PRAGMA quick_check=ok`、`foreign_key_check` 无结果；对 48 张既有表逐表比较，记录数均未减少，账户与角色样本保留。公开 HTTPS 根路径跳转 `/zh` 后返回 200，`/discover`、`/api/site`、`/shop` 和健康检查通过；`X-Checkout-Enabled=false`，模拟购买与真实 AI 保持关闭；匿名 `/api/admin/access` 返回 401。回滚发布目录 `commercial-20261014-1245` 保留，联合恢复演练尚未完成，不能把目录切换等同于数据回滚验收。
+
+## 2026-10-18 商业改造 8 阶段发布
+
+当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261018`（源码 = 本地 `commercial-refactor` 分支 `8417130`）。**无新增迁移**，生产库仍为 45 条，部署门禁 `node scripts/start-production.mjs --check-only` 通过（`release_migrations_compatible applied=45`）。
+
+发布内容：后台移入独立 `(admin)` 路由组并统一到 `/admin/*`；67 个管理接口收敛到 `/api/admin/*`，旧前缀以 `next.config.mjs` 的 afterFiles 重写保留一个发布窗口；新增 `src/lib/http` 路由层，审核域匿名请求由 403 改为 401 且错误体统一为 `{error, code}`；泰语 key 全量替换为中文、公开页语言回退改中文；品牌残留与硬编码色清理，主导航收敛 5 项。
+
+切换前联合备份：`releases/payment-amount-20261017/prisma/backups/database-before-commercial-20261018`（integrity ok、foreign_keys ok，74 张表记录数已记录）。构建方式：`git archive` 打源码包 → 新目录解压 → 复用同版本 `node_modules`（`package-lock.json` 与旧发布 md5 一致）→ `npx prisma generate` → `npm run verify:build`（隔离库，46 页 / 129 接口）→ 以生产库副本 `DATABASE_URL=file:/tmp/prerender-*.db NEXT_DIST_DIR=.next-build npm run build` 出正式构建（`BUILD_ID=5Mqy8PuZ1HsSRUURg4FFT`）。
+
+切换前在 3100 端口用 `.next-build` 预启动逐项验收，通过后才切 PM2：`pm2 delete khui-ai` → 在新目录以 `script=scripts/start-production.mjs`、`cwd=<release>`、`interpreter=/usr/bin/node` 重启 → `pm2 describe` 确认 `exec cwd` 已是新目录 → `pm2 save`。环境变量与旧发布保持一致（`NEXT_DIST_DIR=.next-build`、`DISABLE_MOCK_AI=true`、`ALLOW_SIMULATED_PURCHASES=false`、`EZFP_ENABLED=false`、`AI_BUDGET_CIRCUIT_BREAKER=false`）。
+
+线上实测（`https://lh.y-98.cn`）：21 个页面入口全 200（`/` 307 → `/zh`），`/finance`、`/moderation` 307 跳 `/admin/*`；公开接口 `/api/site`、`/api/characters`、`/api/circles`、`/api/coins/packages`、`/api/operations/status`、`/api/ai/models` 均 200；11 个匿名管理接口全部 401 且响应体 `{"error":"请先登录。","code":"UNAUTHORIZED"}`；5 条旧前缀兼容路径返回 401 而非 404；`/api/coins/orders`、`/api/coins/purchase`、`/api/conversations` 匿名 401，`/api/auth/login` 空体 400；`robots.txt` 含 `Disallow: /admin`；首页 0 处泰文字符，标题仍为「星伴 · AI 角色社区」。PM2 `error.log` 切换后零错误行。
+
+回滚：`payment-amount-20261017` 目录与联合备份均保留，切回只需用同样参数在新旧目录间重建 PM2 条目；本次无迁移变更，回滚无数据库风险。已知遗留：`khui-ai-health.service` 的 `WorkingDirectory`/`ExecStart` 仍指向 `payment-amount-20261017`，属服务器配置，按底线未擅自改动，待负责人确认后再对齐到当前发布。
