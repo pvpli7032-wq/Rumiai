@@ -299,3 +299,15 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 **前后台隔离**：个人页原来引用 `components/admin/admin-entry.tsx`，现改为前台自己的 `components/admin-entry.tsx`（读 `/api/admin/session` 判断可见性）；`components/admin/` 不再被前台引用。
 
 验收：`verify:done` 8/8、`verify:build` 通过（`sqlite_pragmas_failed=0`）、17 个套件 138 项断言全绿、3107 预启动 13×200 / 17×401 / 8×404（旧前缀按预期变 404）。线上 `/zh`、`/discover`、`/shop`、`/shop/ledger`、`/creator`、`/admin`、`/admin/finance` 均 200，PM2 error.log 零错误。
+
+## 2026-10-18 真实模型与正式条款
+
+当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261018-legal`（源码 = `c25de58`），`BUILD_ID=Y-5ktXdi2NgM7-3IqCZ7m`；回滚位 `-phase8`、`-shop` 保留。无新增迁移。
+
+**真实模型已通**：后台 `gpt-6.1-sol` 为默认模型（供应商 `ces`，OpenAI 兼容，`https://api.a6api.com`），`POST /api/admin/ai/models/:id/test` 返回 `reachable:true, authorized:true, status:200, modelListed:true, latencyMs:696`；端到端发一条中文消息 3.2 秒收到流式回复（53 字），`ai_calls` 记录 `model=gpt-6.1-sol, status=SUCCEEDED, inputTokens=4788, outputTokens=48`，当日用量计数 1/200。`estimatedCost` 仍为 null —— 模型单价未配置，成本核算与扣币规则仍待定价。
+
+**条款已替换**：`/{locale}/terms-and-policy` 原来只有一段占位文字，现在渲染完整《用户协议》12 节与《隐私政策》9 节（账号、AI 生成内容标识、用户内容授权、禁止行为、金币与退款、数据共享范围、未成年人、免责与争议解决），正文在 `src/lib/legal/documents.ts` 里随代码版本化；后台若发布了同名 PAGE，仍以后台内容为准。页首保留「通用范本、未经法律审核、运营方须补齐主体信息」的提示。线上实测 49KB HTML，用户协议/隐私政策/未成年人/模型服务商等关键词各命中一次。
+
+**后台现状核对**（据此修正上一条口头结论）：商户其实早已配置 —— `易支付正式商户 7059`，`PRODUCTION`，`isActive`，revision 2，`merchantNo=7059`，`apiBaseUrl=https://www.ezfp.cn`，`refundsEnabled=true`，凭据校验 `credentialsValid=true`；结账策略 `enabled=true, version=2`，公网 `/api/coins/packages` 返回 `x-checkout-enabled: true / READY`，即线上当前可用真实支付。此前我说「商户未配置」是查错了表（`payment_merchants` 没有 secret 列，查询报错被当成空）。合规侧 `ageGateEnabled=false`、`minimumAge=null`，年龄准入尚未开启。
+
+验收：`verify:done` 8/8、`verify:build` 通过（`sqlite_pragmas_failed=0`）、17 个套件 138 项断言全绿、3108 预启动 13×200/17×401/8×404；线上条款页 200 且内容完整，PM2 error.log 零错误。
