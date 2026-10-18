@@ -265,3 +265,7 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 滚动联动（scroll spy）必须一起删：向导一次只挂载一个分区，滚动时它会把 active 依据「第一个分区」重置，导致每滚动一次就弹回第一步；`sectionRefs` / `scrollRoot` / `Card.refFn` 也随之移除，不留死代码。
 
 部署备注：本轮发布期间 SSH 短时间被服务器限流，表现为 `Connection closed by 43.242.194.115 port 22`（站点本身正常，HTTPS 200）。恢复后重试即可，不是发布失败。
+
+向导版本发布记录：当前运行目录 `/www/wwwroot/khui-ai/releases/commercial-20261018-wizard`（源码 = `937b909`），`BUILD_ID=xIyZk2zj7AoegacKbLlKv`，`commercial-20261018-fixes` 保留为回滚位。隔离库构建 46 页 / 129 接口通过且 `sqlite_pragmas_failed` 为 0（锁竞争修复生效），16 个套件 135 项断言全绿，3105 端口预启动 38 项状态码全部符合预期。线上实测：`/zh`、`/creator`、`/discover` 均 200；`/creator` 的服务端 HTML 只含第一步（身份、角色名称、下一步），个性分区不在首屏（`个性与说话方式` 命中 0）；PM2 error.log 零错误，启动日志出现 `sqlite_wal_ready`。
+
+本次发布期间 SSH 多次被服务器限流（`Connection closed` / `kex_exchange_identification: Connection reset`），长任务改用 `setsid nohup` 在服务器后台执行、再单次连接取结果，避免会话中断把构建打断。
