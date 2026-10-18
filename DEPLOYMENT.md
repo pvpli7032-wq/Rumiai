@@ -269,3 +269,19 @@ Next.js 已升级到 15.5.27、React 19.3.0，Node 24.21.0 的安装、迁移和
 向导版本发布记录：当前运行目录 `/www/wwwroot/khui-ai/releases/commercial-20261018-wizard`（源码 = `937b909`），`BUILD_ID=xIyZk2zj7AoegacKbLlKv`，`commercial-20261018-fixes` 保留为回滚位。隔离库构建 46 页 / 129 接口通过且 `sqlite_pragmas_failed` 为 0（锁竞争修复生效），16 个套件 135 项断言全绿，3105 端口预启动 38 项状态码全部符合预期。线上实测：`/zh`、`/creator`、`/discover` 均 200；`/creator` 的服务端 HTML 只含第一步（身份、角色名称、下一步），个性分区不在首屏（`个性与说话方式` 命中 0）；PM2 error.log 零错误，启动日志出现 `sqlite_wal_ready`。
 
 本次发布期间 SSH 多次被服务器限流（`Connection closed` / `kex_exchange_identification: Connection reset`），长任务改用 `setsid nohup` 在服务器后台执行、再单次连接取结果，避免会话中断把构建打断。
+
+## 2026-10-18 B2 商城与权益发布（B2 收尾）
+
+当前运行目录：`/www/wwwroot/khui-ai/releases/commercial-20261018-shop`（源码 = `3e81e93`），`BUILD_ID=CGg-tjcVebFZeIoN1PXAa`；回滚位 `-wizard`、`-fixes` 保留。无新增迁移。
+
+建议书原文标注 P3「价格未定，不预设」，所以这一轮只做现有数据的对比与入口，不造会员价、不造月卡、不编首充赠送：
+
+- **套餐卡片对比**：每张卡显示赠送比例、共到账金币、每 1 元约折合多少金币，全部由 `coins / bonus / priceCnyCents` 现算；「最划算」标签取自折算比例最高的那张，而不是写死某一个套餐。
+- **首充提示**：`GET /api/coins/ledger` 返回 `firstPurchase`（没有 PURCHASE 入账行才为真）。提示文案明说「当前没有额外的首充赠送，页面写多少到账就是多少」，不虚构优惠。
+- **余额与流水入口**：商城头部余额旁加「余额与流水」，新页 `/shop/ledger` 显示余额、逐条进出（充值/获得/消耗 + 来源 + 时间）、游标翻页、空态与未登录态。
+
+新增 `src/lib/coins/ledger-service.ts`（余额、首充判定、游标分页，按 `userId` 收口）与 `src/lib/api-types/coins.ts`（前后端共用形状）。`GET /api/coins/ledger` 只认 Bearer，成功/401/500 三个分支都带 `private, no-store`——第一版只在成功分支加，被测试逮到并修掉。
+
+测试：新增 `test:coins:ledger`（3 项：匿名 401 与错误体、余额与首充判定、跨用户隔离、游标分页不重复）。服务器发布目录 17 个套件 **138 项断言全绿**；隔离库构建 46 页 / 129 接口；3106 预启动 38 项状态码全符合预期。
+
+线上实测：`/shop`、`/shop/ledger`、`/zh` 均 200；`/api/coins/ledger` 匿名 401 + `cache-control: private, no-store` + `{error, code}`；新文案（共到账 / 最划算 / 余额与流水 / 金币流水 / 首充提示）全部进了前端产物；PM2 error.log 零错误。
