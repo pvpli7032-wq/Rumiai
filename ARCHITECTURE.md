@@ -95,7 +95,7 @@ src按页面、展示组件及业务领域分工；prisma保存模型与完整�
 
 颜色只走令牌：`globals.css` 的 `:root` 定义 `--brand`、`--brand-2`、`--brand-strong`、`--brand-accent-1/2`、`--brand-gradient`、`--brand-gradient-accent`，`tailwind.config.ts` 把它们映射成 `brand`、`brand-strong`、`brand-gradient-accent` 等类。组件里不写十六进制品牌色；服务端默认值集中在 `lib/site-content/brand-defaults.ts`，与令牌保持同值。
 
-`npm run verify:done` 把计划书第 7 章的完成定义做成可执行检查：品牌色字面量、旧字体类名、词典外泰语、`zhText` 残留、旧管理前缀、兼容重写、前后台隔离、khui 命名，逐条输出 ok/FAIL。白名单写在脚本里并注明理由，新增例外必须同时改脚本，不能靠人肉判断。
+`npm run verify:done` 把计划书第 7 章的完成定义做成可执行检查：品牌色字面量、旧字体类名、词典外泰语、`zhText` 残留、旧管理前缀、兼容重写、前后台隔离、旧品牌命名，逐条输出 ok/FAIL。白名单写在脚本里并注明理由，新增例外必须同时改脚本，不能靠人肉判断。
 
 ## 管理接口的路由边界
 
