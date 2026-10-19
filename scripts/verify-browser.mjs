@@ -62,6 +62,8 @@ try {
   });
   await page.locator('form button[type="submit"]').click();
   await page.waitForFunction(() => !document.querySelector('form input[type="text"]')?.disabled, null, { timeout: 60000 });
+  // 失败时把服务端错误码/正文打出来：只有 400 而没有正文，无法判断是文案层还是校验层。
+  if (replyStatus !== 200) console.log('CHAT_SEND_FAILED', replyStatus, replyWire || '(响应正文已随跳转不可读)');
   assert.equal(replyStatus, 200);
   if (replyWire) {
     assert.match(replyWire, /\[DONE\]/);

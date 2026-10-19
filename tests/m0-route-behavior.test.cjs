@@ -102,7 +102,18 @@ function fakeDeps(env,{throwAI=false,persistGate=null,throwPersist=false,reviewS
       simulateCoinPurchase: async()=>{ if(!policy.maySimulatePurchase(env)) throw new stubs['@/lib/payments/purchase-service'].SimulatedPurchaseError('充值功能暂未开放；该接口仅供本地测试，未接入真实支付。',503); return {success:true,newBalance:60,coinsAdded:60}; },
     },
   };
-  const requireStub=name=>{if(!(name in stubs))throw Error('Unknown dependency '+name);return stubs[name];};
+  // 聊天回合编排已抽到 chat-application-service，路由只留 HTTP 层。这里必须加载真实服务
+  // 而不是给它塞一个替身：否则「没有 AI 密钥时不写消息/不扣额度」这类断言会变成空转。
+  const loaded=new Map();
+  const requireStub=name=>{
+    if(name==='@/lib/conversations/chat-application-service'){
+      const file='src/lib/conversations/chat-application-service.ts';
+      if(!loaded.has(file))loaded.set(file,load(file,requireStub,env));
+      return loaded.get(file);
+    }
+    if(!(name in stubs))throw Error('Unknown dependency '+name);
+    return stubs[name];
+  };
   return {state,loadRoute:file=>load(file,requireStub,env)};
 }
 const req=(body)=>new Request('http://local.test/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
