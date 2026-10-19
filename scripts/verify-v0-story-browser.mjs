@@ -93,10 +93,14 @@ try {
   await page.screenshot({path: out + '/chapter-close.png'});
   check('结束确认后进入本地回顾视图，措辞不含完成/保存/下一章');
 
-  await page.getByRole('button', {name: '回到聊天'}).click();
+  // V0 deliberately ships no next-chapter entry: ending must not look like unlocking anything.
+  assert.equal(await page.getByRole('link', {name: /下一章/}).count(), 0);
+  assert.equal(await page.getByRole('button', {name: /下一章/}).count(), 0);
+  await page.getByRole('heading', {name: '还可以继续探索'}).waitFor();
+  await page.getByRole('button', {name: '继续这段对话'}).click();
   await page.locator('form input[type=text]').waitFor();
   assert.equal(page.url().includes('scene=1'), true, '回到聊天不应改变地址');
-  check('回到聊天恢复输入区且不改变 URL');
+  check('回顾视图只有回到原会话的入口，没有下一章，且能恢复输入区');
 
   // 5) 非场景态：同一个角色不带 scene=1 时不出现任何场景元素。
   await page.goto(base + '/chat?character=xingban-original-4');

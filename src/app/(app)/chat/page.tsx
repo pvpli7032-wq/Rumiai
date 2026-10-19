@@ -387,7 +387,7 @@ function ChatContent() {
       </div>
 
       {activeScene && showChapterClose ? (
-        <div className="flex-1 overflow-y-auto px-4 py-6"><div className="mx-auto max-w-3xl"><ChapterClose sceneTitle={activeScene.title} data={buildChapterCloseData(messages)} publicOpenQuestions={activeScene.publicOpenQuestions} onContinue={() => setShowChapterClose(false)} onBackToChat={() => setShowChapterClose(false)} /></div></div>
+        <div className="flex-1 overflow-y-auto px-4 py-6"><div className="mx-auto max-w-3xl"><ChapterClose sceneTitle={activeScene.title} data={buildChapterCloseData(messages)} publicOpenQuestions={activeScene.publicOpenQuestions} onContinue={() => setShowChapterClose(false)} /></div></div>
       ) : (
       <>
       {/* Messages */}

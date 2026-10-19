@@ -17,12 +17,13 @@ test('every shipped scene binds a unique character and passes the publication ch
     assert.equal(scene.suggestions.length, 3, scene.id + ' 必须恰好三条建议动作');
     assert.equal(new Set(scene.suggestions.map(s => s.id)).size, 3, scene.id + ' 建议动作 id 必须唯一');
     assert.ok(scene.suggestions.every(s => s.text.trim().length > 0), scene.id + ' 建议动作文案不能为空');
+    assert.equal(new Set(scene.suggestions.map(s => s.text)).size, 3, scene.id + ' 三条建议动作必须是不同动作');
   }
   assert.equal(getPublishedSceneConfigs().length, SCENE_CONFIGS.length);
 });
 
 test('scene copy never claims completion, persistence or long-term memory', () => {
-  const banned = ['已完成', '已保存', '下一章', '记住你', '永久记忆', '会记得'];
+  const banned = ['已完成', '已保存', '下一章', '记住你', '记住', '永久', '会记得'];
   const copy = SCENE_CONFIGS.flatMap(scene => [
     scene.title, scene.hook, scene.userIdentity, scene.conflict, scene.goal,
     scene.opening ?? '', ...(scene.publicOpenQuestions ?? []), ...scene.suggestions.map(s => s.text),
