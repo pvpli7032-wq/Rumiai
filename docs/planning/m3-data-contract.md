@@ -95,7 +95,21 @@ SQLite 单写者不等于应用层串行。接受回合时短事务做 StoryRun 
 - 不用请求后裸 Promise 做后台任务：进程退出会丢任务，必须持久化 turn/lease。
 - 不把隐藏事实、提示词、密钥或完整正文发给前端/分析日志：保护隐私和剧情边界。
 
-## 9. 待拍板
+## 9. 拍板结论（2026-10-20，Lead 决定）
+
+四项全部采用推荐方案 A。理由汇总：A 方案都是「用现有唯一约束表达事实」，B 方案都需要新增冗余真相或新增运维面，收益在当前体量下不可验证。
+
+1. **旧聊天识别故事会话 → A**：`chat-application-service` 按 `StoryRun` 存在与否分流。无冗余列，迁移纯增量。B 的标记列会让「会话是不是故事」有两个真相来源，必须原子同步，回滚也更复杂。
+2. **用户注销 → A**：随 `Conversation` 级联清除。故事数据由聊天内容派生，私有聊天删除时保留派生数据与现有隐私承诺冲突；脱敏保留需要独立匿名化与留存期限设计，不属于 M3。
+3. **并发锁 → A**：`StoryRun.activeTurnId` 唯一槽 + revision CAS 短事务。SQLite 单写者不等于应用层串行，唯一槽是最小可验证的串行保证。B 的独立 Lease 表多一层运维面，A 证明不足时再评审。
+4. **Run 创建幂等 → A**：`createRequestId` + `@@unique([userId, createRequestId])`。接口本来就要求 `requestId`，不落幂等键等于让超时重试可能创建重复实例。
+
+### 由此确定的前置条件
+- 迁移为**纯增量**：只 CREATE 新表/索引/FK，不 ALTER 既有表，不回填历史会话。
+- 历史自由聊天在 `StoryRun` 缺失时完全走原路径，`chat-application-service` 增加一次按 `conversationId` 的存在性查询——这是唯一会碰到旧发送路径的改动，必须有回归证据。
+- 本节的 A 方案不等于「立即写 schema」：写 schema 前还需 M0 的 `chat-application-service` 抽取落地（已完成，见 `m0-chat-application-service.md`）。
+
+## 10. 原待拍板清单（历史）
 
 1. 旧聊天识别故事会话：A chat-application-service 按 StoryRun 查找并分流（推荐，无冗余列且纯增量）；B Conversation 加标记列（ALTER、重复真相和同步风险）。
 2. 用户注销保留：A 随会话事务 Cascade 清除私有故事数据（推荐，符合现有聊天擦除）；B 脱敏保留统计（需匿名化与期限设计，不建议进 M3）。

@@ -71,6 +71,8 @@ model User {
   // Relationships
   characters       Character[]       @relation("CreatedCharacters")
   conversations    Conversation[]
+  storyTemplates   StoryTemplate[]
+  storyRuns        StoryRun[]
   activityDays     UserActivityDay[]
   checkins         Checkin[]
   giftsSent        Gift[]            @relation("UserGiftsSent")
@@ -497,6 +499,8 @@ model Conversation {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
   messages  Message[]
+  /// 只有从故事入口开始的会话才有实例；历史自由聊天保持 null，继续走原聊天路径。
+  storyRun  StoryRun?
 
   @@index([userId])
   @@index([characterId])
@@ -518,7 +522,12 @@ model Message {
   createdAt      DateTime @default(now()) @map("created_at")
 
   // Relationships
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation        Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// 故事回合对消息的引用。消息被删除时置空而不是级联：回合本身是幂等与恢复的
+  /// 凭据，不能因为一条消息被编辑就消失。
+  storyInputTurns     StoryTurn[]  @relation("StoryInputMessage")
+  storyAssistantTurns StoryTurn[]  @relation("StoryAssistantMessage")
+  storyEvents         StoryEvent[] @relation("StorySourceMessage")
 
   @@index([conversationId])
   @@index([createdAt])
@@ -1412,4 +1421,157 @@ model CommunityAppeal {
  @@index([status, createdAt])
  @@index([userId, createdAt])
  @@map("community_appeals")
+}
+
+/// 故事模板：一个可体验的故事起点。V1 才有；V0 用的是随版本发布的静态配置。
+model StoryTemplate {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  status    String
+  ownerId   String?  @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner    User?                  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  versions StoryTemplateVersion[]
+
+  @@index([status, updatedAt, id])
+  @@map("story_templates")
+}
+
+/// 模板的不可变发布版本。已发布版本不再改，改动出新版本。
+model StoryTemplateVersion {
+  id                    String    @id @default(cuid())
+  templateId            String    @map("template_id")
+  version               Int
+  locale                String
+  /// 结构化定义。SQLite 无 Json 类型，落库前由应用层按版本化 schema 校验。
+  definitionJson        String    @map("definition_json")
+  /// 发布时的角色快照，避免角色改动后已发布版本的说法漂移。
+  characterSnapshotJson String    @map("character_snapshot_json")
+  publishedAt           DateTime? @map("published_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  template StoryTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  runs     StoryRun[]
+
+  @@unique([templateId, version, locale])
+  @@index([locale, publishedAt])
+  @@map("story_template_versions")
+}
+
+/// 故事运行实例。与 Conversation 一对一；没有实例的会话就是普通自由聊天。
+model StoryRun {
+  id                          String    @id @default(cuid())
+  userId                      String    @map("user_id")
+  conversationId              String    @unique @map("conversation_id")
+  templateVersionId           String    @map("template_version_id")
+  chapterKey                  String    @map("chapter_key")
+  status                      String    @default("ACTIVE")
+  /// 乐观版本号：每个状态变更事务成功时递增一次，写入前比对。
+  revision                    Int       @default(0)
+  lastCommittedTurnNo         Int       @default(0) @map("last_committed_turn_no")
+  stateProcessedThroughTurnNo Int       @default(0) @map("state_processed_through_turn_no")
+  /// 已确认状态快照。SQLite 下是经 schema 校验的 JSON 文本。
+  stateJson                   String    @map("state_json")
+  /// 创建幂等键：同一用户同一键重试不会建出第二个实例。
+  createRequestId             String    @map("create_request_id")
+  /// 唯一活动回合槽。非空表示此实例正在生成，同一实例至多一个回合。
+  activeTurnId                String?   @unique @map("active_turn_id")
+  startedAt                   DateTime  @map("started_at")
+  endedAt                     DateTime? @map("ended_at")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
+
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation    Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  templateVersion StoryTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  turns           StoryTurn[]
+  events          StoryEvent[]
+  checkpoints     StoryCheckpoint[]
+
+  @@unique([userId, createRequestId])
+  @@index([userId, updatedAt, id])
+  @@index([templateVersionId])
+  @@map("story_runs")
+}
+
+/// 一次故事回合。承担幂等、单实例串行与状态整理的持久租约。
+model StoryTurn {
+  id                 String    @id @default(cuid())
+  runId              String    @map("run_id")
+  turnNo             Int       @map("turn_no")
+  requestId          String    @map("request_id")
+  /// 规范化请求的 hash：区分「同键重试」与「同键不同内容」。
+  requestHash        String    @map("request_hash")
+  status             String    @default("ACCEPTED")
+  inputMessageId     String?   @unique @map("input_message_id")
+  assistantMessageId String?   @unique @map("assistant_message_id")
+  operation          String
+  stateStatus        String    @default("PENDING") @map("state_status")
+  stateAttempts      Int       @default(0) @map("state_attempts")
+  errorCode          String?   @map("error_code")
+  startedAt          DateTime  @map("started_at")
+  committedAt        DateTime? @map("committed_at")
+  /// 后台状态整理的持久租约。进程重启后过期任务可被重新认领。
+  leaseOwner         String?   @map("lease_owner")
+  leaseExpiresAt     DateTime? @map("lease_expires_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  run              StoryRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  inputMessage     Message?     @relation("StoryInputMessage", fields: [inputMessageId], references: [id], onDelete: SetNull)
+  assistantMessage Message?     @relation("StoryAssistantMessage", fields: [assistantMessageId], references: [id], onDelete: SetNull)
+  events           StoryEvent[]
+
+  @@unique([runId, requestId])
+  @@unique([runId, turnNo])
+  @@index([runId, stateStatus, leaseExpiresAt])
+  @@index([runId, turnNo, status])
+  @@map("story_turns")
+}
+
+/// 已确认/待确认的故事事实。用 type 区分，不为每种类型另建引擎。
+model StoryEvent {
+  id              String    @id @default(cuid())
+  runId           String    @map("run_id")
+  sourceTurnId    String    @map("source_turn_id")
+  chapterKey      String    @map("chapter_key")
+  /// FACT / PROMISE / RELATIONSHIP / CHAPTER_RESULT
+  type            String
+  status          String    @default("PENDING")
+  payloadJson     String    @map("payload_json")
+  sourceMessageId String?   @map("source_message_id")
+  /// 历史被修改时置位：失效而非删除，便于解释与排查。
+  invalidatedAt   DateTime? @map("invalidated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  run           StoryRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sourceTurn    StoryTurn @relation(fields: [sourceTurnId], references: [id], onDelete: Cascade)
+  sourceMessage Message?  @relation("StorySourceMessage", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+
+  @@index([runId, sourceTurnId, status])
+  @@index([runId, chapterKey, status, createdAt])
+  @@index([sourceMessageId])
+  @@map("story_events")
+}
+
+/// 状态快照。失效后保留，不删除。
+model StoryCheckpoint {
+  id            String    @id @default(cuid())
+  runId         String    @map("run_id")
+  throughTurnNo Int       @map("through_turn_no")
+  revision      Int
+  stateJson     String    @map("state_json")
+  invalidatedAt DateTime? @map("invalidated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  run StoryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, throughTurnNo, revision])
+  @@index([runId, invalidatedAt, throughTurnNo])
+  @@map("story_checkpoints")
 }
