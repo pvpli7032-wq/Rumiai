@@ -5,10 +5,12 @@ import {mkdir,open,rm,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp=`${process.pid}-${Date.now()}`,file=`ai-cost-browser-${stamp}.db`,port=18807,base=`http://127.0.0.1:${port}`,out=path.resolve('artifacts/ai-cost-browser',stamp);await mkdir(out,{recursive:true});
 const env={...process.env,NODE_ENV:'production',DATABASE_URL:`file:./${file}`,JWT_SECRET:randomBytes(48).toString('hex'),OPENAI_API_KEY:'',AI_DAILY_COST_BUDGETS:'',AI_BUDGET_CIRCUIT_BREAKER:'false',AI_PRICE_MODEL:'browser-fixture-model',AI_MODEL:'browser-fixture-model',AI_INPUT_PRICE_PER_MILLION:'0.5',AI_OUTPUT_PRICE_PER_MILLION:'1.0',EZFP_ENABLED:'false',EZFP_REFUNDS_ENABLED:'false',DISABLE_MOCK_AI:'true',ALLOW_SIMULATED_PURCHASES:'false',MODERATOR_USER_IDS:'',PAYMENT_ADMIN_USER_IDS:'',NEXT_DIST_DIR:process.env.NEXT_DIST_DIR?.trim()||'.next-build',NEXT_PUBLIC_SITE_URL:base};delete env.RUST_LOG;Object.assign(process.env,env);
-const dbPath=path.resolve('prisma',file),empty=await open(dbPath,'wx');await empty.close();const migrated=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{env,encoding:'utf8',windowsHide:true});assert.equal(migrated.status,0,migrated.stdout+migrated.stderr);
+const dbPath=path.resolve('prisma',file)
+await createIsolatedDatabase(dbPath);
 const {db,pragmasReady}=await import('../src/lib/db.ts');await pragmasReady;const {bootstrapOwner,saveOperator,saveRole}=await import('../src/lib/admin/management-service.ts');
 const password=randomBytes(24).toString('hex'),users=[],checks=[],errors=[];let app,browser;
 try{

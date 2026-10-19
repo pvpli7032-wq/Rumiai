@@ -5,12 +5,13 @@ import {mkdir, open, rm} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp = `${process.pid}-${Date.now()}`, file = `character-browser-${stamp}.db`, base = 'http://127.0.0.1:18796';
 const out = path.resolve('artifacts/character-management-browser', stamp); await mkdir(out, {recursive: true});
 const env = {...process.env, NODE_ENV: 'production', DATABASE_URL: `file:./${file}`, UPLOADS_DIRECTORY: path.join(out, 'uploads'), JWT_SECRET: randomBytes(48).toString('hex'), OPENAI_API_KEY: '', EZFP_ENABLED: 'false', EZFP_REFUNDS_ENABLED: 'false', DISABLE_MOCK_AI: 'true', ALLOW_SIMULATED_PURCHASES: 'false', AI_BUDGET_CIRCUIT_BREAKER: 'false', MODERATOR_USER_IDS: '', PAYMENT_ADMIN_USER_IDS: '', NEXT_DIST_DIR: '.next-build', NEXT_PUBLIC_SITE_URL: base}; delete env.RUST_LOG;
-Object.assign(process.env, env); const dbPath = path.resolve('prisma', file), empty = await open(dbPath, 'wx'); await empty.close();
-const migration = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true}); assert.equal(migration.status, 0, 'isolated migration failed');
+Object.assign(process.env, env); const dbPath = path.resolve('prisma', file)
+await createIsolatedDatabase(dbPath);
 const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
 const {bootstrapOwner, saveOperator, saveRole} = await import('../src/lib/admin/management-service.ts');
 const password = randomBytes(24).toString('hex'), actors = [], checks = [], errors = [];
@@ -56,12 +57,12 @@ try {
   await publisher.page.getByLabel('操作理由', {exact: true}).fill('版权确认后发布'); const publication = publisher.page.waitForResponse(response => response.url().endsWith('/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '发布角色', exact: true}).click(); assert.equal((await publication).status(), 200);
   assert((await (await ordinary.context.request.get(base + '/api/characters')).json()).some(item => item.id === role.id)); checks.push('独立发布角色权限与前台可见性闭环');
   await editor.page.goto(base + '/admin/characters'); await selectRole(editor.page); await editor.page.getByLabel('背景', {exact: true}).fill('公开后修改背景'); await editor.page.getByLabel('操作理由', {exact: true}).fill('修改需要重新审核');
-  const editResponse = editor.page.waitForResponse(response => response.url().endsWith('/management/' + role.id) && response.request().method() === 'PUT'); await editor.page.getByRole('button', {name: '保存角色内容', exact: true}).click(); assert.equal((await editResponse).status(), 200);
+  const editResponse = editor.page.waitForResponse(response => response.url().endsWith('/api/admin/characters/' + role.id) && response.request().method() === 'PUT'); await editor.page.getByRole('button', {name: '保存角色内容', exact: true}).click(); assert.equal((await editResponse).status(), 200);
   assert(!(await (await ordinary.context.request.get(base + '/api/characters')).json()).some(item => item.id === role.id)); checks.push('编辑已公开内容自动撤下并等待重新审核');
   const reader = await login(actors[3]); await reader.page.goto(base + '/admin/characters'); await selectRole(reader.page); assert.equal(await reader.page.getByRole('button', {name: '保存角色内容', exact: true}).count(), 0); assert.equal(await reader.page.getByRole('button', {name: '发布角色', exact: true}).count(), 0); checks.push('角色只读身份无编辑和发布入口');
   await publisher.page.goto(base + '/admin/characters'); await publisher.page.getByLabel('选择角色 运营测试角色', {exact: true}).check(); await publisher.page.getByLabel('批量操作理由', {exact: true}).fill('批量公开验收');
-  let batch = publisher.page.waitForResponse(response => response.url().endsWith('/management/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '批量发布角色', exact: true}).click(); assert.equal((await batch).status(), 200); await publisher.page.waitForLoadState('networkidle');
-  await publisher.page.getByLabel('选择角色 运营测试角色', {exact: true}).check(); await publisher.page.getByLabel('批量操作理由', {exact: true}).fill('批量下架验收'); batch = publisher.page.waitForResponse(response => response.url().endsWith('/management/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '批量下架角色', exact: true}).click(); assert.equal((await batch).status(), 200); checks.push('角色管理批量公开和下架');
+  let batch = publisher.page.waitForResponse(response => response.url().endsWith('/api/admin/characters/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '批量发布角色', exact: true}).click(); assert.equal((await batch).status(), 200); await publisher.page.waitForLoadState('networkidle');
+  await publisher.page.getByLabel('选择角色 运营测试角色', {exact: true}).check(); await publisher.page.getByLabel('批量操作理由', {exact: true}).fill('批量下架验收'); batch = publisher.page.waitForResponse(response => response.url().endsWith('/api/admin/characters/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '批量下架角色', exact: true}).click(); assert.equal((await batch).status(), 200); checks.push('角色管理批量公开和下架');
   for (const width of [390, 1280]) {
     await editor.page.setViewportSize({width, height: 900}); await editor.page.goto(base + '/admin/characters'); await selectRole(editor.page); await editor.page.waitForLoadState('networkidle');
     const region = editor.page.getByRole('region', {name: '后台工作区'}); const size = await region.evaluate(element => ({client: element.clientWidth, scroll: element.scrollWidth})); assert(size.scroll <= size.client + 1, `overflow ${width}`); await editor.page.screenshot({path: path.join(out, `characters-${width}.png`)});

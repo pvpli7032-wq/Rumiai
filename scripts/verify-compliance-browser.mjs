@@ -2,15 +2,21 @@ import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {mkdir,open,rm,writeFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
-const stamp=`${process.pid}-${Date.now()}`,file=`compliance-browser-${stamp}.db`,port=18812,base=`http://127.0.0.1:${port}`,out=path.resolve('artifacts/compliance-browser',stamp),distDir=process.env.ISOLATED_BUILD_DIR?.trim()||'.next-validation-build';
+const stamp=`${process.pid}-${Date.now()}`,file=`compliance-browser-${stamp}.db`,port=18812,base=`http://127.0.0.1:${port}`,out=path.resolve('artifacts/compliance-browser',stamp),distDir=process.env.ISOLATED_BUILD_DIR?.trim()||process.env.NEXT_DIST_DIR?.trim()||'.next-build';
 await mkdir(out,{recursive:true});
+// 旧默认指向 .next-validation-build（verify:build 的产物）。那是一次性校验输出，跑完之后不清除，
+// 一旦残留且源码已变（例如会话存储键改名），这里会拿过期产物起服务：页面能打开但登录态不生效，
+// 排查成本很高。默认与其余浏览器脚本一致，直接用当前生产构建；需要测特定产物时显式传 ISOLATED_BUILD_DIR。
+if(!existsSync(path.join(distDir,'BUILD_ID')))throw new Error(`构建产物缺失或不完整：${distDir}/BUILD_ID 不存在，先执行 npm run build。`);
 const env={...process.env,NODE_ENV:'production',DATABASE_URL:`file:./${file}`,JWT_SECRET:randomBytes(48).toString('hex'),OPENAI_API_KEY:'',EZFP_ENABLED:'false',EZFP_REFUNDS_ENABLED:'false',DISABLE_MOCK_AI:'true',ALLOW_SIMULATED_PURCHASES:'false',MODERATOR_USER_IDS:'',PAYMENT_ADMIN_USER_IDS:'',NEXT_DIST_DIR:distDir,NEXT_PUBLIC_SITE_URL:base};delete env.RUST_LOG;Object.assign(process.env,env);
-const dbPath=path.resolve('prisma',file),empty=await open(dbPath,'wx');await empty.close();
-const migration=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{env,encoding:'utf8',windowsHide:true});assert.equal(migration.status,0,migration.stdout+migration.stderr);
+const dbPath=path.resolve('prisma',file)
+await createIsolatedDatabase(dbPath);
 const {db,pragmasReady}=await import('../src/lib/db.ts');await pragmasReady;
 const {bootstrapOwner,saveOperator}=await import('../src/lib/admin/management-service.ts');
 const password=randomBytes(24).toString('hex'),errors=[];let app,browser;

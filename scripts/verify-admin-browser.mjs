@@ -6,14 +6,14 @@ import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {PrismaClient} from '@prisma/client';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp=`${process.pid}-${Date.now()}`,file=`admin-browser-${stamp}.db`;
 const out=path.resolve('artifacts/admin-browser',stamp),base='http://127.0.0.1:18799';
 await mkdir(out,{recursive:true});
 const env={...process.env,NODE_ENV:'production',DATABASE_URL:`file:./${file}`,JWT_SECRET:randomBytes(48).toString('hex'),OPENAI_API_KEY:'',EZFP_ENABLED:'false',EZFP_REFUNDS_ENABLED:'false',DISABLE_MOCK_AI:'true',ALLOW_SIMULATED_PURCHASES:'false',AI_BUDGET_CIRCUIT_BREAKER:'false',NEXT_DIST_DIR:'.next-build',NEXT_PUBLIC_SITE_URL:base};delete env.RUST_LOG;
-const dbPath=path.resolve('prisma',file);const empty=await open(dbPath,'wx');await empty.close();
-const migration=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{env,encoding:'utf8',windowsHide:true});
-assert.equal(migration.status,0,'isolated migration failed');
+const dbPath=path.resolve('prisma',file);
+await createIsolatedDatabase(dbPath);
 const db=new PrismaClient({datasources:{db:{url:`file:${dbPath.split(path.sep).join('/')}`}},log:[]});
 const password=randomBytes(24).toString('hex'),actors=[];
 try{for(let i=0;i<4;i++)actors.push(await db.user.create({data:{username:`admin_browser_${i}_${stamp}`,email:`admin-${i}-${stamp}@example.invalid`,passwordHash:await bcrypt.hash(password,10)}}));
@@ -33,7 +33,7 @@ try{
  assert(ready,'owned app not ready');
  browser=await chromium.launch();
  const anon=await browser.newContext({viewport:{width:390,height:844}});const anonymous=await anon.newPage();
- await anonymous.goto(base+'/admin');await anonymous.getByText('请登录管理员账号。').waitFor();assert.equal(await anonymous.getByRole('link',{name:'内容审核'}).count(),0);await anon.close();checks.push('匿名后台显示登录入口');
+ await anonymous.goto(base+'/admin');await anonymous.getByText('请登录管理员账号。').waitFor();assert.equal(await anonymous.getByRole('link',{name:'审核中心'}).count(),0);await anon.close();checks.push('匿名后台显示登录入口');
  for(let i=0;i<actors.length;i++){
   const context=await browser.newContext({viewport:{width:390,height:844}});
   const response=await context.request.post(base+'/api/auth/login',{data:{email:actors[i].email,password}});assert.equal(response.status(),200);
@@ -48,9 +48,9 @@ try{
   else{
    await page.getByRole('link',{name:/管理后台/}).click();await page.waitForURL('**/admin');
    await page.getByRole('heading',{name:'管理后台'}).waitFor();
-   const first=expected.moderation?'内容审核':'财务与充值';await page.getByRole('link',{name:new RegExp(first)}).waitFor();
-   assert.equal(await page.getByRole('link',{name:/内容审核/}).count(),expected.moderation?1:0);
-   assert.equal(await page.getByRole('link',{name:/财务与充值/}).count(),expected.finance?1:0);
+   const first=expected.moderation?'审核中心':'订单与退款';await page.getByRole('link',{name:new RegExp(first)}).waitFor();
+   assert.equal(await page.getByRole('link',{name:/审核中心/}).count(),expected.moderation?1:0);
+   assert.equal(await page.getByRole('link',{name:/订单与退款/}).count(),expected.finance?1:0);
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
    await page.screenshot({path:path.join(out,`admin-${i}.png`)});
    await page.getByRole('link',{name:new RegExp(first)}).click();await page.waitForURL(expected.moderation?'**/admin/moderation':'**/admin/finance');
@@ -59,15 +59,19 @@ try{
      await page.setViewportSize({width,height:900});
      for(const route of ['/admin','/admin/finance','/admin/moderation']){
       await page.goto(base+route);await page.waitForLoadState('networkidle');
-      if(route==='/admin')await page.getByRole('link',{name:/财务与充值/}).waitFor();
-      if(route==='/admin/finance')await page.getByRole('heading',{name:'充值套餐与赠送活动'}).waitFor();
+      if(route==='/admin')await page.getByRole('link',{name:/订单与退款/}).waitFor();
+      if(route==='/admin/finance')await page.getByRole('heading',{name:'财务对账与 AI 成本'}).waitFor();
       if(route==='/admin/moderation')await page.getByRole('heading',{name:'布局验收角色'}).waitFor();
       const region=page.getByRole('region',{name:'后台工作区'});
       const size=await region.evaluate(e=>({client:e.clientWidth,scroll:e.scrollWidth}));assert(size.scroll<=size.client+1,`${route} content overflow at ${width}`);
       assert.equal(await page.getByRole('navigation',{name:'主导航'}).count(),0,'public navigation must not surround admin pages');
-      const nav=page.getByRole('navigation',{name:width>=1024?'后台导航':'后台手机导航'});assert(await nav.isVisible());
-      for(const box of await nav.locator('a').evaluateAll(items=>items.map(e=>e.getBoundingClientRect().toJSON())))assert(box.height>=44&&box.width>=44);
-      await page.screenshot({path:path.join(out,`${route.slice(1)}-${width}.png`)});
+      // 后台只有一套导航：宽屏在侧栏常驻，窄屏收进「后台菜单」抽屉（用同一个 accessible name 复用）。
+      let nav=page.getByRole('navigation',{name:'后台导航'});
+      if(width<1024){await page.getByRole('button',{name:'打开后台菜单'}).click();nav=page.getByRole('dialog',{name:'后台菜单'}).getByRole('navigation',{name:'后台导航'});}
+      assert(await nav.isVisible(),`后台导航在 ${width}px 不可见`);
+      for(const box of await nav.locator('a').evaluateAll(items=>items.map(e=>e.getBoundingClientRect().toJSON())))assert(box.height>=44&&box.width>=44,`导航点击区不足 44px @ ${width}`);
+      await page.screenshot({path:path.join(out,`${route.slice(1)}-${width}${width<1024?'-nav':''}.png`)});
+      if(width<1024){await page.getByRole('button',{name:'关闭后台菜单'}).click();await page.screenshot({path:path.join(out,`${route.slice(1)}-${width}.png`)});}
      }
     }
     checks.push('后台三页四种宽度、独立导航及长内容无工作区溢出');

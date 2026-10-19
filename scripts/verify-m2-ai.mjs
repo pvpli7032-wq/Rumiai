@@ -1,11 +1,11 @@
 // Isolated HTTP/SSE fault injection. Never uses the operator's real provider key.
 import assert from 'node:assert/strict';import {createServer} from 'node:http';import {spawn,spawnSync} from 'node:child_process';import {once} from 'node:events';import {randomBytes} from 'node:crypto';import fs from 'node:fs';import path from 'node:path';import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 const root=process.cwd(),out=path.resolve(process.env.M2_AI_TEST_OUT||'artifacts/ai-stream-regression');fs.mkdirSync(out,{recursive:true});const base='http://127.0.0.1:18783',provider='http://127.0.0.1:18784/v1',checks=[];
 const databaseName=`m2-ai-${process.pid}-${Date.now()}.db`;
 const environment={...process.env,NODE_ENV:'production',DATABASE_URL:`file:./${databaseName}`,JWT_SECRET:randomBytes(48).toString('hex'),OPENAI_API_KEY:'local-fixture-key',OPENAI_BASE_URL:provider,AI_MODEL:'gpt-6-luna',AI_FALLBACK_MODELS:'',DISABLE_MOCK_AI:'true',ALLOW_SIMULATED_PURCHASES:'false',EZFP_ENABLED:'false',EZFP_REFUNDS_ENABLED:'false',AI_BUDGET_CIRCUIT_BREAKER:'false',CHAT_DAILY_LIMIT:'3',CHAT_RATE_LIMIT:'100',AI_CONNECT_TIMEOUT_MS:'500',AI_REQUEST_TIMEOUT_MS:'3000',AI_STREAM_IDLE_TIMEOUT_MS:'1000',AI_MAX_RETRIES:'1',AI_INPUT_PRICE_PER_MILLION:'2',AI_OUTPUT_PRICE_PER_MILLION:'4',AI_PRICE_MODEL:'gpt-6-luna',AI_PRICE_CURRENCY:'USD',NEXT_DIST_DIR:'.next-build'};
 delete environment.RUST_LOG;
-const database=path.resolve('prisma',databaseName);if(!fs.existsSync(database))fs.closeSync(fs.openSync(database,'wx'));
-const init=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{cwd:root,env:environment,encoding:'utf8',windowsHide:true});assert.equal(init.status,0,init.stdout+init.stderr);
+const database=path.resolve('prisma',databaseName);await createIsolatedDatabase(database);
 const calls=[];let forceMode='';let app,server,serverOutput='';
 function check(s){checks.push(s);console.log('PASS',s)}
 async function request(token,route,method='GET',body,signal){return fetch(base+route,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body),signal})}

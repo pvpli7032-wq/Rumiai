@@ -1,8 +1,9 @@
 import {NextResponse} from 'next/server';
 import {CircleError} from '@/lib/circles/errors';
+import {privateHeaders} from '@/lib/http';
 import {logRouteError} from '@/lib/logger';
 
-export const privateHeaders = {'Cache-Control': 'private, no-store'};
+export {privateHeaders};
 export function circleError(error: unknown, route: string) {
   if (error instanceof CircleError) return NextResponse.json({error: error.message, ...(error.reason !== undefined ? {reason: error.reason} : {})}, {status: error.status, headers: {...privateHeaders, ...(error.retryAfter !== undefined ? {'Retry-After': String(error.retryAfter)} : {})}});
   logRouteError(route, error);

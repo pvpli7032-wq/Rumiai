@@ -5,7 +5,11 @@ import {rmSync, existsSync, writeFileSync, mkdirSync} from 'node:fs';
 import path from 'node:path';
 
 const distDir = process.env.ISOLATED_BUILD_DIR?.trim() || '.next-validation-build';
-if (existsSync(distDir)) throw new Error(`Refusing to overwrite existing build directory: ${distDir}`);
+if (existsSync(distDir)) {
+  // 上一次跑到一半被中断会留下没有 BUILD_ID 的半成品，它不是任何人的产物，直接清掉继续。
+  if (existsSync(path.join(distDir, 'BUILD_ID'))) throw new Error(`Refusing to overwrite existing build directory: ${distDir}（已有完整产物；确认无人使用后手动删除，注意残留产物若比源码旧，会让依赖它的脚本拿到过期页面）`);
+  rmSync(distDir, {recursive: true, force: true});
+}
 mkdirSync(distDir, {recursive: true});
 const databaseName = `isolated-build-${process.pid}-${randomUUID()}.db`;
 const databasePath = path.resolve('prisma', databaseName);

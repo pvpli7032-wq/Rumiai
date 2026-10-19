@@ -5,14 +5,15 @@ import {mkdir, open, rm} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp = `${process.pid}-${Date.now()}`, file = `account-browser-${stamp}.db`;
 const out = path.resolve('artifacts/account-management-browser', stamp), base = 'http://127.0.0.1:18797';
 await mkdir(out, {recursive: true});
 const env = {...process.env, NODE_ENV: 'production', DATABASE_URL: `file:./${file}`, UPLOADS_DIRECTORY: path.join(out, 'uploads'), JWT_SECRET: randomBytes(48).toString('hex'), OPENAI_API_KEY: '', EZFP_ENABLED: 'false', EZFP_REFUNDS_ENABLED: 'false', DISABLE_MOCK_AI: 'true', ALLOW_SIMULATED_PURCHASES: 'false', AI_BUDGET_CIRCUIT_BREAKER: 'false', MODERATOR_USER_IDS: '', PAYMENT_ADMIN_USER_IDS: '', NEXT_DIST_DIR: '.next-build', NEXT_PUBLIC_SITE_URL: base}; delete env.RUST_LOG;
 Object.assign(process.env, env);
-const dbPath = path.resolve('prisma', file), empty = await open(dbPath, 'wx'); await empty.close();
-const migrate = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true}); assert.equal(migrate.status, 0, 'isolated migration failed');
+const dbPath = path.resolve('prisma', file)
+await createIsolatedDatabase(dbPath);
 const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
 const {bootstrapOwner, saveOperator, saveRole} = await import('../src/lib/admin/management-service.ts');
 const password = randomBytes(24).toString('hex'), actors = [], checks = [], errors = [];

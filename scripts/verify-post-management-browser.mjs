@@ -5,12 +5,13 @@ import {mkdir, open, rm, writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp = `${process.pid}-${Date.now()}`, file = `post-browser-${stamp}.db`, base = 'http://127.0.0.1:18802';
 const out = path.resolve('artifacts/post-management-browser', stamp); await mkdir(out, {recursive: true});
 const env = {...process.env, NODE_ENV: 'production', DATABASE_URL: `file:./${file}`, UPLOADS_DIRECTORY: path.join(out, 'uploads'), JWT_SECRET: randomBytes(48).toString('hex'), OPENAI_API_KEY: '', EZFP_ENABLED: 'false', EZFP_REFUNDS_ENABLED: 'false', DISABLE_MOCK_AI: 'true', ALLOW_SIMULATED_PURCHASES: 'false', MODERATOR_USER_IDS: '', PAYMENT_ADMIN_USER_IDS: '', NEXT_DIST_DIR: '.next-build', NEXT_PUBLIC_SITE_URL: base}; delete env.RUST_LOG;
-Object.assign(process.env, env); const dbPath = path.resolve('prisma', file), empty = await open(dbPath, 'wx'); await empty.close();
-const migrated = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true}); assert.equal(migrated.status, 0, migrated.stdout + migrated.stderr);
+Object.assign(process.env, env); const dbPath = path.resolve('prisma', file)
+await createIsolatedDatabase(dbPath);
 const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
 const {bootstrapOwner, saveOperator} = await import('../src/lib/admin/management-service.ts');
 const {createPost, createPostComment, managePost, managePostComment} = await import('../src/lib/posts/service.ts');

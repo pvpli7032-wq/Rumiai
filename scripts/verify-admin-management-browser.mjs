@@ -5,15 +5,15 @@ import {mkdir, open, rm} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp = `${process.pid}-${Date.now()}`, file = `admin-management-browser-${stamp}.db`;
 const out = path.resolve('artifacts/admin-management-browser', stamp), base = 'http://127.0.0.1:18798';
 await mkdir(out, {recursive: true});
 const env = {...process.env, NODE_ENV: 'production', DATABASE_URL: `file:./${file}`, JWT_SECRET: randomBytes(48).toString('hex'), OPENAI_API_KEY: '', EZFP_ENABLED: 'false', EZFP_REFUNDS_ENABLED: 'false', DISABLE_MOCK_AI: 'true', ALLOW_SIMULATED_PURCHASES: 'false', AI_BUDGET_CIRCUIT_BREAKER: 'false', MODERATOR_USER_IDS: '', PAYMENT_ADMIN_USER_IDS: '', NEXT_DIST_DIR: process.env.NEXT_DIST_DIR?.trim() || '.next-build', NEXT_PUBLIC_SITE_URL: base}; delete env.RUST_LOG;
 Object.assign(process.env, env);
-const dbPath = path.resolve('prisma', file), empty = await open(dbPath, 'wx'); await empty.close();
-const migration = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true});
-assert.equal(migration.status, 0, 'isolated migration failed');
+const dbPath = path.resolve('prisma', file)
+await createIsolatedDatabase(dbPath);
 const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
 const {bootstrapOwner, saveOperator} = await import('../src/lib/admin/management-service.ts');
 const password = randomBytes(24).toString('hex'), actors = [], checks = [], errors = [];
@@ -65,9 +65,13 @@ try {
   await owner.page.getByRole('button', {name: '保存管理身份', exact: true}).click();
   assert.equal((await stopped).status(), 200);
   await owner.page.getByText('管理身份已保存。', {exact: true}).waitFor();
-  assert.equal((await staff.context.request.get(base + '/api/admin/moderation/characters', {headers: {Authorization: `Bearer ${staff.token}`}})).status(), 403);
+  // 停用管理身份会提升账号版本：旧令牌整体失效（401），重新登录后也不再有任何管理权限（403）。
+  assert.equal((await staff.context.request.get(base + '/api/admin/moderation/characters', {headers: {Authorization: `Bearer ${staff.token}`}})).status(), 401);
   assert.equal((await staff.context.request.get(base + '/api/auth/me', {headers: {Authorization: `Bearer ${staff.token}`}})).status(), 401);
-  checks.push('停用管理身份撤销已登录凭据');
+  const relogin = await staff.context.request.post(base + '/api/auth/login', {data: {email: actors[1].email, password}});
+  assert.equal(relogin.status(), 200); const {token: freshToken} = await relogin.json();
+  for (const contract of ['/api/admin/operators', '/api/admin/moderation/characters']) assert.equal((await staff.context.request.get(base + contract, {headers: {Authorization: `Bearer ${freshToken}`}})).status(), 403, `${contract} 仍向已停用身份返回数据`);
+  checks.push('停用管理身份撤销已登录凭据，重新登录后管理接口全部拒绝');
   await owner.page.goto(base + '/admin/audit'); await owner.page.getByRole('heading', {name: '管理操作审计', exact: true}).waitFor(); await owner.page.getByText('撤销合成员工管理访问', {exact: true}).waitFor();
   checks.push('页面展示真实管理变更审计');
   await owner.page.getByLabel('对象ID',{exact:true}).fill(actors[1].id);

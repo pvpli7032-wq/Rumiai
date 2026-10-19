@@ -32,8 +32,9 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-build/types/**/*.ts",
     "next-env.d.ts",
-    ".temp/lb2/types/**/*.ts"
+    "artifacts/next-cache/verify-ratelimit/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

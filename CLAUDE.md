@@ -1,6 +1,6 @@
 # 项目维护入口
 
-开发规则见 [AGENTS.md](AGENTS.md)，实际模块地图见 [ARCHITECTURE.md](ARCHITECTURE.md)。启动、现有功能与测试见 [README.md](README.md)，环境、迁移与隔离运行见 [DEPLOYMENT.md](DEPLOYMENT.md)。
+开发规则见 [AGENTS.md](AGENTS.md)，实际模块地图见 [ARCHITECTURE.md](ARCHITECTURE.md)。启动、现有功能与测试见 [README.md](README.md)；环境、迁移、隔离运行与运维要点也集中在 README。
 
 优先复用现有模块，业务规则归所属域。保留 Next 约定式入口、有序迁移、许可、素材来源登记和有效产品计划。
 

@@ -88,7 +88,7 @@ const khuiAllow = file => {
   return p === 'LICENSE' || p === 'THIRD_PARTY_NOTICES.md' || p === 'README.md'
     // 部署名与运维文档：决策 D4 明确保留。
     || p.startsWith('prisma/migrations/') || p.startsWith('deploy/')
-    || p.startsWith('docs/') || p === 'DEPLOYMENT.md' || p === 'AGENTS.md' || p === 'CLAUDE.md'
+    || p.startsWith('docs/') || p === 'AGENTS.md' || p === 'CLAUDE.md'
     // 旧站拉取的语言词典，键名沿用上游，替换键名会把 PULLED_FIELDS 映射一起弄坏。
     || p.startsWith('src/lib/i18n/dictionaries/') || p === 'src/lib/i18n.ts'
     // 下面三处是「提到 khui 是为了禁掉它」，不是残留。
@@ -104,8 +104,8 @@ const khuiHits = tracked.filter(file => /khui/i.test(read(file)) && !khuiAllow(f
 if (khuiHits.length) failures.push(`khui 命名残留：${khuiHits.join(', ')}`);
 else notes.push('khui 命名：白名单外 0 处（部署名、历史迁移、旧站拉取词典保留）');
 
-/** 9. 部署脚本与文档存在。 */
-for (const file of ['ARCHITECTURE.md', 'README.md', 'DEPLOYMENT.md', 'docs/待完成清单.md']) {
+/** 9. 核心文档齐备（部署运维已并入 ARCHITECTURE/README，不再单独成册）。 */
+for (const file of ['ARCHITECTURE.md', 'README.md', 'docs/待完成清单.md']) {
   if (!existsSync(path.join(root, file))) failures.push(`缺少文档：${file}`);
 }
 

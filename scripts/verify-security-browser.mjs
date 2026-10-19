@@ -53,7 +53,10 @@ try {
   const posted = await context.request.post(`${base}/api/circles/${circle.id}/posts`, { headers, data: { content: payload } });
   assert.equal(posted.status(), 201, await posted.text());
   const { post } = await posted.json();
-  assert.equal((await context.request.delete(`${base}/api/posts/${post.id}`, { headers: { Authorization: `Bearer ${other.token}` } })).status(), 403);
+  // 删除是带乐观并发参数的写操作：缺 body 会先在参数校验层被 400 拒绝，
+  // 必须带上版本字段才能真正走到「是不是你的帖子」这一步鉴权。
+  assert.equal((await context.request.delete(`${base}/api/posts/${post.id}`, { headers: { Authorization: `Bearer ${other.token}` } })).status(), 400, '缺少内容版本的删除请求应被参数校验拒绝');
+  assert.equal((await context.request.delete(`${base}/api/posts/${post.id}`, { headers: { Authorization: `Bearer ${other.token}` }, data: { updatedAt: post.updatedAt } })).status(), 403, '他人即使带上正确版本也无权删除');
   const searched = await context.request.get(`${base}/api/circles?search=${encodeURIComponent("' OR 1=1 --")}`);
   assert.equal(searched.status(), 200);
   assert.deepEqual(await searched.json(), []);
@@ -73,7 +76,8 @@ try {
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"></svg>');
   assert.equal((await context.request.post(`${base}/api/upload`, { headers, multipart: { file: { name: 'script.svg', mimeType: 'image/svg+xml', buffer: svg } } })).status(), 415);
   assert.equal((await context.request.post(`${base}/api/upload`, { headers, multipart: { file: { name: 'fake.png', mimeType: 'image/png', buffer: svg } } })).status(), 415);
-  assert.equal((await context.request.delete(`${base}/api/posts/${post.id}`, { headers })).status(), 200);
+  // 删除是乐观并发接口：不带内容版本先被参数校验挡下（400），因此这三处都要显式带上 updatedAt。
+  assert.equal((await context.request.delete(`${base}/api/posts/${post.id}`, { headers, data: { updatedAt: post.updatedAt } })).status(), 200);
   pass('SVG 和伪装 PNG 上传被拒绝；测试作者可删除本人的测试帖子');
 } finally {
   await writeFile(`${output}/result.json`, JSON.stringify({ checks, errors }, null, 2));

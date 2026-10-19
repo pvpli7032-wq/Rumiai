@@ -5,13 +5,14 @@ import {mkdir,open,rm,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp=process.pid+'-'+Date.now(),file='analytics-browser-'+stamp+'.db',port=18809,base='http://127.0.0.1:'+port,out=path.resolve('artifacts/analytics-browser',stamp);
 await mkdir(out,{recursive:true});
 const env={...process.env,NODE_ENV:'production',DATABASE_URL:'file:./'+file,JWT_SECRET:randomBytes(48).toString('hex'),OPENAI_API_KEY:'',DISABLE_MOCK_AI:'true',ALLOW_SIMULATED_PURCHASES:'false',MODERATOR_USER_IDS:'',PAYMENT_ADMIN_USER_IDS:'',NEXT_DIST_DIR:process.env.ANALYTICS_TEST_DIST_DIR||'.next-build',NEXT_PUBLIC_SITE_URL:base};
 delete env.RUST_LOG;Object.assign(process.env,env);
-const dbPath=path.resolve('prisma',file),empty=await open(dbPath,'wx');await empty.close();
-const migration=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{env,encoding:'utf8',windowsHide:true});assert.equal(migration.status,0,migration.stdout+migration.stderr);
+const dbPath=path.resolve('prisma',file)
+await createIsolatedDatabase(dbPath);
 const {db,pragmasReady}=await import('../src/lib/db.ts');await pragmasReady;
 const {bootstrapOwner,saveOperator}=await import('../src/lib/admin/management-service.ts');
 const {signToken}=await import('../src/lib/auth.ts');

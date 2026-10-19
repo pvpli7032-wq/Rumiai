@@ -5,7 +5,7 @@ description: 在明确隔离的本机服务上运行 HTTP/SSE 集成和浏览器
 
 # 运行集成检查
 
-先确认 TEST_BASE_URL 对应隔离服务，服务在同一进程显式配置隔离 DATABASE_URL，真实 AI/支付关闭。不要默认使用已有 localhost:3000：测试会创建账号、角色和交易。环境和启动见 DEPLOYMENT.md，具体脚本要求见 README.md。
+先确认 TEST_BASE_URL 对应隔离服务，服务在同一进程显式配置隔离 DATABASE_URL，真实 AI/支付关闭。不要默认使用已有 localhost:3000：测试会创建账号、角色和交易。隔离运行要求见 README.md，具体脚本要求也见 README.md。
 
 npm test 使用 tests/runner.ts 运行四组 HTTP/SSE 检查：功能、边界、跨功能和用户流程。浏览器检查需要已安装 Playwright Chromium；安装与执行共享 PLAYWRIGHT_BROWSERS_PATH。
 

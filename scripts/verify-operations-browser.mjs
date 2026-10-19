@@ -8,12 +8,13 @@ import {chromium} from 'playwright';
 import {createServer as createTlsServer} from 'node:tls';
 import selfsigned from 'selfsigned';
 import {createStateBackup,restoreStateBackup} from '../src/lib/operations/state-backup.mjs';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp=`${process.pid}-${Date.now()}`,file=`operations-browser-${stamp}.db`,port=18811,base=`http://127.0.0.1:${port}`,out=path.resolve('artifacts/operations-browser',stamp);
 await mkdir(out,{recursive:true});
 const env={...process.env,NODE_ENV:'production',DATABASE_URL:`file:./${file}`,JWT_SECRET:randomBytes(48).toString('hex'),OPENAI_API_KEY:'',EZFP_ENABLED:'false',EZFP_REFUNDS_ENABLED:'false',DISABLE_MOCK_AI:'true',ALLOW_SIMULATED_PURCHASES:'false',MODERATOR_USER_IDS:'',PAYMENT_ADMIN_USER_IDS:'',NEXT_DIST_DIR:process.env.NEXT_DIST_DIR||'.next-build',NEXT_PUBLIC_SITE_URL:base};delete env.RUST_LOG;Object.assign(process.env,env);
-const dbPath=path.resolve('prisma',file),empty=await open(dbPath,'wx');await empty.close();
-const migration=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{env,encoding:'utf8',windowsHide:true});assert.equal(migration.status,0,migration.stdout+migration.stderr);
+const dbPath=path.resolve('prisma',file)
+await createIsolatedDatabase(dbPath);
 const {db,pragmasReady}=await import('../src/lib/db.ts');await pragmasReady;
 const {bootstrapOwner,saveOperator}=await import('../src/lib/admin/management-service.ts');
 const backupRoot=path.resolve('prisma','backups'),backupTarget=path.join(backupRoot,`operations-browser-backup-${stamp}`),restoreTarget=path.join(backupRoot,`operations-browser-restored-${stamp}`);
@@ -30,7 +31,7 @@ try{
   let ready=false;for(let index=0;index<180;index++){if(app.exitCode!==null)throw Error('isolated production server exited');try{if((await fetch(base+'/api/admin/operations')).status===401){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert(ready,'isolated production server did not become ready');
   browser=await chromium.launch();const context=await browser.newContext({viewport:{width:1280,height:900},locale:'zh-CN'}),login=await context.request.post(base+'/api/auth/login',{data:{email:viewer.email,password}});assert.equal(login.status(),200);const {token}=await login.json();await context.addInitScript(value=>localStorage.setItem('xingban_token',value),token);
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
-  for(const [code,label,href] of [['OPERATIONS_VIEWER','系统与运维','/admin/operations'],['COMPLIANCE_MANAGER','注册合规','/admin/compliance'],['AI_COST_MANAGER','AI 成本与预算','/admin/ai/costs'],['PAYMENT_MERCHANT_MANAGER','支付商户','/admin/payments/merchants']]){
+  for(const [code,label,href] of [['OPERATIONS_VIEWER','系统与运维','/admin/operations'],['COMPLIANCE_MANAGER','注册合规','/admin/compliance'],['AI_COST_MANAGER','成本与预算','/admin/ai/costs'],['PAYMENT_MERCHANT_MANAGER','支付商户','/admin/payments/merchants']]){
     const entryRole=await db.adminRole.findUniqueOrThrow({where:{code}});
     const operator=await db.adminOperator.findUniqueOrThrow({where:{userId:viewer.id}});
     await saveOperator(owner.id,{userId:viewer.id,enabled:true,version:operator.version,roleIds:[entryRole.id],reason:'隔离单模块管理入口验收'});

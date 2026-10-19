@@ -3,6 +3,7 @@ import {spawn, spawnSync} from 'node:child_process';
 import {existsSync, rmSync} from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const root = process.cwd();
@@ -23,12 +24,6 @@ const environment = {
 environment.NEXT_DIST_DIR = process.env.NEXT_DIST_DIR?.trim() || '.next-build';
 delete environment.RUST_LOG;
 
-function command(args) {
-  const result = spawnSync(process.execPath, args, {cwd: root, env: environment, encoding: 'utf8', windowsHide: true});
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error((result.stdout || '') + (result.stderr || '') || `Command failed: ${args.join(' ')}`);
-}
-
 async function unusedLocalPort() {
   const server = net.createServer();
   await new Promise((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
@@ -46,7 +41,7 @@ try {
     throw new Error('Production build is missing; run npm run build before production guards.');
   }
   if (existsSync(databasePath)) throw new Error('Generated guard database path unexpectedly already exists.');
-  command(['node_modules/prisma/build/index.js', 'migrate', 'deploy']);
+  createIsolatedDatabase(databasePath);
 
   process.env.DATABASE_URL = environment.DATABASE_URL;
   const {PrismaClient} = await import('@prisma/client');

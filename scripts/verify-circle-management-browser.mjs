@@ -5,12 +5,13 @@ import {mkdir, open, rm} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp = `${process.pid}-${Date.now()}`, file = `circle-browser-${stamp}.db`, base = 'http://127.0.0.1:18801';
 const out = path.resolve('artifacts/circle-management-browser', stamp); await mkdir(out, {recursive: true});
 const env = {...process.env, NODE_ENV: 'production', DATABASE_URL: `file:./${file}`, UPLOADS_DIRECTORY: path.join(out, 'uploads'), JWT_SECRET: randomBytes(48).toString('hex'), OPENAI_API_KEY: '', EZFP_ENABLED: 'false', EZFP_REFUNDS_ENABLED: 'false', DISABLE_MOCK_AI: 'true', ALLOW_SIMULATED_PURCHASES: 'false', MODERATOR_USER_IDS: '', PAYMENT_ADMIN_USER_IDS: '', NEXT_DIST_DIR: '.next-build', NEXT_PUBLIC_SITE_URL: base}; delete env.RUST_LOG;
-Object.assign(process.env, env); const dbPath = path.resolve('prisma', file), empty = await open(dbPath, 'wx'); await empty.close();
-const migrated = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env, encoding: 'utf8', windowsHide: true}); assert.equal(migrated.status, 0, 'isolated migration failed');
+Object.assign(process.env, env); const dbPath = path.resolve('prisma', file)
+await createIsolatedDatabase(dbPath);
 const {db, pragmasReady} = await import('../src/lib/db.ts'); await pragmasReady;
 const {bootstrapOwner, saveRole, saveOperator} = await import('../src/lib/admin/management-service.ts');
 const password = randomBytes(24).toString('hex'), actors = [], checks = [], errors = [];
@@ -35,7 +36,10 @@ try {
     return {context, page, token, headers: {Authorization: `Bearer ${token}`}};
   }
   const owner = await login(actors[0]); await owner.page.goto(base + '/admin');
-  await owner.page.getByRole('navigation', {name: '后台导航'}).getByRole('link', {name: '圈子与成员', exact: true}).click();
+  // 侧栏按分组折叠，默认只展开当前页所在分组：先展开「内容与社区」再点入口。
+  const adminNav = owner.page.getByRole('navigation', {name: '后台导航'});
+  if (await adminNav.getByRole('link', {name: '圈子与成员', exact: true}).count() === 0) await adminNav.getByRole('button', {name: '内容与社区'}).click();
+  await adminNav.getByRole('link', {name: '圈子与成员', exact: true}).click();
   await owner.page.getByRole('button', {name: '新增站点圈子', exact: true}).click();
   const name = '运营测试圈子';
   await owner.page.getByLabel('管理圈子名称', {exact: true}).fill(name);
@@ -48,7 +52,7 @@ try {
   checks.push('站点圈子实际创建，独立归属且未公开');
   async function circleAction(action, reason) {
     await owner.page.getByLabel('圈子操作理由', {exact: true}).fill(reason);
-    const result = owner.page.waitForResponse(r => r.url().endsWith('/management/' + circle.id) && r.request().method() === 'PATCH');
+    const result = owner.page.waitForResponse(r => r.url().endsWith('/api/admin/circles/' + circle.id) && r.request().method() === 'PATCH');
     await owner.page.getByRole('button', {name: action, exact: true}).click(); assert.equal((await result).status(), 200);
     await owner.page.waitForLoadState('networkidle');
   }
@@ -68,7 +72,7 @@ try {
   const snapshot = await (await owner.context.request.get(base + '/api/admin/circles/' + circle.id, {headers: owner.headers})).json();
   const concurrent = await owner.context.request.patch(base + '/api/admin/circles/' + circle.id, {headers: owner.headers, data: {action: 'SAVE', updatedAt: snapshot.updatedAt, reason: '合成并发编辑', content: {name, description: '另一个运营保存的版本', tags: '原创,治愈', universeId: null}}}); assert.equal(concurrent.status(), 200);
   await owner.page.getByLabel('圈子操作理由', {exact: true}).fill('拒绝旧版本覆盖');
-  const stale = owner.page.waitForResponse(r => r.url().endsWith('/management/' + circle.id) && r.request().method() === 'PATCH');
+  const stale = owner.page.waitForResponse(r => r.url().endsWith('/api/admin/circles/' + circle.id) && r.request().method() === 'PATCH');
   await owner.page.getByRole('button', {name: '保存圈子内容', exact: true}).click(); assert.equal((await stale).status(), 409);
   assert.equal(await owner.page.getByLabel('管理圈子介绍', {exact: true}).inputValue(), draft);
   await owner.page.getByRole('button', {name: '重新读取详情', exact: true}).click();

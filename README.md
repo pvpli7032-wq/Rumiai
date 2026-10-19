@@ -10,7 +10,7 @@ npm run verify:build  # 隔离库迁移 + 生产构建（需 Prisma schema engin
 npm run verify:done   # 计划书第 7 章完成定义的可执行检查
 ```
 
-本机若提示 `unable to open database file`，是工具沙箱拦住 Prisma 引擎写文件，不是代码问题；用 `npm run db:local` 建本地库、直接调 `next build` 构建，详见 [DEPLOYMENT](DEPLOYMENT.md)。
+本机若提示 `unable to open database file`，是工具沙箱拦住 Prisma 引擎写文件，不是代码问题；用 `npm run db:local` 建本地库、直接调 `next build` 构建。
 
 ## 本地开发
 
@@ -90,13 +90,27 @@ npm run test:ai:providers:browser
 npm run test:ai:models:browser
 ```
 
-支付测试使用生成的本地密钥、模拟渠道和隔离数据库；后台浏览器检查自行启动隔离服务，关闭真实模型和支付。浏览器需先安装 Playwright Chromium。`npm run test:production:guards` 需先完成 `npm run build`，然后在临时 SQLite 数据库和本机生产服务中验证安全启动门禁。`npm test` 及真实AI验证会写入或调用外部服务，使用条件见[部署说明](DEPLOYMENT.md)。
+支付测试使用生成的本地密钥、模拟渠道和隔离数据库；后台浏览器检查自行启动隔离服务，关闭真实模型和支付。浏览器需先安装 Playwright Chromium。`npm run test:production:guards` 需先完成 `npm run build`，然后在临时 SQLite 数据库和本机生产服务中验证安全启动门禁。`npm test` 及真实AI验证会写入或调用外部服务，只允许对隔离实例执行。
 
 HTTP回归的测试任务与100金币礼物由 `tests/helpers/seed-http-fixtures.mjs` 显式准备，CI准备步骤已接入；这些数据不属于产品种子。手动执行 `npm test` 或 `scripts/stress-economy.mjs` 时，仅对隔离数据库调用 `seedHttpFixtures(db)`，同时配置该实例的审核测试账号。任务用例先满足真实条件再领取，赠礼报价必须匹配目录。
+
+## 运维要点
+
+数据库、上传、备份与密钥是持久数据，清缓存不能连带删除。SQLite 单机部署需持久化数据目录与上传目录，代理必须关闭 SSE 缓冲并留足读取超时；尚无已验证的 Docker/Vercel 或 PostgreSQL 方案。
+
+- **备份**：`npm run db:backup -- <标签>` 用 `VACUUM INTO` 生成含已提交 WAL 的一致性快照到 `prisma/backups/`，并对快照本身做完整性与外键校验；`npm run state:backup -- <标签>` 做数据库与上传的联合备份。备份含私密数据，须限制访问并另行保存受保护的异地副本。
+- **恢复**：`db:restore` / `state:restore` 只写入全新文件或全新目录，绝不覆盖运行库及其 WAL/SHM/journal。切换前停止业务写入与上传清理任务，恢复后重设随机 JWT 密钥，避免旧令牌复活。
+- **发布门禁**：`node scripts/start-production.mjs --check-only` 要求目标代码的迁移目录与数据库迁移记录完全一致；旧代码不得连接较新的数据库。有模式变更时只追加迁移，不用 reset 或 db push 替代。
+- **切换顺序**：停止实例与后台写入 → 另存当前状态 → 从版本匹配的备份恢复到全新目录 → 设置 `DATABASE_URL` 与 `UPLOADS_DIRECTORY` → 迁移兼容检查 → 隔离实例核对登录、角色、内容与财务 → 切换进程。数据库、上传与主密钥必须同步切换。
+- **隔离验证**：写数据的检查必须显式配置隔离 `DATABASE_URL`（必要时还有 `UPLOADS_DIRECTORY`）。一次性验收库统一由 `scripts/helpers/create-isolated-db.mjs` 创建，进程正常退出时自动回收；被强杀打断的残留用 `npm run test:clean` 清扫，它跳过仍被运行进程持有的库。
+- **限流要在稳定实例验证**：限流窗口在进程内存中，`next dev` 的多 worker 会稀释计数，只有 `next start` 的单个生产实例是真实口径。
+- **构建产物**：开发为 `.next`，生产为 `.next-build`。脚本先校验产物目录存在 `BUILD_ID` 再用，过期产物会造成「页面能开、登录态失效」的假成功。不要手动把 `NODE_ENV=development` 传给 `next build`。
+- **密钥**：`JWT_SECRET` 至少 32 字符随机；`AI_PROVIDER_ENCRYPTION_KEY`、`PAYMENT_MERCHANT_ENCRYPTION_KEY` 为 64 位十六进制，必须纳入受保护备份且保持稳定，轮换前先重加密库内已有记录。充值与退款总开关默认关闭，启用前必须在渠道沙箱逐项验收。
+- **维护模式与证书**：`/admin/operations` 可启停维护模式（默认关闭，不需重启），只读呈现最近一次 HTTPS 证书检查结果；两者都不代替正式的续签与 Nginx 重载。
 
 ## 维护资料
 
 - [架构与目录](ARCHITECTURE.md)、[维护规则](AGENTS.md)、[安全说明](SECURITY.md)。
-- [部署与备份](DEPLOYMENT.md)，[宝塔配置](deploy/baota/README.md)。
+- [宝塔部署配置](deploy/baota/README.md)。
 - [商业后台实施方案](docs/商业运营后台实施方案.md)、[任务清单](docs/待完成清单.md)、[原计划书](docs/项目实施计划书_v1.0.docx)。
-- [财务与充值](docs/finance/财务与充值.md)、[收费方案](docs/finance/收费方案草案.md)、[账户隐私](docs/accounts/账户隐私.md)、[内容来源](docs/content/内容来源登记.md)。
+- [财务与充值](docs/finance/财务与充值.md)、[账户隐私](docs/accounts/账户隐私.md)、[内容来源](docs/content/内容来源登记.md)。

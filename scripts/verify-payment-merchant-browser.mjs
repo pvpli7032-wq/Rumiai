@@ -5,10 +5,12 @@ import {mkdir,open,rm,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import {chromium} from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const stamp=`${process.pid}-${Date.now()}`,file=`payment-merchant-browser-${stamp}.db`,port=18806,base=`http://127.0.0.1:${port}`,out=path.resolve('artifacts/payment-merchant-browser',stamp);await mkdir(out,{recursive:true});
 const env={...process.env,NODE_ENV:'production',DATABASE_URL:`file:./${file}`,JWT_SECRET:randomBytes(48).toString('hex'),PAYMENT_MERCHANT_ENCRYPTION_KEY:randomBytes(32).toString('hex'),OPENAI_API_KEY:'',EZFP_ENABLED:'false',EZFP_REFUNDS_ENABLED:'false',DISABLE_MOCK_AI:'true',ALLOW_SIMULATED_PURCHASES:'false',MODERATOR_USER_IDS:'',PAYMENT_ADMIN_USER_IDS:'',NEXT_DIST_DIR:'.next-build',NEXT_PUBLIC_SITE_URL:base};delete env.RUST_LOG;Object.assign(process.env,env);
-const dbPath=path.resolve('prisma',file),empty=await open(dbPath,'wx');await empty.close();const migrated=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{env,encoding:'utf8',windowsHide:true});assert.equal(migrated.status,0,migrated.stdout+migrated.stderr);
+const dbPath=path.resolve('prisma',file)
+await createIsolatedDatabase(dbPath);
 const {db,pragmasReady}=await import('../src/lib/db.ts');await pragmasReady;const {bootstrapOwner,saveOperator,saveRole}=await import('../src/lib/admin/management-service.ts');
 const password=randomBytes(24).toString('hex'),users=[],checks=[],errors=[];let app,browser;
 try{
@@ -19,7 +21,7 @@ try{
   const managerSession=await login(manager);await managerSession.page.goto(`${base}/admin/payments/merchants`);await managerSession.page.getByRole('heading',{name:'支付商户',exact:true}).waitFor();await managerSession.page.getByRole('button',{name:'新增商户配置',exact:true}).click();
   await managerSession.page.getByLabel('商户名称').fill('浏览器隔离正式商户');await managerSession.page.getByLabel('环境').selectOption('PRODUCTION');await managerSession.page.getByLabel('商户编号').fill('9188001');
   const merchantKey=generateKeyPairSync('rsa',{modulusLength:2048,privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}}),platformKey=generateKeyPairSync('rsa',{modulusLength:2048,privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}});
-  await managerSession.page.getByLabel(/商户 RSA 私钥/).fill(merchantKey.privateKey);await managerSession.page.getByLabel(/支付平台 RSA 公钥/).fill(platformKey.publicKey);await managerSession.page.getByLabel('操作理由').fill('浏览器隔离配置测试');await managerSession.page.getByRole('button',{name:'保存并生成版本'}).click();await managerSession.page.getByText('商户配置已保存为新版本。',{exact:true}).waitFor();
+  await managerSession.page.getByLabel(/商户 RSA 私钥/).fill(merchantKey.privateKey);await managerSession.page.getByLabel(/支付平台 RSA 公钥/).fill(platformKey.publicKey);await managerSession.page.getByLabel('商户配置操作理由',{exact:true}).fill('浏览器隔离配置测试');await managerSession.page.getByRole('button',{name:'保存并生成版本'}).click();await managerSession.page.getByText('商户配置已保存为新版本。',{exact:true}).waitFor();
   const list=await(await managerSession.context.request.get(`${base}/api/admin/payments/merchants`,{headers:{Authorization:`Bearer ${managerSession.token}`} })).json();assert.equal(list.length,1);assert.equal(list[0].currentRevision.merchantNo,'9188001');assert.equal(JSON.stringify(list).includes(merchantKey.privateKey),false);assert.equal(JSON.stringify(list).includes(platformKey.publicKey),false);checks.push('商户页面可保存配置版本，管理 API 只返回脱敏状态');
   await managerSession.page.getByRole('button',{name:'验证本地密钥'}).click();await managerSession.page.getByText('凭据格式检查通过；未连接支付渠道，也未创建真实支付。',{exact:true}).waitFor();checks.push('配置验证只检查本地 RSA 格式，不请求支付渠道');
   const readerSession=await login(reader);await readerSession.page.goto(`${base}/admin/payments/merchants`);await readerSession.page.getByRole('heading',{name:'支付商户',exact:true}).waitFor();assert.equal(await readerSession.page.getByRole('button',{name:'新增商户配置',exact:true}).count(),0);const denied=await readerSession.context.request.post(`${base}/api/admin/payments/merchants`,{headers:{Authorization:`Bearer ${readerSession.token}`},data:{name:'只读越权商户',environment:'PRODUCTION',isActive:false,merchantNo:'9188002',apiBaseUrl:'https://www.ezfp.cn',merchantPrivateKey:merchantKey.privateKey,platformPublicKey:platformKey.publicKey,refundsEnabled:false,reason:'只读越权'}});assert.equal(denied.status(),403);checks.push('商户只读角色可查看配置，不能创建或修改');

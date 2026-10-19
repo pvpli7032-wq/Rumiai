@@ -65,7 +65,7 @@ for (let i = 0; i < ROUNDS; i++) {
   const after = await coins(u.token);
   if (after - before !== 10) {
     checkinBad++;
-    console.log(`  [checkin รอบ ${i}] ได้ +${after - before} แทน +10`);
+    console.log(`  [签到 第 ${i} 轮] 实际加 ${after - before}，预期 +10`);
   }
 
   // --- mission race: exactly one reward expected ---
@@ -86,7 +86,7 @@ for (let i = 0; i < ROUNDS; i++) {
     const mAfter = await coins(m.token);
     if (mAfter - mBefore !== mission.rewardCoins) {
       missionBad++;
-      console.log(`  [mission รอบ ${i}] ได้ +${mAfter - mBefore} แทน +${mission.rewardCoins}`);
+      console.log(`  [任务 第 ${i} 轮] 实际加 ${mAfter - mBefore}，预期 +${mission.rewardCoins}`);
     }
   }
 
@@ -105,7 +105,7 @@ for (let i = 0; i < ROUNDS; i++) {
   const succeeded = statuses.filter(s => s === 201).length;
   if (gAfter < 0 || succeeded !== 1) {
     giftBad++;
-    console.log(`  [gift รอบ ${i}] สำเร็จ ${succeeded} ครั้ง, ยอดเหลือ ${gAfter}`);
+    console.log(`  [打赏 第 ${i} 轮] 成功 ${succeeded} 次，余额 ${gAfter}`);
   }
 
   // --- legacy leaderboard gift route must have the same atomic debit boundary ---
@@ -137,14 +137,14 @@ for (let i = 0; i < ROUNDS; i++) {
   const legacySucceeded = legacyStatuses.filter(s => s === 200).length;
   if (lAfter < 0 || legacySucceeded !== 1 || lBefore - lAfter !== 100) {
     legacyGiftBad++;
-    console.log(`  [leaderboard gift round ${i}] succeeded=${legacySucceeded}, balance=${lAfter}`);
+    console.log(`  [榜单打赏 第 ${i} 轮] 成功 ${legacySucceeded} 次，余额 ${lAfter}`);
   }
 }
 
-console.log(`\ncheck-in  : ${ROUNDS - checkinBad}/${ROUNDS} รอบถูกต้อง`);
-console.log(`mission   : ${ROUNDS - missionBad}/${ROUNDS} รอบถูกต้อง`);
-console.log(`gift      : ${ROUNDS - giftBad}/${ROUNDS} รอบถูกต้อง (ยอดต้องไม่ติดลบ และสำเร็จได้ครั้งเดียว)`);
-console.log(`legacy gift: ${ROUNDS - legacyGiftBad}/${ROUNDS} รอบถูกต้อง (ยอดต้องไม่ติดลบ และสำเร็จได้ครั้งเดียว)`);
-console.log(`invalid gift: ${ROUNDS - malformedGiftBad}/${ROUNDS} 轮拒绝非法金额且余额不变`);
+console.log(`\n签到      : ${ROUNDS - checkinBad}/${ROUNDS} 轮正确`);
+console.log(`任务      : ${ROUNDS - missionBad}/${ROUNDS} 轮正确`);
+console.log(`打赏      : ${ROUNDS - giftBad}/${ROUNDS} 轮正确（余额不得为负，且只能成功一次）`);
+console.log(`旧版打赏  : ${ROUNDS - legacyGiftBad}/${ROUNDS} 轮正确（余额不得为负，且只能成功一次）`);
+console.log(`非法打赏  : ${ROUNDS - malformedGiftBad}/${ROUNDS} 轮拒绝非法金额且余额不变`);
 console.log(checkinBad + missionBad + giftBad + legacyGiftBad + malformedGiftBad === 0 ? '\n不变量检查通过' : '\n仍有余额或输入校验问题');
 process.exit(checkinBad + missionBad + giftBad + legacyGiftBad + malformedGiftBad === 0 ? 0 : 1);

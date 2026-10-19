@@ -4,11 +4,12 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile, open } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, open, rm } from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { chromium } from 'playwright';
+import {createIsolatedDatabase} from './helpers/create-isolated-db.mjs';
 
 const base = 'http://127.0.0.1:18795', providerBase = 'http://127.0.0.1:18796/v1';
 const stamp = `${process.pid}-${Date.now()}`, file = `ai-budget-browser-${stamp}.db`;
@@ -25,11 +26,8 @@ const environment = {
   EZFP_ENABLED: 'false', EZFP_REFUNDS_ENABLED: 'false', NEXT_DIST_DIR: '.next-build',
 };
 delete environment.RUST_LOG;
-// Prisma 5 on Windows needs an existing empty SQLite file before migrations.
 const database = path.resolve('prisma', file);
-const empty = await open(database, 'wx'); await empty.close();
-const migrated = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { env: environment, encoding: 'utf8', windowsHide: true });
-assert.equal(migrated.status, 0, migrated.stdout + migrated.stderr);
+await createIsolatedDatabase(database);
 const fixtureDb = new PrismaClient({ datasources: { db: { url: `file:${database.split(path.sep).join('/')}` } }, log: [] });
 let admin;
 try { admin = await fixtureDb.user.create({ data: { username: `budget_admin_${stamp}`, email: `budget-admin-${stamp}@example.invalid`, passwordHash: await bcrypt.hash(adminPassword, 10) } }); }

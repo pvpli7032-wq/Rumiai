@@ -210,7 +210,7 @@ function MerchantForm({initial, canManage, canManageSecrets, busy, onCancel, onS
         </label>
 
         <label className="block space-y-1 text-sm">
-          操作理由
+          商户配置操作理由
           <input
             required
             maxLength={300}
