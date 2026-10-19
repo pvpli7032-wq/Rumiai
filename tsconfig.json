@@ -32,6 +32,8 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-build/types/**/*.ts",
+    ".next-validation-build/types/**/*.ts",
     "next-env.d.ts"
   ],
   "exclude": [

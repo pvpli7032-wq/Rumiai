@@ -1,7 +1,14 @@
 'use client';
 import {useEffect, useState} from 'react';
+import {Filter, RefreshCw} from 'lucide-react';
 import {auditLabels} from './accounts/types';
 import {useAdminAccess} from './use-admin-access';
+import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from './admin-page';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {DataTable} from '@/components/ui/data-table';
+import {EmptyState} from '@/components/ui/empty-state';
+import {Input} from '@/components/ui/input';
 
 type Audit = {id: string; actorId: string; action: string; targetId: string; reason: string; changes: string; createdAt: string};
 const actionNames: Record<string, string> = {...auditLabels, BOOTSTRAP_OWNER: '初始化所有者', SAVE_OPERATOR: '修改管理身份', CREATE_ROLE: '新增角色', UPDATE_ROLE: '修改角色', ACCOUNT_CLOSED: '注销管理账号', CHARACTER_CREATED: '新增角色', CHARACTER_EDITED: '修改角色内容', CHARACTER_APPROVED: '角色审核通过', CHARACTER_REJECTED: '角色退回或下架', CIRCLE_CREATED: '新增站点圈子', CIRCLE_SAVE: '修改圈子内容', CIRCLE_HIDE: '隐藏圈子', CIRCLE_RESTORE: '恢复圈子公开', CIRCLE_FEATURE: '推荐圈子', CIRCLE_UNFEATURE: '取消圈子推荐', CIRCLE_MEMBER_REMOVE: '移除圈子成员', CIRCLE_MEMBER_BLOCK: '限制圈子加入', CIRCLE_MEMBER_UNBLOCK: '解除圈子加入限制'};
@@ -22,16 +29,60 @@ export function AdminAudit() {
     })();
     return () => controller.abort();
   }, [token, access?.audit, page, refresh,filters]);
-  if (loading) return <p role="status" className="p-6">正在读取管理权限…</p>;
-  if (!token || !access?.audit) return <p role="alert" className="p-6">{accessError || '当前账号没有管理审计权限。'}</p>;
-  return <main className="mx-auto max-w-6xl space-y-4 p-4 md:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">管理操作审计</h1><button className="min-h-11 rounded-lg border px-4" disabled={reading} onClick={() => setRefresh(value => value + 1)}>刷新审计</button></div>
-    <form className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 lg:grid-cols-3" onSubmit={event=>{event.preventDefault();setPage(1);setFilters({...draft});}}>
-      {([['actorId','操作人ID'],['targetId','对象ID'],['action','动作代码'],['from','开始日期（UTC）'],['until','结束日期（UTC）']] as const).map(([key,label])=><label key={key} className="min-w-0 text-sm">{label}<input type={key==='from'||key==='until'?'date':'text'} maxLength={100} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border bg-background px-3"/></label>)}
-      <div className="flex items-end gap-2"><button disabled={reading} className="min-h-11 rounded-lg border px-4">筛选审计</button><button type="button" disabled={reading} className="min-h-11 rounded-lg border px-4" onClick={()=>{setDraft(emptyFilters);setFilters(emptyFilters);setPage(1);}}>重置筛选</button></div>
-      <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">ID与动作代码精确匹配；日期按UTC日统计，包含结束日期当天。</p>
-    </form>
-    {error && <p role="alert" className="text-red-400">{error}</p>}{reading && <p role="status">正在读取审计…</p>}
-    {result && <><div className="max-w-full overflow-x-auto rounded-xl border"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b"><th className="p-3">时间</th><th className="p-3">操作</th><th className="p-3">操作人 / 对象</th><th className="p-3">理由及变更</th></tr></thead><tbody>{result.items.map(item => <tr key={item.id} className="border-b align-top"><td className="whitespace-nowrap p-3">{new Date(item.createdAt).toLocaleString('zh-CN')}</td><td className="p-3">{actionNames[item.action] ?? item.action}</td><td className="max-w-64 break-all p-3"><p>{item.actorId}</p><p className="mt-1 text-muted-foreground">{item.targetId}</p></td><td className="max-w-xl break-words p-3"><p>{item.reason}</p><details className="mt-2"><summary className="cursor-pointer">查看修改内容</summary><pre className="mt-2 whitespace-pre-wrap break-all text-xs">{item.changes}</pre></details></td></tr>)}</tbody></table></div>
-    {!result.total && <p>暂无管理操作记录。</p>}<div className="flex flex-wrap items-center gap-3"><span>共 {result.total} 条 · 第 {page} 页</span><button className="min-h-11 rounded-lg border px-4 disabled:opacity-50" disabled={reading || page === 1} onClick={() => setPage(page - 1)}>上一页</button><button className="min-h-11 rounded-lg border px-4 disabled:opacity-50" disabled={reading || page * result.pageSize >= result.total} onClick={() => setPage(page + 1)}>下一页</button></div></>}
-  </main>;
+  if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
+  if (!token || !access?.audit) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有管理审计权限。'} /></AdminPage>;
+  const pageCount = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
+  return (
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="系统与安全"
+        title="操作审计"
+        description="权限变更、内容处置与合规配置调整全部留痕，可按操作人、对象或动作代码精确检索。"
+        actions={<Button variant="outline" size="sm" leadingIcon={<RefreshCw className="h-4 w-4" />} disabled={reading} onClick={() => setRefresh(value => value + 1)}>刷新审计</Button>}
+      />
+      {error && <AdminNotice tone="error" title={error} className="py-6" />}
+
+      <AdminPanel title="筛选条件" description="ID 与动作代码精确匹配；日期按 UTC 日统计，包含结束日期当天。" badge={<Badge>{result?.total ?? 0} 条</Badge>}>
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={event=>{event.preventDefault();setPage(1);setFilters({...draft});}}>
+          {([['actorId','操作人ID'],['targetId','对象ID'],['action','动作代码'],['from','开始日期（UTC）'],['until','结束日期（UTC）']] as const).map(([key,label])=>(
+            <label key={key} className="min-w-0 space-y-1.5 text-sm font-medium text-foreground">{label}
+              <Input type={key==='from'||key==='until'?'date':'text'} maxLength={100} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} />
+            </label>
+          ))}
+          <div className="flex flex-wrap items-end gap-2">
+            <Button type="submit" leadingIcon={<Filter className="h-4 w-4" />} disabled={reading}>筛选审计</Button>
+            <Button type="button" variant="ghost" disabled={reading} onClick={()=>{setDraft(emptyFilters);setFilters(emptyFilters);setPage(1);}}>重置筛选</Button>
+          </div>
+        </form>
+      </AdminPanel>
+
+      <DataTable
+        rows={result?.items ?? []}
+        getRowId={row => row.id}
+        loading={reading}
+        loadingRows={6}
+        empty={<EmptyState title="暂无管理操作记录" description="调整筛选条件后重试。" />}
+        columns={[
+          {id: 'time', header: '时间', width: '180px', cell: row => <span className="whitespace-nowrap text-xs text-muted-foreground">{new Date(row.createdAt).toLocaleString('zh-CN')}</span>},
+          {id: 'action', header: '操作', width: '160px', cell: row => <span className="font-medium">{actionNames[row.action] ?? row.action}</span>},
+          {id: 'actor', header: '操作人 / 对象', width: '240px', cell: row => (
+            <span className="block break-all">
+              <span className="block">{row.actorId}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{row.targetId}</span>
+            </span>
+          )},
+          {id: 'reason', header: '理由及变更', cell: row => (
+            <span className="block break-words">
+              <span className="block">{row.reason}</span>
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-muted-foreground">查看修改内容</summary>
+                <pre className="mt-2 whitespace-pre-wrap break-all text-xs text-muted-foreground">{row.changes}</pre>
+              </details>
+            </span>
+          )},
+        ]}
+        pagination={result ? {page, pageCount, onPageChange: value => setPage(value), summary: `共 ${result.total} 条 · 第 ${page} 页`} : undefined}
+      />
+    </AdminPage>
+  );
 }

@@ -33,7 +33,7 @@ try{
  assert(ready,'owned app not ready');
  browser=await chromium.launch();
  const anon=await browser.newContext({viewport:{width:390,height:844}});const anonymous=await anon.newPage();
- await anonymous.goto(base+'/admin');await anonymous.getByText('请登录管理员账号。').waitFor();assert.equal(await anonymous.getByRole('link',{name:'审核中心'}).count(),0);await anon.close();checks.push('匿名后台显示登录入口');
+ await anonymous.goto(base+'/admin');await anonymous.getByText('请先登录管理员账号').waitFor();assert.equal(await anonymous.getByRole('link',{name:'审核中心'}).count(),0);await anon.close();checks.push('匿名后台显示登录入口');
  for(let i=0;i<actors.length;i++){
   const context=await browser.newContext({viewport:{width:390,height:844}});
   const response=await context.request.post(base+'/api/auth/login',{data:{email:actors[i].email,password}});assert.equal(response.status(),200);
@@ -44,10 +44,10 @@ try{
   const access=await context.request.get(base+'/api/admin/access',{headers:{Authorization:`Bearer ${token}`}});assert.equal(access.status(),200);assert.deepEqual(await access.json(),expected);
   await page.goto(base+'/profile');
   await page.getByRole('link',{name:/我的角色与收藏/}).waitFor();
-  if(i===0){assert.equal(await page.getByRole('link',{name:/管理后台/}).count(),0);await page.goto(base+'/admin');await page.getByText('当前账号没有管理权限，请联系站点运营人员。').waitFor();}
+  if(i===0){assert.equal(await page.getByRole('link',{name:/管理后台/}).count(),0);await page.goto(base+'/admin');await page.getByText('当前账号没有管理权限').waitFor();}
   else{
    await page.getByRole('link',{name:/管理后台/}).click();await page.waitForURL('**/admin');
-   await page.getByRole('heading',{name:'管理后台'}).waitFor();
+   await page.getByRole('heading',{name:'管理中心'}).waitFor();
    const first=expected.moderation?'审核中心':'订单与退款';await page.getByRole('link',{name:new RegExp(first)}).waitFor();
    assert.equal(await page.getByRole('link',{name:/审核中心/}).count(),expected.moderation?1:0);
    assert.equal(await page.getByRole('link',{name:/订单与退款/}).count(),expected.finance?1:0);
@@ -60,7 +60,7 @@ try{
      for(const route of ['/admin','/admin/finance','/admin/moderation']){
       await page.goto(base+route);await page.waitForLoadState('networkidle');
       if(route==='/admin')await page.getByRole('link',{name:/订单与退款/}).waitFor();
-      if(route==='/admin/finance')await page.getByRole('heading',{name:'财务对账与 AI 成本'}).waitFor();
+      if(route==='/admin/finance')await page.getByRole('heading',{name:'订单与退款'}).waitFor();
       if(route==='/admin/moderation')await page.getByRole('heading',{name:'布局验收角色'}).waitFor();
       const region=page.getByRole('region',{name:'后台工作区'});
       const size=await region.evaluate(e=>({client:e.clientWidth,scroll:e.scrollWidth}));assert(size.scroll<=size.client+1,`${route} content overflow at ${width}`);
@@ -75,18 +75,19 @@ try{
      }
     }
     checks.push('后台三页四种宽度、独立导航及长内容无工作区溢出');
-    page.on('dialog',dialog=>void dialog.accept());
+    // 批量审核的二次确认已换成后台 Dialog，「取消」必须不产生写操作。
+    async function confirmOperation(name){const box=page.getByRole('dialog',{name});await box.waitFor();await box.getByRole('button',{name:'确认执行',exact:true}).click();}
     await page.goto(base+'/admin/moderation');await page.getByRole('heading',{name:'布局验收角色',exact:true}).waitFor();
     for(const name of ['布局验收角色','批量验收角色'])await page.getByLabel('选择角色 '+name,{exact:true}).check();
     let batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/admin/moderation/characters/batch')&&r.request().method()==='POST');
-    await page.getByRole('button',{name:'批量通过公开',exact:true}).click();assert.equal((await batchResponse).status(),200);
+    await page.getByRole('button',{name:'批量通过公开',exact:true}).click();await confirmOperation('确认批量通过公开');assert.equal((await batchResponse).status(),200);
     let publicRows=await (await context.request.get(base+'/api/characters')).json();assert.equal(publicRows.filter(r=>['布局验收角色','批量验收角色'].includes(r.name)).length,2);
     await page.waitForFunction(()=>{const boxes=[...document.querySelectorAll('input[type=checkbox]')];return boxes.length===2&&boxes.every(box=>!box.checked);});
     for(const name of ['布局验收角色','批量验收角色'])await page.getByLabel('选择角色 '+name,{exact:true}).check();
     await page.getByLabel('批量审核说明',{exact:true}).fill('合成批量下架验证');
     batchResponse=page.waitForResponse(r=>r.url().endsWith('/api/admin/moderation/characters/batch')&&r.request().method()==='POST');
-    await page.getByRole('button',{name:'批量退回 / 下架',exact:true}).click();assert.equal((await batchResponse).status(),200);
-    await page.getByText('暂无待处理角色。',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'批量退回 / 下架',exact:true}).click();await confirmOperation('确认批量退回 / 下架');assert.equal((await batchResponse).status(),200);
+    await page.getByText('暂无待处理角色',{exact:true}).waitFor();
     publicRows=await (await context.request.get(base+'/api/characters')).json();assert.equal(publicRows.filter(r=>['布局验收角色','批量验收角色'].includes(r.name)).length,0);
     checks.push('批量角色审核页面通过/下架及前台公开列表同步');
    }

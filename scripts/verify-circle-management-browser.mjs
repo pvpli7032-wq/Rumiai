@@ -32,7 +32,7 @@ try {
     const context = await browser.newContext({viewport: {width: 1280, height: 900}});
     const response = await context.request.post(base + '/api/auth/login', {data: {email: actor.email, password}}); assert.equal(response.status(), 200);
     const {token} = await response.json(); await context.addInitScript(value => localStorage.setItem('xingban_token', value), token);
-    const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message)); page.on('dialog', dialog => void dialog.accept());
+    const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
     return {context, page, token, headers: {Authorization: `Bearer ${token}`}};
   }
   const owner = await login(actors[0]); await owner.page.goto(base + '/admin');
@@ -75,7 +75,10 @@ try {
   const stale = owner.page.waitForResponse(r => r.url().endsWith('/api/admin/circles/' + circle.id) && r.request().method() === 'PATCH');
   await owner.page.getByRole('button', {name: '保存圈子内容', exact: true}).click(); assert.equal((await stale).status(), 409);
   assert.equal(await owner.page.getByLabel('管理圈子介绍', {exact: true}).inputValue(), draft);
+  // 「重新读取详情」会丢弃草稿，改由后台 Dialog 明确确认，不再是原生 confirm。
   await owner.page.getByRole('button', {name: '重新读取详情', exact: true}).click();
+  const refreshConfirm = owner.page.getByRole('dialog', {name: '重新读取详情'});
+  await refreshConfirm.waitFor(); await refreshConfirm.getByRole('button', {name: '丢弃并重新读取', exact: true}).click();
   await owner.page.getByRole('status').filter({hasText: '详情已重新读取。'}).waitFor();
   assert.equal(await owner.page.getByLabel('管理圈子介绍', {exact: true}).inputValue(), '另一个运营保存的版本');
   checks.push('并发版本拒绝覆盖、保留草稿并由用户明确刷新');

@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Search, Sparkles, Tag, Users, Play } from 'lucide-react';
 import { CharacterCard, type CharacterCardData } from '@/components/character-card';
+import { StoryCard } from '@/components/stories/story-card';
+import { getPublishedSceneConfigs } from '@/lib/stories/scene-service';
+import { getSceneConfigByCharacterId } from '@/lib/stories/scene-config';
 import { RankingsTab } from '@/components/rankings-tab';
 import { CreatorTab } from '@/components/creator-tab';
 import { UniverseTab } from '@/components/universe-tab';
@@ -151,6 +154,16 @@ export default function DiscoverPage() {
   );
 
   const filtering = Boolean(query) || types.length > 0 || roles.length > 0;
+  const sceneCharacters = useMemo(() => {
+    const pool = new Map<string, ApiCharacter>();
+    for (const character of [...popular, ...fresh]) {
+      if (getSceneConfigByCharacterId(character.id)) pool.set(character.id, character);
+    }
+    return getPublishedSceneConfigs().flatMap(scene => {
+      const character = pool.get(scene.characterId);
+      return character ? [{scene, character}] : [];
+    });
+  }, [popular, fresh]);
 
   /** 全部角色：搜索与标签筛选只作用在这一段，不打断上面的分区。 */
   const filtered = useMemo(() => {
@@ -309,6 +322,20 @@ export default function DiscoverPage() {
                 );
               })}
             </div>
+          )}
+
+          {!filtering && sceneCharacters.length > 0 && (
+            <section className="mt-6 space-y-3 px-4 md:px-12">
+              <div>
+                <h2 className="text-base font-bold md:text-lg">精选场景</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">从一个具体事件开始</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 desktop:grid-cols-3">
+                {sceneCharacters.map(({scene, character}) => (
+                  <StoryCard key={scene.id} scene={scene} character={{id: character.id, name: character.name, tagline: character.tagline, avatarUrl: character.avatarUrl}} href={'/chat?character=' + encodeURIComponent(character.id) + '&scene=1'} />
+                ))}
+              </div>
+            </section>
           )}
 
           {/* 内容流分区：今日推荐 / 热门 / 新角色 / 关注的创作者 / 榜单 */}

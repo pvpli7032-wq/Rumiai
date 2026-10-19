@@ -12,6 +12,9 @@ import { loginWithNext } from '@/lib/next-path';
 import { compactNumber } from '@/lib/i18n';
 import { ReportDialog } from './report-dialog';
 import { CharacterComments } from './character-comments';
+import { SceneHeader } from '@/components/stories/scene-header';
+import { getSceneConfigByCharacterId } from '@/lib/stories/scene-config';
+import { resolveScene } from '@/lib/stories/scene-service';
 
 interface DetailCharacter {
   id: string;
@@ -202,6 +205,9 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
   const tags = (character.tags ?? '').split(',').map((t) => t.trim()).filter(Boolean);
   const creatorName = character.creator?.displayName || character.creator?.username;
   const openQuests = quests.filter((q) => !q.isCompleted).length;
+  const sceneConfig = character ? getSceneConfigByCharacterId(character.id) : undefined;
+  const sceneResolution = character ? resolveScene(character, sceneConfig) : undefined;
+  const availableScene = sceneResolution?.kind === 'available' ? sceneResolution.scene : undefined;
 
   return (
     <>
@@ -288,7 +294,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-gradient py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
               >
                 <MessageSquare className="h-4 w-4" />
-                {"开始聊天"}</button>
+                {availableScene ? "进入场景" : "开始聊天"}</button>
               <button
                 onClick={() => startChat(true)}
                 className="rounded-full border border-white/15 px-4 text-sm font-bold text-zinc-200 hover:bg-white/5"
@@ -334,6 +340,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             <div className="pt-4">
               {tab === 'about' && (
                 <div className="space-y-4">
+                  {availableScene && <SceneHeader scene={availableScene} character={character} />}
                   <Section title={"个性"}>{character.personality}</Section>
                   {character.scenario && <Section title={"场景"}>{character.scenario}</Section>}
                   {character.copyrightStatement && <Section title="版权声明">{character.copyrightStatement}</Section>}

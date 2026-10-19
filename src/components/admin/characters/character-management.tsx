@@ -1,11 +1,19 @@
 'use client';
 import {useCallback, useEffect, useState} from 'react';
+import {Plus, RefreshCw, Search} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {CharacterBulkActions} from './character-bulk-actions';
 import {CharacterEditor} from './character-editor';
 import {CharacterModelAccess} from './character-model-access';
 import {statusLabels, type CharacterContent, type CharacterSummary, type ManagedCharacter} from './types';
 import {apiFetch} from '@/lib/api-client';
+import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {DataTable} from '@/components/ui/data-table';
+import {EmptyState} from '@/components/ui/empty-state';
+import {Input} from '@/components/ui/input';
+import {Select} from '@/components/ui/select';
 
 export function CharacterManagement() {
   const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
@@ -47,14 +55,71 @@ export function CharacterManagement() {
     try {await request('/api/admin/characters/publication', 'POST', {action, reason, items: items.map(character => ({id: character.id, updatedAt: character.updatedAt}))}); setRefresh(value => value + 1); setMessage('批量角色操作已完成。'); return true;}
     catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
   }
-  if (accessLoading) return <p role="status" className="p-6">正在读取角色管理权限…</p>;
-  if (!token || !allowed) return <p role="alert" className="p-6">{accessError || '当前账号没有角色管理查看权限。'}</p>;
-  return <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">角色管理</h1><p className="mt-2 text-sm text-muted-foreground">按状态、标签和作者管理角色，编辑与发布分别授权。后台新增角色及其素材归站点所有，个人作者的角色仍保留原作者归属。</p></div>{canEdit && <button className="min-h-11 rounded-lg border px-4" disabled={busy} onClick={() => {setSelected(null); setDetail(null); setCreating(true); setError(''); setMessage('');}}>新增角色</button>}</div>
-    {error && <p role="alert" className="text-red-400">{error}</p>}{message && <p role="status">{message}</p>}
-    <form className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={event => {event.preventDefault(); setQuery(q); setPage(1); setRefresh(value => value + 1); setError('');}}><label className="text-sm">搜索角色<input className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3" maxLength={100} value={q} onChange={event => setQ(event.target.value)} placeholder="名称、简介或角色编号" /></label><label className="text-sm">审核状态<select aria-label="审核状态" className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3" value={status} onChange={event => {setStatus(event.target.value); setPage(1);}}><option value="ALL">全部状态</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="text-sm">标签筛选<input className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3" maxLength={50} value={tag} onChange={event => {setTag(event.target.value); setPage(1);}} /></label><label className="text-sm">作者编号<input className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3" maxLength={100} value={creator} onChange={event => {setCreator(event.target.value); setPage(1);}} /></label><div className="flex gap-3 sm:col-span-2 xl:col-span-4"><button className="min-h-11 rounded-lg border px-4" disabled={reading}>搜索角色</button><button type="button" className="min-h-11 rounded-lg border px-4" disabled={reading} onClick={() => setRefresh(value => value + 1)}>刷新列表</button></div></form>
+  if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在读取角色管理权限…" /></AdminPage>;
+  if (!token || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有角色管理查看权限。'} /></AdminPage>;
+  return <AdminPage>
+    <AdminPageHeader
+      eyebrow="内容与社区"
+      title="角色管理"
+      description="按状态、标签和作者管理角色，编辑与发布分别授权。后台新增角色及其素材归站点所有，个人作者的角色仍保留原作者归属。"
+      actions={canEdit && <Button leadingIcon={<Plus className="h-4 w-4" />} disabled={busy} onClick={() => {setSelected(null); setDetail(null); setCreating(true); setError(''); setMessage('');}}>新增角色</Button>}
+    />
+    {error && <AdminNotice tone="error" title={error} className="py-6" />}
+    {message && <AdminNotice tone="success" title={message} className="py-6" />}
+    <AdminPanel title="筛选检索" description="支持按名称、简介、标签、作者编号与审核状态组合筛选。" badge={list && <Badge>{list.total} 个</Badge>}>
+      <form className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" onSubmit={event => {event.preventDefault(); setQuery(q); setPage(1); setRefresh(value => value + 1); setError('');}}>
+        <label className="space-y-1.5 text-sm font-medium text-foreground">搜索角色
+          <Input maxLength={100} value={q} onChange={event => setQ(event.target.value)} placeholder="名称、简介或角色编号" />
+        </label>
+        <label className="space-y-1.5 text-sm font-medium text-foreground">审核状态
+          <Select aria-label="审核状态" value={status} onChange={event => {setStatus(event.target.value); setPage(1);}}><option value="ALL">全部状态</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select>
+        </label>
+        <label className="space-y-1.5 text-sm font-medium text-foreground">标签筛选
+          <Input maxLength={50} value={tag} onChange={event => {setTag(event.target.value); setPage(1);}} />
+        </label>
+        <label className="space-y-1.5 text-sm font-medium text-foreground">作者编号
+          <Input maxLength={100} value={creator} onChange={event => {setCreator(event.target.value); setPage(1);}} />
+        </label>
+        <div className="flex flex-wrap gap-3 sm:col-span-2 xl:col-span-4">
+          <Button type="submit" leadingIcon={<Search className="h-4 w-4" />} disabled={reading}>搜索角色</Button>
+          <Button type="button" variant="outline" leadingIcon={<RefreshCw className="h-4 w-4" />} disabled={reading} onClick={() => setRefresh(value => value + 1)}>刷新列表</Button>
+        </div>
+      </form>
+    </AdminPanel>
     {canPublish && list && <CharacterBulkActions items={list.items.filter(character => selectedRows[character.id])} busy={busy} onApply={bulkPublish} />}
-    {reading && <p role="status">正在查询角色…</p>}{list && <><div className="max-w-full overflow-x-auto rounded-xl border"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b">{canPublish && <th className="p-3">选择</th>}<th className="p-3">角色</th><th className="p-3">归属作者</th><th className="p-3">状态</th><th className="p-3">标签</th><th className="p-3">更新时间</th><th className="p-3">操作</th></tr></thead><tbody>{list.items.map(character => <tr key={character.id} className="border-b align-top">{canPublish && <td className="p-3"><input aria-label={`选择角色 ${character.name}`} type="checkbox" disabled={busy || character.reviewStatus === "DELETED"} checked={!!selectedRows[character.id]} onChange={event => setSelectedRows(previous => ({...previous, [character.id]: event.target.checked}))} /></td>}<td className="max-w-64 break-words p-3"><p className="font-semibold">{character.name}</p><p className="text-muted-foreground">{character.tagline}</p><p className="mt-1 break-all text-xs text-muted-foreground">{character.id}</p></td><td className="p-3">{character.creator?.username ?? '系统'}</td><td className="p-3">{statusLabels[character.reviewStatus]} · {character.isPublic ? '公开' : '不公开'}</td><td className="max-w-48 break-words p-3">{character.tags ?? '无'}</td><td className="whitespace-nowrap p-3">{new Date(character.updatedAt).toLocaleString('zh-CN')}</td><td className="p-3"><button className="min-h-11 rounded-lg border px-3" aria-label={`查看角色 ${character.name}`} disabled={busy} onClick={() => {setCreating(false); setSelected(character.id); setError(''); setMessage('');}}>查看详情</button></td></tr>)}</tbody></table></div>{!list.total && <p>没有匹配的角色。</p>}<div className="flex flex-wrap items-center gap-3"><span>共 {list.total} 个 · 第 {page} 页</span><button className="min-h-11 rounded-lg border px-4 disabled:opacity-50" disabled={page <= 1 || busy} onClick={() => setPage(value => value - 1)}>上一页</button><button className="min-h-11 rounded-lg border px-4 disabled:opacity-50" disabled={page * list.pageSize >= list.total || busy} onClick={() => setPage(value => value + 1)}>下一页</button></div></>}
-    {detailLoading && <p role="status">正在读取角色详情…</p>}{(creating || detail) && <CharacterEditor key={creating ? 'new' : `${detail!.id}:${detail!.updatedAt}`} character={creating ? null : detail} canEdit={canEdit} canPublish={canPublish} busy={busy} onSave={save} onPublish={publish} onClose={() => {setCreating(false); setSelected(null); setDetail(null);}} />}
+    {reading && <AdminNotice tone="loading" title="正在查询角色…" />}    {list && <DataTable
+      rows={list.items}
+      getRowId={character => character.id}
+      empty={<EmptyState title="没有匹配的角色" description="调整筛选条件后重试。" />}
+      columns={[
+        ...(canPublish ? [{id: 'select', header: '选择', width: '64px', cell: (character: CharacterSummary) => (
+          <input aria-label={`选择角色 ${character.name}`} type="checkbox" className="h-4 w-4 rounded border-border accent-brand" disabled={busy || character.reviewStatus === 'DELETED'} checked={!!selectedRows[character.id]} onChange={event => setSelectedRows(previous => ({...previous, [character.id]: event.target.checked}))} />
+        )}] : []),
+        {id: 'name', header: '角色', cell: character => (
+          <span className="block max-w-xs break-words">
+            <span className="block font-medium">{character.name}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">{character.tagline}</span>
+            <span className="mt-1 block break-all text-xs text-muted-foreground">{character.id}</span>
+          </span>
+        )},
+        {id: 'creator', header: '归属作者', width: '140px', cell: character => character.creator?.username ?? '系统'},
+        {id: 'status', header: '状态', width: '150px', cell: character => (
+          <span className="flex flex-wrap items-center gap-1.5">
+            <Badge variant={character.reviewStatus === 'APPROVED' ? 'success' : character.reviewStatus === 'DELETED' ? 'danger' : 'warning'}>{statusLabels[character.reviewStatus]}</Badge>
+            <Badge variant={character.isPublic ? 'brand' : 'neutral'}>{character.isPublic ? '公开' : '不公开'}</Badge>
+          </span>
+        )},
+        {id: 'tags', header: '标签', width: '180px', cell: character => <span className="block max-w-48 break-words text-xs text-muted-foreground">{character.tags ?? '无'}</span>},
+        {id: 'updated', header: '更新时间', width: '180px', cell: character => <span className="whitespace-nowrap text-xs text-muted-foreground">{new Date(character.updatedAt).toLocaleString('zh-CN')}</span>},
+        {id: 'actions', header: '操作', width: '110px', cell: character => (
+          // 一列里会有多个同名按钮，带上角色名才能让读屏和验收脚本区分。
+          <Button size="sm" variant="outline" aria-label={`查看角色 ${character.name}`} disabled={busy} onClick={() => {setCreating(false); setSelected(character.id); setError(''); setMessage('');}}>查看详情</Button>
+        )},
+      ]}
+      pagination={{page, pageCount: Math.max(1, Math.ceil(list.total / list.pageSize)), onPageChange: value => setPage(value), summary: `共 ${list.total} 个`}}
+    />}
+    {detailLoading && <AdminNotice tone="loading" title="正在读取角色详情…" />}
+    {(creating || detail) && <CharacterEditor key={creating ? 'new' : `${detail!.id}:${detail!.updatedAt}`} character={creating ? null : detail} canEdit={canEdit} canPublish={canPublish} busy={busy} onSave={save} onPublish={publish} onClose={() => {setCreating(false); setSelected(null); setDetail(null);}} />}
     {detail&&!creating&&<CharacterModelAccess key={detail.id} characterId={detail.id} deleted={detail.reviewStatus==='DELETED'}/>}
-  </main>;
+  </AdminPage>;
 }

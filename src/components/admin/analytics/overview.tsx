@@ -1,6 +1,9 @@
 'use client';
 
 import {useEffect,useState} from 'react';
+import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
+import {DataTable} from '@/components/ui/data-table';
+import {Select} from '@/components/ui/select';
 
 type Report={
   generatedAt:string;since:string;days:number;
@@ -34,18 +37,79 @@ export function AnalyticsOverview({token}:{token:string}){
     ['已付订单',number(report.payments.paidOrders)],['支付金额',yuan(report.payments.paidAmountCnyCents)],['成功退款',number(report.payments.completedRefunds)],
   ]:[];
 
-  return <main className="mx-auto w-full max-w-[1440px] space-y-5">
-    <header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold md:text-3xl">运营分析</h1><p className="mt-2 text-sm text-muted-foreground">按真实业务记录汇总；此页面不读取或展示聊天内容。</p></div><label className="space-x-2 text-sm">统计周期<select className="min-h-11 rounded-lg border bg-background px-3" value={days} onChange={event=>setDays(Number(event.target.value))}><option value={7}>近 7 天</option><option value={30}>近 30 天</option><option value={90}>近 90 天</option></select></label></header>
-    {loading&&<p role="status">正在读取真实业务汇总…</p>}
-    {error&&<p role="alert" className="rounded-lg border border-red-500/30 p-4 text-red-400">{error}</p>}
+  return <AdminPage>
+    <AdminPageHeader
+      eyebrow="增长与运营"
+      title="运营分析"
+      description="按真实业务记录汇总；此页面不读取或展示聊天内容。"
+      actions={
+        <div className="w-32">
+          <Select aria-label="统计周期" value={days} onChange={event=>setDays(Number(event.target.value))}>
+            <option value={7}>近 7 天</option><option value={30}>近 30 天</option><option value={90}>近 90 天</option>
+          </Select>
+        </div>
+      }
+    />
+    {loading&&<AdminNotice tone="loading" title="正在读取真实业务汇总…" />}
+    {error&&<AdminNotice tone="error" title={error} />}
     {report&&<>
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label,value])=><article key={label} className="min-w-0 rounded-xl border bg-card p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 break-words text-2xl font-semibold">{value}</p></article>)}</section>
-      <section className="grid gap-4 xl:grid-cols-2">
-        <article className="space-y-3 rounded-xl border bg-card p-4"><h2 className="font-semibold">转化与退款</h2><p>注册用户付费率：{report.users.registrationPaymentRate===null?'样本不足':(report.users.registrationPaymentRate*100).toFixed(2)+'%'}</p><p>退款金额：{yuan(report.payments.refundedAmountCnyCents)}</p><p>退款后充值金额：{yuan(report.payments.paidAmountCnyCents-report.payments.refundedAmountCnyCents)}</p><p className="text-sm text-muted-foreground">付费率沿用同周期注册与 EZFP 人民币已付款用户口径；退款只计已确认成功。</p></article>
-        <article className="space-y-3 rounded-xl border bg-card p-4"><h2 className="font-semibold">AI 调用与成本估算</h2>{report.aiCosts.length?report.aiCosts.map(row=><div key={row.currency} className="rounded-lg border p-3"><p>{row.currency} · {number(row.calls)} 次调用 · 已知成本 {row.estimatedCost.toFixed(6)}</p><p className="mt-1 text-sm text-muted-foreground">已知 {number(row.knownCostCalls)} 次 · 未知 {number(row.unknownCostCalls)} 次 · 失败 {number(row.failedCalls)} 次 · 模拟 {number(row.mockCalls)} 次</p></div>):<p className="text-sm text-muted-foreground">此周期没有 AI 调用记录。</p>}<p className="text-sm text-muted-foreground">不同币种分开统计；未知成本没有按零处理。</p></article>
-      </section>
-      <section className="space-y-3 rounded-xl border bg-card p-4"><div><h2 className="font-semibold">注册 cohort 留存</h2><p className="text-sm text-muted-foreground">按 UTC 注册日统计在第 1、7、30 天再次认证的账号比例；仅展示汇总，不含用户标识。新采集数据从 {report.retention.dataFrom?new Date(report.retention.dataFrom).toLocaleDateString('zh-CN'):'今天'} 起，历史日期不会回填。</p></div>{!report.retention.cohorts.length?<p className="text-sm text-muted-foreground">暂无可展示的注册 cohort。</p>:<div className="max-w-full overflow-x-auto"><table className="w-full min-w-[620px] text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="p-2">注册日（UTC）</th><th className="p-2">注册人数</th><th className="p-2">D1 留存</th><th className="p-2">D7 留存</th><th className="p-2">D30 留存</th></tr></thead><tbody>{report.retention.cohorts.map(row=><tr key={row.cohortDate} className="border-b"><td className="p-2">{row.cohortDate}</td><td className="p-2">{number(row.cohortSize)}</td>{[row.d1,row.d7,row.d30].map((metric,index)=><td key={index} className="p-2">{!metric.matured?'未成熟':metric.rate===null?'—':`${(metric.rate*100).toFixed(1)}% (${number(metric.returned)})`}</td>)}</tr>)}</tbody></table></div>}</section>
-      <section className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"><h2 className="font-semibold">指标口径与数据缺口</h2><p className="text-sm">活跃账号：{report.definitions.activeUsers}</p><p className="text-sm">留存：以注册日为 cohort，D1/D7/D30 指注册后的第 1/7/30 个 UTC 日有成功认证活动；从采集起逐步成熟，不能回算采集前历史。</p><p className="text-sm">毛利暂不可计算：{report.definitions.grossMarginUnavailableReason}</p><p className="text-xs text-muted-foreground">统计区间：{new Date(report.since).toLocaleString('zh-CN')} 至 {new Date(report.generatedAt).toLocaleString('zh-CN')} · 汇总时间 {new Date(report.generatedAt).toLocaleString('zh-CN')}</p></section>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label,value])=>(
+        <article key={label} className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="mt-2 break-words text-2xl font-semibold tabular-nums leading-none text-foreground">{value}</p>
+        </article>
+      ))}</div>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <AdminPanel title="转化与退款" description="付费率沿用同周期注册与 EZFP 人民币已付款用户口径；退款只计已确认成功。">
+          <div className="space-y-2 text-sm">
+            <p>注册用户付费率：{report.users.registrationPaymentRate===null?'样本不足':(report.users.registrationPaymentRate*100).toFixed(2)+'%'}</p>
+            <p>退款金额：{yuan(report.payments.refundedAmountCnyCents)}</p>
+            <p>退款后充值金额：{yuan(report.payments.paidAmountCnyCents-report.payments.refundedAmountCnyCents)}</p>
+          </div>
+        </AdminPanel>
+        <AdminPanel title="AI 调用与成本估算" description="不同币种分开统计；未知成本没有按零处理。">
+          {report.aiCosts.length
+            ? <div className="space-y-3">{report.aiCosts.map(row=>(
+                <div key={row.currency} className="rounded-lg border border-border p-3">
+                  <p className="text-sm text-foreground">{row.currency} · {number(row.calls)} 次调用 · 已知成本 {row.estimatedCost.toFixed(6)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">已知 {number(row.knownCostCalls)} 次 · 未知 {number(row.unknownCostCalls)} 次 · 失败 {number(row.failedCalls)} 次 · 模拟 {number(row.mockCalls)} 次</p>
+                </div>
+              ))}</div>
+            : <p className="text-sm text-muted-foreground">此周期没有 AI 调用记录。</p>}
+        </AdminPanel>
+      </div>
+      <AdminPanel title="注册 cohort 留存" description={`按 UTC 注册日统计在第 1、7、30 天再次认证的账号比例；仅展示汇总，不含用户标识。新采集数据从 ${report.retention.dataFrom?new Date(report.retention.dataFrom).toLocaleDateString('zh-CN'):'今天'} 起，历史日期不会回填。`}>
+        {!report.retention.cohorts.length
+          ? <p className="text-sm text-muted-foreground">暂无可展示的注册 cohort。</p>
+          : <DataTable
+              rows={report.retention.cohorts}
+              getRowId={row => row.cohortDate}
+              dense
+              className="border-none"
+              columns={[
+                {id: 'cohort', header: '注册日（UTC）', cell: row => row.cohortDate},
+                {id: 'size', header: '注册人数', align: 'right', cell: row => <span className="tabular-nums">{number(row.cohortSize)}</span>},
+                {id: 'd1', header: 'D1 留存', cell: row => renderRetention(row.d1)},
+                {id: 'd7', header: 'D7 留存', cell: row => renderRetention(row.d7)},
+                {id: 'd30', header: 'D30 留存', cell: row => renderRetention(row.d30)},
+              ]}
+            />}
+      </AdminPanel>
+      <AdminPanel title="指标口径与数据缺口" description="阅读这些指标前先确认口径。">
+        <div className="space-y-2">
+          <p className="text-sm">活跃账号：{report.definitions.activeUsers}</p>
+          <p className="text-sm">留存：以注册日为 cohort，D1/D7/D30 指注册后的第 1/7/30 个 UTC 日有成功认证活动；从采集起逐步成熟，不能回算采集前历史。</p>
+          <p className="text-sm">毛利暂不可计算：{report.definitions.grossMarginUnavailableReason}</p>
+          <p className="text-xs text-muted-foreground">统计区间：{new Date(report.since).toLocaleString('zh-CN')} 至 {new Date(report.generatedAt).toLocaleString('zh-CN')}</p>
+        </div>
+      </AdminPanel>
     </>}
-  </main>;
+  </AdminPage>;
+}
+
+/** 未成熟的 cohort 不能当作留存为 0，单独标注。 */
+function renderRetention(metric: {returned: number; matured: boolean; rate: number | null}) {
+  if (!metric.matured) return <span className="text-xs text-muted-foreground">未成熟</span>;
+  if (metric.rate === null) return <span className="text-muted-foreground">—</span>;
+  return <span className="tabular-nums">{(metric.rate*100).toFixed(1)}% ({number(metric.returned)})</span>;
 }

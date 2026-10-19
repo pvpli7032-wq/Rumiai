@@ -34,15 +34,19 @@ try{
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+'/admin/growth');await page.getByRole('heading',{name:'任务与奖励',exact:true}).waitFor();
   await page.getByLabel('第 1 天签到奖励').waitFor();assert.equal(await page.getByLabel('第 1 天签到奖励').inputValue(),'10');
-  await page.getByLabel('第 2 天签到奖励').fill('77');await page.getByLabel('操作理由').first().fill('浏览器验收调整签到奖励');
+  // 三个面板都有「操作理由」输入框，必须按面板/弹窗范围取，不能靠 .first()/.last() 猜顺序。
+  const checkinPanel=page.getByRole('region',{name:'连续签到金币'}),giftPanel=page.getByRole('region',{name:'礼物目录'});
+  await page.getByLabel('第 2 天签到奖励').fill('77');await checkinPanel.getByLabel('操作理由').fill('浏览器验收调整签到奖励');
   await page.getByRole('button',{name:'保存签到奖励',exact:true}).click();await page.getByLabel('第 2 天签到奖励').waitFor();assert.equal(await page.getByLabel('第 2 天签到奖励').inputValue(),'77');
+  // 任务表单在弹窗里，不在「平台任务」面板内部。
   await page.getByRole('button',{name:'新建任务',exact:true}).click();
-  await page.getByLabel('任务名称').fill('浏览器签到任务');await page.getByLabel('金币奖励').fill('25');await page.getByLabel('启用任务').check();await page.getByLabel('操作理由').first().fill('浏览器验收创建任务');
+  const missionDialog=page.getByRole('dialog',{name:'新建任务'});
+  await missionDialog.getByLabel('任务名称').fill('浏览器签到任务');await missionDialog.getByLabel('金币奖励').fill('25');await missionDialog.getByLabel('启用任务').check();await missionDialog.getByLabel('操作理由').fill('浏览器验收创建任务');
   const saveResponse=page.waitForResponse(response=>response.request().method()==='POST'&&response.url().includes('/api/admin/growth/missions'));
   await page.getByRole('button',{name:'保存任务',exact:true}).click();
   const saved=await saveResponse;const savedBody=await saved.json();assert.equal(saved.status(),201,JSON.stringify(savedBody));
   await page.getByText('浏览器签到任务',{exact:false}).waitFor();
-  await page.getByLabel('礼物代码').fill('browser_star');await page.getByLabel('名称',{exact:true}).fill('浏览器星星');await page.getByLabel('图标').fill('⭐');await page.getByLabel('金币价格').fill('12');await page.getByLabel('操作理由').last().fill('浏览器验收创建礼物');
+  await page.getByLabel('礼物代码').fill('browser_star');await page.getByLabel('名称',{exact:true}).fill('浏览器星星');await page.getByLabel('图标').fill('⭐');await page.getByLabel('金币价格').fill('12');await giftPanel.getByLabel('操作理由').fill('浏览器验收创建礼物');
   const giftSaveResponse=page.waitForResponse(response=>response.request().method()==='POST'&&response.url().includes('/api/admin/growth/gifts'));
   await page.getByRole('button',{name:'新增礼物',exact:true}).click();const giftSaved=await giftSaveResponse;assert.equal(giftSaved.status(),201,await giftSaved.text());
   const giftCatalog=await context.request.get(base+'/api/gifts');assert.equal(giftCatalog.status(),200);const browserGift=(await giftCatalog.json()).gifts.find(item=>item.code==='browser_star');assert(browserGift);assert.equal(browserGift.coinPrice,12);

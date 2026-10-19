@@ -11,6 +11,7 @@ const buttonVariants = createVariants(
       outline: 'border border-border bg-transparent text-foreground hover:bg-muted',
       ghost: 'bg-transparent text-foreground hover:bg-muted',
       danger: 'bg-destructive text-destructive-foreground hover:opacity-90',
+      success: 'bg-emerald-600 text-white hover:opacity-90',
       link: 'bg-transparent text-brand underline-offset-4 hover:underline',
     },
     size: {
@@ -23,7 +24,7 @@ const buttonVariants = createVariants(
   { variant: 'primary', size: 'md' },
 );
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'link';
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success' | 'link';
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 
 export interface ButtonProps extends ComponentPropsWithRef<'button'> {

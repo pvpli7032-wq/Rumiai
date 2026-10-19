@@ -1,10 +1,55 @@
-export type ReviewCharacter = {id: string; name: string; tagline: string; personality: string; background: string; greeting: string; scenario: string; roleTemplate: string; tags: string; avatarUrl: string; copyrightStatement: string; reviewStatus: string; updatedAt: string; openReportCount: number; creator?: {username: string}};
+'use client';
 
-export function CharacterReviewCard({character, reason, onReason, onReview, canReview, busy, selected, onSelect}: {character: ReviewCharacter; reason: string; onReason: (value: string) => void; onReview: (status: string) => void; canReview: boolean; busy: boolean; selected: boolean; onSelect: (value: boolean) => void}) {
-  return <article className="space-y-3 break-words rounded-xl border border-border p-4"><h2 className="font-bold">{character.name}</h2>
-    {canReview && <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={selected} disabled={busy} onChange={event => onSelect(event.target.checked)} />选择角色 {character.name}</label>}
-    <p>{character.reviewStatus === 'PENDING' ? '待审核' : '已公开'} · 创作者：{character.creator?.username || '系统'} · 未处理举报：{character.openReportCount}</p>
-    {[['简介', character.tagline], ['人设', character.personality], ['背景', character.background], ['开场白', character.greeting], ['场景', character.scenario], ['扮演指引', character.roleTemplate], ['标签', character.tags], ['头像地址', character.avatarUrl], ['版权声明', character.copyrightStatement]].map(([label, value]) => <div key={label}><h3 className="text-sm font-semibold">{label}</h3><p className="whitespace-pre-wrap break-all text-sm text-muted-foreground">{value || '未填写'}</p></div>)}
-    {canReview && <><label className="block">审核说明（退回必填）<textarea className="mt-2 w-full rounded-lg border bg-transparent p-2" maxLength={1000} value={reason} onChange={event => onReason(event.target.value)} /></label><div className="flex flex-wrap gap-3"><button disabled={busy || character.reviewStatus === 'APPROVED'} className="min-h-11 rounded-lg bg-brand px-4 text-white disabled:opacity-50" onClick={() => onReview('APPROVED')}>通过公开</button><button disabled={busy} className="min-h-11 rounded-lg border px-4" onClick={() => onReview('REJECTED')}>退回 / 下架</button></div></>}
-  </article>;
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+
+export type ReviewCharacter = { id: string; name: string; tagline: string; personality: string; background: string; greeting: string; scenario: string; roleTemplate: string; tags: string; avatarUrl: string; copyrightStatement: string; reviewStatus: string; updatedAt: string; openReportCount: number; creator?: { username: string } };
+
+const FIELDS = [
+  ['简介', 'tagline'], ['人设', 'personality'], ['背景', 'background'], ['开场白', 'greeting'],
+  ['场景', 'scenario'], ['扮演指引', 'roleTemplate'], ['标签', 'tags'], ['头像地址', 'avatarUrl'], ['版权声明', 'copyrightStatement'],
+] as const;
+
+export function CharacterReviewCard({ character, reason, onReason, onReview, canReview, busy, selected, onSelect }: { character: ReviewCharacter; reason: string; onReason: (value: string) => void; onReview: (status: string) => void; canReview: boolean; busy: boolean; selected: boolean; onSelect: (value: boolean) => void }) {
+  return (
+    <article className="flex flex-col gap-4 break-words rounded-xl border border-border bg-card p-4 shadow-sm">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-semibold text-foreground">{character.name}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">创作者：{character.creator?.username || '系统'}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={character.reviewStatus === 'PENDING' ? 'warning' : 'success'}>{character.reviewStatus === 'PENDING' ? '待审核' : '已公开'}</Badge>
+          <Badge variant={character.openReportCount > 0 ? 'danger' : 'outline'}>未处理举报 {character.openReportCount}</Badge>
+        </div>
+      </header>
+      {canReview && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="h-4 w-4 rounded border-border accent-brand" checked={selected} disabled={busy} onChange={event => onSelect(event.target.checked)} />
+          选择角色 {character.name}
+        </label>
+      )}
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {FIELDS.map(([label, key]) => (
+          <div key={key} className="min-w-0">
+            <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
+            <dd className="mt-1 whitespace-pre-wrap break-all text-sm text-foreground">{character[key] || '未填写'}</dd>
+          </div>
+        ))}
+      </dl>
+      {canReview && (
+        <div className="space-y-3 border-t border-border pt-4">
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">审核说明（退回必填）</span>
+            <Textarea rows={3} maxLength={1000} value={reason} onChange={event => onReason(event.target.value)} />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={busy || character.reviewStatus === 'APPROVED'} onClick={() => onReview('APPROVED')}>通过公开</Button>
+            <Button variant="danger" disabled={busy} onClick={() => onReview('REJECTED')}>退回 / 下架</Button>
+          </div>
+        </div>
+      )}
+    </article>
+  );
 }

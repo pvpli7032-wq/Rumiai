@@ -1,7 +1,16 @@
 'use client';
 import {useCallback, useEffect, useState, type FormEvent} from 'react';
+import {Search} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {apiFetch} from '@/lib/api-client';
+import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {Dialog} from '@/components/ui/dialog';
+import {Input} from '@/components/ui/input';
+import {Select} from '@/components/ui/select';
+import {Textarea} from '@/components/ui/textarea';
+import {Pagination} from '@/components/ui/pagination';
 
 type CommentRow = {id: string; postId: string; content: string; imageUrl: string | null; status: string; updatedAt: string; author: {username: string; displayName: string | null}; post: {id: string; circle: {id: string; name: string}}};
 type Result = {items: CommentRow[]; total: number; page: number; pageSize: number};
@@ -12,11 +21,85 @@ export function CommentsManagement() {
   useEffect(() => {setResult(null); if (!token || !allowed) return; const controller = new AbortController(), params = new URLSearchParams({q: query, status, page: String(page)}); void request<Result>(`/api/admin/community/comments?${params}`, {signal: controller.signal}).then(data => {if (!controller.signal.aborted) setResult(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}); return () => controller.abort();}, [request, token, allowed, query, status, page, revision]);
   function search(event: FormEvent) {event.preventDefault(); setPage(1); setQuery(queryText); setRevision(value => value + 1);}
   async function apply(event: FormEvent) {event.preventDefault(); if (!pending || busy || !reason.trim()) return; setBusy(true); setError(''); try {await request(`/api/admin/community/comments/${encodeURIComponent(pending.row.id)}`, {method: 'PATCH', body: {action: pending.action, reason: reason.trim(), updatedAt: pending.row.updatedAt}}); setMessage('评论处置已记录。'); setPending(null); setReason(''); setRevision(value => value + 1);} catch (value) {setError((value as Error).message); setRevision(value => value + 1);} finally {setBusy(false);}}
-  if (loading) return <p role="status" className="p-6">正在读取社区管理权限…</p>;
-  if (!token || !allowed) return <p role="alert" className="p-6">{accessError || '当前账号没有社区管理查看权限。'}</p>;
-  return <main className="space-y-5"><header><h1 className="text-2xl font-bold">评论管理</h1><p className="mt-2 text-sm text-muted-foreground">检索公开、隐藏和已清除的评论，操作要求填写理由并写入审计。</p></header>{error&&<p role="alert" className="text-red-400">{error}</p>}{message&&<p role="status">{message}</p>}
-    <form onSubmit={search} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="text-sm">搜索评论<input value={queryText} maxLength={100} onChange={event=>setQueryText(event.target.value)} placeholder="评论、作者、帖子编号或圈子" className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"/></label><label className="text-sm">状态<select value={status} onChange={event=>{setStatus(event.target.value);setPage(1);}} className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"><option value="ALL">全部</option><option value="VISIBLE">公开</option><option value="HIDDEN">已下架</option><option value="DELETED">已清除</option></select></label><button className="min-h-11 self-end rounded-lg border px-4">搜索</button></form>
-    {result&&<><section className="space-y-3">{result.items.map(row=><article key={row.id} className="space-y-3 rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-2"><p className="break-words font-semibold">{row.post.circle.name} · {row.author.displayName||row.author.username}</p><span className="rounded-full border px-2 py-1 text-xs">{row.status==='VISIBLE'?'公开':row.status==='HIDDEN'?'已下架':'已清除'}</span></div><p className="break-all text-xs text-muted-foreground">评论 {row.id} · 帖子 {row.post.id}</p><p className="whitespace-pre-wrap break-words">{row.content||'（内容已清除）'}</p>{row.imageUrl&&<img src={row.imageUrl} alt="评论附件" className="max-h-64 max-w-full rounded-lg object-contain"/>}{canEdit&&<div className="flex flex-wrap gap-2">{row.status==='VISIBLE'&&<button className="min-h-11 rounded-lg border px-3" onClick={()=>setPending({row,action:'HIDE'})}>下架</button>}{row.status==='HIDDEN'&&<button className="min-h-11 rounded-lg border px-3" onClick={()=>setPending({row,action:'RESTORE'})}>恢复</button>}{row.status!=='DELETED'&&<button className="min-h-11 rounded-lg border px-3 text-red-400" onClick={()=>setPending({row,action:'DELETE'})}>清除内容</button>}</div>}</article>)}</section>{!result.total&&<p>没有匹配的评论。</p>}<div className="flex flex-wrap items-center gap-3"><span>共 {result.total} 条 · 第 {page} 页</span><button disabled={page<=1||busy} onClick={()=>setPage(value=>value-1)} className="min-h-11 rounded-lg border px-3">上一页</button><button disabled={page*result.pageSize>=result.total||busy} onClick={()=>setPage(value=>value+1)} className="min-h-11 rounded-lg border px-3">下一页</button><button onClick={()=>setRevision(value=>value+1)} className="min-h-11 rounded-lg border px-3">刷新</button></div></>}
-    {pending&&<div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"><form onSubmit={apply} className="w-full max-w-lg space-y-4 rounded-xl border bg-background p-5"><h2 className="text-lg font-semibold">确认{pending.action==='HIDE'?'下架':pending.action==='RESTORE'?'恢复':'清除内容'}</h2><label className="block text-sm">操作理由<textarea required maxLength={500} value={reason} onChange={event=>setReason(event.target.value)} className="mt-1 min-h-28 w-full rounded-lg border bg-background p-3"/></label><div className="flex justify-end gap-2"><button type="button" onClick={()=>setPending(null)} className="min-h-11 rounded-lg border px-4">取消</button><button disabled={busy||!reason.trim()} className="min-h-11 rounded-lg bg-brand px-4 text-white">{busy?'处理中…':'确认处置'}</button></div></form></div>}
-  </main>;
+  if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取社区管理权限…" /></AdminPage>;
+  if (!token || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有社区管理查看权限。'} /></AdminPage>;
+  const pageCount = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
+  return (
+    <AdminPage>
+      <AdminPageHeader eyebrow="内容与社区" title="评论管理" description="检索公开、隐藏和已清除的评论，操作要求填写理由并写入审计。" />
+      {error && <AdminNotice tone="error" title={error} className="py-6" />}
+      {message && <AdminNotice tone="success" title={message} className="py-6" />}
+
+      <AdminPanel title="筛选检索" description="支持按评论内容、作者、帖子编号或圈子检索。">
+        <form onSubmit={search} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto]">
+          <label className="space-y-1.5 text-sm font-medium text-foreground">搜索评论
+            <Input value={queryText} maxLength={100} onChange={event => setQueryText(event.target.value)} placeholder="评论、作者、帖子编号或圈子" />
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-foreground">状态
+            <Select aria-label="评论状态" value={status} onChange={event => {setStatus(event.target.value); setPage(1);}}>
+              <option value="ALL">全部</option>
+              <option value="VISIBLE">公开</option>
+              <option value="HIDDEN">已下架</option>
+              <option value="DELETED">已清除</option>
+            </Select>
+          </label>
+          <Button type="submit" leadingIcon={<Search className="h-4 w-4" />} className="self-end">搜索</Button>
+        </form>
+      </AdminPanel>
+
+      <AdminPanel title="评论列表" badge={result && <Badge>{result.total} 条</Badge>}>
+        {result ? (
+          result.items.length === 0 ? (
+            <p className="py-6 text-sm text-muted-foreground">没有匹配的评论。</p>
+          ) : (
+            <div className="grid gap-4 xl:grid-cols-2">
+              {result.items.map(row => (
+                <article key={row.id} className="space-y-3 rounded-lg border border-border p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="break-words text-sm font-semibold text-foreground">{row.post.circle.name} · {row.author.displayName || row.author.username}</p>
+                    <Badge variant={row.status === 'VISIBLE' ? 'success' : row.status === 'HIDDEN' ? 'warning' : 'danger'}>{row.status === 'VISIBLE' ? '公开' : row.status === 'HIDDEN' ? '已下架' : '已清除'}</Badge>
+                  </div>
+                  <p className="break-all text-xs text-muted-foreground">评论 {row.id} · 帖子 {row.post.id}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm text-foreground">{row.content || '（内容已清除）'}</p>
+                  {row.imageUrl && <img src={row.imageUrl} alt="评论附件" className="max-h-64 max-w-full rounded-lg object-contain" />}
+                  {canEdit && (
+                    <div className="flex flex-wrap gap-2">
+                      {row.status === 'VISIBLE' && <Button size="sm" variant="outline" onClick={() => {setPending({row, action: 'HIDE'}); setReason('');}}>下架</Button>}
+                      {row.status === 'HIDDEN' && <Button size="sm" variant="outline" onClick={() => {setPending({row, action: 'RESTORE'}); setReason('');}}>恢复</Button>}
+                      {row.status !== 'DELETED' && <Button size="sm" variant="danger" onClick={() => {setPending({row, action: 'DELETE'}); setReason('');}}>清除内容</Button>}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )
+        ) : (
+          <AdminNotice tone="loading" title="正在读取评论…" />
+        )}
+        {result && result.total > 0 && (
+          <Pagination page={page} pageCount={pageCount} onPageChange={value => setPage(value)} summary={`共 ${result.total} 条`} disabled={busy} className="mt-5" />
+        )}
+      </AdminPanel>
+
+      <Dialog
+        open={Boolean(pending)}
+        onClose={() => setPending(null)}
+        title={`确认${pending?.action === 'HIDE' ? '下架' : pending?.action === 'RESTORE' ? '恢复' : '清除内容'}`}
+        description={pending ? `处置会写入审计，请填写可追溯的理由。目标评论 ${pending.row.id}。` : undefined}
+        footer={
+          <>
+            <Button variant="outline" disabled={busy} onClick={() => setPending(null)}>取消</Button>
+            <Button type="submit" form="comment-action-form" disabled={busy || !reason.trim()}>{busy ? '处理中…' : '确认处置'}</Button>
+          </>
+        }
+      >
+        <form id="comment-action-form" onSubmit={apply}>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">操作理由</span>
+            <Textarea required maxLength={500} rows={4} value={reason} onChange={event => setReason(event.target.value)} />
+          </label>
+        </form>
+      </Dialog>
+    </AdminPage>
+  );
 }

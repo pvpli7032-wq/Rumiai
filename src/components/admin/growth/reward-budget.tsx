@@ -1,26 +1,74 @@
 'use client';
 
-import {useEffect,useState} from 'react';
+import { useEffect, useState } from 'react';
+import { AdminNotice, AdminPanel, AdminStat, AdminStatGrid } from '../admin-page';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { Select } from '@/components/ui/select';
 
-type Report={days:number;since:string;generatedAt:string;budgetLimitConfigured:boolean;totalClaims:number;totalCoins:number;sources:{key:string;label:string;claims:number;coins:number}[];daily:{date:string;claims:number;coins:number}[]};
-const format=(value:number)=>new Intl.NumberFormat('zh-CN').format(value);
+type Report = { days: number; since: string; generatedAt: string; budgetLimitConfigured: boolean; totalClaims: number; totalCoins: number; sources: { key: string; label: string; claims: number; coins: number }[]; daily: { date: string; claims: number; coins: number }[] };
+const format = (value: number) => new Intl.NumberFormat('zh-CN').format(value);
 
-export function RewardBudget({token}:{token:string}){
-  const [days,setDays]=useState(7),[report,setReport]=useState<Report|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('');
-  useEffect(()=>{
-    const controller=new AbortController();setLoading(true);setError('');
-    void fetch(`/api/admin/growth/rewards?days=${days}`,{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:controller.signal})
-      .then(async response=>{const data=await response.json();if(!response.ok)throw Error(data.error);return data as Report;})
-      .then(setReport).catch(reason=>{if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:'奖励发放统计读取失败。');})
-      .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
-    return()=>controller.abort();
-  },[days,token]);
-  return <section className="space-y-4 rounded-xl border bg-card p-4">
-    <header className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">奖励发放监控</h2><p className="text-sm text-muted-foreground">按金币账本来源汇总真实发放笔数和金币；当前没有设置预算上限，因此只展示消耗，不做封顶拦截。</p></div><label className="space-x-2 text-sm">统计周期<select aria-label="奖励统计周期" className="min-h-11 rounded-lg border bg-background px-3" value={days} onChange={event=>setDays(Number(event.target.value))}><option value={7}>近 7 天</option><option value={30}>近 30 天</option><option value={90}>近 90 天</option></select></label></header>
-    {loading&&<p role="status">正在汇总金币奖励流水…</p>}{error&&<p role="alert" className="text-sm text-red-400">{error}</p>}
-    {report&&<><div className="grid gap-3 sm:grid-cols-3"><article className="rounded-lg border p-3"><p className="text-sm text-muted-foreground">奖励金币</p><p className="mt-1 text-2xl font-semibold">{format(report.totalCoins)}</p></article><article className="rounded-lg border p-3"><p className="text-sm text-muted-foreground">领取笔数</p><p className="mt-1 text-2xl font-semibold">{format(report.totalClaims)}</p></article><article className="rounded-lg border p-3"><p className="text-sm text-muted-foreground">预算上限</p><p className="mt-1 font-semibold">{report.budgetLimitConfigured?'已配置':'未配置'}</p></article></div>
-      <div className="grid gap-2 sm:grid-cols-3">{report.sources.map(source=><article key={source.key} className="min-w-0 rounded-lg border p-3"><h3 className="font-medium">{source.label}</h3><p className="mt-1 text-sm">{format(source.coins)} 金币 · {format(source.claims)} 笔领取</p></article>)}</div>
-      <div className="max-w-full overflow-x-auto"><table className="w-full min-w-[360px] text-left text-sm"><thead><tr className="border-b text-muted-foreground"><th className="p-2">UTC 日期</th><th className="p-2">发放金币</th><th className="p-2">领取笔数</th></tr></thead><tbody>{report.daily.map(row=><tr key={row.date} className="border-b"><td className="p-2">{row.date}</td><td className="p-2">{format(row.coins)}</td><td className="p-2">{format(row.claims)}</td></tr>)}</tbody></table>{!report.daily.length&&<p className="p-3 text-sm text-muted-foreground">所选时间内暂无奖励领取。</p>}</div>
-      <p className="text-xs text-muted-foreground">统计区间：{new Date(report.since).toLocaleString('zh-CN')} 至 {new Date(report.generatedAt).toLocaleString('zh-CN')}。零金币任务仍计入领取笔数；金币金额来自有来源标记的账本流水。</p></>}
-  </section>;
+const dailyColumns: DataTableColumn<Report['daily'][number]>[] = [
+  { id: 'date', header: 'UTC 日期', cell: row => <span className="whitespace-nowrap">{row.date}</span> },
+  { id: 'coins', header: '发放金币', align: 'right', width: '140px', cell: row => <span className="tabular-nums">{format(row.coins)}</span> },
+  { id: 'claims', header: '领取笔数', align: 'right', width: '140px', cell: row => <span className="tabular-nums">{format(row.claims)}</span> },
+];
+
+export function RewardBudget({ token }: { token: string }) {
+  const [days, setDays] = useState(7), [report, setReport] = useState<Report | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController(); setLoading(true); setError('');
+    void fetch(`/api/admin/growth/rewards?days=${days}`, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store', signal: controller.signal })
+      .then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error); return data as Report; })
+      .then(setReport).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '奖励发放统计读取失败。'); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [days, token]);
+
+  return (
+    <AdminPanel
+      title="奖励发放监控"
+      description="按金币账本来源汇总真实发放笔数和金币；当前没有设置预算上限，因此只展示消耗，不做封顶拦截。"
+      actions={
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">统计周期</span>
+          <Select size="sm" aria-label="奖励统计周期" className="w-32" value={days} onChange={event => setDays(Number(event.target.value))}>
+            <option value={7}>近 7 天</option><option value={30}>近 30 天</option><option value={90}>近 90 天</option>
+          </Select>
+        </label>
+      }
+    >
+      <div className="space-y-5">
+        {loading && <AdminNotice tone="loading" title="正在汇总金币奖励流水…" />}
+        {error && <AdminNotice tone="error" title={error} />}
+        {report && (
+          <>
+            <AdminStatGrid className="sm:grid-cols-3 xl:grid-cols-3">
+              <AdminStat label="奖励金币" value={format(report.totalCoins)} tone="brand" />
+              <AdminStat label="领取笔数" value={format(report.totalClaims)} />
+              <AdminStat label="预算上限" value={report.budgetLimitConfigured ? '已配置' : '未配置'} tone={report.budgetLimitConfigured ? 'success' : 'warning'} />
+            </AdminStatGrid>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {report.sources.map(source => (
+                <div key={source.key} className="min-w-0 rounded-lg border border-border p-3">
+                  <p className="text-sm font-medium">{source.label}</p>
+                  <p className="mt-1 text-sm tabular-nums text-muted-foreground">{format(source.coins)} 金币 · {format(source.claims)} 笔领取</p>
+                </div>
+              ))}
+            </div>
+            <div>
+              <p className="mb-3 text-sm font-medium">每日发放明细</p>
+              <DataTable
+                columns={dailyColumns}
+                rows={report.daily}
+                getRowId={row => row.date}
+                empty="所选时间内暂无奖励领取。"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">统计区间：{new Date(report.since).toLocaleString('zh-CN')} 至 {new Date(report.generatedAt).toLocaleString('zh-CN')}。零金币任务仍计入领取笔数；金币金额来自有来源标记的账本流水。</p>
+          </>
+        )}
+      </div>
+    </AdminPanel>
+  );
 }

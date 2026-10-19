@@ -61,6 +61,8 @@ export interface DataTableProps<T> {
   dense?: boolean;
   className?: string;
   rowClassName?: (row: T, index: number) => string | undefined;
+  /** Extra DOM attributes per row, for example `data-*` hooks used by tests. */
+  rowAttributes?: (row: T, index: number) => Record<string, string | undefined>;
 }
 
 const alignClass = { left: 'text-left', center: 'text-center', right: 'text-right' } as const;
@@ -91,6 +93,7 @@ export function DataTable<T>({
   dense = false,
   className,
   rowClassName,
+  rowAttributes,
 }: DataTableProps<T>) {
   const [internalSelection, setInternalSelection] = useState<string[]>([]);
   const [internalSort, setInternalSort] = useState<DataTableSort | null>(null);
@@ -172,7 +175,7 @@ export function DataTable<T>({
     return rows.map((row, index) => {
       const id = rowId(row, index);
       return (
-        <tr key={id} className={cn('border-t border-border transition-colors hover:bg-muted/40', rowClassName?.(row, index))}>
+        <tr key={id} {...rowAttributes?.(row, index)} className={cn('border-t border-border transition-colors hover:bg-muted/40', rowClassName?.(row, index))}>
           {selectable && (
             <td className={cn(cellPadding, 'w-10')}>
               <input

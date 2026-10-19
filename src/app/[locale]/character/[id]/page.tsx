@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { listPublicCharacterPosts, readPublicCharacter, resolveCharacterTagLabels } from '@/lib/characters/catalog-service';
 import {SITE_URL, alternateLanguages, compactNumber, getDictionary, isLocale, type Locale, DEFAULT_LOCALE} from '@/lib/i18n';
 import { PublicHeader } from '@/components/public-header';
+import { getSceneConfigByCharacterId } from '@/lib/stories/scene-config';
+import { resolveScene } from '@/lib/stories/scene-service';
 
 export const revalidate = 300;
 
@@ -56,6 +58,9 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
   ]);
 
   const creatorName = character.creator?.displayName ?? character.creator?.username;
+  const sceneConfig = getSceneConfigByCharacterId(character.id);
+  const sceneResolution = resolveScene(character, sceneConfig);
+  const availableScene = sceneResolution.kind === 'available' ? sceneResolution.scene : undefined;
 
   return (
     <main className="flex min-h-[100svh] flex-col">
@@ -76,6 +81,14 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
           <h1 className="mt-5 text-2xl font-bold text-white">{character.name}</h1>
           {character.tagline && (
             <p className="mt-2 text-zinc-400">&ldquo;{character.tagline}&rdquo;</p>
+          )}
+
+          {availableScene && (
+            <section className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 text-left">
+              <p className="text-sm text-zinc-300">本角色有一个可体验的场景</p>
+              <p className="mt-1 font-semibold text-white">{availableScene.title}</p>
+              <Link href={'/chat?character=' + encodeURIComponent(character.id) + '&scene=1'} className="mt-3 inline-flex min-h-10 items-center text-sm font-semibold text-brand-strong underline-offset-4 hover:underline">查看场景</Link>
+            </section>
           )}
 
           {tagLabels.length > 0 && (

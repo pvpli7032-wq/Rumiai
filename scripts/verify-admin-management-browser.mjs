@@ -50,7 +50,7 @@ try {
   await owner.page.getByRole('button', {name: '保存管理身份', exact: true}).click();
   await owner.page.getByText('管理身份已保存。', {exact: true}).waitFor();
   checks.push('通过页面查找账号并分配管理身份');
-  const staff = await login(actors[1]); await staff.page.goto(base + '/admin/moderation'); await staff.page.getByRole('heading', {name: '角色审核', exact: true}).waitFor();
+  const staff = await login(actors[1]); await staff.page.goto(base + '/admin/moderation'); await staff.page.getByRole('heading', {name: '审核中心', exact: true}).waitFor();
   await staff.page.waitForLoadState('networkidle'); assert.equal(await staff.page.getByRole('button', {name: '通过公开', exact: true}).count(), 0);
   assert.equal((await staff.context.request.get(base + '/api/admin/operators', {headers: {Authorization: `Bearer ${staff.token}`}})).status(), 403);
   const viewer = await login(actors[2]); await viewer.page.goto(base + '/admin/finance'); await viewer.page.getByRole('heading', {name: '充值套餐与赠送活动'}).waitFor();
@@ -72,7 +72,7 @@ try {
   assert.equal(relogin.status(), 200); const {token: freshToken} = await relogin.json();
   for (const contract of ['/api/admin/operators', '/api/admin/moderation/characters']) assert.equal((await staff.context.request.get(base + contract, {headers: {Authorization: `Bearer ${freshToken}`}})).status(), 403, `${contract} 仍向已停用身份返回数据`);
   checks.push('停用管理身份撤销已登录凭据，重新登录后管理接口全部拒绝');
-  await owner.page.goto(base + '/admin/audit'); await owner.page.getByRole('heading', {name: '管理操作审计', exact: true}).waitFor(); await owner.page.getByText('撤销合成员工管理访问', {exact: true}).waitFor();
+  await owner.page.goto(base + '/admin/audit'); await owner.page.getByRole('heading', {name: '操作审计', exact: true}).waitFor(); await owner.page.getByText('撤销合成员工管理访问', {exact: true}).waitFor();
   checks.push('页面展示真实管理变更审计');
   await owner.page.getByLabel('对象ID',{exact:true}).fill(actors[1].id);
   await owner.page.getByLabel('动作代码',{exact:true}).fill('SAVE_OPERATOR');
@@ -81,7 +81,7 @@ try {
   const filteredReport=await filteredResponse.json();assert(filteredReport.total>=2);assert(filteredReport.items.every(item=>item.targetId===actors[1].id&&item.action==='SAVE_OPERATOR'));
   await owner.page.getByText('撤销合成员工管理访问',{exact:true}).waitFor();
   await owner.page.getByLabel('对象ID',{exact:true}).fill('no-such-audit-target');
-  await owner.page.getByRole('button',{name:'筛选审计',exact:true}).click();await owner.page.getByText('暂无管理操作记录。',{exact:true}).waitFor();
+  await owner.page.getByRole('button',{name:'筛选审计',exact:true}).click();await owner.page.getByText('暂无管理操作记录',{exact:true}).waitFor();
   await owner.page.getByRole('button',{name:'重置筛选',exact:true}).click();await owner.page.getByText('撤销合成员工管理访问',{exact:true}).waitFor();
   checks.push('审计对象与动作交集筛选、空结果及重置');
   for (const width of [390, 1280]) {

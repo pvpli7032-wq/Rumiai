@@ -15,7 +15,9 @@ const notes = [];
 const rel = file => path.relative(root, file).replaceAll('\\', '/');
 const walk = (dir, out = []) => {
   for (const name of readdirSync(dir)) {
-    if (['node_modules', '.next', '.next-build', '.next-validation-build', '.git', '.temp'].includes(name)) continue;
+    // 只走人工维护的源码与文档。构建产物、测试证据、本地数据库与上传是生成物，
+    // 里面出现旧品牌名或旧路径不代表源码残留（此前 artifacts/planning 就误报过一次）。
+    if (['node_modules', '.next', '.next-build', '.next-validation-build', '.git', '.temp', 'artifacts', 'uploads'].includes(name)) continue;
     const full = path.join(dir, name);
     if (statSync(full).isDirectory()) walk(full, out);
     else out.push(full);
@@ -85,10 +87,10 @@ else notes.push('前后台隔离：前台 0 处引用后台组件');
 /** 8. khui 命名：白名单之外不允许出现。 */
 const khuiAllow = file => {
   const p = rel(file);
-  return p === 'LICENSE' || p === 'THIRD_PARTY_NOTICES.md' || p === 'README.md'
+  return p === 'LICENSE' || p === 'THIRD_PARTY_NOTICES.md'
     // 部署名与运维文档：决策 D4 明确保留。
     || p.startsWith('prisma/migrations/') || p.startsWith('deploy/')
-    || p.startsWith('docs/') || p === 'AGENTS.md' || p === 'CLAUDE.md'
+    || p.startsWith('docs/')
     // 旧站拉取的语言词典，键名沿用上游，替换键名会把 PULLED_FIELDS 映射一起弄坏。
     || p.startsWith('src/lib/i18n/dictionaries/') || p === 'src/lib/i18n.ts'
     // 下面三处是「提到 khui 是为了禁掉它」，不是残留。
@@ -104,9 +106,16 @@ const khuiHits = tracked.filter(file => /khui/i.test(read(file)) && !khuiAllow(f
 if (khuiHits.length) failures.push(`khui 命名残留：${khuiHits.join(', ')}`);
 else notes.push('khui 命名：白名单外 0 处（部署名、历史迁移、旧站拉取词典保留）');
 
-/** 9. 核心文档齐备（部署运维已并入 ARCHITECTURE/README，不再单独成册）。 */
-for (const file of ['ARCHITECTURE.md', 'README.md', 'docs/待完成清单.md']) {
-  if (!existsSync(path.join(root, file))) failures.push(`缺少文档：${file}`);
+/**
+ * 9. 文档不是门禁项。
+ *
+ * 曾经在这里检查 ARCHITECTURE.md / README.md / docs/待完成清单.md 是否存在，但文档
+ * 去留由负责人决定（2026-10-20 决定删除根目录说明文档与历史清单），拿文件存在性当
+ * 完成定义只会逼人留一份没人维护的空壳。这里只保留一条可执行的事实：规划书基线文档
+ * 必须在仓库内，因为实施范围以它为准。
+ */
+if (!existsSync(path.join(root, 'docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx'))) {
+  failures.push('缺少规划书基线文档：docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx');
 }
 
 console.log('完成定义检查');

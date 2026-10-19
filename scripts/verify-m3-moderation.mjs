@@ -61,11 +61,11 @@ try {
   await page.goto(`${base}/admin/moderation`);
   await page.evaluate(token => localStorage.setItem('xingban_token', token), admin);
   await page.reload();
-  await page.getByRole('heading', { name: '社区管理台' }).waitFor();
+  await page.getByRole('heading', { name: '社区治理' }).waitFor();
   await page.getByLabel('举报状态').selectOption('REVIEWING');
   const reportCard = page.locator('article').filter({ hasText: `需管理员隐藏的帖子 ${stamp}` });
   await reportCard.getByRole('button', { name: '隐藏内容', exact: true }).waitFor();
-  await page.getByRole('heading', { name: '社区管理台' }).evaluate(element => element.scrollIntoView());
+  await page.getByRole('heading', { name: '社区治理' }).evaluate(element => element.scrollIntoView());
   await page.screenshot({ path: `${out}/community-moderation-mobile.png` });
   await reportCard.getByRole('button', { name: '隐藏内容', exact: true }).click();
   await page.getByLabel('举报状态').selectOption('OPEN');

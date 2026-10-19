@@ -44,11 +44,18 @@ try {
   }
   await selectUser(owner.page, actors[3]); await owner.page.getByRole('heading', {name: '近期金币流水', exact: true}).waitFor();
   assert(!(await owner.page.content()).includes('PRIVATE_PERSONA_MUST_NOT_BE_VISIBLE')); checks.push('工作台入口、用户搜索、关联资料与私有内容边界');
-  owner.page.on('dialog', dialog => void dialog.accept());
+  // 停用 / 恢复这类影响登录的操作由后台 Dialog 二次确认，不再使用原生 confirm。
+  async function confirmAccountDialog(page) {
+    const confirm = page.getByRole('dialog', {name: '确认账号操作'});
+    try { await confirm.waitFor({state: 'visible', timeout: 2000}); } catch { return; }
+    await confirm.getByRole('button', {name: '确认执行', exact: true}).click();
+  }
   async function execute(page, action, reason) {
     await page.getByLabel('操作类型', {exact: true}).selectOption(action); await page.getByLabel('操作理由', {exact: true}).fill(reason);
     const response = page.waitForResponse(value => value.url().includes('/api/admin/accounts/') && value.request().method() === 'PATCH');
-    await page.getByRole('button', {name: '执行账号操作', exact: true}).click(); return response;
+    await page.getByRole('button', {name: '执行账号操作', exact: true}).click();
+    await confirmAccountDialog(page);
+    return response;
   }
   assert.equal((await execute(owner.page, 'SUSPEND', '浏览器临时停用')).status(), 200); await owner.page.getByText('停用网站账号已完成。', {exact: true}).waitFor();
   assert.equal((await customer.context.request.get(base + '/api/auth/me', {headers: {Authorization: `Bearer ${customer.token}`}})).status(), 401);

@@ -35,6 +35,9 @@ try{
   const callbackOrder=await db.paymentOrder.findUniqueOrThrow({where:{orderNo:'OPSORDER-007'}});
   await db.paymentCallbackEvent.create({data:{paymentOrderId:callbackOrder.id,provider:'EZFP',providerTradeNo:'OPS-TRADE-007',outcome:'SETTLED'}});
   await db.paymentCallbackEvent.create({data:{paymentOrderId:callbackOrder.id,provider:'EZFP',providerTradeNo:'OPS-TRADE-007',outcome:'REJECTED',reasonCode:'amount_mismatch',receivedAt:new Date(Date.now()+1000)}});
+  // 「支付回调异常（聚合）」面板读的是按分钟去重的采样表，与订单级事件表不是同一张，两侧都要造。
+  const alertMinute=new Date(Math.floor(Date.now()/60000)*60000);
+  await db.paymentCallbackAlertSample.create({data:{provider:'EZFP',minuteStart:alertMinute,reasonCode:'amount_mismatch',firstSeenAt:alertMinute,lastSeenAt:alertMinute}});
   app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p',String(port)],{env,stdio:'ignore',windowsHide:true});
   let ready=false;
   for(let i=0;i<180;i++){
@@ -74,7 +77,8 @@ try{
   await page.getByRole('heading',{name:'充值订单',exact:true}).waitFor();
   await page.getByLabel('按订单号或渠道单号查找').fill('OPS-TRADE-007');
   await page.getByRole('button',{name:'查询',exact:true}).click();
-  await page.getByText('已验签回调 业务校验拒绝 · amount_mismatch',{exact:false}).waitFor({state:'visible'});
+  // 回调异常面板只按服务端原因标号渲染中文标签，不回显订单号。
+  await page.getByRole('region',{name:'支付回调异常（聚合）'}).getByText('订单金额不匹配',{exact:true}).waitFor({state:'visible'});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   await page.getByRole('heading',{name:'充值订单',exact:true}).scrollIntoViewIfNeeded();
   await page.screenshot({path:path.join(out,'payment-orders-mobile.png')});

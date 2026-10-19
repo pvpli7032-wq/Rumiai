@@ -15,6 +15,12 @@ import { spokenText } from '@/lib/rp-markup';
 import { speak, stopSpeaking } from '@/lib/speech';
 import { parseShortcuts, parseBannedWords, containsBannedWord, type Shortcut } from '@/lib/preferences';
 import { HiddenReply } from '@/components/chat/hidden-reply';
+import { ActionSuggestions } from '@/components/chat/action-suggestions';
+import { ChapterClose } from '@/components/stories/chapter-close';
+import { EndChapterDialog } from '@/components/stories/end-chapter-dialog';
+import { getSceneConfigByCharacterId } from '@/lib/stories/scene-config';
+import { resolveScene } from '@/lib/stories/scene-service';
+import { buildChapterCloseData } from '@/lib/stories/chapter-close';
 import { notifyChatListChanged } from '@/lib/conversations/chat-events';
 import { Send, Loader2, ArrowLeft, Flag } from 'lucide-react';
 import type {ChatMessage as Message} from '@/lib/api-types/conversations';
@@ -84,6 +90,8 @@ function ChatContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState('');
+  const [endChapterDialogOpen, setEndChapterDialogOpen] = useState(false);
+  const [showChapterClose, setShowChapterClose] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const activeRequest=useRef<AbortController|null>(null);
@@ -107,6 +115,10 @@ function ChatContent() {
   const requestedConversation = searchParams.get('conversation');
   const [resolvedCharId,setResolvedCharId] = useState<string|null>(null);
   const charId = searchParams.get('character') || resolvedCharId;
+  const requestedScene = searchParams.get('scene') === '1';
+  const sceneConfig = requestedScene && charId ? getSceneConfigByCharacterId(charId) : undefined;
+  const sceneResolution = requestedScene && character ? resolveScene(character, sceneConfig) : undefined;
+  const activeScene = sceneResolution?.kind === 'available' ? sceneResolution.scene : undefined;
   useEffect(()=>{setStreaming(false);setStreamingText('');setBusyId(null);return()=>{activeRequest.current?.abort();};},[charId,requestedConversation,conversationId]);
   useEffect(()=>{setResolvedCharId(null);if(!requestedConversation)return;if(!token){if(!authLoading)router.push(loginWithNext());return;}fetch('/api/conversations/'+encodeURIComponent(requestedConversation),{headers:{Authorization:'Bearer '+token}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>setResolvedCharId(data.conversation.character.id)).catch(()=>{setChatError('无法打开该对话，请返回聊天列表。');setLoading(false)});},[requestedConversation,token,authLoading,router]);
   // "新建聊天" on the detail dialog asks for a fresh room instead of reopening the last one.
@@ -374,6 +386,10 @@ function ChatContent() {
         )}
       </div>
 
+      {activeScene && showChapterClose ? (
+        <div className="flex-1 overflow-y-auto px-4 py-6"><div className="mx-auto max-w-3xl"><ChapterClose sceneTitle={activeScene.title} data={buildChapterCloseData(messages)} publicOpenQuestions={activeScene.publicOpenQuestions} onContinue={() => setShowChapterClose(false)} onBackToChat={() => setShowChapterClose(false)} /></div></div>
+      ) : (
+      <>
       {/* Messages */}
       <div className={`flex-1 overflow-y-auto px-4 py-6 w-full mx-auto ${readingMode ? 'max-w-2xl space-y-6 text-[15px] leading-loose' : 'max-w-3xl space-y-4'}`}>
         {messages.length === 0 && character && (
@@ -381,7 +397,7 @@ function ChatContent() {
             <CharacterAvatar character={character} size={64} className="mx-auto mb-3" />
             <p className="text-zinc-300 text-lg font-semibold mb-1">{character.name}</p>
             <p className="text-zinc-400 text-sm">
-              {character.greeting
+              {activeScene ? <RoleplayText text={activeScene.opening ?? activeScene.hook} /> : character.greeting
                 ? <RoleplayText text={character.greeting} />
                 : "你好！我是" + (character.name) + "，很高兴认识你。"}
             </p>
@@ -465,7 +481,10 @@ function ChatContent() {
         <div ref={messagesEndRef} />
       </div>
 
-      {conversationId&&token&&<div className="border-t border-white/10 px-4 py-2"><ConversationTools conversationId={conversationId} token={token} title={character?.name} disabled={streaming} onDeleted={()=>router.push('/chat')}/></div>}
+      <div className="flex items-center justify-end gap-3 border-t border-white/10 px-4 py-2">
+        {conversationId&&token&&<ConversationTools conversationId={conversationId} token={token} title={character?.name} disabled={streaming} onDeleted={()=>router.push('/chat')}/>}
+        {activeScene && <button type="button" onClick={() => setEndChapterDialogOpen(true)} className="text-sm text-zinc-400 hover:text-white">结束本次体验</button>}
+      </div>
 
       {/* Input */}
       <div className="bg-zinc-900/80 border-t border-white/10 backdrop-blur-xs px-4 py-4">
@@ -493,6 +512,7 @@ function ChatContent() {
             ))}
           </div>
         )}
+        {activeScene && <div className="mx-auto mb-2 max-w-3xl"><ActionSuggestions suggestions={activeScene.suggestions} onPick={text => setInput(prev => prev ? prev + ' ' + text : text)} disabled={streaming} /></div>}
         <form onSubmit={sendMessage} className="max-w-3xl mx-auto flex gap-3">
           <input
             type="text"
@@ -509,7 +529,11 @@ function ChatContent() {
           </button>
         </form>
       </div>
+      </>
+      )}
     </div>
+
+      {activeScene && <EndChapterDialog open={endChapterDialogOpen} onClose={() => setEndChapterDialogOpen(false)} onConfirm={() => { setEndChapterDialogOpen(false); setShowChapterClose(true); }} />}
 
       {conversationId && token && (
         <RelationshipPanel

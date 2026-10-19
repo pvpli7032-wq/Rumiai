@@ -31,7 +31,13 @@ try {
   async function login(actor) {
     const context = await browser.newContext({viewport: {width: 1280, height: 900}}); const response = await context.request.post(base + '/api/auth/login', {data: {email: actor.email, password}}); assert.equal(response.status(), 200);
     const {token} = await response.json(); await context.addInitScript(value => localStorage.setItem('xingban_token', value), token);
-    const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message)); page.on('dialog', dialog => void dialog.accept()); return {context, page, token};
+    const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message)); return {context, page, token};
+  }
+  // 发布/下架与批量操作都改成了后台 Dialog 二次确认：先弹出再点「确认执行」。
+  async function confirmExecution(page, name) {
+    const confirm = page.getByRole('dialog', {name});
+    try { await confirm.waitFor({state: 'visible', timeout: 2000}); } catch { return; }
+    await confirm.getByRole('button', {name: '确认执行', exact: true}).click();
   }
   const editor = await login(actors[1]); await editor.page.goto(base + '/admin'); await editor.page.getByRole('link', {name: /角色管理.*全部状态/}).click(); await editor.page.waitForURL('**/admin/characters');
   await editor.page.getByRole('button', {name: '新增角色', exact: true}).click();
@@ -54,15 +60,15 @@ try {
     await page.getByLabel('搜索角色', {exact: true}).fill('运营测试角色'); await page.getByRole('button', {name: '搜索角色', exact: true}).click(); await page.getByRole('button', {name: '查看角色 运营测试角色', exact: true}).click(); await page.getByRole('heading', {name: '角色详情 · 运营测试角色', exact: true}).waitFor();
   }
   const publisher = await login(actors[2]); await publisher.page.goto(base + '/admin/characters'); await selectRole(publisher.page); assert.equal(await publisher.page.getByRole('button', {name: '保存角色内容', exact: true}).count(), 0);
-  await publisher.page.getByLabel('操作理由', {exact: true}).fill('版权确认后发布'); const publication = publisher.page.waitForResponse(response => response.url().endsWith('/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '发布角色', exact: true}).click(); assert.equal((await publication).status(), 200);
+  await publisher.page.getByLabel('操作理由', {exact: true}).fill('版权确认后发布'); const publication = publisher.page.waitForResponse(response => response.url().endsWith('/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '发布角色', exact: true}).click(); await confirmExecution(publisher.page, '确认发布角色'); assert.equal((await publication).status(), 200);
   assert((await (await ordinary.context.request.get(base + '/api/characters')).json()).some(item => item.id === role.id)); checks.push('独立发布角色权限与前台可见性闭环');
   await editor.page.goto(base + '/admin/characters'); await selectRole(editor.page); await editor.page.getByLabel('背景', {exact: true}).fill('公开后修改背景'); await editor.page.getByLabel('操作理由', {exact: true}).fill('修改需要重新审核');
   const editResponse = editor.page.waitForResponse(response => response.url().endsWith('/api/admin/characters/' + role.id) && response.request().method() === 'PUT'); await editor.page.getByRole('button', {name: '保存角色内容', exact: true}).click(); assert.equal((await editResponse).status(), 200);
   assert(!(await (await ordinary.context.request.get(base + '/api/characters')).json()).some(item => item.id === role.id)); checks.push('编辑已公开内容自动撤下并等待重新审核');
   const reader = await login(actors[3]); await reader.page.goto(base + '/admin/characters'); await selectRole(reader.page); assert.equal(await reader.page.getByRole('button', {name: '保存角色内容', exact: true}).count(), 0); assert.equal(await reader.page.getByRole('button', {name: '发布角色', exact: true}).count(), 0); checks.push('角色只读身份无编辑和发布入口');
   await publisher.page.goto(base + '/admin/characters'); await publisher.page.getByLabel('选择角色 运营测试角色', {exact: true}).check(); await publisher.page.getByLabel('批量操作理由', {exact: true}).fill('批量公开验收');
-  let batch = publisher.page.waitForResponse(response => response.url().endsWith('/api/admin/characters/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '批量发布角色', exact: true}).click(); assert.equal((await batch).status(), 200); await publisher.page.waitForLoadState('networkidle');
-  await publisher.page.getByLabel('选择角色 运营测试角色', {exact: true}).check(); await publisher.page.getByLabel('批量操作理由', {exact: true}).fill('批量下架验收'); batch = publisher.page.waitForResponse(response => response.url().endsWith('/api/admin/characters/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '批量下架角色', exact: true}).click(); assert.equal((await batch).status(), 200); checks.push('角色管理批量公开和下架');
+  let batch = publisher.page.waitForResponse(response => response.url().endsWith('/api/admin/characters/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '批量发布角色', exact: true}).click(); await confirmExecution(publisher.page, '确认批量发布'); assert.equal((await batch).status(), 200); await publisher.page.waitForLoadState('networkidle');
+  await publisher.page.getByLabel('选择角色 运营测试角色', {exact: true}).check(); await publisher.page.getByLabel('批量操作理由', {exact: true}).fill('批量下架验收'); batch = publisher.page.waitForResponse(response => response.url().endsWith('/api/admin/characters/publication') && response.request().method() === 'POST'); await publisher.page.getByRole('button', {name: '批量下架角色', exact: true}).click(); await confirmExecution(publisher.page, '确认批量下架'); assert.equal((await batch).status(), 200); checks.push('角色管理批量公开和下架');
   for (const width of [390, 1280]) {
     await editor.page.setViewportSize({width, height: 900}); await editor.page.goto(base + '/admin/characters'); await selectRole(editor.page); await editor.page.waitForLoadState('networkidle');
     const region = editor.page.getByRole('region', {name: '后台工作区'}); const size = await region.evaluate(element => ({client: element.clientWidth, scroll: element.scrollWidth})); assert(size.scroll <= size.client + 1, `overflow ${width}`); await editor.page.screenshot({path: path.join(out, `characters-${width}.png`)});

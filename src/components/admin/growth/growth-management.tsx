@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import {useAuth} from '@/lib/auth-context';
 import {useAdminAccess} from '@/components/admin/use-admin-access';
+import {AdminNotice, AdminPage, AdminPageHeader} from '@/components/admin/admin-page';
 import {CheckinRewards} from './checkin-rewards';
 import {MissionManagement,type Mission} from './missions';
 import {GiftCatalogManagement} from './gift-catalog';
@@ -20,15 +21,17 @@ export function GrowthManagement(){
     finally{if(showLoading)setLoading(false);}
   },[token,canRead]);
   useEffect(()=>{void refresh();},[refresh]);
-  if(isLoading||accessLoading)return <main className="p-4"><p role="status">正在验证任务管理权限…</p></main>;
-  if(accessError)return <main className="p-4"><p role="alert">{accessError}</p></main>;
-  if(!token||!canRead)return <main className="p-4"><p role="alert">当前账号没有任务与奖励查看权限。</p></main>;
-  return <main className="mx-auto w-full max-w-[1440px] space-y-5">
-    <header><h1 className="text-2xl font-bold md:text-3xl">任务与奖励</h1><p className="mt-2 text-sm text-muted-foreground">任务领取由服务器核验活动记录；金币发放写入统一金币流水。签到默认档位沿用现行奖励值。</p></header>
+  if(isLoading||accessLoading)return <AdminPage><AdminNotice tone="loading" title="正在验证任务管理权限…" /></AdminPage>;
+  if(accessError)return <AdminPage><AdminNotice tone="error" title={accessError} /></AdminPage>;
+  if(!token||!canRead)return <AdminPage><AdminNotice tone="denied" title="当前账号没有任务与奖励查看权限。" /></AdminPage>;
+  return <AdminPage>
+    <AdminPageHeader eyebrow="增长与运营" title="任务与奖励" description="任务领取由服务器核验活动记录；金币发放写入统一金币流水。签到默认档位沿用现行奖励值。" />
     <RewardBudget token={token}/>
-    {error&&<p role="alert" className="rounded-lg border border-red-500/30 p-4 text-red-400">{error}</p>}
-    {loading?<p role="status">正在读取任务…</p>:<MissionManagement token={token} canManage={canManage} missions={missions} onSaved={()=>void refresh(false)}/>}
+    {error&&<AdminNotice tone="error" title={error} className="py-6" />}
+    {loading
+      ? <AdminNotice tone="loading" title="正在读取任务…" />
+      : <MissionManagement token={token} canManage={canManage} missions={missions} onSaved={()=>void refresh(false)}/>}
     <CheckinRewards token={token} canManage={canManage} onSaved={()=>void refresh(false)}/>
     <GiftCatalogManagement token={token} canManage={canManage}/>
-  </main>;
+  </AdminPage>;
 }

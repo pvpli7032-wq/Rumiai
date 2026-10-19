@@ -53,3 +53,6 @@ artifacts/
 
 # local scratch (docx extraction, remote helper scripts)
 .temp/
+
+# 服务器与面板凭据，只留在本机；绝不能进仓库或发布包
+线上测试文档资料.txt

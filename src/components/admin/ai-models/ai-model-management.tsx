@@ -1,6 +1,14 @@
 'use client';
 import {useCallback,useEffect,useState} from 'react';
+import {Plus} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
+import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {EmptyState} from '@/components/ui/empty-state';
+import {Input} from '@/components/ui/input';
+import {Select} from '@/components/ui/select';
+import {Textarea} from '@/components/ui/textarea';
 
 type Provider={id:string;name:string;isActive:boolean;hasSecret:boolean};
 type Model={id:string;key:string;displayName:string;modelCode:string;providerId:string;provider:{id:string;name:string;isActive:boolean};isActive:boolean;isDefault:boolean;isFallback:boolean;sortOrder:number;timeoutMs:number;maxRetries:number;maxOutputTokens:number;lastCheckAt:string|null;lastCheckStatus:string|null;version:number};
@@ -17,21 +25,67 @@ export function AiModelManagement(){
   function set<K extends keyof Draft>(key:K,value:Draft[K]){setDraft(old=>old?{...old,[key]:value}:old);}
   async function save(event:React.FormEvent){event.preventDefault();if(!draft||busy)return;setBusy(true);setError('');setNotice('');try{const body={...draft,sortOrder:Number(draft.sortOrder),timeoutMs:Number(draft.timeoutMs),maxRetries:Number(draft.maxRetries),maxOutputTokens:Number(draft.maxOutputTokens)};await request(draft.id?`/api/admin/ai/models/${encodeURIComponent(draft.id)}`:'/api/admin/ai/models',{method:draft.id?'PATCH':'POST',body:JSON.stringify(body)});setDraft(null);setNotice('模型与路由配置已保存。');await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
   async function test(model:Model){if(busy)return;setBusy(true);setError('');setNotice('');try{const result=await request(`/api/admin/ai/models/${encodeURIComponent(model.id)}/test`,{method:'POST'});setNotice(`${checkStatus[result.reachable?(result.authorized?(result.modelListed===false?'NOT_LISTED':'AVAILABLE'):'REJECTED'):'UNAVAILABLE']} · ${result.latencyMs}ms${result.status?` · HTTP ${result.status}`:''}`);await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
-  if(loading)return <main className="p-6"><p role="status">正在读取管理权限…</p></main>;
-  if(!token||!permissions.includes('ai.models.read'))return <main className="p-6"><p role="alert">当前账号没有 AI 模型查看权限。</p></main>;
-  return <main className="space-y-5"><header><p className="text-xs font-medium uppercase tracking-widest text-violet-500">CM07 · MODEL ROUTING</p><h1 className="mt-2 text-2xl font-bold">AI 模型与路由</h1><p className="mt-2 max-w-3xl text-sm text-muted-foreground">将逻辑模型标识绑定到供应商实际模型代码。启用模型须绑定已启用且密钥可用的供应商；全站只能有一个默认模型，备用模型按排序依次尝试。聊天选择会保存逻辑标识，不会向客户端暴露供应商密钥。</p></header>
-    {error&&<p role="alert" className="break-words text-red-400">{error}</p>}{notice&&<p role="status" className="break-words">{notice}</p>}
-    <section className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">模型目录</h2>{canManage&&<button type="button" disabled={!providers.length} onClick={()=>{setDraft(blank(providers));setError('');setNotice('');}} className="min-h-11 rounded-lg bg-brand px-4 text-white disabled:opacity-50">新增模型</button>}</section>
-    <div className="grid gap-3">{rows.map(model=><article key={model.id} className="min-w-0 rounded-xl border bg-card p-4 md:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold">{model.displayName} <span className={`ml-2 rounded-full px-2 py-1 text-xs ${model.isActive?'bg-emerald-500/10 text-emerald-500':'bg-muted text-muted-foreground'}`}>{model.isActive?'已启用':'已停用'}</span>{model.isDefault&&<span className="ml-2 rounded-full bg-brand-soft px-2 py-1 text-xs text-brand">默认</span>}{model.isFallback&&<span className="ml-2 rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-400">备用</span>}</h3><p className="mt-2 break-all text-sm text-muted-foreground">键：{model.key} · {model.provider.name} / {model.modelCode}</p><p className="mt-1 text-xs text-muted-foreground">超时 {model.timeoutMs}ms · 重试 {model.maxRetries} 次 · 输出上限 {model.maxOutputTokens} tokens · v{model.version}{model.lastCheckStatus?` · 检查：${checkStatus[model.lastCheckStatus]??model.lastCheckStatus}`:''}</p></div><div className="flex flex-wrap gap-2">{canTest&&<button type="button" disabled={busy} onClick={()=>void test(model)} className="min-h-11 rounded-lg border px-3">检查模型</button>}{canManage&&<button type="button" onClick={()=>{setDraft({...model,reason:''});setError('');setNotice('');}} className="min-h-11 rounded-lg border px-3">编辑</button>}</div></div></article>)}</div>
-    {rows.length===0&&<p className="rounded-xl border p-6 text-center text-muted-foreground">尚未配置模型。先在 AI 供应商页面登记并启用连接。</p>}
-    {draft&&<form onSubmit={save} className="space-y-4 rounded-xl border bg-card p-4 md:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">{draft.id?'编辑模型路由':'新增模型路由'}</h2><button type="button" onClick={()=>setDraft(null)} className="min-h-11 rounded-lg border px-3">取消</button></div>
-      <label className="block text-sm">逻辑模型标识<input required maxLength={64} readOnly={Boolean(draft.id)} value={draft.key} onChange={event=>set('key',event.target.value)} placeholder="例如 role-chat-pro" className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"/><span className="mt-1 block text-xs text-muted-foreground">保存后固定不变，用于既有会话的模型选择。</span></label>
-      <label className="block text-sm">前台显示名称<input required maxLength={80} value={draft.displayName} onChange={event=>set('displayName',event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"/></label>
-      <label className="block text-sm">供应商<select aria-label="供应商选择" required value={draft.providerId} onChange={event=>set('providerId',event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3">{providers.map(provider=><option key={provider.id} value={provider.id}>{provider.name}{provider.isActive&&provider.hasSecret?' · 可用':' · 未启用或密钥未配置'}</option>)}</select></label>
-      <label className="block text-sm">供应商模型代码<input required maxLength={120} value={draft.modelCode} onChange={event=>set('modelCode',event.target.value)} placeholder="由供应商提供的真实模型 ID" className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"/></label>
-      <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm">单次连接超时（毫秒）<input type="number" min={1000} max={120000} step={1000} value={draft.timeoutMs} onChange={event=>set('timeoutMs',Number(event.target.value))} className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"/></label><label className="block text-sm">最大重试次数<input type="number" min={0} max={2} value={draft.maxRetries} onChange={event=>set('maxRetries',Number(event.target.value))} className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"/></label><label className="block text-sm">最大输出 Token<input type="number" min={1} max={200000} value={draft.maxOutputTokens} onChange={event=>set('maxOutputTokens',Number(event.target.value))} className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"/></label><label className="block text-sm">排序值<input type="number" min={0} max={100000} value={draft.sortOrder} onChange={event=>set('sortOrder',Number(event.target.value))} className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"/></label></div>
-      <div className="flex flex-wrap gap-5"><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={draft.isActive} onChange={event=>set('isActive',event.target.checked)}/>启用模型</label><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={draft.isDefault} onChange={event=>set('isDefault',event.target.checked)}/>设为全站默认</label><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={draft.isFallback} onChange={event=>set('isFallback',event.target.checked)}/>备用路由</label></div>
-      <label className="block text-sm">操作理由<textarea required maxLength={300} value={draft.reason} onChange={event=>set('reason',event.target.value)} className="mt-1 min-h-20 w-full rounded-lg border bg-background p-3"/></label><button disabled={busy} className="min-h-11 rounded-lg bg-brand px-5 text-white">保存路由</button>
-    </form>}
-  </main>;
+  if(loading)return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
+  if(!token||!permissions.includes('ai.models.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有 AI 模型查看权限。" /></AdminPage>;
+  return <AdminPage>
+    <AdminPageHeader eyebrow="AI 与成本" title="模型与路由" description="将逻辑模型标识绑定到供应商实际模型代码。启用模型须绑定已启用且密钥可用的供应商；全站只能有一个默认模型，备用模型按排序依次尝试。聊天选择会保存逻辑标识，不会向客户端暴露供应商密钥。" />
+    {error&&<AdminNotice tone="error" title={error} className="break-words py-6" />}{notice&&<AdminNotice tone="success" title={notice} className="break-words py-6" />}
+    <AdminPanel title="模型目录" description="默认模型唯一，备用模型按排序值依次尝试。" badge={<Badge>{rows.length}</Badge>} actions={canManage&&<Button size="sm" leadingIcon={<Plus className="h-4 w-4" />} disabled={!providers.length} onClick={()=>{setDraft(blank(providers));setError('');setNotice('');}}>新增模型</Button>}>
+      <div className="grid gap-3">{rows.map(model=><article key={model.id} className="min-w-0 rounded-xl border bg-card p-4 md:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h3 className="flex flex-wrap items-center gap-2 font-semibold">{model.displayName}<Badge variant={model.isActive?'success':'neutral'}>{model.isActive?'已启用':'已停用'}</Badge>{model.isDefault&&<Badge variant="brand">默认</Badge>}{model.isFallback&&<Badge variant="outline">备用</Badge>}</h3><p className="mt-2 break-all text-sm text-muted-foreground">键：{model.key} · {model.provider.name} / {model.modelCode}</p><p className="mt-1 text-xs text-muted-foreground">超时 {model.timeoutMs}ms · 重试 {model.maxRetries} 次 · 输出上限 {model.maxOutputTokens} tokens · v{model.version}{model.lastCheckStatus?` · 检查：${checkStatus[model.lastCheckStatus]??model.lastCheckStatus}`:''}</p></div><div className="flex flex-wrap gap-2">{canTest&&<Button size="sm" variant="outline" aria-label={`检查模型 ${model.displayName}`} disabled={busy} onClick={()=>void test(model)}>检查模型</Button>}{canManage&&<Button size="sm" variant="outline" aria-label={`编辑 ${model.displayName}`} onClick={()=>{setDraft({...model,reason:''});setError('');setNotice('');}}>编辑</Button>}</div></div></article>)}</div>
+      {rows.length===0&&<EmptyState title="尚未配置模型" description="先在 AI 供应商页面登记并启用连接，再回来绑定模型路由。" />}
+    </AdminPanel>
+    {draft&&<AdminPanel title={draft.id?'编辑模型路由':'新增模型路由'} description="逻辑标识保存后不可更改，避免既有会话失效。" actions={<Button size="sm" variant="ghost" onClick={()=>setDraft(null)}>取消</Button>}>
+      <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5 sm:col-span-2">
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">逻辑模型标识</span>
+            <Input required maxLength={64} readOnly={Boolean(draft.id)} value={draft.key} onChange={event=>set('key',event.target.value)} placeholder="例如 role-chat-pro" />
+          </label>
+          {/* 说明文字不能塞进 label：label 的文本就是控件的可访问名，混在一起会污染表单标签。 */}
+          <p className="text-xs text-muted-foreground">保存后固定不变，用于既有会话的模型选择。</p>
+        </div>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">前台显示名称</span>
+          <Input required maxLength={80} value={draft.displayName} onChange={event=>set('displayName',event.target.value)} />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">供应商选择</span>
+          {/* select 包在 label 里时，可访问名会被 option 文本污染，显式 aria-label 才是稳定名字。 */}
+          <Select aria-label="供应商选择" required value={draft.providerId} onChange={event=>set('providerId',event.target.value)}>
+            {providers.map(provider=><option key={provider.id} value={provider.id}>{provider.name}{provider.isActive&&provider.hasSecret?' · 可用':' · 未启用或密钥未配置'}</option>)}
+          </Select>
+        </label>
+        <label className="block space-y-1.5 sm:col-span-2">
+          <span className="text-sm font-medium">供应商模型代码</span>
+          <Input required maxLength={120} value={draft.modelCode} onChange={event=>set('modelCode',event.target.value)} placeholder="由供应商提供的真实模型 ID" />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">单次连接超时（毫秒）</span>
+          <Input type="number" min={1000} max={120000} step={1000} value={draft.timeoutMs} onChange={event=>set('timeoutMs',Number(event.target.value))} />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">最大重试次数</span>
+          <Input type="number" min={0} max={2} value={draft.maxRetries} onChange={event=>set('maxRetries',Number(event.target.value))} />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">最大输出 Token</span>
+          <Input type="number" min={1} max={200000} value={draft.maxOutputTokens} onChange={event=>set('maxOutputTokens',Number(event.target.value))} />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">排序值</span>
+          <Input type="number" min={0} max={100000} value={draft.sortOrder} onChange={event=>set('sortOrder',Number(event.target.value))} />
+        </label>
+        <div className="flex flex-wrap gap-6 sm:col-span-2">
+          <label className="flex min-h-11 items-center gap-2 text-sm font-medium"><input type="checkbox" className="h-4 w-4 rounded border-border accent-brand" checked={draft.isActive} onChange={event=>set('isActive',event.target.checked)}/>启用模型</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm font-medium"><input type="checkbox" className="h-4 w-4 rounded border-border accent-brand" checked={draft.isDefault} onChange={event=>set('isDefault',event.target.checked)}/>设为全站默认</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm font-medium"><input type="checkbox" className="h-4 w-4 rounded border-border accent-brand" checked={draft.isFallback} onChange={event=>set('isFallback',event.target.checked)}/>备用路由</label>
+        </div>
+        <label className="block space-y-1.5 sm:col-span-2">
+          <span className="text-sm font-medium">操作理由</span>
+          <Textarea required maxLength={300} rows={3} value={draft.reason} onChange={event=>set('reason',event.target.value)} />
+        </label>
+        <div className="sm:col-span-2"><Button type="submit" loading={busy}>保存路由</Button></div>
+      </form>
+    </AdminPanel>}
+  </AdminPage>;
 }
