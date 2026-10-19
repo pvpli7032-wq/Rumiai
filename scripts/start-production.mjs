@@ -36,6 +36,10 @@ async function start(){
   console.info(JSON.stringify({event:'release_migrations_compatible',applied:migrations.appliedCount}));
   if(process.argv.includes('--check-only'))return;
   ensureWal(database);
+  // next.config 只有在 `npm start`/`npm run build` 下才凭 npm_lifecycle_event 选到 .next-build。
+  // 被 PM2 或 systemd 直接 exec 时没有那个变量，会退回 .next 并报「找不到生产构建」，
+  // 所以这里兜住缺省值，部署方不必再记得单独注入这个环境变量。
+  if (!process.env.NEXT_DIST_DIR?.trim()) process.env.NEXT_DIST_DIR = '.next-build';
   const child=spawn(process.execPath,[path.join(process.cwd(),'node_modules/next/dist/bin/next'),'start','--hostname','127.0.0.1','--port','3000'],{cwd:process.cwd(),env:process.env,stdio:'inherit',windowsHide:true});
   let stopping=false;
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{if(!stopping){stopping=true;child.kill(signal);}});
