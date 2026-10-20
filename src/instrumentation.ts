@@ -17,7 +17,10 @@ import './lib/stories/lifecycle/invalidation';
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
-  if (process.env.STORY_WORKER_DISABLED?.trim() === '1') return;
+  if (process.env.STORY_WORKER_DISABLED?.trim() === '1') {
+    console.info(JSON.stringify({event: 'story_state_worker_disabled'}));
+    return;
+  }
   const {startStateWorker} = await import('./lib/stories/lifecycle/state-worker');
   startStateWorker();
 }

@@ -306,5 +306,8 @@ export function startStateWorker(): () => void {
   }, intervalMs);
   timer.unref?.();
   stop = () => { clearInterval(timer); stop = null; };
+  // 默认态就是「开着」，所以启动必须留一条可 grep 的记录：否则进程里 worker 有没有跑
+  // 完全不可观测，状态提取停摆时只能等用户发现剧情不再推进。
+  console.info(JSON.stringify({event: 'story_state_worker_started', intervalMs}));
   return stop;
 }
