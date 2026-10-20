@@ -3,22 +3,29 @@
 // 红线：skeleton 状态的用例一律记 PENDING，绝不伪造通过；真实模型用例未获授权记 BLOCKED。
 
 import {loadCatalog, filterCases, summarize} from './catalog.mjs';
+import {domainExecutor} from './executors/domain.mjs';
+import {modelSimulatedExecutor} from './executors/model-simulated.mjs';
 
 export const RESULT = {
   PASS: 'PASS',
   FAIL: 'FAIL',
-  PENDING: 'PENDING',   // 用例已定义，执行器未实现
+  PENDING: 'PENDING',   // 用例已定义，执行器未实现；或语义断言待人工复核（model-simulated）
   BLOCKED: 'BLOCKED',   // 依赖缺失（如真实模型未授权、M4 未闭环）
   ERROR: 'ERROR',       // 框架自身异常
 };
 
-// 执行器注册表：key = verificationTier。M4 闭环后按层实现，见 docs/planning/w08-eval-plan.md 填充指引。
-// TODO(W08/M4): 实现 domain 执行器（调用 src/lib/stories 服务，隔离 SQLite，随机端口）。
-// TODO(W08/M4): 实现 model-simulated 执行器（模拟上游 SSE，断言 model-output 走人工复核队列）。
+// 执行器注册表：key = verificationTier。按 docs/planning/w08-eval-plan.md 第 6 节逐步落地：
+// - domain / model-simulated：已实现（M3-3 回合服务口径；model-output 断言进人工复核队列）。
 // TODO(W08/M5): 实现 model-real 执行器（须显式授权 env 开关 + 预算上限，缺一即 BLOCKED）。
 // TODO(W08/M5): 实现 load 执行器（固定场景压测，采集 p50/p95/锁等待/费用）。
 // TODO(W08/M2+): browser 执行器复用 scripts/verify-*-browser.mjs 的模式；manual 用例输出人工记录表。
-const executors = new Map();
+const executors = new Map([
+  ['domain', domainExecutor],
+  ['model-simulated', modelSimulatedExecutor],
+]);
+
+/** 已注册执行器的层级。结构测试以此约束 PASS 的合法来源。 */
+export const REGISTERED_TIERS = [...executors.keys()];
 
 const REAL_MODEL_AUTH_ENV = 'STORY_EVAL_ALLOW_REAL_MODEL'; // 显式授权开关，缺省必须拒绝
 const REAL_MODEL_BUDGET_ENV = 'STORY_EVAL_REAL_MODEL_BUDGET_TOKENS';

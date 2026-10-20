@@ -5,7 +5,7 @@
 //   validate                 校验用例目录结构（默认命令）
 //   list                     列出用例
 //   report                   输出按验收编号/层级/模型策略的汇总
-//   run                      执行用例（当前全部记 PENDING/BLOCKED，不伪造通过）
+//   run                      执行用例（domain/model-simulated 已可真实执行；model-output 断言进人工复核队列）
 //
 // 选项：
 //   --acceptance=A05         按验收编号筛选
@@ -16,15 +16,20 @@
 //   --json                   以 JSON 输出（供流水线消费）
 //
 // 退出码：
-//   0 = validate/list/report 成功
+//   0 = validate/list/report 成功；run 全部选中用例得到明确结论且无 FAIL/ERROR
 //   1 = 目录结构错误或参数错误
 //   2 = run 存在 FAIL/ERROR
-//   3 = run 无任何用例实际执行（全部 PENDING/BLOCKED，即 M4 闭环前状态）——这是预期的框架阶段信号
+//   3 = run 无任何用例实际执行（全部 PENDING/BLOCKED）——这不是通过也不是失败
 //
 // 红线：真实模型用例需要 STORY_EVAL_ALLOW_REAL_MODEL=1 且配置预算才可执行，否则一律 BLOCKED。
+// domain / model-simulated 执行器加载 TypeScript 业务源（M3-3 回合服务），run 命令
+// 在选中此类用例时自动以 node --import tsx 重启自身（STORY_EVAL_EXECUTOR_CHILD 防递归）。
 // 本脚本只读业务源码；测试自建隔离 SQLite，浏览器类执行须使用随机端口，不占用 3000/18782。
 
-import {runCases, loadCatalog, filterCases, summarize, RESULT} from '../tests/story-evaluation/runner.mjs';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {runCases, loadCatalog, filterCases, summarize, RESULT, REGISTERED_TIERS} from '../tests/story-evaluation/runner.mjs';
+import {disposeEvaluationEnvironment} from '../tests/story-evaluation/executors/harness.mjs';
 
 function parseArgs(argv) {
   const options = {command: 'validate', filter: {}, json: false};
@@ -102,20 +107,42 @@ async function main() {
   }
 
   if (options.command === 'run') {
+    // domain / model-simulated 执行器要动态 import src/ 的 TS 模块（@ 别名由 tsx 解析）。
+    // 选中了此类用例且当前进程不是 tsx 子进程时，以 node --import tsx 重启自身。
+    const needsExecutor = selected.some(c => c.status === 'implemented' && REGISTERED_TIERS.includes(c.verificationTier));
+    if (needsExecutor && process.env.STORY_EVAL_EXECUTOR_CHILD !== '1') {
+      const script = fileURLToPath(import.meta.url);
+      const child = spawnSync(process.execPath, ['--import', 'tsx', script, ...process.argv.slice(2)], {
+        stdio: 'inherit',
+        env: {...process.env, STORY_EVAL_EXECUTOR_CHILD: '1'},
+      });
+      if (child.error) {
+        console.error('启动执行器失败（缺少 tsx？）：' + child.error.message);
+        console.error('可手动运行：node --import tsx ' + script + ' run ' + process.argv.slice(2).join(' '));
+        process.exit(1);
+      }
+      process.exit(child.status ?? 1);
+    }
     const {results, summary, catalogErrors} = await runCases({filter: options.filter});
     if (catalogErrors.length) {
       console.error('目录错误：' + catalogErrors.join(' | '));
       process.exit(1);
     }
+    let executed = 0;
     for (const r of results) {
-      console.log(`${r.result.padEnd(7)}  ${r.id}  [${r.acceptance.join(',')}]  model=${r.modelPolicy}${r.reason ? '  ' + r.reason : ''}`);
+      console.log(`${r.result.padEnd(7)}  ${r.id}  [${r.acceptance.join(',')}]  tier=${r.tier}  model=${r.modelPolicy}${r.reason ? '  ' + r.reason : ''}`);
+      if (['PASS', 'FAIL', 'ERROR'].includes(r.result) || (r.result === 'PENDING' && r.review)) executed++;
     }
+    const reviewed = results.filter(r => r.review).length;
+    if (reviewed) console.log(`\n人工复核队列：${reviewed} 条（model-output 语义断言不自动判分，见 JSON 输出 review 字段）`);
     console.log(`\n选中 ${summary.selected}：PASS=${summary.pass} FAIL=${summary.fail} PENDING=${summary.pending} BLOCKED=${summary.blocked} ERROR=${summary.error}`);
     if (options.json) console.log(JSON.stringify({summary, results}, null, 2));
-    if (summary.pass + summary.fail + summary.error === 0 && summary.pending + summary.blocked > 0) {
-      console.log('\n没有任何用例实际执行（M4 闭环前的预期状态）。本结果不是通过，也不是失败。');
+    if (executed === 0 && summary.pending + summary.blocked > 0) {
+      console.log('\n没有任何用例实际执行（执行器未覆盖所选用例）。本结果不是通过，也不是失败。');
+      if (!process.env.STORY_EVAL_KEEP_DB) await disposeEvaluationEnvironment();
       process.exit(3);
     }
+    if (!process.env.STORY_EVAL_KEEP_DB) await disposeEvaluationEnvironment();
     if (summary.fail + summary.error > 0) process.exit(2);
     return;
   }
@@ -125,4 +152,4 @@ async function main() {
   process.exit(1);
 }
 
-main().catch(error => { console.error(error); process.exit(1); });
+main().catch(async error => { await disposeEvaluationEnvironment().catch(() => {}); console.error(error); process.exit(1); });

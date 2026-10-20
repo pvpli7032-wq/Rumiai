@@ -4,110 +4,206 @@
     {
       "id": "EV-A01-001",
       "title": "新开故事创建独立实例与专属会话，旧自由聊天互不混入",
-      "acceptance": ["A01"],
+      "acceptance": [
+        "A01"
+      ],
       "ownerWorkflow": "W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
-      "description": "对照规划书第 17/18 章：新故事必须显式新建会话；普通 createOrReuseConversation 排除 StoryRun 会话。部分断言已由 tests/story-run-service.test.mjs 覆盖，本用例要求端到端复核。",
+      "status": "implemented",
+      "description": "对照规划书第 17/18 章：新故事必须显式新建会话；普通 createOrReuseConversation 排除 StoryRun 会话。部分断言已由 tests/story-run-service.test.mjs 覆盖，本用例要求端到端复核。 执行器口径（已落地）：createStoryRun 创建独立实例与专属会话；createOrReuseConversation 不复用故事会话，旧聊天仍指向原会话。",
       "steps": [
-        {"actor": "user", "action": "创建故事实例（templateVersionId + requestId）", "expect": "返回独立 run 与专属 conversation"},
-        {"actor": "user", "action": "走旧聊天入口创建同角色普通会话", "expect": "不复用故事会话"}
+        {
+          "actor": "user",
+          "action": "创建故事实例（templateVersionId + requestId）",
+          "expect": "返回独立 run 与专属 conversation"
+        },
+        {
+          "actor": "user",
+          "action": "走旧聊天入口创建同角色普通会话",
+          "expect": "不复用故事会话"
+        }
       ],
       "assertions": [
-        {"kind": "state", "target": "StoryRun.conversationId", "expect": "唯一且指向新会话"},
-        {"kind": "state", "target": "普通会话 id", "expect": "不等于 run.conversationId"}
+        {
+          "kind": "state",
+          "target": "StoryRun.conversationId",
+          "expect": "唯一且指向新会话"
+        },
+        {
+          "kind": "state",
+          "target": "普通会话 id",
+          "expect": "不等于 run.conversationId"
+        }
       ],
-      "dependsOn": ["story-runs API（已上线 M3-2）"]
+      "dependsOn": [
+        "story-runs API（已上线 M3-2）"
+      ]
     },
     {
       "id": "EV-A01-002",
       "title": "继续故事定位原会话并展示最近真实消息",
-      "acceptance": ["A01"],
+      "acceptance": [
+        "A01"
+      ],
       "ownerWorkflow": "W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
-      "description": "规划书第 04/08 章：再次访问回到原会话并定位最近消息；V0 显示“上次聊到这里”，不得生成假进度。",
+      "status": "implemented",
+      "description": "规划书第 04/08 章：再次访问回到原会话并定位最近消息；V0 显示“上次聊到这里”，不得生成假进度。 执行器口径（已落地）：两轮 mock 回合定位同一实例与会话，消息按 USER/ASSISTANT 成对持久化，详情视图最近回合关联最近真实消息。",
       "steps": [
-        {"actor": "user", "action": "产生若干回合后退出", "expect": "进度持久化"},
-        {"actor": "user", "action": "重新登录进入继续入口", "expect": "定位到原会话与最近消息"}
+        {
+          "actor": "user",
+          "action": "产生若干回合后退出",
+          "expect": "进度持久化"
+        },
+        {
+          "actor": "user",
+          "action": "重新登录进入继续入口",
+          "expect": "定位到原会话与最近消息"
+        }
       ],
       "assertions": [
-        {"kind": "state", "target": "最近消息内容", "expect": "与退出前数据库内容一致，非生成文案"}
+        {
+          "kind": "state",
+          "target": "最近消息内容",
+          "expect": "与退出前数据库内容一致，非生成文案"
+        }
       ],
-      "dependsOn": ["M4 回合服务闭环"]
+      "dependsOn": [
+        "M4 回合服务闭环"
+      ]
     },
     {
       "id": "EV-A01-003",
       "title": "场景卡 3 秒内可读出“我是谁、我要做什么”",
-      "acceptance": ["A01"],
+      "acceptance": [
+        "A01"
+      ],
       "ownerWorkflow": "W03/W08",
       "verificationTier": "browser",
       "modelPolicy": "none",
       "status": "skeleton",
       "description": "补丁 A 的 V0 验收口径：详情页交代用户身份、当次冲突与本次目标；不泄漏隐藏真相。",
       "steps": [
-        {"actor": "visitor", "action": "打开场景详情页", "expect": "3 秒内可读出身份/冲突/目标"}
+        {
+          "actor": "visitor",
+          "action": "打开场景详情页",
+          "expect": "3 秒内可读出身份/冲突/目标"
+        }
       ],
       "assertions": [
-        {"kind": "dom", "target": "详情页正文", "expect": "包含身份、冲突、目标；不包含隐藏事实文本"}
+        {
+          "kind": "dom",
+          "target": "详情页正文",
+          "expect": "包含身份、冲突、目标；不包含隐藏事实文本"
+        }
       ],
-      "dependsOn": ["V0 场景详情页"]
+      "dependsOn": [
+        "V0 场景详情页"
+      ]
     },
     {
       "id": "EV-A01-004",
       "title": "三条建议动作填入可修改，新用户 30 秒内发出首条消息",
-      "acceptance": ["A01"],
+      "acceptance": [
+        "A01"
+      ],
       "ownerWorkflow": "W03/W08",
       "verificationTier": "browser",
       "modelPolicy": "none",
       "status": "skeleton",
       "description": "补丁 A：建议动作点击后填入输入框且允许修改，自由输入始终可用，不代用户自动发送。",
       "steps": [
-        {"actor": "new-user", "action": "点击建议动作", "expect": "文本填入输入框且可编辑"},
-        {"actor": "new-user", "action": "修改后发送", "expect": "消息按用户最终输入发出"}
+        {
+          "actor": "new-user",
+          "action": "点击建议动作",
+          "expect": "文本填入输入框且可编辑"
+        },
+        {
+          "actor": "new-user",
+          "action": "修改后发送",
+          "expect": "消息按用户最终输入发出"
+        }
       ],
       "assertions": [
-        {"kind": "state", "target": "消息内容", "expect": "与用户实际输入一致"}
+        {
+          "kind": "state",
+          "target": "消息内容",
+          "expect": "与用户实际输入一致"
+        }
       ],
-      "dependsOn": ["V0 聊天页建议动作"]
+      "dependsOn": [
+        "V0 聊天页建议动作"
+      ]
     },
     {
       "id": "EV-A01-005",
       "title": "章节结束页展示真实片段并可回到原会话或进入下一章",
-      "acceptance": ["A01"],
+      "acceptance": [
+        "A01"
+      ],
       "ownerWorkflow": "W03/W08",
       "verificationTier": "browser",
       "modelPolicy": "none",
       "status": "skeleton",
       "description": "补丁 A：结束页只展示本章真实片段、未完成问题与继续入口；V0 不判定完成、不保存结果。",
       "steps": [
-        {"actor": "user", "action": "主动结束本章", "expect": "结束页展示真实片段"},
-        {"actor": "user", "action": "点击继续入口", "expect": "回到原会话或进入下一章"}
+        {
+          "actor": "user",
+          "action": "主动结束本章",
+          "expect": "结束页展示真实片段"
+        },
+        {
+          "actor": "user",
+          "action": "点击继续入口",
+          "expect": "回到原会话或进入下一章"
+        }
       ],
       "assertions": [
-        {"kind": "dom", "target": "结束页片段", "expect": "内容取自真实消息，无编造总结"}
+        {
+          "kind": "dom",
+          "target": "结束页片段",
+          "expect": "内容取自真实消息，无编造总结"
+        }
       ],
-      "dependsOn": ["V0 章节结束页"]
+      "dependsOn": [
+        "V0 章节结束页"
+      ]
     },
     {
       "id": "EV-A01-006",
       "title": "重新开始创建新实例，旧进度保留",
-      "acceptance": ["A01"],
+      "acceptance": [
+        "A01"
+      ],
       "ownerWorkflow": "W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
-      "description": "规划书第 08 章：重新开始明确创建新实例，旧进度保留；关系默认属于当前实例，不自动合并。",
+      "status": "implemented",
+      "description": "规划书第 08 章：重新开始明确创建新实例，旧进度保留；关系默认属于当前实例，不自动合并。 执行器口径（已落地）：新 requestId 重新开始创建新实例与新会话；旧实例 revision、回合、消息与游标原样保留，chatCount 各计一次。",
       "steps": [
-        {"actor": "user", "action": "对已有实例重新开始", "expect": "新建第二个实例"},
-        {"actor": "user", "action": "查看旧实例", "expect": "旧进度原样保留"}
+        {
+          "actor": "user",
+          "action": "对已有实例重新开始",
+          "expect": "新建第二个实例"
+        },
+        {
+          "actor": "user",
+          "action": "查看旧实例",
+          "expect": "旧进度原样保留"
+        }
       ],
       "assertions": [
-        {"kind": "state", "target": "StoryRun 数量", "expect": "两实例独立，事件不跨实例合并"}
+        {
+          "kind": "state",
+          "target": "StoryRun 数量",
+          "expect": "两实例独立，事件不跨实例合并"
+        }
       ],
-      "dependsOn": ["M4 回合服务闭环"]
+      "dependsOn": [
+        "M4 回合服务闭环"
+      ]
     }
   ]
 }

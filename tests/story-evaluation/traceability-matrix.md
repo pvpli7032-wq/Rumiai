@@ -5,7 +5,7 @@
 >
 > 口径：
 > - **验收门 / 验证层级**对应规划书第 25 章六层验证：静态 → 领域规则与接口集成（domain）→ 浏览器完整流程（browser）→ 真实模型受控评测（model-simulated / model-real）→ 固定环境负载（load）→ 发布后观察。前一层通过不能代替后一层证据。
-> - **状态**：本矩阵只登记定义覆盖；用例 `status=skeleton` 表示执行器未实现，运行时记 PENDING，**不计通过**。真实评测等 M4 闭环，闭环前不得正式打分。
+> - **状态**：本矩阵只登记定义覆盖；用例 `status=skeleton` 表示执行器未实现，运行时记 PENDING，**不计通过**。`status=implemented` 表示执行器已落地，run 时真实执行。真实模型评测（model-real）等授权与预算配置，闭环前不得正式打分。
 > - 模拟 / 真实以用例字段 `modelPolicy`（none / simulated / real）区分，报告中必须可区分。
 
 ## 矩阵总览
@@ -34,19 +34,19 @@
 | 用例 | 标题 | 层级 | modelPolicy | 依赖 |
 |---|---|---|---|---|
 | EV-A01-001 | 新开创建独立实例与专属会话，旧聊天不混入 | domain | none | story-runs API（已上线 M3-2） |
-| EV-A01-002 | 继续定位原会话并展示最近真实消息 | domain | none | M4 回合服务闭环 |
+| EV-A01-002 | 继续定位原会话并展示最近真实消息 | domain | none | M3-3 回合服务（已落地，implemented） |
 | EV-A01-003 | 场景卡 3 秒内读出身份/冲突/目标 | browser | none | V0 场景详情页 |
 | EV-A01-004 | 三条建议动作填入可修改，30 秒发出首条消息 | browser | none | V0 聊天页 |
 | EV-A01-005 | 章节结束页展示真实片段并可继续 | browser | none | V0 章节结束页 |
-| EV-A01-006 | 重新开始创建新实例，旧进度保留 | domain | none | M4 |
+| EV-A01-006 | 重新开始创建新实例，旧进度保留 | domain | none | M3-3 回合服务（已落地，implemented） |
 
 ### A02 幂等与重复提交
 | 用例 | 标题 | 层级 | 依赖 |
 |---|---|---|---|
-| EV-A02-001 | 同 requestId 重试返回相同回合，不重复结算 | domain | M4 幂等 |
-| EV-A02-002 | expectedRevision 冲突返回 409 不覆盖 | domain | M4 revision CAS |
+| EV-A02-001 | 同 requestId 重试返回相同回合，不重复结算 | domain | M3-3 幂等（已落地，implemented） |
+| EV-A02-002 | expectedRevision 冲突返回 409 不覆盖 | domain | M3-3 revision CAS（已落地，implemented） |
 | EV-A02-003 | 并发创建端到端幂等（服务层已有覆盖） | domain | story-runs API |
-| EV-A02-004 | UNKNOWN 先核对本地记录，不自动重发 | domain | M4 未知结果恢复 |
+| EV-A02-004 | UNKNOWN 先核对本地记录，不自动重发 | domain | M3-3 未知结果恢复（已落地，implemented） |
 
 ### A03 断网与刷新
 | 用例 | 标题 | 层级 | modelPolicy |
@@ -147,6 +147,15 @@
 | EV-A13-003 | 已删消息的派生记忆同步删除或失效 | domain |
 | EV-A13-004 | 备份恢复后状态关联一致 | domain |
 | EV-A13-005 | 日志无正文/提示词/密钥 | domain |
+
+## 执行器落地记录（2026-10-20，eval-executor / W08）
+
+- **domain 执行器**（`executors/domain.mjs`）：直接调用 M3-3 真实服务层（turn-service / run-service / message-service / conversation-service / chat-application-service），数据落在一次性隔离 SQLite（`scripts/helpers/create-isolated-db.mjs`，node:sqlite 应用迁移），不连生产库。已 implemented 15 例：EV-A01-001/002/006、EV-A02-001/002/003/004、EV-A03-002、EV-A04-001/003、EV-A06-001/002/005/006、EV-A12-002。
+- **model-simulated 执行器**（`executors/model-simulated.mjs`）：在 `DISABLE_MOCK_AI=false` 模拟模式下自动断言第 19 章事件流契约（accepted/demo/delta/committed/state_pending/done、统一 turnId、committed 返回消息标识）与「同键重放不发模型」（重放流恰为 committed→state_pending→done、aiCall 计数不增）。已 implemented 7 例：EV-A05-001/002/003/004/005/007/008。**model-output 语义断言不自动判分**：契约断言通过后记 PENDING 并进人工复核队列（结果 JSON 带 `review` 字段），绝不伪造语义通过。
+- **运行入口**：`node scripts/verify-story-eval.mjs run` 在选中已实现用例时自动以 `node --import tsx` 重启自身（`STORY_EVAL_EXECUTOR_CHILD` 防递归）；退出码语义：0=无 FAIL/ERROR，2=存在 FAIL/ERROR，3=无任何用例实际执行。隔离库由执行器主动清理（`STORY_EVAL_KEEP_DB=1` 可保留排查）。
+- **结构测试红线（已随执行器落地调整）**：原「框架阶段 pass===0」收窄为等价约束——**PASS 只能来自 status=implemented 且 verificationTier 已注册执行器的用例**；skeleton 用例一律 PENDING/BLOCKED，不得 PASS/FAIL；model-real 无授权+无预算必须 BLOCKED；model-output 待人工复核的用例记 PENDING 不得自动 PASS。见 `story-evaluation.test.mjs` 第 5–7 个测试。
+- **依赖解除说明**：EV-A06-001/002 的原依赖「M4 历史失效事务」已随 M3-3 落地（`src/lib/stories/lifecycle/invalidation.ts`，message-service 同事务调用，contract §7），两例转 implemented。EV-A06-005 口径同步更新：旧 SEND/REGENERATE 仍 409；编辑/删除走同事务失效（不再 409）。
+- **已知漂移**：`tests/story-run-service.test.mjs`「old writes cannot bypass story lifecycle」一例仍断言编辑/删除 409，与 M3-3 失效事务语义不一致（该文件不在 W08 写作范围，未改动，需归属团队处理）。
 
 ## 内容种子案例映射（docs/content/drafts/README.md EV-01–EV-15）
 

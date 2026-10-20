@@ -4,56 +4,107 @@
     {
       "id": "EV-A03-001",
       "title": "断流保留可见片段并标注未确认保存",
-      "acceptance": ["A03"],
+      "acceptance": [
+        "A03"
+      ],
       "ownerWorkflow": "W03/W08",
       "verificationTier": "browser",
       "modelPolicy": "simulated",
       "status": "skeleton",
       "description": "规划书第 09 章状态表：连接中断时保留可见片段并标注未确认保存；连接结束本身不证明保存成功。",
       "steps": [
-        {"actor": "system", "action": "流式输出中途断开（模拟上游）", "expect": "界面保留片段并标注未确认"},
-        {"actor": "user", "action": "重新进入会话", "expect": "以服务端历史为准恢复"}
+        {
+          "actor": "system",
+          "action": "流式输出中途断开（模拟上游）",
+          "expect": "界面保留片段并标注未确认"
+        },
+        {
+          "actor": "user",
+          "action": "重新进入会话",
+          "expect": "以服务端历史为准恢复"
+        }
       ],
       "assertions": [
-        {"kind": "dom", "target": "未保存提示", "expect": "明确区分已保存/未确认"}
+        {
+          "kind": "dom",
+          "target": "未保存提示",
+          "expect": "明确区分已保存/未确认"
+        }
       ],
-      "dependsOn": ["V0 聊天页", "模拟 SSE 上游"]
+      "dependsOn": [
+        "V0 聊天页",
+        "模拟 SSE 上游"
+      ]
     },
     {
       "id": "EV-A03-002",
       "title": "刷新或断线重进先查询回合/保存状态，不盲目重发",
-      "acceptance": ["A03"],
+      "acceptance": [
+        "A03"
+      ],
       "ownerWorkflow": "W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
-      "description": "规划书第 19 章：网络中断后先查回合；只有确认未启动或已失败且用户主动重试才允许新请求。",
+      "status": "implemented",
+      "description": "规划书第 19 章：网络中断后先查回合；只有确认未启动或已失败且用户主动重试才允许新请求。 执行器口径（已落地）：持久化 GENERATING 回合后同键重试得 409 TURN_IN_PROGRESS；GET turns 查询端点属浏览器层口径，本层先证服务端拒绝盲目重发。",
       "steps": [
-        {"actor": "user", "action": "生成中刷新页面", "expect": "客户端查询 GET turns/{turnId}"},
-        {"actor": "user", "action": "查看恢复结果", "expect": "已提交则补齐消息，未启动才提示可重试"}
+        {
+          "actor": "user",
+          "action": "生成中刷新页面",
+          "expect": "客户端查询 GET turns/{turnId}"
+        },
+        {
+          "actor": "user",
+          "action": "查看恢复结果",
+          "expect": "已提交则补齐消息，未启动才提示可重试"
+        }
       ],
       "assertions": [
-        {"kind": "state", "target": "外部模型调用次数", "expect": "恢复过程零新增调用"}
+        {
+          "kind": "state",
+          "target": "外部模型调用次数",
+          "expect": "恢复过程零新增调用"
+        }
       ],
-      "dependsOn": ["M4 回合服务", "GET turns 端点"]
+      "dependsOn": [
+        "M4 回合服务",
+        "GET turns 端点"
+      ]
     },
     {
       "id": "EV-A03-003",
       "title": "取消生成按既有费用规则呈现，不承诺全部免费",
-      "acceptance": ["A03"],
+      "acceptance": [
+        "A03"
+      ],
       "ownerWorkflow": "W03/W08",
       "verificationTier": "browser",
       "modelPolicy": "simulated",
       "status": "skeleton",
       "description": "规划书第 09 章状态表与第 19 章：取消不能保证零费用；界面按既有规则呈现记录状态。",
       "steps": [
-        {"actor": "user", "action": "流式生成中取消", "expect": "显示已取消及记录状态"},
-        {"actor": "user", "action": "查看额度/账本", "expect": "结算口径与后端一致"}
+        {
+          "actor": "user",
+          "action": "流式生成中取消",
+          "expect": "显示已取消及记录状态"
+        },
+        {
+          "actor": "user",
+          "action": "查看额度/账本",
+          "expect": "结算口径与后端一致"
+        }
       ],
       "assertions": [
-        {"kind": "state", "target": "账本与界面提示", "expect": "一致，无“已全部免费”文案"}
+        {
+          "kind": "state",
+          "target": "账本与界面提示",
+          "expect": "一致，无“已全部免费”文案"
+        }
       ],
-      "dependsOn": ["V0 聊天页", "模拟 SSE 上游"]
+      "dependsOn": [
+        "V0 聊天页",
+        "模拟 SSE 上游"
+      ]
     }
   ]
 }
