@@ -117,3 +117,14 @@ SQLite 单写者不等于应用层串行。接受回合时短事务做 StoryRun 
 4. Run 创建幂等：A createRequestId + @@unique([userId,createRequestId])（推荐，超时重试不重复建实例）；B 无幂等键（可能生成重复 Run）。接口已要求 requestId，需拍板 A。
 
 本稿需待拍板项闭合、事务调用链和 runbook 确认后，才能写 schema/migration。
+
+## 11. M3-2 实现补充（2026-10-20）
+
+已实现创建、列表、详情三个端点；turns/retry-state/close-chapter/resume 尚未实现。数据库结构保持不变。
+
+- 第一版 JSON 信封：definitionJson 为 `{schemaVersion:1, publicSummary:string, chapters:[{key,title}]}`；characterSnapshotJson 为 `{schemaVersion:1, characterId:string}`。允许版本包含额外的私有剧情/提示词字段，但 DTO 不透传。章节 key 不重复，创建章节须存在。正式模板发布工具尚待实现，当前仅有测试夹具。
+- 初始 stateJson 和 revision=0/throughTurnNo=0 的 checkpoint 保存 `{schemaVersion:1,chapterKey}`；初始 checkpoint 的 chapterKey 用于创建幂等内容校验，后续生命周期不能覆盖它。坏 JSON 不写入，不以默认值替代。
+- StoryTemplate.status 公开可用值为 `PUBLISHED`；版本 publishedAt 非空且不晚于当前时间。下架后不在列表展示，详情与创建重放返回 404；当前版本的角色可见性仍逐次验证。
+- 详情为近期状态视图：turns 最近 100 条，events 最近 100 条符合条件的公开确认事件，返回时均按正序。完整聊天正文继续走已有消息 API。完整回合/事件分页属于后续长历史验收，不把这个快照视图作为完整历史导出。
+- 事件公开信封为 `{schemaVersion:1,publicSummary:string,...私有字段}`，DTO 仅映射 `payload:{summary:publicSummary}`；不直接返回任意 JSON。来源回合必须属于本 Run 且 COMMITTED/PROCESSED，来源消息必须属于本 Conversation。
+- SQLite 明确唯一键冲突时读取既有实例；事务/写锁错误返回 503，提示先查询结果，不自动重做未知写入。旧聊天入口在故事编排接入前返回 409；普通聊天保持原行为。

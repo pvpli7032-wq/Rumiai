@@ -74,7 +74,7 @@ export class ConversationMessageError extends Error {
 async function requireOwnedMessage(tx: Pick<Prisma.TransactionClient, 'message'>, conversationId: string, messageId: string, userId: string) {
   const message = await tx.message.findUnique({
     where: {id: messageId},
-    select: {id: true, conversationId: true, role: true, content: true, likedAt: true, createdAt: true, conversation: {select: {userId: true}}},
+    select: {id: true, conversationId: true, role: true, content: true, likedAt: true, createdAt: true, conversation: {select: {userId: true, storyRun: {select: {id: true}}}}},
   });
   if (!message || message.conversationId !== conversationId) throw new ConversationMessageError('Message not found', 404);
   if (message.conversation.userId !== userId) throw new ConversationMessageError('Forbidden', 403);
@@ -97,6 +97,7 @@ export async function setMessageLiked(userId: string, conversationId: string, me
 export async function editUserMessage(userId: string, conversationId: string, messageId: string, input: unknown) {
   return db.$transaction(async tx => {
     const message = await requireOwnedMessage(tx, conversationId, messageId, userId);
+    if (message.conversation.storyRun) throw new ConversationMessageError('故事历史修改尚未开放。', 409);
     if (message.role !== 'USER') throw new ConversationMessageError('Only your own message can be edited', 400);
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ConversationMessageError('Message data is invalid', 400);
     const rawContent = (input as Record<string, unknown>).content;
@@ -117,6 +118,7 @@ export async function editUserMessage(userId: string, conversationId: string, me
 export async function deleteMessageAndFollowing(userId: string, conversationId: string, messageId: string) {
   return db.$transaction(async tx => {
     const message = await requireOwnedMessage(tx, conversationId, messageId, userId);
+    if (message.conversation.storyRun) throw new ConversationMessageError('故事历史修改尚未开放。', 409);
     const removed = await tx.message.deleteMany({where: {conversationId, createdAt: {gte: message.createdAt}}});
     return {success: true, removed: removed.count};
   });

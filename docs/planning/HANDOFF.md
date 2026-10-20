@@ -5,13 +5,13 @@
 ## 1. 一句话现状
 
 V0 已上线生产并验收通过；M0 的聊天应用服务抽取与 M3 的数据模型已合入本地分支但**未部署**。
-下一步是 M3 的故事 API 与服务，然后 M4 记忆闭环。
+M3 的创建、列表、详情 API 与仓储服务已在工作区实现（未提交、未部署，见第 11 节）；下一步是 M3 故事回合编排与可靠性，然后 M4 记忆闭环。
 
 ## 2. 代码位置与状态
 
 - 工作目录：`C:\Users\42422\Desktop\ai-role-community`
-- 分支：`commercial-refactor`，工作区干净
-- HEAD：`2e915f7 feat(stories): M3 故事数据模型与纯增量迁移`
+- 分支：`commercial-refactor`；本轮有未提交的 M3 API、兼容保护与测试改动
+- 本轮起点 HEAD：`a3e884e docs(planning): 补交接说明`
 
 最近 6 个提交：
 
@@ -125,3 +125,18 @@ DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PAS
 - 不用 `localStorage` 伪装跨设备进度，不把 AI 编造的总结当数据库事实。
 - 迁移只许增量，不许 `ALTER` 既有表（除非有明确批准与回滚方案）。
 - 删代码要删干净：被替换的实现、死导出、临时脚本一并清掉，不留沉淀。
+
+## 11. 2026-10-20 M3-2 接续记录
+
+本轮完成的是故事实例创建/读取，不代表整个 M3 完成：
+
+- 新增 `POST /api/story-runs`、`GET /api/story-runs`、`GET /api/story-runs/[id]`；仓储和 DTO 在 `src/lib/stories/repository/`，HTTP 层只负责登录、参数解码、状态码。
+- 创建实例、专属 Conversation、revision=0 初始 checkpoint、角色聊天计数在同一事务；用户/requestId 唯一幂等，相同请求返回 200，不同版本或初始章节返回 409；新建返回 201。初始 checkpoint 保留原始章节，当前章节变化不影响创建重试。
+- 所有权同时检查 Run/Conversation；模板必须 PUBLISHED 且 publishedAt 已到达，角色必须本人拥有或公开审核通过。列表只返回可访问实例，按 updatedAt/id 游标分页。
+- 详情使用公开字段白名单；隐藏剧情、角色提示词、stateJson、lease、请求键不输出；事件仅暴露已确认、未失效、来源回合已处理且来源消息属于本会话的数据。
+- 新建故事会话后，旧 SEND/REGENERATE 不能绕过状态机。提前落地 M3-3 的拒绝分支（409），回合编排仍待实现；旧编辑/删除单条消息也暂拒绝，避免未来派生状态失效被绕过。整段会话删除保留级联语义。普通创建/复用会话排除 StoryRun，避免复用到不能自由发送的故事。
+- 不创建正式模板，不开放前台入口；未改 schema/迁移、生产环境、管理员凭据。
+
+验证入口：`node --import tsx --test tests/story-run-service.test.mjs`（8 条，真实隔离 SQLite + 46 条迁移，含 HTTP 适配器、并发创建、隐私、级联）。聊天应用/消息/会话回归 13 条、M0 路由 14 条、M2 上下文 4 条、V0 5 条均通过；类型检查、完成定义 8 项通过。生产构建/门禁结果见后续验证记录。
+
+下一步：M3 回合服务（turns SSE、requestHash/revision CAS、activeTurnId、消息原子提交、未知结果恢复），替换当前故事发送拒绝分支；接着 M4 retry-state/close-chapter/resume、worker 与历史失效事务。未实现端点不能记为已完成。生产发布仍须先过第 7 节流程。

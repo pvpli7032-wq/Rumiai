@@ -21,6 +21,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   let reservedCall: {id: string; startedAt: Date} | undefined;
   let usingRealAi = Boolean(process.env.OPENAI_API_KEY?.trim());
   const conversation = await readConversationForChat(input.userId, input.conversationId);
+  if (conversation.storyRun) throw new ChatTurnHttpError('故事回合服务尚未开放，暂时无法发送或重新生成。', 409);
   let content: string; let history: Awaited<ReturnType<typeof readRecentMessageHistory>>; let replaceAt: Date | undefined;
   if (input.mode === 'SEND') {
     if (!('request' in input.input)) throw new ChatTurnHttpError('消息数据格式不正确。', 400);

@@ -65,7 +65,7 @@ export async function createOrReuseConversation(userId: string, input: unknown) 
 
     if (!startNew) {
       const existing = await tx.conversation.findFirst({
-        where: {userId, characterId, archivedAt: null},
+        where: {userId, characterId, archivedAt: null, storyRun: {is: null}},
         orderBy: {updatedAt: 'desc'},
         select: CONVERSATION_SELECT,
       });
@@ -126,7 +126,7 @@ export async function readConversationExport(userId: string, conversationId: str
 }
 
 export async function readConversationForChat(userId: string, conversationId: string) {
-  const conversation = await db.conversation.findUnique({where: {id: conversationId}, include: {character: true}});
+  const conversation = await db.conversation.findUnique({where: {id: conversationId}, include: {character: true, storyRun: {select: {id: true}}}});
   if (!conversation) throw new ConversationError('Not found', 404);
   if (conversation.userId !== userId) throw new ConversationError('Forbidden', 403);
   if ((!conversation.character.isPublic || conversation.character.reviewStatus !== 'APPROVED') && conversation.character.creatorId !== userId) {

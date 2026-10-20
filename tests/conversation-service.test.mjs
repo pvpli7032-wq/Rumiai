@@ -1,16 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {spawnSync} from 'node:child_process';
 import {rmSync} from 'node:fs';
 import path from 'node:path';
 
 const file = `conversation-service-${process.pid}-${Date.now()}.db`;
-process.env.DATABASE_URL = `file:./${file}`;
+// The Prisma schema engine cannot run in restricted environments (OS error 5);
+// the repo convention is to apply migrations with node:sqlite instead.
+const databasePath = path.resolve('prisma', file);
+process.env.DATABASE_URL = `file:${databasePath.replace(/\\/g, '/')}`;
 process.env.JWT_SECRET = randomUUID() + randomUUID();
-const migrationEnv = {...process.env}; delete migrationEnv.RUST_LOG;
-const migrated = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {env: migrationEnv, encoding: 'utf8', windowsHide: true});
-assert.equal(migrated.status, 0, migrated.stdout + migrated.stderr);
+const {createIsolatedDatabase} = await import('../scripts/helpers/create-isolated-db.mjs');
+createIsolatedDatabase(databasePath);
 
 const {db} = await import('../src/lib/db.ts');
 const {signToken} = await import('../src/lib/auth.ts');

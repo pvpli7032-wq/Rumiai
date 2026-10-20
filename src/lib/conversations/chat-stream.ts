@@ -58,16 +58,27 @@ export function mockBeat(name: string): string {
   return MOCK_BEATS[Math.floor(Math.random() * MOCK_BEATS.length)](name);
 }
 
-export async function streamMockResponse(controller: ReadableStreamDefaultController, character: { name: string; personality: string }, userMessage: string, signal?:AbortSignal): Promise<string> {
+/**
+ * Story turns reuse the same generators but need their own SSE envelope
+ * (delta{turnId,content}); `mapEvent` rewrites the wire events without
+ * duplicating the model chain. The default (no mapEvent) is the chat protocol.
+ */
+export interface StreamWireOptions {
+  mapEvent?: (event: Record<string, unknown>) => Record<string, unknown>;
+}
+
+export async function streamMockResponse(controller: ReadableStreamDefaultController, character: { name: string; personality: string }, userMessage: string, signal?:AbortSignal, options: StreamWireOptions = {}): Promise<string> {
   const fullResponse = '【模拟 AI 回复，仅供测试】\n\n' + mockBeat(character.name);
   // Clients MUST be able to distinguish demo output from real model content.
-  controller.enqueue(new TextEncoder().encode('data: {"demo":true}\n\n'));
+  const demo = options.mapEvent ? options.mapEvent({demo: true}) : {demo: true};
+  controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(demo)}\n\n`));
 
   // Stream word by word
   const words = fullResponse.split(' ');
   for (const word of words) {
     signal?.throwIfAborted();
-    const chunk = `data: ${JSON.stringify({ content: word + ' ' })}\n\n`;
+    const payload = options.mapEvent ? options.mapEvent({content: word + ' '}) : {content: word + ' '};
+    const chunk = `data: ${JSON.stringify(payload)}\n\n`;
     controller.enqueue(new TextEncoder().encode(chunk));
     await new Promise(r => setTimeout(r, 80));
   }
@@ -216,7 +227,7 @@ export async function streamOpenAIResponse(
   messages: Array<{ role: string; content: string }>,
   userMessage: string,
   preferredModel?: string | null,
-  options:{signal?:AbortSignal;onMetrics?:(metrics:AiStreamMetrics)=>void;providers?:RuntimeProvider[];models?:RuntimeAiModel[]}={}
+  options:{signal?:AbortSignal;onMetrics?:(metrics:AiStreamMetrics)=>void;providers?:RuntimeProvider[];models?:RuntimeAiModel[];mapEvent?:(event:Record<string, unknown>)=>Record<string, unknown>}={}
 ): Promise<string> {
   const deadline=new AbortController();
   const timer=setTimeout(()=>deadline.abort(new AiStreamError('REQUEST_TIMEOUT')),readAiInteger('AI_REQUEST_TIMEOUT_MS',60000,100,300000));
@@ -265,7 +276,7 @@ export async function streamOpenAIResponse(
       }
       const choice=parsed.choices?.[0];if(choice?.finish_reason)finished=true;
       const content=choice?.delta?.content;
-      if(typeof content==='string'&&content){fullContent+=content;controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({content})}\n\n`));}
+      if(typeof content==='string'&&content){const payload=options.mapEvent?options.mapEvent({content}):{content};fullContent+=content;controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(payload)}\n\n`));}
     };
     while(!ended){
       signal.throwIfAborted();
