@@ -8,7 +8,7 @@
  */
 import {db} from '@/lib/db';
 import {StoryError, parseRevision, readVersion} from '../repository/contracts';
-import {readStoryRun, requireVisibleRun, view} from '../repository/run-service';
+import {readStoryRun, requireVisibleRun, requirePublishedTemplate, view} from '../repository/run-service';
 import {chapterResultPayload} from './state-model';
 
 /** Attaches the current public run view to a revision conflict (contract §5). */
@@ -98,6 +98,8 @@ export async function resumeStory(userId: string, runId: string, input: unknown)
   return db.$transaction(async tx => {
     const run = await requireVisibleRun(tx, userId, runId);
     if (run.status !== 'PAUSED') throw new StoryError('RUN_NOT_PAUSED', '故事当前不在章节结束状态，无法恢复。', 409);
+    // Resuming opens NEW chapters, so an offline template blocks it; history stays viewable (W07).
+    requirePublishedTemplate(run);
     const claimed = await tx.storyRun.updateMany({
       where: {id: runId, userId, revision: expectedRevision, status: 'PAUSED'},
       data: {revision: {increment: 1}, status: 'ACTIVE'},

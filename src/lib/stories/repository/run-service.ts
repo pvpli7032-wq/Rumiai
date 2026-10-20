@@ -10,8 +10,19 @@ function visibleWhere(userId: string): Prisma.StoryRunWhereInput {
   return {
     userId,
     conversation: {userId, character: {OR: [{creatorId: userId}, {isPublic: true, reviewStatus: 'APPROVED'}]}},
-    templateVersion: {publishedAt: {lte: new Date()}, template: {status: 'PUBLISHED'}},
   };
+}
+
+/**
+ * Write-path gate (W07): a run stays readable after its template is taken
+ * offline (history view/export, plan chapter 24), but no NEW turns may start
+ * and a paused run may not resume. Chapter closing stays allowed — it is
+ * bookkeeping on already-committed turns, not new content.
+ */
+export function requirePublishedTemplate(run: {templateVersion: {template: {status: string}}}) {
+  if (run.templateVersion.template.status !== 'PUBLISHED') {
+    throw new StoryError('STORY_OFFLINE', '故事内容已下架，不能继续新回合，历史记录仍可查看与导出。', 422);
+  }
 }
 
 /** The run must belong to the user and its template/character must still be publicly usable. */

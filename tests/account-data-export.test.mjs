@@ -1,17 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 
 const file = `account-export-${process.pid}-${Date.now()}.db`;
-process.env.DATABASE_URL = `file:./${file}`;
+// The Prisma schema engine cannot run in restricted environments (OS error 5);
+// the repo convention is to apply migrations with node:sqlite instead.
+const databasePath = path.resolve('prisma', file);
+process.env.DATABASE_URL = `file:${databasePath.replace(/\\/g, '/')}`;
 process.env.JWT_SECRET = 'isolated-account-export-test-secret-abcdefghijklmnopqrstuvwxyz';
-const migrationEnv = { ...process.env };
-// Match other isolated Prisma tests: a machine RUST_LOG can break the Windows engine.
-delete migrationEnv.RUST_LOG;
-const migration = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { env: migrationEnv, encoding: 'utf8' });
-assert.equal(migration.status, 0, migration.stdout + migration.stderr);
+const { createIsolatedDatabase } = await import('../scripts/helpers/create-isolated-db.mjs');
+createIsolatedDatabase(databasePath);
 const { db, pragmasReady } = await import('../src/lib/db.ts');
 await pragmasReady;
 const { exportAccountData } = await import('../src/lib/accounts/data-export.ts');
@@ -48,7 +47,8 @@ test('account export is authenticated, owner-scoped and excludes credentials and
   assert.equal(archive.conversations.length, 1);
   assert.equal(archive.conversations[0].messages[0].content, '我的历史🙂');
   assert.equal(archive.characters.length, 0);
-  assert.equal(archive.version, 2);
+  assert.equal(archive.version, 3);
+  assert.deepEqual(archive.stories, [], 'no story runs exist in this fixture');
   assert.equal(archive.reports.length, 1);
   assert.equal(archive.reports[0].details, '我提交的举报');
   assert.equal(archive.reports[0].contactValue, 'my-contact@example.invalid');

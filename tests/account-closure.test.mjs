@@ -1,21 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 
 const file = `account-close-${process.pid}-${Date.now()}.db`;
-process.env.DATABASE_URL = `file:./${file}`;
+// The Prisma schema engine cannot run in restricted environments (OS error 5);
+// the repo convention is to apply migrations with node:sqlite instead.
+const databasePath = path.resolve('prisma', file);
+process.env.DATABASE_URL = `file:${databasePath.replace(/\\/g, '/')}`;
 const uploadsDirectory = path.resolve('artifacts', 'account-closure', file, 'uploads');
 process.env.UPLOADS_DIRECTORY = uploadsDirectory;
 process.env.JWT_SECRET = randomUUID() + randomUUID();
 process.env.OPENAI_API_KEY = '';
 process.env.EZFP_ENABLED = 'false';
-const env = { ...process.env }; delete env.RUST_LOG;
-const migration = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { env, encoding: 'utf8' });
-assert.equal(migration.status, 0, migration.stdout + migration.stderr);
+const { createIsolatedDatabase } = await import('../scripts/helpers/create-isolated-db.mjs');
+createIsolatedDatabase(databasePath);
 const { db, pragmasReady } = await import('../src/lib/db.ts');
 await pragmasReady;
 const { POST: close } = await import('../src/app/api/users/me/close/route.ts');

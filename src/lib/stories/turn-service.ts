@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { StoryError, parseTurn } from './repository/contracts';
-import { readStoryRun, requireVisibleRun, runInclude } from './repository/run-service';
+import { readStoryRun, requireVisibleRun, requirePublishedTemplate, runInclude } from './repository/run-service';
 import { logRouteError } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { reserveAiCall, finishAiCall, AiQuotaError } from '@/lib/ai/ai-usage';
@@ -63,6 +63,7 @@ async function acceptTurn(userId: string, runId: string, expectedRevision: numbe
     return await db.$transaction(async tx => {
       const run = await requireVisibleRun(tx, userId, runId);
       if (run.status !== 'ACTIVE') throw new StoryError('RUN_NOT_ACTIVE', '故事当前不在进行中，无法继续回合。', 409);
+      requirePublishedTemplate(run);
       const existing = await tx.storyTurn.findUnique({where: {runId_requestId: {runId, requestId}}});
       const classified = classifyExisting(existing, hash);
       if (classified === 'conflict') throw new StoryError('REQUEST_CONFLICT', '请求标识已用于不同的回合内容。', 409);
@@ -115,11 +116,13 @@ async function abandonTurn(runId: string, turnId: string, status: 'FAILED' | 'CA
 }
 
 /** One atomic commit: both messages, the turn row and the run cursor, or nothing. */
-async function commitTurn(run: Run, turn: {id: string; turnNo: number}, content: string, acceptedRevision: number) {
+async function commitTurn(run: Run, turn: {id: string; turnNo: number}, userContent: string, assistantContent: string | null, acceptedRevision: number) {
   return db.$transaction(async tx => {
-    const userMessage = await tx.message.create({data: {conversationId: run.conversationId, role: 'USER', content}});
-    const assistant = content.trim()
-      ? await tx.message.create({data: {conversationId: run.conversationId, role: 'ASSISTANT', content}})
+    // The user's own words and the assistant reply are distinct rows; an earlier
+    // revision persisted the assistant text into both, losing the user input.
+    const userMessage = await tx.message.create({data: {conversationId: run.conversationId, role: 'USER', content: userContent}});
+    const assistant = assistantContent?.trim()
+      ? await tx.message.create({data: {conversationId: run.conversationId, role: 'ASSISTANT', content: assistantContent}})
       : null;
     const claimed = await tx.storyTurn.updateMany({
       where: {id: turn.id, status: {in: ['ACCEPTED', 'GENERATING']}},
@@ -172,6 +175,7 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
 
   const run = await requireVisibleRun(db, input.userId, input.runId);
   if (run.status !== 'ACTIVE') throw new StoryError('RUN_NOT_ACTIVE', '故事当前不在进行中，无法继续回合。', 409);
+  requirePublishedTemplate(run);
 
   let usingRealAi = Boolean(process.env.OPENAI_API_KEY?.trim());
   const modelPlan = await readAiModelPlan(run.conversation.aiModel, run.conversation.characterId);
@@ -234,7 +238,7 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
       }
       if (!failure) {
         try {
-          const receipt = await commitTurn(run, turn, assistantContent ?? '', accepted.revision);
+          const receipt = await commitTurn(run, turn, content, assistantContent, accepted.revision);
           emit({type: 'committed', turnId: turn.id, ...receipt});
           emit({type: 'state_pending', turnId: turn.id, stateStatus: 'PENDING'});
           await settle(usingRealAi ? 'SUCCEEDED' : 'MOCK', metrics);

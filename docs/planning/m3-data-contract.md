@@ -130,3 +130,34 @@ SQLite 单写者不等于应用层串行。接受回合时短事务做 StoryRun 
 - 详情为近期状态视图：turns 最近 100 条，events 最近 100 条符合条件的公开确认事件，返回时均按正序。完整聊天正文继续走已有消息 API。完整回合/事件分页属于后续长历史验收，不把这个快照视图作为完整历史导出。
 - 事件公开信封为 `{schemaVersion:1,publicSummary:string,...私有字段}`，DTO 仅映射 `payload:{summary:publicSummary}`；不直接返回任意 JSON。来源回合必须属于本 Run 且 COMMITTED/PROCESSED，来源消息必须属于本 Conversation。
 - SQLite 明确唯一键冲突时读取既有实例；事务/写锁错误返回 503，提示先查询结果，不自动重做未知写入。旧聊天入口在故事编排接入前返回 409；普通聊天保持原行为。
+
+## 12. W07 生命周期补充（2026-10-20，迁移 20261020160000_story_shares 已批复）
+
+> 批复时要求写为「新增 §10」，因 §10（原待拍板清单）/§11（M3-2 实现补充）已存在，为不重编号历史章节追加为 §12。
+
+### 12.1 StoryShare（story_shares，迁移 48：20261020160000_story_shares）
+
+| 字段 | 说明 |
+|---|---|
+| id / runId / userId | runId FK Cascade（随 run 清理）、userId FK Cascade |
+| title | 用户选定的分享标题，≤200 |
+| selectedMessageIdsJson | 勾选的 2–6 条消息 ID 数组 JSON；创建时校验全部属于本 run 且来自 COMMITTED 回合 |
+| status | 状态机 PUBLISHED→WITHDRAWN 单向，不可逆 |
+| publishedPostId | 预留与现有帖子服务的关联，本阶段不写入；先占位避免未来违规 ALTER |
+| withdrawnAt / createdAt / updatedAt | 标准字段 |
+
+索引：`@@index([runId])`、`@@index([userId, createdAt])`；不加业务唯一约束——同一用户可对同一 run 重复创建分享，撤回后想再分享就建新记录。
+
+### 12.2 分享语义（A09）
+
+- **创建**：仅 run 所有者；`POST /api/story-runs/[id]/shares`；校验所有权 + selectedMessageIds 全部属于本 run 的 COMMITTED 回合（未提交或他人消息一律 422，不暴露存在性）。
+- **撤回**：`DELETE /api/story-runs/[id]/shares/[shareId]`；仅置 status=WITHDRAWN + withdrawnAt，**不碰 run 本体**（revision 不变、updatedAt 不变、无状态变更）；重复撤回 409；他人分享 404。
+- **读者口径**：读者读取任何 WITHDRAWN 分享一律 404（不暴露存在性）；读者只获得 selectedMessageIds 对应消息的快照，**不继承**分享者的任何私人经历——状态、事件、关系数值、备注一概不可见。读者入口属社区体系（计划书第 11 章），本阶段不开前台入口。
+- **注销**：随 run 的 Conversation 级联删除（§3 方案 A），无残留。
+
+### 12.3 导出白名单（A13/A04）
+
+- 每实例导出 `GET /api/story-runs/[id]/export`：JSON 附件，`Cache-Control: private, no-store`。内容白名单：run 公开字段、本人 conversation 消息、turn 簿记（无 lease/requestHash）、事件公开信封投影（summary；信封校验失败的行跳过而非不安全导出）、本人分享记录。**永不包含**：隐藏剧情字段、角色提示词/快照、抽取私有 stateJson、租约、requestHash、他人任何数据。
+- 账户级导出（users/me/export）新增 `stories` section（version 2→3）：run 簿记 + 事件公开投影 + turn 簿记，不含消息正文（正文已在 conversations section），同一事务快照。
+- 下架边界（A08/W07）：模板下架后 run **保留**列表/详情/导出；**禁止**新回合与 PAUSED 恢复（422 STORY_OFFLINE）；结章（簿记动作）仍允许；下架模板不可新建 run（404 既有语义）。
+- 注销级联：eraseAccountConversations 同事务级联清除 run/turn/event/checkpoint/share，含进行中租约与 activeTurnId 槽；模板与版本是公共内容不删（ownerId SetNull）。

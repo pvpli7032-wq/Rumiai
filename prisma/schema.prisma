@@ -73,6 +73,7 @@ model User {
   conversations    Conversation[]
   storyTemplates   StoryTemplate[]
   storyRuns        StoryRun[]
+  storyShares      StoryShare[]
   activityDays     UserActivityDay[]
   checkins         Checkin[]
   giftsSent        Gift[]            @relation("UserGiftsSent")
@@ -1490,6 +1491,7 @@ model StoryRun {
   turns           StoryTurn[]
   events          StoryEvent[]
   checkpoints     StoryCheckpoint[]
+  shares          StoryShare[]
 
   @@unique([userId, createRequestId])
   @@index([userId, updatedAt, id])
@@ -1574,6 +1576,31 @@ model StoryCheckpoint {
   @@unique([runId, throughTurnNo, revision])
   @@index([runId, invalidatedAt, throughTurnNo])
   @@map("story_checkpoints")
+}
+
+/// 用户选定 2–6 条本人故事消息的分享快照（W07）。状态机 PUBLISHED→WITHDRAWN 单向；
+/// 撤回只改本行，不动 run 本体；读者路径对 WITHDRAWN 一律 404，不暴露存在性。
+/// publishedPostId 预留与现有帖子服务的关联，本阶段不写入（读者入口走社区体系）。
+model StoryShare {
+  id                     String    @id @default(cuid())
+  runId                  String    @map("run_id")
+  userId                 String    @map("user_id")
+  title                  String
+  /// 用户勾选的消息 ID 数组 JSON；创建时校验全部属于本 run 且已提交。
+  selectedMessageIdsJson String    @map("selected_message_ids_json")
+  /// PUBLISHED / WITHDRAWN
+  status                 String    @default("PUBLISHED")
+  publishedPostId        String?   @map("published_post_id")
+  withdrawnAt            DateTime? @map("withdrawn_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  run  StoryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([userId, createdAt])
+  @@map("story_shares")
 }
 
 /// V0 场景漏斗事实。每个用户每个场景会话每个节点最多一条，只记事实不记内容；
