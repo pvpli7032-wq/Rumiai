@@ -94,8 +94,8 @@ export async function findStoryTurnByMessage(tx: Client, runId: string, messageI
  * Registers the story side of the message-edit/delete hook (dependency inversion:
  * conversations must not import stories). A message that belongs to no story turn
  * is left untouched; one that does triggers the §7 invalidation inside the caller's
- * transaction. The messages route imports this module so server processes always
- * register before serving edits.
+ * transaction. src/instrumentation.ts imports this module as the composition root,
+ * so registration does not depend on which route happens to load first.
  */
 registerStoryHistoryInvalidator(async (tx, runId, messageId) => {
   const turn = await findStoryTurnByMessage(tx, runId, messageId);
