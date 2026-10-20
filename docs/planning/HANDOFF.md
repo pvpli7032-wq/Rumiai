@@ -43,7 +43,22 @@ V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）
 
 认证（2026-10-20 02:0x + 03:0x 两次核对）：`/zh`、`/discover`、`/shop`、`/api/site`、`/admin`、`/login` 全 200；匿名 `/api/admin/access` 401；旧前缀 `/api/v1/site` 404。
 
-**注意：生产库还没有新迁移。** 6 张 story 表只存在于本地库。上线 M3 前必须按第 7 节流程走。
+**注意：生产库已含全部 48 条迁移**（c5 切流时应用了 `20261020120000_story_run_contract`、`20261020150000_scene_funnel_events`、`20261020160000_story_shares`）。8 张 story 表与 `scene_funnel_events` 均已在生产库中，实测计数见 `docs/planning/releases/cutover-record-20261021.md`。
+
+生产端到端实测（2026-10-21 04:1x）：注册 → `POST /api/story-runs` 201 建实例 → 同 requestId 幂等重放返回同一实例 → 不存在章节 422 → 详情 200 → 匿名详情/回合/导出/分享/列表全 401；全程 `pageerror` 0。测试账号事后经 `POST /api/users/me/close` 走产品自身的注销路径清理，`story_runs` 归 0、`conversations` 回到 3、`messages` 回到 6。
+
+### 3.1 故事模板（已发布 1 个）
+
+`story_templates` / `story_template_versions` 原本没有任何写入路径，等于 `POST /api/story-runs` 恒定 404。现已补上唯一入口：
+
+- 工具：`scripts/publish-story-template.mjs`（`npm run story:publish`，支持 `--dry-run` / `--unpublish`）
+- 内容：`content/stories/*.json`；试点为 `xingban-original-0-ch1.json`（林澈，3 章）
+- 校验：复用 `src/lib/stories/repository/contracts.ts` 的 `readVersion`，不另写一套
+- 幂等：规范化 JSON 哈希相同即跳过，内容变更才 `version+1`
+- 生产现状：`story_templates` 1 行 PUBLISHED，`story_template_versions` 1 行 v1
+- 测试：`tests/story-template-publish.test.mjs`（4 条）
+
+发布新内容或新角色：改 `content/stories/` 后跑 `npm run story:publish`，再按第 7 节流程随下一次发布上线工具本身。
 
 ## 4. 三个模块各自的位置
 
@@ -116,10 +131,12 @@ DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PAS
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| 拍板 | 发布批次：建议方案 A 合并上线（`m3-m4-release-checklist.md`，决策写入其 §4） | **等用户** |
+| ~~拍板~~ | ~~发布批次~~ | **已拍板：方案 A 合并上线，2026-10-21 03:4x 完成** |
+| ~~发布~~ | ~~按 `m5-pilot-runbook.md` 情形 2 执行~~ | **已上线 c5，C0–C8 全过**（记录见 `releases/cutover-record-20261021.md`） |
+| ~~模板~~ | ~~生产无已发布故事模板~~ | **已发布林澈试点模板 v1**（`story:publish`） |
 | 前置 | 管理员密码轮换（`admin-password-rotation-plan.md` 就绪） | **等用户** |
-| 发布 | 按 `m5-pilot-runbook.md` 情形 2 执行（Phase A→B→C→观察；降级 Phase E 红线：先关 worker/写入再切回旧应用） | 等上线指令 |
-| 灰度 | F1–F4 开关已实现（`b5f12db`）；观察指标与扩量/暂停门槛见 `story-rollout-flags.md` §3/§4 | 观察期开始后 |
+| 灰度 | F1–F4 开关已实现（`b5f12db`）；观察指标与扩量/暂停门槛见 `story-rollout-flags.md` §3/§4 | 需先定试点名单与告警责任人 |
+| 待发 | worker 启动日志（`51b4747`）与 `story:publish` 工具本身还没随包上线，下次发布一起带上 | 攒批 |
 
 已清项：灰度旗标 F1–F3（原待办）已实现；导出/分享/下架/级联（W07）已完成并终验。
 
