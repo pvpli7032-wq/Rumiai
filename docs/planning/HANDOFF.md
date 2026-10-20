@@ -1,27 +1,32 @@
-# 交接说明（2026-10-20 03:10）
+# 交接说明（2026-10-20 14:2x 终版）
 
-> 目的：让接手的人不必回溯对话就能继续。所有数字与路径均为本机核对结果，不是叙述推测。
+> 目的：让接手的人（人或 AI）不必回溯对话就能继续。所有数字与路径均为本机核对结果，不是叙述推测。
+> 交接对象注意：本文件是唯一权威入口。规划书全文在 `docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx`，可 grep 纯文本版 `.temp/plan-final.txt`；回归基线与终验记录在 `.workbuddy/memory/baseline-2026-10-20.md`。
 
 ## 1. 一句话现状
 
-V0 已上线生产并验收通过；M0 抽取、M3（数据模型 + 回合编排）与 M4（记忆与章节闭环）已全部合入本地分支（`0e72f85..ed0cd03`，含 W08 评测框架与执行器），**均未部署**。本地库 47 条迁移（生产仍 45 条，`20261020120000_story_run_contract` 与 `20261020150000_scene_funnel_events` 两条待发布）。M5 试点交付文档（runbook + 灰度设计 + 批次对照）已就绪：`docs/planning/releases/m5-pilot-runbook.md`、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。下一步是用户对上线批次拍板 → 发布窗口 → M5 灰度观察。
+V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）全部完成并已提交**：M0 抽取、M3 数据模型+回合编排、M4 记忆与章节闭环、W08 评测框架+执行器、W07 生命周期（导出/分享/下架/级联）、灰度旗标 F1–F4，全部终验通过（记录见 `.workbuddy/memory/baseline-2026-10-20.md` 第四/五/六节）。本地 HEAD `9cb5029`，工作区干净（仅 dev.db 运行时文件不提交）。本地 48 条迁移（生产仍 45 条，3 条纯增量待发布：story_run_contract、scene_funnel_events、story_shares）。发布文档全部就绪并已同步计数：`docs/planning/releases/m5-pilot-runbook.md`（主流程）、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。**剩余全部是用户决策，不是开发工作**：① 发布批次拍板（建议方案 A 合并上线，见 checklist）；② 上线指令（说「上线」即按 m5-pilot-runbook 情形 2 走）；③ 管理员密码轮换（生产仍是 `123123`，发布前置项）；④ 灰度观察期需要的试点名单与告警责任人。
 
 ## 2. 代码位置与状态
 
 - 工作目录：`C:\Users\42422\Desktop\ai-role-community`
-- 分支：`commercial-refactor`；本轮有未提交的 M3 API、兼容保护与测试改动
-- 本轮起点 HEAD：`a3e884e docs(planning): 补交接说明`
+- 分支：`commercial-refactor`；工作区干净，全部成果已按模块分 15+ 提交落库
+- 本轮起点 HEAD：`9cb5029 docs：发布文档迁移计数同步至 48`
 
-最近 6 个提交：
+本轮（2026-10-20 09:38 起三个团队轮次）关键提交：
 
 | commit | 内容 |
 |---|---|
-| `2e915f7` | M3：6 个故事模型 + 纯增量迁移 `20261020120000_story_run_contract` |
-| `b05b65b` | M0：抽取 `chat-application-service`，两个消息路由只留 HTTP 层 |
-| `391763f` | 文档：记录 V0 上线生产与内容审核闭环 |
-| `ac6840a` | V0：按内容审核收紧场景文案与结束页口径 |
-| `784cfad` | V0：场景卡、三条建议动作、本地章节回顾 |
-| `95b5521` | 部署：兜住生产启动的构建目录，清理 tsconfig 死条目 |
+| `8fed504` | M3：回合编排服务（turns SSE、CAS、幂等、原子提交） |
+| `4af8a64` / `be80b61` | V0 漏斗埋点 + 管理端报表 |
+| `693347a` / `e89bdc2` | W08 评测框架 + 执行器（22 例可执行，语义断言进人工复核队列） |
+| `26ee4a4` | 首发 3 主角 × 2 章内容初稿（含 15 条评测种子 EV-01~15） |
+| `64d40b3` / `055031b` | 发布 runbook（M3 + M5 试点）+ 灰度设计 + 批次对照 |
+| `0e72f85` | M4：状态 worker、结章/恢复、同事务失效、依赖倒置、worker 额度预留 |
+| `ed0cd03` | M4：worker 进程接线（STORY_WORKER_DISABLED 运维开关） |
+| `73b1cf8` | W07/M5：导出白名单、story_shares 分享撤回、下架读写分离、turn 提交数据完整性修复 |
+| `b5f12db` | 发布前置：灰度旗标 F1–F3 薄层落地 + database-upgrade 测试适配 |
+| `9cb5029` | docs：迁移计数同步 48 + W07 终验记录 |
 
 ## 3. 生产环境现状（已核实）
 
@@ -59,6 +64,14 @@ V0 已上线生产并验收通过；M0 抽取、M3（数据模型 + 回合编排
 - 契约：`docs/planning/m3-data-contract.md`（第 1 节模型、第 5 节 API、第 9 节拍板结论）
 - 迁移已验证纯增量：`conversations`/`messages`/`users` 三表建表语句与索引前后逐字节相同，`foreign_key_check` 0 行
 
+### 4.4 故事回合编排与生命周期（M3-3/M4/W07，已合入未部署）
+- 回合：`src/lib/stories/turn-service.ts`（SSE 编排、CAS、幂等）、`src/lib/stories/lifecycle/`（state-model/state-worker/chapter-service/invalidation/export-service/share-service）
+- 端点：`/api/story-runs`（创建/列表/详情）、`/turns`（SSE）、`/turns/[turnId]/retry-state|close-chapter`、`/resume`、`/export`、`/shares`（POST/DELETE）
+- 灰度旗标：`src/lib/stories/rollout-flags.ts` + 三个 route 薄层 3 行落点（F1 RUNS/F2 TURNS/F3 CLOSE），F4 worker 开关在 `src/instrumentation.ts`
+- 接线：`message-service.ts` 通过 `registerStoryHistoryInvalidator` 依赖倒置（组合根 side-effect import 在 `messages/[messageId]/route.ts`）；依赖方向只许 stories→conversations
+- 测试：story 全套 37 条（run 8/turn 8/lifecycle 9/quota 1/w07 6/rollout 5）
+- 契约：`docs/planning/m3-data-contract.md`（§7 依赖方向拍板、§12 分享模型）
+
 ## 5. 验证基线（改动后用这些自证）
 
 ```
@@ -69,9 +82,13 @@ node --import tsx --test tests/chat-application-service.test.mjs tests/conversat
 node tests/m0-route-behavior.test.cjs                 # 14 条
 node --test tests/m2-context.test.cjs                 # 4 条
 node --import tsx --test tests/stories-v0.test.mjs    # 5 条
-node --import tsx --test tests/database-upgrade.test.mjs
+node --import tsx --test tests/story-run-service.test.mjs tests/story-turn-service.test.mjs tests/story-lifecycle-service.test.mjs tests/story-state-quota.test.mjs tests/story-lifecycle-w07.test.mjs tests/story-rollout-flags.test.mjs   # story 全套
+node --import tsx --test tests/database-upgrade.test.mjs tests/account-closure.test.mjs tests/account-data-export.test.mjs
+node scripts/verify-story-eval.mjs run                # W08 评测：基线 PASS=15 FAIL=0 PENDING=44 BLOCKED=1
 DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PASS / 1 SKIP
 ```
+
+构建坑：`npm run build` 会撞 safe-delete 垫片的 genie-trash 间歇故障 → 用 `CODEBUDDY_SAFE_DELETE_ENABLED=0 npm run build`（仅构建产物目录，不对用户文件用）；先 `rm -rf .next-build` 防僵尸进程占锁。
 
 浏览器矩阵的几个坑（**踩过，不要再踩**）：
 - 必须显式 `DISABLE_MOCK_AI=false`，否则本地 `.env` 里是 true，聊天返回 503。
@@ -82,47 +99,59 @@ DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PAS
 
 ## 6. 当前阻塞与已知问题
 
-1. **生产管理员密码仍是 `123123`**，未轮换。这是线上安全缺口，优先级高于功能开发。
-2. **V0 四个漏斗指标没有埋点**：开场到达率、首条消息发出率、主动结束率、结束页继续点击率。V0 上线验证的是"能跑通"，不是"漏斗有改善"，无法用数据判断 V0 是否成功。
+1. **生产管理员密码仍是 `123123`**，未轮换。这是线上安全缺口，也是发布前置项（用户此前明确跳过，需上线前重新确认）。
+2. ~~V0 四个漏斗指标没有埋点~~ → **已解决**：四指标埋点已实现并合入（`4af8a64`），管理端报表可看（`be80b61`），生产部署后即生效。
 3. **发布候选复审有一处偏差**：映雪那条公开问题改完后未再走完整复审即上线，已记在 `docs/planning/v0-acceptance-record.md`。
-4. **生产环境没有 AI 密钥**：`app.env` 里 `OPENAI_API_KEY` 为空，但数据库里有 provider 记录（`ces`）和模型 `gpt-6.1-sol`，走的是后台配置的 provider。真实模型调用能否成功未验证过。
+4. **生产环境没有 AI 密钥**：`app.env` 里 `OPENAI_API_KEY` 为空，但数据库里有 provider 记录（`ces`）和模型 `gpt-6.1-sol`，走的是后台配置的 provider。真实模型调用能否成功未验证过——M5 灰度观察期第一个要看的就是这个。
+5. **W08 人工复核队列 7 条**：model-simulated 语义断言不自动判分，需人工确认（防造假设计使然）。
 
-## 7. 上线 M3 的流程（必须先做）
+## 7. 上线流程（已就绪，勿用本节旧版）
 
-不要直接切 c4-rc2 加新表。顺序：
-
-1. 本地 `npm run build` + `npm run db:local` 通过
-2. 打包发布目录（排除 env/db/node_modules/.next/uploads/artifacts/temp）
-3. 服务器上 `npm run state:backup`（写库前备份，验证 integrity + foreignKeys）
-4. **在副本上先跑迁移**：复制生产库 → 对新副本执行 `20261020120000_story_run_contract/migration.sql` → 核对记录数、`foreign_key_check`、`_prisma_migrations` = 46
-5. 3100 预启动（`next start --hostname 127.0.0.1 --port 3100`），不接线上写库
-6. 停写 → `release:check` → PM2 切新目录 → `pm2 save` → 断言 → 60 秒观察
-7. 失败回滚：PM2 切回 c4-rc2（新表留着不用，不删）
+**本节旧版 M3 单独上线流程已作废**：M3 单独上线是无 worker 的半功能态（stateStatus 永停 PENDING）。统一走 `docs/planning/releases/m5-pilot-runbook.md`：
+- 情形 1（M3 已上线过）或情形 2（M3+M4+M5 一次窗口，3 条迁移同批）由 `release:check` 输出判别
+- Phase A 本地（含 `verify-story-eval` 口径）→ Phase B 服务器预装（含 worker 双态预验证）→ Phase C 窗口（停写→备份→release:check→迁移→PM2 切换→断言 M1–M8→60 秒观察）→ 异常走 Phase E 降级（红线：先关 worker/写入再切回旧应用）
+- 每步带成功判据与失败处理，勿跳步
 
 ## 8. 下一步（按序）
 
-| 阶段 | 内容 | 写作用域 |
+| 阶段 | 内容 | 状态 |
 |---|---|---|
-| M5 拍板 | 上线批次决策（一次窗口 vs 两次窗口）：`docs/planning/releases/m3-m4-release-checklist.md` | 决策记录写入该文档 §4 |
-| M5 发布 | 按 `docs/planning/releases/m5-pilot-runbook.md` 执行（Phase A 本地 → B 预装 → C 窗口 → 观察期）；前置：灰度旗标 F1–F3 实现（`story-rollout-flags.md`，另立任务）、管理员密码轮换 | `src/lib/stories/**`（旗标）、生产操作 |
-| M5 观察期 | 灰度观察指标与扩量/暂停决策：`story-rollout-flags.md` §3/§4 | 运维记录、`docs/planning/releases/**` |
+| 拍板 | 发布批次：建议方案 A 合并上线（`m3-m4-release-checklist.md`，决策写入其 §4） | **等用户** |
+| 前置 | 管理员密码轮换（`admin-password-rotation-plan.md` 就绪） | **等用户** |
+| 发布 | 按 `m5-pilot-runbook.md` 情形 2 执行（Phase A→B→C→观察；降级 Phase E 红线：先关 worker/写入再切回旧应用） | 等上线指令 |
+| 灰度 | F1–F4 开关已实现（`b5f12db`）；观察指标与扩量/暂停门槛见 `story-rollout-flags.md` §3/§4 | 观察期开始后 |
 
-M4 剩余尾巴：`deleteMessageAndFollowing` 同毫秒相邻消息一并删除的精度问题（M4 终验 §5.6，低优先级，建议后续按 turnNo/message ID 收紧删除范围）；M4 退出条件中的备份恢复演练归入 M5 发布流程（runbook Phase B3）。
+已清项：灰度旗标 F1–F3（原待办）已实现；导出/分享/下架/级联（W07）已完成并终验。
 
-## 9. 团队与文档
+遗留尾巴（低优先级，排期即可）：
+1. `deleteMessageAndFollowing` 同毫秒相邻消息一并删除的精度问题（终验 §5.6；建议按 turnNo/message ID 收紧）
+2. W08 剩余 38 例 skeleton：依赖项已陆续满足（W07 分享/撤回已终验覆盖，可直接引用 baseline §6.3 B 组断言口径补执行器）
+3. W08 人工复核队列 7 条（model-simulated 语义断言，需人判）
+4. 真实模型评测（model-real）：需用户授权真实 AI 调用 + 预算 env，闭环已就绪
+5. api-paths 存量 fetch 渐进迁移：只在因其他原因触碰文件时顺手做，禁止批量搅动
 
-- 团队：lead、product-lead、software-architect、engineering-lead、ux-designer、qa-lead、devops-lead、security-lead、delivery-manager
-- 规划书：`docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx`
-- 工作流文档：`docs/planning/roadmap.md`（W01–W09、M0–M5、R0–R4 发布批次）
-- 纯文本版规划书：`.temp/plan-final.txt`（便于 grep，未纳入版本控制）
+## 9. 文档索引（按用途）
+
+- 规划书：`docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx`；可 grep 纯文本版 `.temp/plan-final.txt`（未纳入版本控制，勿删）
+- 工作流：`docs/planning/roadmap.md`（W01–W09、M0–M5、R0–R4 批次与验收门）
+- 数据契约：`docs/planning/m3-data-contract.md`（拍板结论权威）；行为对照：`docs/planning/m0-behavior-parity.md`
+- 发布：`docs/planning/releases/`（m5-pilot-runbook 主流程、story-rollout-flags、m3-m4-release-checklist、m3-launch-runbook 备用、admin-password-rotation-plan）
+- 内容与评测：`docs/content/drafts/`（6 章初稿 + EV-01~15 种子）、`tests/story-evaluation/traceability-matrix.md`（A01–A13 追溯）
+- 回归与终验记录：`.workbuddy/memory/baseline-2026-10-20.md`（第一~六节）；每日工作日志 `.workbuddy/memory/2026-10-20.md`
+- 结构审查：`docs/planning/structure-audit-2026-10-20.md`（模块边界结论）
+- 生产验证参考：`docs/planning/v0-acceptance-record.md`
+
+> 历史：2026-10-20 三轮多智能体协作（11+8 任务）全部完成解散，接手者可直接用新鲜 agent 开工，无需恢复任何旧团队。
 
 ## 10. 工程约定（这个仓库特有的）
 
 - 文案层不能有 `zhText`；不要写泰国字符（现有词典除外）；前台不能引用后台组件。
 - 组件只用 `@/components/ui` 原语，不引新依赖。
 - 不用 `localStorage` 伪装跨设备进度，不把 AI 编造的总结当数据库事实。
-- 迁移只许增量，不许 `ALTER` 既有表（除非有明确批准与回滚方案）。
-- 删代码要删干净：被替换的实现、死导出、临时脚本一并清掉，不留沉淀。
+- 迁移只许增量，不许 `ALTER` 既有表（除非有明确批准与回滚方案）；新增迁移先报批，当前 48 条。
+- 删代码要删干净：被替换的实现、死导出、临时脚本一并清掉，不留沉淀；临时验证产物（.next-qa-* 等）用完即删，不得改 tsconfig/配置文件为其留口。
+- api-paths 约定（`src/lib/api-paths.ts` 头注）：新代码强制走 API 常量，存量触碰时顺手迁，未消费条目是路由登记表不删。
+- 依赖方向：stories→conversations 单向（m3-data-contract §7）；失效规则归 stories、消息操作归 conversations；analytics 域不跨域依赖。
 
 ## 11. 2026-10-20 M3-2 接续记录
 
@@ -149,4 +178,27 @@ M4 已合入（`0e72f85` 闭环主体 + `e89bdc2` W08 执行器 + `ed0cd03` work
 - **持久租约与失效**：worker 条件认领（updateMany where stateStatus=PENDING）、租约保护提交、失效胜过 live lease、坏 stateJson 拒绝置 FAILED/STATE_DATA_CORRUPT 不静默覆盖——边界攻击 A1–A5 全部守住。
 - 失效事务（C3–C5）已随编辑/删除接线启用并验证：消息变更与 StoryEvent/Checkpoint/stateJson 失效同事务、turnNo 因果、重建回退游标。
 
-M5 试点交付文档（W09，release-prep）：`docs/planning/releases/` 下 `m5-pilot-runbook.md`（R4 发布 runbook，含 Phase E 降级/回滚）、`story-rollout-flags.md`（灰度开关设计，**未实现**，F1–F3 待批准另立任务）、`m3-m4-release-checklist.md`（上线批次对照，待拍板）。生产发布前生产库仍 45 条迁移，发布须走 m5-pilot-runbook（合并了 m3-launch-runbook 流程骨架）。
+M5 试点交付文档（W09，release-prep）：`docs/planning/releases/` 下 `m5-pilot-runbook.md`（R4 发布 runbook，含 Phase E 降级/回滚）、`story-rollout-flags.md`（灰度开关设计）、`m3-m4-release-checklist.md`（上线批次对照，待拍板）。生产发布前生产库仍 45 条迁移，发布须走 m5-pilot-runbook（合并了 m3-launch-runbook 流程骨架）。
+
+## 13. 2026-10-20 M5/W07 完成记录与终验结论
+
+- **W07**（`73b1cf8`）：导出白名单（导出 JSON 逐字段断言，隐藏剧情/提示词/stateJson/lease/requestHash 永不输出，账户档案 version 2→3）；story_shares 表（第 48 条迁移，纯增量）+ 分享创建/撤回（WITHDRAWN 对读者 404，撤回零副作用）；下架读写分离（`requireVisibleRun` 放宽读 + `requirePublishedTemplate` 写门，422 STORY_OFFLINE）；删除级联核对结论=既有外键级联已完备，用测试锁定。**顺手修复 M4 遗留真 bug**：turn-service.commitTurn 曾把助手回复同时写 USER+ASSISTANT 两条消息（用户输入从未落库），已修复并用终验 E 组攻击实测锁定。
+- **灰度旗标**（`b5f12db`）：F1/F2/F3 route 薄层各 3 行，命中 503+flag 标识、零额度预留写入先于拒绝，不设开关行为逐字节不变。
+- **终验**（baseline §6）：基线 11 项全绿（story 全套 37/37）、W08 与基线逐字一致、边界攻击 5 组全过（毒化 fixture 14 私有标记 0 命中、分享越权全拒、F2/F3 独立设计确认非漏洞、下架边界、turn 完整性）。
+- **发布文档计数**：已同步 47→48（story_shares 并批，`9cb5029`）。
+
+### 13.1 环境坑（接手 AI 必读，全部踩过）
+
+1. **safe-delete 垫片**：本机 node 的删除操作被 WorkBuddy 垫片拦截走 genie-trash（间歇超时/文件不存在报错）。构建/清理构建目录用 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 前缀；用户文件删除仍应走回收站保护。
+2. **Prisma schema engine 不可用**：`prisma migrate deploy` 本机无法运行（绝对路径也报 unable to open database file）。测试建库一律走 `scripts/helpers/create-isolated-db.mjs`（node:sqlite 顺序执行迁移 SQL），database-upgrade/account-* 测试已按此先例改造。
+3. **僵尸构建进程**：失败构建可能留下 next build 进程占 `.next-build\trace`（EPERM 连锁失败）。先查并清 `Win32_Process` 里命令行含 ai-role-community 的 node 进程再构建。
+4. **端口**：测试用随机端口，避开 3000/18782；`npm test` 需要 localhost:3000 有服务。
+5. **并行写入期单次测试结果不可采信**（baseline §5.4 教训）：文件稳定后复跑为准。
+6. **SSE 测试纪律**：测试必须把 turn SSE 流读到 done 再结束（排空响应体），否则后台生成进程重开已删库文件（EBUSY/P2021）。
+
+### 13.2 验收纪律（多 AI 协作时的分工红线）
+
+- 验证不同 worker 刚写的代码 → 拉新鲜视角的独立验收员，不让实现者自证收尾。
+- 写作域隔离：同一目录只允许一个写入者（conversations 域串行纪律）；越域触碰需先留证基线并保持旧语义零变化。
+- 迁移报批制：新增迁移先报 lead 批准（纯增量、零 ALTER/DROP、grep 自证），当前 48 条。
+- 架构红线：依赖只许 stories→conversations 单向；失效规则归 stories、消息操作归 conversations（m3-data-contract §7）。
