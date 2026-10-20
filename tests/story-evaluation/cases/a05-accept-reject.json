@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "EV-A05-001",
+      "title": "接受路径：后续回复遵守用户接受决定",
+      "acceptance": ["A05"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "model-simulated",
+      "modelPolicy": "simulated",
+      "status": "skeleton",
+      "description": "规划书第 13/20 章：以唱片店首章为样例，用户接受邀约后，第二章注入已确认约定，后续回复不得违反。准确性以人工复核的后续回复为准，不以 JSON 可解析为通过条件。",
+      "steps": [
+        {"actor": "user", "action": "首章选择接受一起寻找收件人", "expect": "约定事件确认为 FACT/PROMISE"},
+        {"actor": "user", "action": "进入第二章继续对话", "expect": "上下文注入该约定"}
+      ],
+      "assertions": [
+        {"kind": "model-output", "target": "第二章回复", "expect": "遵守约定，人工复核通过"}
+      ],
+      "dependsOn": ["M4 事件/上下文闭环", "评测模板（唱片店样例）"]
+    },
+    {
+      "id": "EV-A05-002",
+      "title": "拒绝路径：拒绝不是假接受，角色不得指责失约",
+      "acceptance": ["A05"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "model-simulated",
+      "modelPolicy": "simulated",
+      "status": "skeleton",
+      "description": "规划书第 13 章：用户拒绝邀约时，角色不能指责用户失约；拒绝也形成合法结果。",
+      "steps": [
+        {"actor": "user", "action": "首章明确拒绝邀约", "expect": "拒绝结果确认，无 PROMISE 事件"},
+        {"actor": "user", "action": "进入第二章", "expect": "上下文无该约定"}
+      ],
+      "assertions": [
+        {"kind": "model-output", "target": "第二章回复", "expect": "不提及用户答应赴约"}
+      ],
+      "dependsOn": ["M4 事件/上下文闭环", "评测模板"]
+    },
+    {
+      "id": "EV-A05-003",
+      "title": "物品归属：用户保留原件时角色不能从柜台取出原件",
+      "acceptance": ["A05"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "model-simulated",
+      "modelPolicy": "simulated",
+      "status": "skeleton",
+      "description": "规划书第 13 章：只注入已确认的物品归属；用户保留原件时，归属事件应为“原件在用户处”。",
+      "steps": [
+        {"actor": "user", "action": "节点二选择保留原件", "expect": "归属事件确认"},
+        {"actor": "user", "action": "后续回合询问原件", "expect": "模型遵守归属事实"}
+      ],
+      "assertions": [
+        {"kind": "model-output", "target": "后续回复", "expect": "无“原件在店内”类矛盾陈述"}
+      ],
+      "dependsOn": ["M4 事件/上下文闭环", "评测模板"]
+    },
+    {
+      "id": "EV-A05-004",
+      "title": "承诺未兑现：未承诺时不能说用户答应过什么",
+      "acceptance": ["A05"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "model-simulated",
+      "modelPolicy": "simulated",
+      "status": "skeleton",
+      "description": "规划书第 13 章：未承诺时不能说用户答应赴约；无证据候选不得影响后续事实（第 20 章）。",
+      "steps": [
+        {"actor": "user", "action": "全程不承诺任何约定", "expect": "无 PROMISE 类确认事件"},
+        {"actor": "user", "action": "继续对话多个回合", "expect": "模型不得虚构承诺"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "StoryEvent（PROMISE）", "expect": "数量为 0"},
+        {"kind": "model-output", "target": "回复", "expect": "无虚构承诺"}
+      ],
+      "dependsOn": ["M4 事件/上下文闭环", "评测模板"]
+    },
+    {
+      "id": "EV-A05-005",
+      "title": "提前猜谜：用户猜测不得写成已知真相",
+      "acceptance": ["A05"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "model-simulated",
+      "modelPolicy": "simulated",
+      "status": "skeleton",
+      "description": "规划书第 13 章：用户只是猜测收件人身份时，不能把猜测写成已知真相；隐藏信息仅按节点注入。",
+      "steps": [
+        {"actor": "user", "action": "在未揭示节点前给出猜测", "expect": "猜测不产生确认 FACT"},
+        {"actor": "user", "action": "继续对话", "expect": "模型不提前证实隐藏真相"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "StoryEvent", "expect": "无由猜测生成的确认事实"},
+        {"kind": "model-output", "target": "回复", "expect": "不泄漏隐藏真相"}
+      ],
+      "dependsOn": ["M4 事件/上下文闭环", "评测模板"]
+    },
+    {
+      "id": "EV-A05-006",
+      "title": "拒绝任务也形成合法结果并可通过服务端结章检查",
+      "acceptance": ["A05"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 10 章：用户拒绝某个任务也可以形成合法结果，不强迫按作者预设答案推进；结章由服务端规则检查。",
+      "steps": [
+        {"actor": "user", "action": "对关键节点选择拒绝并申请结章", "expect": "结章条件按模板允许拒绝成立"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "CHAPTER_RESULT", "expect": "记录拒绝路线为合法完成态"}
+      ],
+      "dependsOn": ["M4 结章服务", "评测模板结束条件定义"]
+    },
+    {
+      "id": "EV-A05-007",
+      "title": "同一开场双路径对照运行（接受 vs 拒绝）",
+      "acceptance": ["A05"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "model-simulated",
+      "modelPolicy": "simulated",
+      "status": "skeleton",
+      "description": "规划书第 13 章验收样例：使用同一开场分别运行接受与拒绝两条路径，作为 A05 的基准对照集；两组结果分别归档，不得合并结论。",
+      "steps": [
+        {"actor": "runner", "action": "同开场跑接受路径", "expect": "归档为 EV-A05-007-A"},
+        {"actor": "runner", "action": "同开场跑拒绝路径", "expect": "归档为 EV-A05-007-R"}
+      ],
+      "assertions": [
+        {"kind": "process", "target": "评测记录", "expect": "两条路径原始输出与版本一并留存"}
+      ],
+      "dependsOn": ["M4 事件/上下文闭环", "评测模板"]
+    },
+    {
+      "id": "EV-A05-008",
+      "title": "跨章一致性：第二章四处一致（开场、物品归属、角色提及、共同经历）",
+      "acceptance": ["A05"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "model-simulated",
+      "modelPolicy": "simulated",
+      "status": "skeleton",
+      "description": "规划书第 13 章：退出并重新登录后进入第二章，检查开场、物品归属、角色提及和共同经历四处是否一致。比“摘要生成成功”更能证明产品承诺。",
+      "steps": [
+        {"actor": "user", "action": "完成首章后退出重新登录", "expect": "进入第二章"},
+        {"actor": "checker", "action": "逐项核对四处一致性", "expect": "人工复核记录"}
+      ],
+      "assertions": [
+        {"kind": "model-output", "target": "四处核对表", "expect": "全部一致，无自相矛盾"}
+      ],
+      "dependsOn": ["M4 事件/上下文闭环", "评测模板"]
+    }
+  ]
+}

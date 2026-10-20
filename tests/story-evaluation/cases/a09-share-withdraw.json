@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "EV-A09-001",
+      "title": "只公开选中片段，默认不勾选私密备注，不自动发帖",
+      "acceptance": ["A09"],
+      "ownerWorkflow": "W04/W08",
+      "verificationTier": "browser",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 11 章：选择片段 → 编辑标题与遮盖信息 → 预览 → 主动确认；默认不勾选私密备注，不自动带入完整聊天。",
+      "steps": [
+        {"actor": "user", "action": "进入分享流程", "expect": "默认无片段被勾选私密备注"},
+        {"actor": "user", "action": "预览并确认发布", "expect": "公开内容与预览一致"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "公开快照", "expect": "与预览一致，无备注/完整聊天"}
+      ],
+      "dependsOn": ["W04 分享流程"]
+    },
+    {
+      "id": "EV-A09-002",
+      "title": "撤回后站内不可继续读取（下载图片除外并如实说明）",
+      "acceptance": ["A09"],
+      "ownerWorkflow": "W04/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 10/11 章：撤销公开记录，站内访问不可继续读取；已下载图片无法远程撤回需在发布说明准确表达。",
+      "steps": [
+        {"actor": "user", "action": "撤回分享", "expect": "公开记录撤销"},
+        {"actor": "reader", "action": "访问原分享链接", "expect": "站内不可读"}
+      ],
+      "assertions": [
+        {"kind": "http-status", "target": "分享读取", "expect": "不可读且状态明确"}
+      ],
+      "dependsOn": ["W07 StoryShare 撤回"]
+    },
+    {
+      "id": "EV-A09-003",
+      "title": "隐藏真相不在前情回顾、分享卡或选择解释中泄漏",
+      "acceptance": ["A09"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 10 章：已发布模板的隐藏信息不得在前情回顾、分享卡或选择解释中提前泄漏。",
+      "steps": [
+        {"actor": "checker", "action": "扫描回顾/分享卡/解释文案", "expect": "不含 hiddenFacts 文本"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "对外输出集合", "expect": "不包含隐藏真相字符串"}
+      ],
+      "dependsOn": ["M4 回顾构造", "W07 分享"]
+    }
+  ]
+}

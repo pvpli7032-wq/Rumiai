@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "EV-A13-001",
+      "title": "账户注销删除覆盖全部新增故事对象",
+      "acceptance": ["A13"],
+      "ownerWorkflow": "W07/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 15/24 章：新增表均纳入会话删除、账户注销、导出与备份恢复；不留孤儿数据。",
+      "steps": [
+        {"actor": "system", "action": "注销含故事数据的用户", "expect": "run/turn/event/checkpoint/share 全部清理或匿名化"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "新增表计数", "expect": "该用户记录为 0"}
+      ],
+      "dependsOn": ["W07 注销清理"]
+    },
+    {
+      "id": "EV-A13-002",
+      "title": "用户导出包含故事数据且不含他人信息",
+      "acceptance": ["A13"],
+      "ownerWorkflow": "W07/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 24 章：用户导出与备份恢复必须覆盖所有新增数据；导出不含他人信息与隐藏真相。",
+      "steps": [
+        {"actor": "user", "action": "请求导出", "expect": "包含自己的故事对象"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "导出内容", "expect": "无他人数据、无模板隐藏事实"}
+      ],
+      "dependsOn": ["W07 导出"]
+    },
+    {
+      "id": "EV-A13-003",
+      "title": "已删除消息关联的私密派生记忆同步删除或失效",
+      "acceptance": ["A13", "A06"],
+      "ownerWorkflow": "W07/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 24 章：已删除消息关联的私密派生记忆应同步删除或失效；整段会话删除保留级联语义（story-run-service.test.mjs 已覆盖 run/checkpoint 级联，本用例扩展到事件）。",
+      "steps": [
+        {"actor": "user", "action": "删除整段会话", "expect": "派生事件同步失效/删除"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "StoryEvent", "expect": "无可读残留"}
+      ],
+      "dependsOn": ["M4 失效事务", "W07 清理"]
+    },
+    {
+      "id": "EV-A13-004",
+      "title": "备份恢复后故事状态关联一致",
+      "acceptance": ["A13"],
+      "ownerWorkflow": "W07/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 27 章：恢复演练不得覆盖未备份数据；恢复后 run/turn/event/checkpoint 关联与恢复前一致。",
+      "steps": [
+        {"actor": "runner", "action": "备份→写入→恢复到备份点", "expect": "记录数量与关联一致"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "外键关联完整性", "expect": "无悬空引用"}
+      ],
+      "dependsOn": ["备份恢复演练入口"]
+    },
+    {
+      "id": "EV-A13-005",
+      "title": "日志无用户正文、系统提示词与密钥",
+      "acceptance": ["A13"],
+      "ownerWorkflow": "W07/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 27 章：只记录必要标识和错误码，日志不输出用户正文、系统提示词或模型密钥。tests/logger-privacy.test.mjs 有既有口径，本用例覆盖故事链路新增日志。",
+      "steps": [
+        {"actor": "runner", "action": "触发故事各链路错误与正常日志", "expect": "收集全部日志输出"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "日志文本", "expect": "不包含正文/提示词/密钥样本"}
+      ],
+      "dependsOn": ["M4 各链路日志点"]
+    }
+  ]
+}

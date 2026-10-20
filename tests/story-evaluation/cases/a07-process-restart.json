@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "EV-A07-001",
+      "title": "进程重启后已提交回合的状态任务可恢复",
+      "acceptance": ["A07"],
+      "ownerWorkflow": "W06/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 19 章：消息事务提交后进程退出，任务仍可恢复；StoryTurn 持久记录待处理状态，不依赖裸 Promise。",
+      "steps": [
+        {"actor": "system", "action": "提交回合后立刻终止 worker 进程", "expect": "任务保留待处理"},
+        {"actor": "system", "action": "重启 worker", "expect": "任务被重新拾取并完成"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "StoryTurn 状态", "expect": "从待处理推进到已应用"}
+      ],
+      "dependsOn": ["M4 worker 与持久租约"]
+    },
+    {
+      "id": "EV-A07-002",
+      "title": "恢复不重复应用同一事件",
+      "acceptance": ["A07"],
+      "ownerWorkflow": "W06/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 19 章：按来源与事件键去重；重复处理不得产生重复事件或重复 revision 提升。",
+      "steps": [
+        {"actor": "system", "action": "对同一待处理任务重复恢复两次", "expect": "第二次幂等跳过"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "StoryEvent 数量", "expect": "不增加"}
+      ],
+      "dependsOn": ["M4 worker"]
+    },
+    {
+      "id": "EV-A07-003",
+      "title": "持久租约超时可恢复，不自动重复外部模型生成",
+      "acceptance": ["A07"],
+      "ownerWorkflow": "W06/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 19 章：超时可恢复状态任务，不能自动重复外部模型生成；恢复仅限状态处理。",
+      "steps": [
+        {"actor": "system", "action": "模拟租约超时接管", "expect": "仅恢复状态处理，不重发生成"},
+        {"actor": "system", "action": "核对 aiCall", "expect": "无新增外部调用"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "aiCall 记录", "expect": "数量不变"}
+      ],
+      "dependsOn": ["M4 worker"]
+    }
+  ]
+}

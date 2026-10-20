@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "EV-A10-001",
+      "title": "英文完整路径无漏译，缺失键不直接显示给用户",
+      "acceptance": ["A10"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "browser",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 24 章：UI 字典、故事内容、角色表达语言分别管理；禁止把英文缺失键直接显示；英文场景不得混有中文提示与素材。",
+      "steps": [
+        {"actor": "user", "action": "以 en 走完开始→对话→结束页", "expect": "全程英文 UI"},
+        {"actor": "checker", "action": "扫描页面", "expect": "无缺失键字面量、无混排"}
+      ],
+      "assertions": [
+        {"kind": "dom", "target": "核心路径页面", "expect": "无 raw key、无未翻译中文"}
+      ],
+      "dependsOn": ["V0 英文语言包"]
+    },
+    {
+      "id": "EV-A10-002",
+      "title": "切换语言后原故事进度不丢失",
+      "acceptance": ["A10"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 24 章：切换语言后原故事进度不丢失；跨语言翻译不修改原事件 ID 与语义事实。",
+      "steps": [
+        {"actor": "user", "action": "zh 完成若干回合后切 en", "expect": "进度与事件 ID 不变"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "StoryRun/StoryEvent", "expect": "记录完整，ID 不变"}
+      ],
+      "dependsOn": ["M4 事件记录"]
+    },
+    {
+      "id": "EV-A10-003",
+      "title": "移动端键盘展开、中文输入法组合输入与长文本粘贴实机检查",
+      "acceptance": ["A10"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "manual",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 09 章：粘贴长文本、中文输入法组合输入和移动端键盘展开必须实机检查；结果人工记录，不自动判定。",
+      "steps": [
+        {"actor": "tester", "action": "真机执行组合输入/粘贴/键盘展开", "expect": "输入框与滚动行为正常"}
+      ],
+      "assertions": [
+        {"kind": "manual", "target": "实机记录表", "expect": "逐项人工结论，不伪造自动通过"}
+      ],
+      "dependsOn": ["V0 移动端布局"]
+    }
+  ]
+}

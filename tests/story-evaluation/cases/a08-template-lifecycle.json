@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "EV-A08-001",
+      "title": "作者更新模板不影响进行中的老实例（固定版本）",
+      "acceptance": ["A08"],
+      "ownerWorkflow": "W05/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 12 章：已开始的故事固定使用原版本；作者修改模板不直接改变正在进行的剧情。",
+      "steps": [
+        {"actor": "author", "action": "发布新版本", "expect": "老实例仍指向旧 versionId"},
+        {"actor": "user", "action": "继续老实例", "expect": "上下文按旧版本构造"}
+      ],
+      "assertions": [
+        {"kind": "state", "target": "run.versionId", "expect": "不变"}
+      ],
+      "dependsOn": ["M4 模板版本解析"]
+    },
+    {
+      "id": "EV-A08-002",
+      "title": "下架禁止新开故事，已有故事按审核策略决定能否继续",
+      "acceptance": ["A08"],
+      "ownerWorkflow": "W05/W08",
+      "verificationTier": "domain",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 08 章：内容下架时禁止新开故事；已有故事按策略继续或停止，均返回明确状态。",
+      "steps": [
+        {"actor": "admin", "action": "下架模板", "expect": "新创建被拒"},
+        {"actor": "user", "action": "继续已有实例", "expect": "按策略返回允许/明确拒绝"}
+      ],
+      "assertions": [
+        {"kind": "http-status", "target": "创建接口", "expect": "明确的 4xx，而非 500 或空数据"}
+      ],
+      "dependsOn": ["M4 下架策略"]
+    },
+    {
+      "id": "EV-A08-003",
+      "title": "下架后保留用户自己的历史查看与导出能力",
+      "acceptance": ["A08", "A13"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "browser",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 08 章：至少保留用户自己的历史查看与导出能力，并附清晰说明。",
+      "steps": [
+        {"actor": "user", "action": "访问已下架故事的历史", "expect": "可读自己的记录"}
+      ],
+      "assertions": [
+        {"kind": "dom", "target": "历史入口", "expect": "可用且有下架说明"}
+      ],
+      "dependsOn": ["V0 历史页", "M4 下架策略"]
+    }
+  ]
+}

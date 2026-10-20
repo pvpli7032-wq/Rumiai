@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "EV-A11-001",
+      "title": "1 万条历史只加载分页，保持滚动和输入可用",
+      "acceptance": ["A11"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "load",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 21 章：长聊天初始建议 50 条分页；虚拟列表与锚点恢复；响应体不能全量返回。测试环境使用本地随机端口与隔离库，不占用 3000/18782。",
+      "steps": [
+        {"actor": "runner", "action": "构造 1 万条消息会话", "expect": "首屏按分页加载"},
+        {"actor": "runner", "action": "滚动与输入", "expect": "交互保持可用"}
+      ],
+      "assertions": [
+        {"kind": "metric", "target": "首屏响应体", "expect": "仅分页条数，不随历史总量线性增长"}
+      ],
+      "dependsOn": ["消息分页实现", "M0 冻结的性能条件"]
+    },
+    {
+      "id": "EV-A11-002",
+      "title": "普通列表与状态接口 p95 不高于 300 毫秒（同区对照，排除模型时间）",
+      "acceptance": ["A11"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "load",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 21 章：p95 ≤300ms 为建议目标，非当前结果；同区测试排除模型时间，记录数据库规模。阈值在 M0 基线后确认，未冻结前不正式打分。",
+      "steps": [
+        {"actor": "runner", "action": "固定数据规模压测列表/状态接口", "expect": "采集 p50/p95"},
+        {"actor": "runner", "action": "记录环境与版本", "expect": "SHA、设备、数据规模入报告"}
+      ],
+      "assertions": [
+        {"kind": "metric", "target": "p95", "expect": "对照冻结阈值判定，未冻结则记 PENDING"}
+      ],
+      "dependsOn": ["M0 性能条件冻结"]
+    },
+    {
+      "id": "EV-A11-003",
+      "title": "同时生成：先验证 20 个，再验证 50 个会话流（模拟上游）",
+      "acceptance": ["A11"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "load",
+      "modelPolicy": "simulated",
+      "status": "skeleton",
+      "description": "规划书第 21 章：20/50 并发是假定试点容量；采用模拟上游压测框架层，独立真实模型测试另行授权执行。",
+      "steps": [
+        {"actor": "runner", "action": "模拟上游下 20 并发流", "expect": "全部正常完成或明确失败"},
+        {"actor": "runner", "action": "50 并发流", "expect": "记录锁等待与错误率"}
+      ],
+      "assertions": [
+        {"kind": "metric", "target": "SQLite 锁等待/错误率", "expect": "记录原始数据，对照冻结阈值"}
+      ],
+      "dependsOn": ["模拟上游适配器"]
+    },
+    {
+      "id": "EV-A11-004",
+      "title": "负载报告记录 p50/p95、错误率、内存、锁等待、活跃连接与每轮费用",
+      "acceptance": ["A11", "A12"],
+      "ownerWorkflow": "W08",
+      "verificationTier": "load",
+      "modelPolicy": "none",
+      "status": "skeleton",
+      "description": "规划书第 21 章：报告必须含原始数据与版本；界面、接口、模型三类指标分开，不用前端优化掩盖后端瓶颈。",
+      "steps": [
+        {"actor": "runner", "action": "汇总压测产物", "expect": "按模板输出报告"}
+      ],
+      "assertions": [
+        {"kind": "process", "target": "报告文件", "expect": "含版本、环境、原始数据；无编造数值"}
+      ],
+      "dependsOn": ["EV-A11-002/003 的执行数据"]
+    }
+  ]
+}
