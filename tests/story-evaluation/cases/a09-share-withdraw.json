@@ -78,7 +78,7 @@
       "ownerWorkflow": "W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 10 章：已发布模板的隐藏信息不得在前情回顾、分享卡或选择解释中提前泄漏。",
       "steps": [
         {

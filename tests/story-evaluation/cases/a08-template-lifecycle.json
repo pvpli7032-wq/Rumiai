@@ -10,7 +10,7 @@
       "ownerWorkflow": "W05/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 12 章：已开始的故事固定使用原版本；作者修改模板不直接改变正在进行的剧情。",
       "steps": [
         {
@@ -44,7 +44,7 @@
       "ownerWorkflow": "W05/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 08 章：内容下架时禁止新开故事；已有故事按策略继续或停止，均返回明确状态。",
       "steps": [
         {

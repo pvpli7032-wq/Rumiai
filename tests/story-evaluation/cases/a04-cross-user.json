@@ -39,7 +39,7 @@
       "ownerWorkflow": "W07/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 24 章：作者不能读取读者私人聊天；事件仅暴露已确认、未失效且属于本会话的数据。",
       "steps": [
         {
@@ -99,7 +99,7 @@
       "ownerWorkflow": "W07/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 24 章：公开帖子只保存用户预览确认的快照；读者不继承分享者私人经历。",
       "steps": [
         {

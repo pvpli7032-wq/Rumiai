@@ -302,7 +302,205 @@ async function a01_006({db, modules}) {
   return {result: 'PASS', reason: '重新开始得到全新实例与会话，旧实例的回合、消息与游标原样保留'};
 }
 
+async function w07Services() {
+  return Promise.all([import('../../../src/lib/conversations/privacy.ts'), import('../../../src/lib/stories/lifecycle/share-service.ts'), import('../../../src/lib/stories/lifecycle/state-worker.ts'), import('../../../src/lib/stories/lifecycle/export-service.ts'), import('../../../src/lib/stories/lifecycle/chapter-service.ts')]);
+}
+
+async function a04_002({db, modules}) {
+  const f = await createStoryFixture(db, 'a04-002');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'private-event', requestHash: turnRequestHash('x'), operation: 'SEND', status: 'COMMITTED', stateStatus: 'PROCESSED', startedAt: new Date(), committedAt: new Date()}});
+  await db.storyEvent.create({data: {runId: created.run.id, sourceTurnId: turn.id, chapterKey: 'opening', type: 'FACT', status: 'CONFIRMED', payloadJson: JSON.stringify({schemaVersion: 1, publicSummary: 'owner-only event'})}});
+  const stranger = await storyRejection(modules.runService.readStoryRun(f.stranger.id, created.run.id), 'stranger event access');
+  assert.equal(stranger.status, 404);
+  assert.deepEqual((await modules.runService.listStoryRuns(f.stranger.id)).items, []);
+  return {result: 'PASS', reason: '事件只通过所有者 run view 读取；他人 run 详情 404 且列表为空'};
+}
+
+async function a04_004({db, modules}) {
+  const [, shareModule] = await w07Services();
+  const f = await createStoryFixture(db, 'a04-004');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const events = await runTurn(modules.turn, f.owner.id, created.run, '仅选中的公开片段', randomUUID(), 0);
+  const receipt = events.find(e => e.type === 'committed');
+  const selection = [receipt.userMessageId, receipt.assistantMessageId];
+  const {share} = await shareModule.createStoryShare(f.owner.id, created.run.id, {title: '公开标题', messageIds: selection});
+  const snapshot = JSON.stringify(share.snapshot);
+  assert.deepEqual(Object.keys(share.snapshot).sort(), ['chapterTitle', 'fragments', 'publicSummary', 'schemaVersion', 'templateTitle'].sort());
+  assert.equal(share.snapshot.fragments.length, 2);
+  assert.ok(snapshot.includes('仅选中的公开片段'));
+  for (const secret of ['SECRET_PLOT', 'PRIVATE_PERSONA', 'PRIVATE_PROMPT', 'identity', 'notes', 'stateJson']) assert.equal(snapshot.includes(secret), false, secret);
+  return {result: 'PASS', reason: '分享快照只含公开模板/章节文案与用户选中的两条消息，不含私密身份或状态字段'};
+}
+
+async function a06_003({db, modules}) {
+  const {f, run, turns} = await threeTurnRunWithDerivatives(db, modules, 'a06-003');
+  await modules.messages.editUserMessage(f.owner.id, run.conversationId, turns[1].inputMessageId, {content: '修正 checkpoint 前事实'});
+  const after = await db.storyRun.findUniqueOrThrow({where: {id: run.id}});
+  const events = await db.storyEvent.findMany({where: {runId: run.id, status: 'CONFIRMED'}});
+  assert.deepEqual(JSON.parse(after.stateJson), {schemaVersion: 1, chapterKey: 'opening'});
+  assert.equal(events.length, 1);
+  assert.equal(events[0].payloadJson.includes('第 2 轮事实'), false);
+  assert.equal(after.stateProcessedThroughTurnNo, 0);
+  return {result: 'PASS', reason: '编辑第 N 轮后状态按最近未失效检查点重建；旧确认摘要已失效且游标回退'};
+}
+
+async function a07_002({db, modules}) {
+  const [, , worker] = await w07Services();
+  const f = await createStoryFixture(db, 'a07-002');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'recovery-idempotency', requestHash: turnRequestHash('saved'), operation: 'SEND', status: 'COMMITTED', stateStatus: 'PENDING', startedAt: new Date(), committedAt: new Date()}});
+  const userMessage = await db.message.create({data: {conversationId: created.run.conversationId, role: 'USER', content: 'saved'}});
+  const assistant = await db.message.create({data: {conversationId: created.run.conversationId, role: 'ASSISTANT', content: 'saved reply'}});
+  await db.storyTurn.update({where: {id: turn.id}, data: {inputMessageId: userMessage.id, assistantMessageId: assistant.id}});
+  await db.storyRun.update({where: {id: created.run.id}, data: {lastCommittedTurnNo: 1, revision: 2}});
+  assert.equal((await worker.processPendingStateWork()).processed, 1);
+  const afterFirst = await db.storyRun.findUniqueOrThrow({where: {id: created.run.id}});
+  assert.equal((await worker.processPendingStateWork()).processed, 0);
+  const afterSecond = await db.storyRun.findUniqueOrThrow({where: {id: created.run.id}});
+  assert.equal(await db.storyEvent.count({where: {runId: created.run.id}}), 1);
+  assert.equal(await db.storyCheckpoint.count({where: {runId: created.run.id, throughTurnNo: 1}}), 1);
+  assert.equal(afterFirst.stateProcessedThroughTurnNo, 1);
+  assert.equal(afterSecond.stateProcessedThroughTurnNo, 1);
+  assert.equal(afterSecond.revision, afterFirst.revision);
+  return {result: 'PASS', reason: '同一已处理任务再次扫描不重复创建事件/检查点或推进 revision'};
+}
+
+async function a08_001({db, modules}) {
+  const f = await createStoryFixture(db, 'a08-001');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const oldVersion = created.run.templateVersionId;
+  const newer = await db.storyTemplateVersion.create({data: {templateId: f.template.id, version: 2, locale: 'zh', publishedAt: new Date(), definitionJson: JSON.stringify({...f.definition, publicSummary: '新版本摘要', hiddenFacts: 'NEW_SECRET'}), characterSnapshotJson: JSON.stringify({schemaVersion: 1, characterId: f.character.id, prompt: 'NEW_PROMPT'})}});
+  assert.notEqual(newer.id, oldVersion);
+  const current = await modules.runService.readStoryRun(f.owner.id, created.run.id);
+  assert.equal(current.run.template.version, 1, 'existing run remains bound to its original version');
+  assert.equal(current.run.template.publicSummary, '公开介绍');
+  assert.equal(JSON.stringify(current).includes('新版本摘要'), false);
+  return {result: 'PASS', reason: '发布新模板版本不改在途 run 的 versionId、版本号或公开摘要'};
+}
+
+async function a08_002({db, modules}) {
+  const f = await createStoryFixture(db, 'a08-002');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  await db.storyTemplate.update({where: {id: f.template.id}, data: {status: 'DRAFT'}});
+  const rejection = await storyRejection(modules.runService.createStoryRun(f.owner.id, {...f.createInput, requestId: randomUUID()}), 'new run from draft');
+  assert.equal(rejection.status, 404);
+  const turnRejection = await storyRejection(runTurn(modules.turn, f.owner.id, created.run, 'not allowed', randomUUID(), created.run.revision), 'turn on draft');
+  assert.equal(turnRejection.status, 422);
+  assert.equal(turnRejection.code, 'STORY_OFFLINE');
+  const read = await modules.runService.readStoryRun(f.owner.id, created.run.id);
+  assert.equal(read.run.id, created.run.id);
+  return {result: 'PASS', reason: '下架模板拒绝新开和新回合，已有故事历史仍可读取'};
+}
+
+async function a09_002({db, modules}) {
+  const [, shareModule] = await w07Services();
+  const f = await createStoryFixture(db, 'a09-002');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const events = await runTurn(modules.turn, f.owner.id, created.run, '分享片段', randomUUID(), 0);
+  const receipt = events.find(e => e.type === 'committed');
+  const {share} = await shareModule.createStoryShare(f.owner.id, created.run.id, {title: '撤回测试', messageIds: [receipt.userMessageId, receipt.assistantMessageId]});
+  const withdrawn = await shareModule.withdrawStoryShare(f.owner.id, created.run.id, share.id);
+  assert.equal(withdrawn.share.status, 'WITHDRAWN');
+  const stored = await db.storyShare.findUniqueOrThrow({where: {id: share.id}});
+  assert.ok(stored.withdrawnAt);
+  assert.equal(JSON.parse(stored.snapshotJson).fragments.length, 2);
+  const retry = await storyRejection(shareModule.withdrawStoryShare(f.owner.id, created.run.id, share.id), 'repeat withdraw');
+  assert.equal(retry.status, 409);
+  const foreign = await storyRejection(shareModule.withdrawStoryShare(f.stranger.id, created.run.id, share.id), 'foreign withdraw');
+  assert.equal(foreign.status, 404);
+  return {result: 'PASS', reason: '撤回标记持久化且重复撤回/他人撤回被拒；reader-facing HTTP 可读性仍需端点验收'};
+}
+
+async function a09_003({db, modules}) {
+  const f = await createStoryFixture(db, 'a09-003');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const message = await db.message.create({data: {conversationId: created.run.conversationId, role: 'ASSISTANT', content: 'safe public line'}});
+  const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'reviewed-fact', requestHash: 'fixture', operation: 'SEND', status: 'COMMITTED', stateStatus: 'PROCESSED', startedAt: new Date(), committedAt: new Date(), assistantMessageId: message.id}});
+  await db.storyEvent.create({data: {runId: created.run.id, sourceTurnId: turn.id, chapterKey: 'opening', type: 'FACT', status: 'CONFIRMED', sourceMessageId: message.id, payloadJson: JSON.stringify({schemaVersion: 1, publicSummary: 'safe public line', hidden: 'SECRET_PLOT'})}});
+  const view = await modules.runService.readStoryRun(f.owner.id, created.run.id);
+  const [, , , exports] = await w07Services();
+  const archive = await exports.exportStoryRun(f.owner.id, created.run.id);
+  for (const value of [JSON.stringify(view), JSON.stringify(archive)]) {
+    assert.equal(value.includes('SECRET_PLOT'), false);
+    assert.equal(value.includes('safe public line'), true);
+  }
+  return {result: 'PASS', reason: 'run view 与单 run 导出只投影公开事件摘要，不泄漏模板 hiddenFacts 字符串'};
+}
+
+async function a12_004({db, modules}) {
+  const [, , worker] = await w07Services();
+  const f = await createStoryFixture(db, 'a12-004');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const input = await db.message.create({data: {conversationId: created.run.conversationId, role: 'USER', content: 'preserved user'}});
+  const reply = await db.message.create({data: {conversationId: created.run.conversationId, role: 'ASSISTANT', content: 'preserved reply'}});
+  const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'deferred', requestHash: turnRequestHash('preserved user'), operation: 'SEND', status: 'COMMITTED', stateStatus: 'PENDING', startedAt: new Date(), committedAt: new Date(), inputMessageId: input.id, assistantMessageId: reply.id}});
+  await db.storyRun.update({where: {id: created.run.id}, data: {lastCommittedTurnNo: 1, revision: 2}});
+  const result = await worker.processPendingStateWork();
+  assert.equal(result.processed, 1);
+  assert.equal(await db.aiCall.count({where: {userId: f.owner.id}}), 0);
+  assert.equal(await db.message.count({where: {conversationId: created.run.conversationId}}), 2);
+  const turnAfter = await db.storyTurn.findUniqueOrThrow({where: {id: turn.id}});
+  assert.equal(turnAfter.stateStatus, 'PROCESSED');
+  assert.equal(turnAfter.stateAttempts, 1);
+  assert.equal(await db.storyEvent.count({where: {runId: created.run.id}}), 1);
+  const runAfter = await db.storyRun.findUniqueOrThrow({where: {id: created.run.id}});
+  assert.equal(runAfter.stateProcessedThroughTurnNo, 1);
+  return {result: 'PASS', reason: '整理调用不改变聊天费用记录，已提交的用户/角色消息保持原样'};
+}
+
+async function a12_006({db, modules}) {
+  const [, , worker] = await w07Services();
+  const f = await createStoryFixture(db, 'a12-006');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const input = await db.message.create({data: {conversationId: created.run.conversationId, role: 'USER', content: 'saved input'}});
+  const reply = await db.message.create({data: {conversationId: created.run.conversationId, role: 'ASSISTANT', content: 'saved response'}});
+  const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'budget-none', requestHash: turnRequestHash('saved input'), operation: 'SEND', status: 'COMMITTED', stateStatus: 'PENDING', startedAt: new Date(), committedAt: new Date(), inputMessageId: input.id, assistantMessageId: reply.id}});
+  await db.storyRun.update({where: {id: created.run.id}, data: {lastCommittedTurnNo: 1, revision: 2}});
+  const result = await worker.processPendingStateWork();
+  assert.equal(result.processed, 1);
+  assert.equal((await db.storyTurn.findUniqueOrThrow({where: {id: turn.id}})).status, 'COMMITTED');
+  assert.deepEqual((await db.message.findMany({where: {conversationId: created.run.conversationId}, orderBy: {role: 'asc'}})).map(m => m.content).sort(), ['saved input', 'saved response'].sort());
+  return {result: 'PASS', reason: '状态整理后已保存内容完整保留，worker 不替换或伪造聊天回复'};
+}
+
+async function a13_001({db, modules}) {
+  const [privacy] = await w07Services();
+  const f = await createStoryFixture(db, 'a13-001');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  await db.$transaction(tx => privacy.eraseAccountConversations(tx, f.owner.id));
+  for (const model of ['storyRun', 'storyTurn', 'storyEvent', 'storyCheckpoint', 'storyShare']) assert.equal(await db[model].count({where: {run: {userId: f.owner.id}}}).catch(async () => db[model].count({where: {userId: f.owner.id}})), 0, model);
+  assert.equal(await db.conversation.count({where: {id: created.run.conversationId}}), 0);
+  return {result: 'PASS', reason: '账户会话清理后 run/turn/event/checkpoint/share 与关联会话均无残留'};
+}
+
+async function a13_002({db, modules}) {
+  const [, , , exports] = await w07Services();
+  const f = await createStoryFixture(db, 'a13-002');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'export', requestHash: 'x', operation: 'SEND', status: 'COMMITTED', stateStatus: 'PROCESSED', startedAt: new Date(), committedAt: new Date()}});
+  await db.storyEvent.create({data: {runId: created.run.id, sourceTurnId: turn.id, chapterKey: 'opening', type: 'FACT', status: 'CONFIRMED', payloadJson: JSON.stringify({schemaVersion: 1, publicSummary: 'own public fact', hidden: 'SECRET_PLOT'})}});
+  const archive = await exports.exportStoryRun(f.owner.id, created.run.id);
+  const own = await db.$transaction(tx => exports.exportAccountStories(tx, f.owner.id));
+  const stranger = await storyRejection(exports.exportStoryRun(f.stranger.id, created.run.id), 'foreign export');
+  assert.equal(stranger.status, 404);
+  assert.equal(own.length, 1);
+  for (const serialized of [JSON.stringify(archive), JSON.stringify(own)]) {
+    assert.equal(serialized.includes('SECRET_PLOT'), false);
+    assert.equal(serialized.includes('own public fact'), true);
+  }
+  return {result: 'PASS', reason: '单 run 与账户故事导出包含本人公开投影、拒绝他人导出且不含隐藏事实'};
+}
+
 const SCENARIOS = new Map([
+  ['EV-A04-002', a04_002],
+  ['EV-A04-004', a04_004],
+  ['EV-A07-002', a07_002],
+  ['EV-A08-001', a08_001],
+  ['EV-A08-002', a08_002],
+  ['EV-A09-003', a09_003],
+  ['EV-A13-001', a13_001],
+  ['EV-A13-002', a13_002],
   ['EV-A01-001', a01_001],
   ['EV-A01-002', a01_002],
   ['EV-A01-006', a01_006],

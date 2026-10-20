@@ -10,7 +10,7 @@
       "ownerWorkflow": "W07/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 15/24 章：新增表均纳入会话删除、账户注销、导出与备份恢复；不留孤儿数据。",
       "steps": [
         {
@@ -39,7 +39,7 @@
       "ownerWorkflow": "W07/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 24 章：用户导出与备份恢复必须覆盖所有新增数据；导出不含他人信息与隐藏真相。",
       "steps": [
         {
