@@ -21,6 +21,7 @@ import { EndChapterDialog } from '@/components/stories/end-chapter-dialog';
 import { getSceneConfigByCharacterId } from '@/lib/stories/scene-config';
 import { resolveScene } from '@/lib/stories/scene-service';
 import { buildChapterCloseData } from '@/lib/stories/chapter-close';
+import { trackSceneFunnelEvent } from '@/lib/analytics/scene-funnel-client';
 import { notifyChatListChanged } from '@/lib/conversations/chat-events';
 import { Send, Loader2, ArrowLeft, Flag } from 'lucide-react';
 import type {ChatMessage as Message} from '@/lib/api-types/conversations';
@@ -159,10 +160,21 @@ function ChatContent() {
       .finally(() => setLoading(false));
   }, [charId, token, authLoading, requestedConversation]);
 
+  // 漏斗顶：场景态就绪（开场已渲染、会话已打开）记一次到达；服务端按会话幂等去重。
+  const trackedSceneOpenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeScene || !conversationId) return;
+    if (trackedSceneOpenRef.current === conversationId) return;
+    trackedSceneOpenRef.current = conversationId;
+    trackSceneFunnelEvent(token, 'scene_opened', { conversationId, sceneId: activeScene.id });
+  }, [activeScene, conversationId, token]);
+
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || !conversationId || streaming) return;
     const content = input.trim();
+    // 场景漏斗第二级：只有本会话第一条用户消息才算“首条消息发出”。
+    const firstSceneMessage = activeScene !== undefined && !messages.some(m => m.role === 'USER');
     setInput('');
     const userMsg: Message = { id: Date.now().toString(), role: 'USER', content, createdAt: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
@@ -184,6 +196,7 @@ function ChatContent() {
       if(!res.ok)setInput(content);
       const full = await consumeStream(res);
       if (full) {
+        if (activeScene && firstSceneMessage) trackSceneFunnelEvent(token, 'scene_first_message_sent', { conversationId, sceneId: activeScene.id });
         // Re-read the thread so both messages carry their real database ids; the optimistic
         // ids above are timestamps, and liking a reply needs the id the server assigned.
         const fresh = await fetch(`/api/conversations/${conversationId}/messages`, {
@@ -387,7 +400,7 @@ function ChatContent() {
       </div>
 
       {activeScene && showChapterClose ? (
-        <div className="flex-1 overflow-y-auto px-4 py-6"><div className="mx-auto max-w-3xl"><ChapterClose sceneTitle={activeScene.title} data={buildChapterCloseData(messages)} publicOpenQuestions={activeScene.publicOpenQuestions} onContinue={() => setShowChapterClose(false)} /></div></div>
+        <div className="flex-1 overflow-y-auto px-4 py-6"><div className="mx-auto max-w-3xl"><ChapterClose sceneTitle={activeScene.title} data={buildChapterCloseData(messages)} publicOpenQuestions={activeScene.publicOpenQuestions} onContinue={() => { setShowChapterClose(false); if (conversationId) trackSceneFunnelEvent(token, 'scene_close_continue_clicked', { conversationId, sceneId: activeScene.id }); }} /></div></div>
       ) : (
       <>
       {/* Messages */}
@@ -533,7 +546,7 @@ function ChatContent() {
       )}
     </div>
 
-      {activeScene && <EndChapterDialog open={endChapterDialogOpen} onClose={() => setEndChapterDialogOpen(false)} onConfirm={() => { setEndChapterDialogOpen(false); setShowChapterClose(true); }} />}
+      {activeScene && <EndChapterDialog open={endChapterDialogOpen} onClose={() => setEndChapterDialogOpen(false)} onConfirm={() => { setEndChapterDialogOpen(false); setShowChapterClose(true); if (conversationId) trackSceneFunnelEvent(token, 'scene_active_end_confirmed', { conversationId, sceneId: activeScene.id }); }} />}
 
       {conversationId && token && (
         <RelationshipPanel

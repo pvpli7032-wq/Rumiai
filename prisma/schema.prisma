@@ -1575,3 +1575,18 @@ model StoryCheckpoint {
   @@index([runId, invalidatedAt, throughTurnNo])
   @@map("story_checkpoints")
 }
+
+/// V0 场景漏斗事实。每个用户每个场景会话每个节点最多一条，只记事实不记内容；
+/// 不声明关系字段以保持本文件只增不改的约定，会话归属由写入服务校验。
+model SceneFunnelEvent {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  conversationId String   @map("conversation_id")
+  sceneId        String   @map("scene_id")
+  event          String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, conversationId, event])
+  @@index([createdAt])
+  @@map("scene_funnel_events")
+}

@@ -14,6 +14,9 @@ export const API = {
   site: '/api/site',
   status: '/api/operations/status',
   upload: '/api/upload',
+  analytics: {
+    funnelEvents: '/api/analytics/funnel-events',
+  },
   universes: '/api/universes',
   rankings: '/api/rankings',
   reports: '/api/reports',
@@ -162,6 +165,7 @@ export const API = {
     certificate: '/api/admin/operations/certificate',
     compliance: '/api/admin/compliance',
     analytics: '/api/admin/analytics',
+    analyticsFunnel: '/api/admin/analytics/scene-funnel',
     audit: '/api/admin/audit',
     operators: '/api/admin/operators',
     operatorLookup: (query: string) => `/api/admin/operators/lookup?${query}`,
