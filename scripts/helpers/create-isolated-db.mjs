@@ -36,14 +36,22 @@ const EPHEMERAL_PATTERN = /-\d+-\d{13}\.db$/;
 function registerEphemeralCleanup(databasePath) {
   if (process.env.KEEP_TEST_DB === '1') return;
   if (!EPHEMERAL_PATTERN.test(path.basename(databasePath))) return;
+  // Windows 上退出钩子里文件可能仍被占用（EBUSY），清理失败绝不能改变进程退出码：
+  // 那是环境残留，不是测试结果。重试几次后放弃，下次创建同名库时仍会先删一遍。
+  const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
   const remove = () => {
-    for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(databasePath + suffix, {force: true});
+    for (const suffix of ['', '-wal', '-shm', '-journal']) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        try { rmSync(databasePath + suffix, {force: true}); break; }
+        catch { if (attempt === 4) return; sleep(50); }
+      }
+    }
   };
   // exit 钩子里只能用同步 API，且此时 exitCode 已经确定。
-  process.once('exit', code => { if (code === 0) remove(); });
+  process.once('exit', code => { if (code === 0) { try { remove(); } catch { /* 清理是尽力而为 */ } } });
   // 默认信号行为会直接终止进程、跳过 exit 钩子里除 SIGINT 分支外的逻辑，这里显式接管。
   for (const signal of ['SIGINT', 'SIGTERM']) {
-    process.once(signal, () => { remove(); process.exit(1); });
+    process.once(signal, () => { try { remove(); } catch { /* 清理是尽力而为 */ } process.exit(1); });
   }
 }
 

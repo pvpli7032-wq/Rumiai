@@ -73,7 +73,7 @@
       "ownerWorkflow": "W06/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 16 章：重建使用最近有效检查点及保留消息，不能将旧摘要继续注入模型。",
       "steps": [
         {

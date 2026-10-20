@@ -345,6 +345,36 @@ async function a06_003({db, modules}) {
   return {result: 'PASS', reason: '编辑第 N 轮后状态按最近未失效检查点重建；旧确认摘要已失效且游标回退'};
 }
 
+async function a07_001({db, modules}) {
+  const [, , worker] = await w07Services();
+  const f = await createStoryFixture(db, 'a07-001');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const input = await db.message.create({data: {conversationId: created.run.conversationId, role: 'USER', content: '恢复输入'}});
+  const reply = await db.message.create({data: {conversationId: created.run.conversationId, role: 'ASSISTANT', content: '恢复回复'}});
+  const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'restart', requestHash: turnRequestHash('恢复输入'), operation: 'SEND', status: 'COMMITTED', stateStatus: 'PENDING', startedAt: new Date(), committedAt: new Date(), inputMessageId: input.id, assistantMessageId: reply.id}});
+  await db.storyRun.update({where: {id: created.run.id}, data: {lastCommittedTurnNo: 1, revision: 2}});
+  const result = await worker.processPendingStateWork();
+  assert.equal(result.processed, 1);
+  assert.equal((await db.storyTurn.findUniqueOrThrow({where: {id: turn.id}})).stateStatus, 'PROCESSED');
+  return {result: 'PASS', reason: 'PENDING 状态任务在新 worker 扫描后恢复为 PROCESSED，已保存回复未重生成'};
+}
+
+async function a07_003({db, modules}) {
+  const [, , worker] = await w07Services();
+  const f = await createStoryFixture(db, 'a07-003');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const input = await db.message.create({data: {conversationId: created.run.conversationId, role: 'USER', content: '租约超时'}});
+  const reply = await db.message.create({data: {conversationId: created.run.conversationId, role: 'ASSISTANT', content: '原回复'}});
+  const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'lease', requestHash: turnRequestHash('租约超时'), operation: 'SEND', status: 'COMMITTED', stateStatus: 'PROCESSING', leaseOwner: 'dead-worker', leaseExpiresAt: new Date(Date.now()-1000), stateAttempts: 1, startedAt: new Date(), committedAt: new Date(), inputMessageId: input.id, assistantMessageId: reply.id}});
+  const before = await db.aiCall.count({where: {userId: f.owner.id}});
+  const result = await worker.processPendingStateWork();
+  assert.equal(result.processed, 1);
+  assert.equal((await db.storyTurn.findUniqueOrThrow({where: {id: turn.id}})).stateStatus, 'PROCESSED');
+  assert.equal(await db.aiCall.count({where: {userId: f.owner.id}}), before, '租约恢复不重复生成外部模型回复');
+  assert.equal(await db.message.count({where: {conversationId: created.run.conversationId}}), 2);
+  return {result: 'PASS', reason: '过期租约被回收，仅重新整理状态，ai_calls 与消息数量不变'};
+}
+
 async function a07_002({db, modules}) {
   const [, , worker] = await w07Services();
   const f = await createStoryFixture(db, 'a07-002');
@@ -358,8 +388,10 @@ async function a07_002({db, modules}) {
   const afterFirst = await db.storyRun.findUniqueOrThrow({where: {id: created.run.id}});
   assert.equal((await worker.processPendingStateWork()).processed, 0);
   const afterSecond = await db.storyRun.findUniqueOrThrow({where: {id: created.run.id}});
-  assert.equal(await db.storyEvent.count({where: {runId: created.run.id}}), 1);
-  assert.equal(await db.storyCheckpoint.count({where: {runId: created.run.id, throughTurnNo: 1}}), 1);
+  const events = await db.storyEvent.findMany({where: {runId: created.run.id, sourceTurnId: turn.id}});
+  const checkpoints = await db.storyCheckpoint.findMany({where: {runId: created.run.id, throughTurnNo: 1}});
+  assert.equal(events.length, 1);
+  assert.equal(checkpoints.length, 1);
   assert.equal(afterFirst.stateProcessedThroughTurnNo, 1);
   assert.equal(afterSecond.stateProcessedThroughTurnNo, 1);
   assert.equal(afterSecond.revision, afterFirst.revision);
@@ -426,6 +458,23 @@ async function a09_003({db, modules}) {
     assert.equal(value.includes('safe public line'), true);
   }
   return {result: 'PASS', reason: 'run view 与单 run 导出只投影公开事件摘要，不泄漏模板 hiddenFacts 字符串'};
+}
+
+async function a13_003({db, modules}) {
+  const [, shareModule] = await w07Services();
+  const {f, run, turns} = await threeTurnRunWithDerivatives(db, modules, 'a13-003');
+  const first = turns[0];
+  const user = await db.message.findUniqueOrThrow({where: {id: first.inputMessageId}});
+  const assistant = await db.message.findUniqueOrThrow({where: {id: first.assistantMessageId}});
+  const {share} = await shareModule.createStoryShare(f.owner.id, run.id, {title: 'cleanup', messageIds: [user.id, assistant.id]});
+  await modules.messages.deleteMessageAndFollowing(f.owner.id, run.conversationId, first.inputMessageId);
+  const event = await db.storyEvent.findFirstOrThrow({where: {runId: run.id, sourceTurnId: first.id}});
+  assert.equal(event.status, 'INVALIDATED');
+  assert.equal(JSON.parse(event.payloadJson).publicSummary, undefined);
+  const stored = await db.storyShare.findUniqueOrThrow({where: {id: share.id}});
+  assert.equal(stored.status, 'WITHDRAWN');
+  assert.equal(JSON.parse(stored.snapshotJson).withdrawn, true);
+  return {result: 'PASS', reason: '消息失效事务同时清空派生事件 payload 并撤回分享快照'};
 }
 
 async function a12_004({db, modules}) {
@@ -495,12 +544,15 @@ async function a13_002({db, modules}) {
 const SCENARIOS = new Map([
   ['EV-A04-002', a04_002],
   ['EV-A04-004', a04_004],
+  ['EV-A07-001', a07_001],
   ['EV-A07-002', a07_002],
+  ['EV-A07-003', a07_003],
   ['EV-A08-001', a08_001],
   ['EV-A08-002', a08_002],
   ['EV-A09-003', a09_003],
   ['EV-A13-001', a13_001],
   ['EV-A13-002', a13_002],
+  ['EV-A13-003', a13_003],
   ['EV-A01-001', a01_001],
   ['EV-A01-002', a01_002],
   ['EV-A01-006', a01_006],
@@ -513,6 +565,7 @@ const SCENARIOS = new Map([
   ['EV-A04-003', a04_003],
   ['EV-A06-001', a06_001],
   ['EV-A06-002', a06_002],
+  ['EV-A06-003', a06_003],
   ['EV-A06-005', a06_005],
   ['EV-A06-006', a06_006],
   ['EV-A12-002', a12_002],

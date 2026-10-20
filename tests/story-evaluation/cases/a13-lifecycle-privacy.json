@@ -69,7 +69,7 @@
       "ownerWorkflow": "W07/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 24 章：已删除消息关联的私密派生记忆应同步删除或失效；整段会话删除保留级联语义（story-run-service.test.mjs 已覆盖 run/checkpoint 级联，本用例扩展到事件）。",
       "steps": [
         {

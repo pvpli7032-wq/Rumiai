@@ -196,7 +196,7 @@
       "verificationTier": "domain",
       "modelPolicy": "none",
       "status": "skeleton",
-      "description": "规划书第 10 章：用户拒绝某个任务也可以形成合法结果，不强迫按作者预设答案推进；结章由服务端规则检查。",
+      "description": "规划书第 10 章：用户拒绝某个任务也可以形成合法结果，不强迫按作者预设答案推进；当前 closeChapter 仅检查 stateProcessedThroughTurnNo 与已有事件，不存在模板级拒绝路线/结束条件字段，因此不能证明拒绝是合法结果，保持 skeleton。缺少：评测模板的拒绝结果定义、状态提取/结章规则及可断言的拒绝输入到 CHAPTER_RESULT 映射。",
       "steps": [
         {
           "actor": "user",
