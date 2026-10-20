@@ -1,21 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {cpSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync} from 'node:fs';
-import {spawnSync} from 'node:child_process';
+import {createHash, randomUUID} from 'node:crypto';
+import {cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync} from 'node:fs';
 import path from 'node:path';
 
 test('upgrade from production migration 20 through the latest schema preserves business rows and closed-account safeguards', () => {
   const root = path.resolve('artifacts'); mkdirSync(root, {recursive: true});
   const work = mkdtempSync(path.join(root, 'circle-migration-')), schema = path.join(work, 'prisma'), file = path.join(work, 'source.db');
-  mkdirSync(path.join(schema, 'migrations'), {recursive: true}); copyFileSync('prisma/schema.prisma', path.join(schema, 'schema.prisma'));
+  mkdirSync(path.join(schema, 'migrations'), {recursive: true});
   for (const entry of readdirSync('prisma/migrations', {withFileTypes: true})) {
     if (entry.isDirectory() && entry.name >= '20261014070000_circle_management') continue;
     if (entry.isDirectory()) cpSync(path.join('prisma/migrations', entry.name), path.join(schema, 'migrations', entry.name), {recursive: true});
     else copyFileSync(path.join('prisma/migrations', entry.name), path.join(schema, 'migrations', entry.name));
   }
-  const env = {...process.env, DATABASE_URL: 'file:' + file.split(path.sep).join('/')}; delete env.RUST_LOG;
-  const deploy = () => {const result = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy', '--schema', path.join(schema, 'schema.prisma')], {env, encoding: 'utf8', windowsHide: true}); assert.equal(result.status, 0, result.stdout + result.stderr);};
+  // 本机 Prisma schema engine 不可用（同 scripts/helpers/create-isolated-db.mjs 先例）：
+  // 迁移文件本身就是普通 SQLite SQL，用 node:sqlite 按序执行并补记 _prisma_migrations，
+  // 断言口径（迁移计数、完整性、外键检查）保持不变。
+  const deploy = () => {
+    const c = new DatabaseSync(file);
+    // 与 Prisma migrate deploy 同口径：迁移期间关闭外键强制，避免重建表时
+    // ON DELETE CASCADE 误删业务行（迁移脚本内的事务中该 PRAGMA 是 no-op）。
+    c.exec('PRAGMA foreign_keys = OFF');
+    c.exec(`CREATE TABLE IF NOT EXISTS _prisma_migrations (
+      id TEXT PRIMARY KEY,
+      checksum TEXT NOT NULL,
+      finished_at DATETIME,
+      migration_name TEXT NOT NULL,
+      logs TEXT,
+      rolled_back_at DATETIME,
+      started_at DATETIME NOT NULL DEFAULT current_timestamp,
+      applied_steps_count INTEGER NOT NULL DEFAULT 0
+    )`);
+    const done = new Set(c.prepare('SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL').all().map(row => row.migration_name));
+    const record = c.prepare('INSERT INTO _prisma_migrations (id, checksum, started_at, finished_at, migration_name, applied_steps_count) VALUES (?, ?, ?, ?, ?, 1)');
+    for (const name of readdirSync(path.join(schema, 'migrations')).sort()) {
+      const sqlPath = path.join(schema, 'migrations', name, 'migration.sql');
+      if (!existsSync(sqlPath) || done.has(name)) continue;
+      const sql = readFileSync(sqlPath, 'utf8');
+      c.exec('BEGIN');
+      try {
+        c.exec(sql);
+        const now = Date.now();
+        record.run(randomUUID(), createHash('sha256').update(sql).digest('hex'), now, now, name);
+        c.exec('COMMIT');
+      } catch (error) {
+        c.exec('ROLLBACK');
+        c.close();
+        throw new Error(`迁移失败：${name}\n${error.message}`);
+      }
+    }
+    c.close();
+  };
   let c;
   try {
     deploy(); c = new DatabaseSync(file); const now = Date.now();

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { createStoryRun, listStoryRuns } from '@/lib/stories/repository/run-service';
+import { assertStoryActionEnabled } from '@/lib/stories/rollout-flags';
 import { storyErrorResponse } from './errors';
 
 export async function GET(request: Request) {
@@ -16,6 +17,8 @@ export async function POST(request: Request) {
   try {
     const auth = await getAuthUser(request);
     if (!auth) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
+    // F1 灰度旗标：只挡新建实例，GET 列表/详情不受限。
+    assertStoryActionEnabled('STORY_RUNS_DISABLED', '故事新开已暂停，请稍后再试。');
     let body: unknown;
     try { body = await request.json(); }
     catch { return NextResponse.json({error: '故事数据格式不正确。', code: 'INVALID_STORY_DATA'}, {status: 422}); }
