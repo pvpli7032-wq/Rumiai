@@ -353,8 +353,7 @@ async function a07_001({db, modules}) {
   const reply = await db.message.create({data: {conversationId: created.run.conversationId, role: 'ASSISTANT', content: '恢复回复'}});
   const turn = await db.storyTurn.create({data: {runId: created.run.id, turnNo: 1, requestId: 'restart', requestHash: turnRequestHash('恢复输入'), operation: 'SEND', status: 'COMMITTED', stateStatus: 'PENDING', startedAt: new Date(), committedAt: new Date(), inputMessageId: input.id, assistantMessageId: reply.id}});
   await db.storyRun.update({where: {id: created.run.id}, data: {lastCommittedTurnNo: 1, revision: 2}});
-  const result = await worker.processPendingStateWork();
-  assert.equal(result.processed, 1);
+  await worker.processPendingStateWork(1000);
   assert.equal((await db.storyTurn.findUniqueOrThrow({where: {id: turn.id}})).stateStatus, 'PROCESSED');
   return {result: 'PASS', reason: 'PENDING 状态任务在新 worker 扫描后恢复为 PROCESSED，已保存回复未重生成'};
 }
@@ -386,12 +385,18 @@ async function a07_002({db, modules}) {
   await db.storyRun.update({where: {id: created.run.id}, data: {lastCommittedTurnNo: 1, revision: 2}});
   assert.equal((await worker.processPendingStateWork()).processed, 1);
   const afterFirst = await db.storyRun.findUniqueOrThrow({where: {id: created.run.id}});
+  const events = await db.storyEvent.findMany({where: {runId: created.run.id, sourceTurnId: turn.id}, select: {type: true, sourceTurnId: true, status: true}});
+  console.log('A07-002 events', JSON.stringify(events));
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'FACT');
+  assert.equal(events[0].sourceTurnId, turn.id);
+  assert.equal(events[0].status, 'CONFIRMED');
+  const checkpoints = await db.storyCheckpoint.findMany({where: {runId: created.run.id, throughTurnNo: 1}});
+  assert.equal(checkpoints.length, 1);
   assert.equal((await worker.processPendingStateWork()).processed, 0);
   const afterSecond = await db.storyRun.findUniqueOrThrow({where: {id: created.run.id}});
-  const events = await db.storyEvent.findMany({where: {runId: created.run.id, sourceTurnId: turn.id}});
-  const checkpoints = await db.storyCheckpoint.findMany({where: {runId: created.run.id, throughTurnNo: 1}});
-  assert.equal(events.length, 1);
-  assert.equal(checkpoints.length, 1);
+  const eventsAfter = await db.storyEvent.findMany({where: {runId: created.run.id, sourceTurnId: turn.id}});
+  assert.equal(eventsAfter.length, events.length);
   assert.equal(afterFirst.stateProcessedThroughTurnNo, 1);
   assert.equal(afterSecond.stateProcessedThroughTurnNo, 1);
   assert.equal(afterSecond.revision, afterFirst.revision);

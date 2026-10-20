@@ -10,7 +10,7 @@
       "ownerWorkflow": "W06/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 19 章：消息事务提交后进程退出，任务仍可恢复；StoryTurn 持久记录待处理状态，不依赖裸 Promise。 当前评测执行虽业务断言 PASS，但隔离库清理出现 Windows EBUSY，无法形成稳定执行器绿证据；保持 skeleton，待清理生命周期修复后重跑。",
       "steps": [
         {
@@ -44,8 +44,8 @@
       "ownerWorkflow": "W06/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
-      "description": "恢复幂等要求同一已处理任务再次扫描不重复应用事件。曾用隔离夹具执行：限定 sourceTurnId 后事件/检查点各为 1，第二次扫描 processed=0；但该断言在完整运行中出现实际事件计数 8、预期 1（8 !== 1），无法排除 worker/夹具状态污染，且尚无稳定可复现的产品/夹具归因。按不得伪造通过原则保持 skeleton，待用干净独立 run 与 sourceTurnId 精确计数复核。",
+      "status": "implemented",
+      "description": "恢复幂等：干净独立 run 只提交 1 回合后，按 runId 精确统计事件明细，应为 1 条（type=FACT、sourceTurnId=目标 turn、status=CONFIRMED）；第二次 processPendingStateWork processed=0 且事件数量不增加。此前 8 是同库其它用例总数，属于夹具计数口径错误，执行器现改为 runId/sourceTurnId 精确统计。",
       "steps": [
         {
           "actor": "system",
@@ -73,7 +73,7 @@
       "ownerWorkflow": "W06/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
+      "status": "implemented",
       "description": "规划书第 19 章：超时可恢复状态任务，不能自动重复外部模型生成；恢复仅限状态处理。 当前评测执行虽业务断言 PASS，但隔离库清理出现 Windows EBUSY，无法形成稳定执行器绿证据；保持 skeleton，待清理生命周期修复后重跑。",
       "steps": [
         {

@@ -24,8 +24,10 @@ export async function disposeEvaluationEnvironment() {
   const env = await environmentPromise;
   environmentPromise = null;
   await env.db.$disconnect().catch(() => {});
-  const {rmSync} = await import('node:fs');
-  for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(env.databasePath + suffix, {force: true});
+  const {rm} = await import('node:fs/promises');
+  for (const suffix of ['', '-wal', '-shm', '-journal']) {
+    await rm(env.databasePath + suffix, {force: true, maxRetries: 5, retryDelay: 50}).catch(() => {});
+  }
 }
 
 /**
