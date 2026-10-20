@@ -20,7 +20,7 @@
 | 项 | 值（以窗口日实际核对为准） |
 |---|---|
 | 本地代码基线 | `commercial-refactor` 分支，M3+M4+M5 文档已合入（M4 闭环起点 `0e72f85`，当前 HEAD `ed0cd03`） |
-| 本地迁移总数 | 47 条（45 条生产既有 + `20261020120000_story_run_contract` 6 张 story 表 + `20261020150000_scene_funnel_events` 1 张埋点表），均纯增量 |
+| 本地迁移总数 | 48 条（45 条生产既有 + `20261020120000_story_run_contract` 6 张 story 表 + `20261020150000_scene_funnel_events` 1 张埋点表 + `20261020160000_story_shares` 1 张分享表），均纯增量 |
 | 当前生产发布 | `releases/commercial-20261020-c4-rc2`（BUILD_ID `tRBseGKiU88NSsGiOCagr`） |
 | PM2 | 单实例 `khui-ai`，www 身份，仅监听 `127.0.0.1:3000`，`PM2_HOME=/www/wwwroot/khui-ai/shared/pm2` |
 | 生产库 | `/www/wwwroot/khui-ai/shared/database.db`，当前 45 条迁移 applied |
@@ -31,7 +31,7 @@
 
 | 情形 | 判据（`npm run release:check` 对生产库） | 本 runbook 执行方式 |
 |---|---|---|
-| 情形 1：M3 runbook 已执行 | `pendingCount=0, unexpectedCount=0, failedCount=0`，库 47 条 | §5 Phase C 跳过 C4 正式迁移，其余照常 |
+| 情形 1：M3 runbook 已执行 | `pendingCount=0, unexpectedCount=0, failedCount=0`，库 48 条 | §5 Phase C 跳过 C4 正式迁移，其余照常 |
 | 情形 2：M3 runbook 未执行（M3+M4 一次窗口合并上线） | `pendingCount=2, unexpectedCount=0, failedCount=0` | §5 Phase C 完整执行含 C4；批次取舍见 `docs/planning/releases/m3-m4-release-checklist.md` |
 
 **禁止情形**：`unexpected>0` 或 `failed>0` —— 库状态与预期不符，终止上线，不得强行迁移。
@@ -40,7 +40,7 @@
 
 ### R0 给回滚位补迁移文件（只补文件，不执行 SQL）
 
-若生产库仍是 45 条（情形 2），先把两条新迁移**目录**复制进 `c4-rc2` 的 `prisma/migrations/`（与 M3 runbook §2 R0 相同）：
+若生产库仍是 45 条（情形 2），先把三条新迁移**目录**复制进 `c4-rc2` 的 `prisma/migrations/`（与 M3 runbook §2 R0 相同）：
 
 ```sh
 cp -r /www/wwwroot/khui-ai/releases/<新发布目录>/prisma/migrations/20261020120000_story_run_contract \
@@ -49,7 +49,7 @@ cp -r /www/wwwroot/khui-ai/releases/<新发布目录>/prisma/migrations/20261020
       /www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2/prisma/migrations/
 ```
 
-- 成功判据：`ls /www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2/prisma/migrations | wc -l` = 47（不含 `migration_lock.toml`）；**不执行任何 SQL**，`c4-rc2` 的代码不引用新表，行为不变。
+- 成功判据：`ls /www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2/prisma/migrations | wc -l`  = 48（不含 `migration_lock.toml`）；**不执行任何 SQL**，`c4-rc2` 的代码不引用新表，行为不变。
 - 失败处理：找不到新发布目录说明 §4 Phase B 未完成，先走 Phase B。
 - 若 M3 runbook 已执行过（情形 1），此步应已存在，核对即可。
 
@@ -106,7 +106,7 @@ npm run build
 npm run verify:build
 ```
 
-- 成功判据：`next build` 退出 0（产物在 `.next-build/`）；`verify:build` 在独立空库上完成 47 条迁移 + 生产构建验证。
+- 成功判据：`next build` 退出 0（产物在 `.next-build/`）；`verify:build` 在独立空库上完成 48 条迁移 + 生产构建验证。
 - 失败处理：按构建报错修复；确认 `prisma/.local` 无残留锁（`npm run test:clean`）。
 
 ### A3 打包
@@ -115,7 +115,7 @@ npm run verify:build
 node scripts/pack-release.mjs <RELEASE> --tar
 ```
 
-- 成功判据：输出 JSON，`checks:"ok"`、`migrations:47`、`tar.bytes` 与 staging 一致；产物在 `artifacts/release-packs/<RELEASE>/`。
+- 成功判据：输出 JSON，`checks:"ok"`、`migrations:48`、`tar.bytes` 与 staging 一致；产物在 `artifacts/release-packs/<RELEASE>/`。
 - 失败处理：同 M3 runbook §3 A3（旧包人工确认后删除重打、排除物清理、tar 失败改手工压缩）。
 - 注意：打包的是**当前工作区**。M5 文档提交后工作区应只剩 `docs/planning/**` 与本 runbook 增量；确认无未完成的业务改动混入，A1 基线跑在打包前一刻。
 
@@ -125,7 +125,7 @@ node scripts/pack-release.mjs <RELEASE> --tar
 node scripts/rehearse-migration.mjs
 ```
 
-- 成功判据：JSON `mode:"local-baseline"`、`migrations:{appliedCount:47,availableCount:47,pendingCount:0}`、`integrity:"ok"`、`foreignKeys:"ok"`、`countsPreserved:true`、`newTables` 含 6 张 story 表 + 1 张 `scene_funnel_events`。
+- 成功判据：JSON `mode:"local-baseline"`、`migrations:{appliedCount:48,availableCount:48,pendingCount:0}`、`integrity:"ok"`、`foreignKeys:"ok"`、`countsPreserved:true`、`newTables` 含 8 张新表（6 story + 1 埋点 + 1 分享） + 1 张 `scene_funnel_events`。
 - 失败处理：演练失败即迁移有问题，**绝对不进窗口**；把 JSON 报错交 software-architect。
 
 ## 4. Phase B：服务器预装、副本演练与 3100 预启动（不停写、不切流）
@@ -140,7 +140,7 @@ npx prisma generate
 npm run verify:build
 ```
 
-- 成功判据：`npm ci` 无 error；`verify:build` 退出 0（独立空库验证 47 条迁移 + 生产构建）。
+- 成功判据：`npm ci` 无 error；`verify:build` 退出 0（独立空库验证 48 条迁移 + 生产构建）。
 - 失败处理：依赖或构建失败 → 修复重传；不得在旧目录里凑合。
 
 ### B2 预备份（演练源）
@@ -160,7 +160,7 @@ npm run state:backup -- <BACKUP-PRE>
 node scripts/rehearse-migration.mjs /www/wwwroot/khui-ai/releases/<RELEASE>/prisma/backups/database-<BACKUP-PRE>-*/database.db
 ```
 
-- 成功判据：JSON `mode:"production-copy"`、`appliedNow` 恰好列出两条新迁移（情形 2）或空列表（情形 1）、`migrations.appliedCount=47`、`integrity/foreignKeys ok`、`countsPreserved:true`。
+- 成功判据：JSON `mode:"production-copy"`、`appliedNow` 恰好列出三条新迁移（情形 2）或空列表（情形 1）、`migrations.appliedCount=48`、`integrity/foreignKeys ok`、`countsPreserved:true`。
 - 失败处理：任何断言失败 → 终止上线；保留 `KEEP_TEST_DB=1` 现场交 software-architect。演练通过前**绝不**对 `shared/database.db` 执行迁移。
 
 ### B4 3100 预启动（接副本库，含 worker 双态验证）
@@ -232,7 +232,7 @@ npm run release:check -- /www/wwwroot/khui-ai/shared/database.db
 npx prisma migrate deploy
 ```
 
-- 成功判据：输出显示应用 2 条迁移；`_prisma_migrations` 完成数 = 47。SQLite 下单条迁移整体事务化，失败自动回滚。
+- 成功判据：输出显示应用 3 条迁移；`_prisma_migrations` 完成数 = 48。SQLite 下单条迁移整体事务化，失败自动回滚。
 - 失败处理：迁移报错 → **不启动新代码**，PM2 旧版继续跑（45 迁移与旧代码兼容）；保留报错现场，按 §6 E5 处置。
 
 ### C5 迁移后 release:check（必须完全兼容）
@@ -348,9 +348,9 @@ cd /www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2
 runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 start deploy/baota/ecosystem.config.js
 ```
 
-- 前提：§2 R0 已给 `c4-rc2` 补齐 47 条迁移目录，启动门禁才会放行 47 迁移的库（新表留着不用，不删）。
+- 前提：§2 R0 已给 `c4-rc2` 补齐 48 条迁移目录，启动门禁才会放行 48 迁移的库（新表留着不用，不删）。
 - 成功判据：C7 基础断言同一组在旧版全部通过。
-- 数据处置：迁移保留不回退（纯增量、旧代码不引用）。如确需丢弃 47 迁移，走 E4 的恢复流程，不得手工删表。
+- 数据处置：迁移保留不回退（纯增量、旧代码不引用）。如确需丢弃 48 迁移，走 E4 的恢复流程，不得手工删表。
 - 注意：`c4-rc2` 不含 turns 端点，灰度期间已创建的 StoryRun 会话在旧应用下不可用（走旧路径 409 拒绝）——这正是必须**先 E2 关写入、排空在途回合**再切换的原因。
 
 ### E4 切换后已有新写入

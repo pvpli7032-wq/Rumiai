@@ -1,4 +1,4 @@
-# M3 上线部署 Runbook（生产 45→47 迁移，c4-rc2 → 新发布）
+# M3 上线部署 Runbook（生产 45→48 迁移，c4-rc2 → 新发布）
 
 > 依据 `docs/planning/HANDOFF.md` 第 7 节 + `deploy/baota/README.md` 既有约定整理。
 > 所有命令只在发布窗口内由部署操作者在服务器执行；本 runbook 的编写与脚本验证均未连接生产。
@@ -25,15 +25,15 @@
 | 待上线迁移 | `20261020120000_story_run_contract`（6 张 story 表）+ `20261020150000_scene_funnel_events`（1 张埋点表），均纯增量 |
 
 **与 HANDOFF 第 7 节的差异（重要）**：
-1. 迁移总数是 **47** 不是 46：仓库在 story_run_contract 之后新增了 `20261020150000_scene_funnel_events`（V0 漏斗埋点，纯增量单表）。下文所有 "46" 一律按 47 执行。
-2. 回滚位需要打补丁（见 §2 R0）：`c4-rc2` 只带 45 条迁移，库升到 47 后直接切回会被启动门禁以 `unexpected=2` 拒绝。
+1. 迁移总数是 **48** 不是 46：仓库在 story_run_contract 之后新增了 `20261020150000_scene_funnel_events`（埋点）与 `20261020160000_story_shares`（分享），均纯增量。下文所有 "46" 一律按 48 执行。
+2. 回滚位需要打补丁（见 §2 R0）：`c4-rc2` 只带 45 条迁移，库升到 48 后直接切回会被启动门禁以 `unexpected=3` 拒绝。
 3. `release:check` 要跑两遍：迁移前一遍确认"只差新迁移"（pending=2, unexpected=0, failed=0），迁移后一遍必须完全兼容。
 
 ## 2. 发布窗口前准备（低风险，可提前做）
 
 ### R0 给回滚位补迁移文件（只补文件，不执行 SQL）
 
-在服务器上把两条新迁移**目录**复制进 `c4-rc2` 的 `prisma/migrations/`：
+在服务器上把三条新迁移**目录**复制进 `c4-rc2` 的 `prisma/migrations/`：
 
 ```sh
 cp -r /www/wwwroot/khui-ai/releases/<新发布目录>/prisma/migrations/20261020120000_story_run_contract \
@@ -42,7 +42,7 @@ cp -r /www/wwwroot/khui-ai/releases/<新发布目录>/prisma/migrations/20261020
       /www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2/prisma/migrations/
 ```
 
-- 成功判据：`ls /www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2/prisma/migrations | wc -l` = 47（不含 `migration_lock.toml` 则为 46 个目录）；**不执行任何 SQL**，`c4-rc2` 的代码不引用新表，行为不变。
+- 成功判据：`ls /www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2/prisma/migrations | wc -l`  = 48（不含 `migration_lock.toml` 则为 47 个目录）；**不执行任何 SQL**，`c4-rc2` 的代码不引用新表，行为不变。
 - 失败处理：找不到新发布目录说明 §A 未完成，先走 §A。
 
 ### R1 变量表
@@ -89,7 +89,7 @@ npm run verify:build
 node scripts/pack-release.mjs <RELEASE> --tar
 ```
 
-- 成功判据：输出 JSON，`checks:"ok"`、`migrations:47`、`tar.bytes` 与 staging 一致；打包目录位于 `artifacts/release-packs/<RELEASE>/`，tar 包同目录。
+- 成功判据：输出 JSON，`checks:"ok"`、`migrations:48`、`tar.bytes` 与 staging 一致；打包目录位于 `artifacts/release-packs/<RELEASE>/`，tar 包同目录。
 - 失败处理：
   - "打包目录已存在"：人工确认旧包可删后删除重打，脚本永不覆盖；
   - "构建目录混入打包"/"排除物混入打包"：按报错清理工作区后重跑；
@@ -103,7 +103,7 @@ node scripts/pack-release.mjs <RELEASE> --tar
 node scripts/rehearse-migration.mjs
 ```
 
-- 成功判据：JSON 输出 `mode:"local-baseline"`、`migrations:{appliedCount:47,availableCount:47,pendingCount:0}`、`integrity:"ok"`、`foreignKeys:"ok"`、`countsPreserved:true`、`newTables` 含 6 张 story 表。
+- 成功判据：JSON 输出 `mode:"local-baseline"`、`migrations:{appliedCount:48,availableCount:48,pendingCount:0}`、`integrity:"ok"`、`foreignKeys:"ok"`、`countsPreserved:true`、`newTables` 含 8 张新表（6 story + 1 埋点 + 1 分享）。
 - 失败处理：演练失败即迁移有问题，**绝对不进窗口**；把 JSON 报错发给 software-architect。
 
 ## 4. Phase B：服务器预装与预备份（不停写、不切流）
@@ -118,7 +118,7 @@ npx prisma generate
 npm run verify:build
 ```
 
-- 成功判据：`npm ci` 无 error；`verify:build` 退出 0（独立空库验证 47 条迁移 + 生产构建）。
+- 成功判据：`npm ci` 无 error；`verify:build` 退出 0（独立空库验证 48 条迁移 + 生产构建）。
 - 失败处理：依赖或构建失败 → 修复重传；不得在旧目录里凑合。
 
 ### B2 预备份（演练源）
@@ -140,7 +140,7 @@ npm run state:backup -- <BACKUP-PRE>
 node scripts/rehearse-migration.mjs /www/wwwroot/khui-ai/releases/<RELEASE>/prisma/backups/database-<BACKUP-PRE>-*/database.db
 ```
 
-- 成功判据：JSON `mode:"production-copy"`、`appliedNow` 恰好列出两条新迁移、`migrations.appliedCount=47`、`integrity/foreignKeys ok`、`countsPreserved:true`、`newTables` 6 张 story 表。
+- 成功判据：JSON `mode:"production-copy"`、`appliedNow` 恰好列出三条新迁移、`migrations.appliedCount=48`、`integrity/foreignKeys ok`、`countsPreserved:true`、`newTables` 6 张 story 表。
 - 失败处理：任何断言失败 → 终止上线；保留 `KEEP_TEST_DB=1` 重跑一次的现场，交 software-architect 定位。演练通过前**绝不**对 `shared/database.db` 执行迁移。
 
 ### C2 3100 预启动（接副本库）
@@ -211,7 +211,7 @@ npm run release:check -- /www/wwwroot/khui-ai/shared/database.db
 npx prisma migrate deploy
 ```
 
-- 成功判据：输出显示应用 2 条迁移；`_prisma_migrations` 完成数 = 47。SQLite 下单条迁移整体事务化，失败自动回滚。
+- 成功判据：输出显示应用 3 条迁移；`_prisma_migrations` 完成数 = 48。SQLite 下单条迁移整体事务化，失败自动回滚。
 - 失败处理：迁移报错 → **不启动新代码**，PM2 旧版继续跑（45 迁移与旧代码兼容）；保留报错现场，按 §7 R1 处置。
 
 ### D5 迁移后 release:check（必须完全兼容）
@@ -278,9 +278,9 @@ cd /www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2
 runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 start deploy/baota/ecosystem.config.js
 ```
 
-- 前提：§2 R0 已给 `c4-rc2` 补齐 47 条迁移目录，启动门禁才会放行 47 迁移的库（新表留着不用，不删）。
+- 前提：§2 R0 已给 `c4-rc2` 补齐 48 条迁移目录，启动门禁才会放行 48 迁移的库（新表留着不用，不删）。
 - 成功判据：D7 同一组断言在旧版全部通过。
-- 数据处置：迁移保留不回退（纯增量、旧代码不引用）。如确需丢弃 47 迁移，走 R3 的恢复流程，不得手工删表。
+- 数据处置：迁移保留不回退（纯增量、旧代码不引用）。如确需丢弃 48 迁移，走 R3 的恢复流程，不得手工删表。
 
 ### R3 切换后已有新写入
 
