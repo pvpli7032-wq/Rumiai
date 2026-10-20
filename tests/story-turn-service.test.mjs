@@ -170,6 +170,20 @@ test('terminal turns replay their outcome instead of regenerating', async () => 
   assert.equal((await db.storyRun.findUniqueOrThrow({where: {id: f.run.id}})).activeTurnId, null);
 });
 
+test('ownership is checked before the idempotency shortcut, so a stranger never learns turn state', async () => {
+  const f = await fixture();
+  await db.storyTurn.create({data: {runId: f.run.id, turnNo: 1, requestId: 'known-1', requestHash: hashOf('已知回合'), operation: 'SEND', status: 'COMMITTED', startedAt: new Date(), committedAt: new Date()}});
+  const stranger = await db.user.create({data: {username: 'turn-stranger', email: 'turn-stranger@example.invalid', passwordHash: 's'}});
+  // A stranger reusing the owner's requestId gets the same 404 as an unknown run: no
+  // REQUEST_CONFLICT / TURN_IN_PROGRESS answer that would reveal a turn exists.
+  for (const requestId of ['known-1', randomUUID()]) {
+    await assert.rejects(
+      executeStoryTurn({userId: stranger.id, runId: f.run.id, input: {expectedRevision: 0, requestId, content: '已知回合'}, signal: new AbortController().signal}),
+      error => error.status === 404 && error.code === 'STORY_NOT_FOUND',
+    );
+  }
+});
+
 test('the old chat send path still refuses story conversations', async () => {
   const f = await fixture();
   await assert.rejects(

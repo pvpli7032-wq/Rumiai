@@ -33,9 +33,12 @@ export async function exportStoryRun(userId: string, runId: string) {
     const definition = readVersion(run.templateVersion.definitionJson, run.templateVersion.characterSnapshotJson);
     const chapter = definition.chapters.find(item => item.key === run.chapterKey);
     if (!chapter) throw new StoryError('INVALID_STORY_DATA', '故事版本数据不完整。', 422);
-    const [messages, turns, eventRows] = await Promise.all([
+    const [turnMessages, turns, eventRows, shares] = await Promise.all([
+      // Only the story turns' own messages: the account archive already carries the
+      // whole conversation, and exporting the full thread here would exceed the story
+      // boundary (both entries now use one rule).
       tx.message.findMany({
-        where: {conversationId: run.conversationId},
+        where: {conversationId: run.conversationId, NOT: {storyInputTurns: {none: {}}, storyAssistantTurns: {none: {}}}},
         orderBy: [{createdAt: 'asc'}, {id: 'asc'}],
         select: {id: true, role: true, content: true, imageUrl: true, createdAt: true},
       }),
@@ -43,18 +46,26 @@ export async function exportStoryRun(userId: string, runId: string) {
         where: {runId: run.id}, orderBy: {turnNo: 'asc'},
         select: {turnNo: true, status: true, stateStatus: true, errorCode: true, committedAt: true},
       }),
+      // Invalidated rows carry no summary by construction; the filter is a second guard.
       tx.storyEvent.findMany({
-        where: {runId: run.id},
+        where: {runId: run.id, status: {not: 'INVALIDATED'}},
         orderBy: [{createdAt: 'asc'}, {id: 'asc'}],
         select: {id: true, type: true, status: true, chapterKey: true, payloadJson: true, sourceMessageId: true, invalidatedAt: true, createdAt: true},
       }),
+      // Shares are part of the run's public footprint; withdrawn ones are labelled, not
+      // hidden. Selected fragments are the user's own story turns, so the export keeps
+      // their content; internal ids stay out (only a count is exported).
+      tx.storyShare.findMany({
+        where: {runId: run.id, userId}, orderBy: {createdAt: 'asc'},
+        select: {id: true, title: true, status: true, withdrawnAt: true, createdAt: true, snapshotJson: true, storyTurnSelection: {select: {message: {select: {id: true, role: true, content: true, createdAt: true}}}}},
+      }),
     ]);
-    // Shares are part of the run's public footprint; withdrawn ones are labelled, not hidden.
-    const shares = await tx.storyShare.findMany({
-      where: {runId: run.id, userId}, orderBy: {createdAt: 'asc'},
-      select: {id: true, title: true, status: true, selectedMessageIdsJson: true, publishedPostId: true, withdrawnAt: true, createdAt: true},
-    });
     const events = eventRows.map(projectEvent).filter(Boolean);
+    const shareRows = shares.map(({snapshotJson, storyTurnSelection, ...share}) => {
+      let snapshot: unknown = null;
+      try { snapshot = JSON.parse(snapshotJson); } catch { snapshot = null; }
+      return {...share, snapshot, messageCount: storyTurnSelection.length};
+    });
     return {
       exportedAt: new Date().toISOString(),
       run: {
@@ -64,7 +75,7 @@ export async function exportStoryRun(userId: string, runId: string) {
         lastCommittedTurnNo: run.lastCommittedTurnNo, stateProcessedThroughTurnNo: run.stateProcessedThroughTurnNo,
         startedAt: run.startedAt, endedAt: run.endedAt, createdAt: run.createdAt, updatedAt: run.updatedAt,
       },
-      messages, turns, events, shares,
+      messages: turnMessages, turns, events, shares: shareRows,
     };
   });
 }

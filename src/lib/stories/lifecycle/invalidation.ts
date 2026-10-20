@@ -14,6 +14,12 @@ import {registerStoryHistoryInvalidator} from '@/lib/conversations/message-servi
 
 type Client = Prisma.TransactionClient;
 
+/** What an invalidated event keeps instead of its summary: no content survives. */
+export const INVALIDATED_EVENT_PAYLOAD = JSON.stringify({schemaVersion: 1, invalidated: true});
+
+/** What an auto-withdrawn share keeps instead of its snapshot: no content survives. */
+export const WITHDRAWN_SHARE_SNAPSHOT = JSON.stringify({schemaVersion: 1, withdrawn: true});
+
 export async function invalidateStoryHistoryFrom(tx: Client, runId: string, fromTurnNo: number): Promise<void> {
   const run = await tx.storyRun.findUnique({
     where: {id: runId},
@@ -22,9 +28,12 @@ export async function invalidateStoryHistoryFrom(tx: Client, runId: string, from
   if (!run) return;
   const now = new Date();
 
+  // The summary is derived from a message the user has since edited or deleted, so the
+  // payload itself is cleared here, not merely flagged: export/retry/share must never be
+  // able to bring an invalidated summary back into view (privacy rule, m1-story-privacy.md §3).
   await tx.storyEvent.updateMany({
     where: {runId, status: {not: 'INVALIDATED'}, sourceTurn: {turnNo: {gte: fromTurnNo}}},
-    data: {status: 'INVALIDATED', invalidatedAt: now},
+    data: {status: 'INVALIDATED', invalidatedAt: now, payloadJson: INVALIDATED_EVENT_PAYLOAD},
   });
   await tx.storyCheckpoint.updateMany({
     where: {runId, throughTurnNo: {gte: fromTurnNo}, invalidatedAt: null},
@@ -34,6 +43,23 @@ export async function invalidateStoryHistoryFrom(tx: Client, runId: string, from
     where: {runId, turnNo: {gte: fromTurnNo}, stateStatus: {not: 'INVALIDATED'}},
     data: {stateStatus: 'INVALIDATED', leaseOwner: null, leaseExpiresAt: null},
   });
+
+  // A share is a frozen snapshot, but a snapshot that quotes a message the user has
+  // since edited or deleted must stop being published: withdraw it and drop its text
+  // in the same transaction, so no export or reader can still show the old wording.
+  const invalidatedTurns = await tx.storyTurn.findMany({
+    where: {runId, turnNo: {gte: fromTurnNo}},
+    select: {inputMessageId: true, assistantMessageId: true},
+  });
+  const affectedMessageIds = invalidatedTurns
+    .flatMap(turn => [turn.inputMessageId, turn.assistantMessageId])
+    .filter((id): id is string => typeof id === 'string');
+  if (affectedMessageIds.length) {
+    await tx.storyShare.updateMany({
+      where: {runId, status: 'PUBLISHED', storyTurnSelection: {some: {messageId: {in: affectedMessageIds}}}},
+      data: {status: 'WITHDRAWN', withdrawnAt: now, snapshotJson: WITHDRAWN_SHARE_SNAPSHOT},
+    });
+  }
 
   // Rebuild from the newest surviving checkpoint; the initial checkpoint from run
   // creation always survives (fromTurnNo >= 1), so the fallback is defensive only.

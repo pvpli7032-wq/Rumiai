@@ -23,6 +23,11 @@ const {closeChapter, resumeStory} = await import('../src/lib/stories/lifecycle/c
 const {exportStoryRun, exportAccountStories} = await import('../src/lib/stories/lifecycle/export-service.ts');
 const {createStoryShare, withdrawStoryShare} = await import('../src/lib/stories/lifecycle/share-service.ts');
 const {eraseAccountConversations} = await import('../src/lib/conversations/privacy.ts');
+const {deleteMessageAndFollowing} = await import('../src/lib/conversations/message-service.ts');
+// Same composition root as src/instrumentation.ts: registers the story side of the
+// message-edit/delete hook, which the server loads once at startup.
+await import('../src/lib/stories/lifecycle/invalidation.ts');
+const {retryStoryState} = await import('../src/lib/stories/lifecycle/chapter-service.ts');
 const {deleteConversation} = await import('../src/lib/conversations/conversation-service.ts');
 const {exportAccountData} = await import('../src/lib/accounts/data-export.ts');
 const exportRoute = await import('../src/app/api/story-runs/[id]/export/route.ts');
@@ -126,7 +131,7 @@ test('account closure cascades story data with no residue, inside the same erasu
   // A mid-flight lease and an active slot must not survive either.
   await db.storyTurn.updateMany({where: {runId: f.run.id}, data: {stateStatus: 'PROCESSING', leaseOwner: 'w07-worker', leaseExpiresAt: new Date(Date.now() + 60000)}});
   await db.storyRun.update({where: {id: f.run.id}, data: {activeTurnId: (await db.storyTurn.findFirstOrThrow({where: {runId: f.run.id}})).id}});
-  await db.storyShare.create({data: {runId: f.run.id, userId: f.owner.id, title: '待清理分享', selectedMessageIdsJson: JSON.stringify(['a', 'b'])}});
+  await db.storyShare.create({data: {runId: f.run.id, userId: f.owner.id, title: '待清理分享', selectedMessageIdsJson: JSON.stringify(['a', 'b']), snapshotJson: JSON.stringify({schemaVersion: 1, templateTitle: '测试故事', chapterTitle: '第一章', publicSummary: '', fragments: []})}});
 
   await db.$transaction(async tx => { await eraseAccountConversations(tx, f.owner.id); });
 
@@ -138,6 +143,40 @@ test('account closure cascades story data with no residue, inside the same erasu
   // Public template content is not user-private data and survives (ownerId SetNull on user deletion).
   assert.equal(await db.storyTemplate.count({where: {id: f.template.id}}), 1);
   assert.equal(await exportStoryRun(f.owner.id, f.run.id).catch(error => error.status), 404);
+});
+
+test('deleting a message clears its derived summaries: export, retry and the share snapshot cannot revive them', async () => {
+  const f = await readyRun();
+  const messages = await db.message.findMany({where: {conversationId: f.run.conversationId}, orderBy: {createdAt: 'asc'}, select: {id: true, role: true}});
+  const turn = await db.storyTurn.findFirstOrThrow({where: {runId: f.run.id}});
+  const {share} = await createStoryShare(f.owner.id, f.run.id, {title: '删除前分享', messageIds: messages.map(m => m.id)});
+  const snapshotBefore = JSON.stringify(share.snapshot);
+
+  await deleteMessageAndFollowing(f.owner.id, f.run.conversationId, messages[0].id);
+
+  // The derived summary itself is gone, not merely flagged: the payload is replaced.
+  const event = await db.storyEvent.findFirstOrThrow({where: {runId: f.run.id}});
+  assert.equal(event.status, 'INVALIDATED');
+  assert.equal(JSON.parse(event.payloadJson).publicSummary, undefined, 'invalidated payload keeps no summary');
+  assert.equal(event.payloadJson.includes(OWN_TEXT), false);
+  // …so no export can carry the deleted text back to the user.
+  const archive = await exportStoryRun(f.owner.id, f.run.id);
+  assert.equal(JSON.stringify(archive).includes(OWN_TEXT), false, 'export never carries a deleted summary');
+  assert.equal(archive.events.length, 0, 'invalidated events are not exported');
+  // …and the turn cannot be re-extracted into a fresh confirmed event.
+  const revision = (await db.storyRun.findUniqueOrThrow({where: {id: f.run.id}})).revision;
+  await assert.rejects(retryStoryState(f.owner.id, f.run.id, turn.id, {expectedRevision: revision}), error => error.status === 422 && error.code === 'STATE_NOT_RETRYABLE');
+  // The share that quoted the deleted turn is withdrawn in the same transaction and its
+  // snapshot no longer carries the text — a reader can never see what was deleted.
+  assert.ok(snapshotBefore.includes(OWN_TEXT), 'the snapshot did carry the fragment before deletion');
+  const stored = await db.storyShare.findUniqueOrThrow({where: {id: share.id}});
+  assert.equal(stored.status, 'WITHDRAWN');
+  assert.ok(stored.withdrawnAt);
+  assert.equal(stored.snapshotJson.includes(OWN_TEXT), false, 'withdrawn snapshot keeps no text');
+  // The selected message links do not outlive the messages themselves.
+  const links = await db.storyShareTurn.findMany({where: {shareId: share.id}});
+  assert.equal(links.length, messages.length);
+  assert.equal(links.filter(link => link.messageId === null).length, messages.length, 'every deleted message link is nulled');
 });
 
 test('deleting a whole conversation cascades its story run too', async () => {
@@ -181,8 +220,14 @@ test('shares snapshot selected messages, withdraw without touching the run, and 
 
   const {share} = await createStoryShare(f.owner.id, f.run.id, {title: '第一章精选', messageIds: messages.map(m => m.id)});
   assert.equal(share.status, 'PUBLISHED');
-  assert.deepEqual(share.selectedMessageIds.sort(), messages.map(m => m.id).sort());
-  assert.equal(JSON.stringify(share).includes(OWN_TEXT), false, 'the record stores ids, not a rendered copy');
+  // The reader-facing payload is a frozen snapshot: public titles plus the picked fragments.
+  assert.equal(share.snapshot.schemaVersion, 1);
+  assert.equal(share.snapshot.templateTitle, '测试故事');
+  assert.equal(share.snapshot.fragments.length, messages.length);
+  assert.equal(JSON.stringify(share).includes(OWN_TEXT), true, 'the snapshot carries the picked fragments');
+  for (const internal of ['stateJson', 'leaseOwner', 'requestHash', 'selectedMessageIdsJson', HIDDEN_PLOT, 'PRIVATE_CHARACTER_PROMPT']) {
+    assert.equal(JSON.stringify(share).includes(internal), false, internal);
+  }
 
   await assert.rejects(withdrawStoryShare(stranger.id, f.run.id, share.id), error => error.status === 404);
   const withdrawn = await withdrawStoryShare(f.owner.id, f.run.id, share.id);

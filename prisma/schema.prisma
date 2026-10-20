@@ -529,6 +529,7 @@ model Message {
   storyInputTurns     StoryTurn[]  @relation("StoryInputMessage")
   storyAssistantTurns StoryTurn[]  @relation("StoryAssistantMessage")
   storyEvents         StoryEvent[] @relation("StorySourceMessage")
+  storyShareTurns     StoryShareTurn[]
 
   @@index([conversationId])
   @@index([createdAt])
@@ -1588,6 +1589,8 @@ model StoryShare {
   title                  String
   /// 用户勾选的消息 ID 数组 JSON；创建时校验全部属于本 run 且已提交。
   selectedMessageIdsJson String    @map("selected_message_ids_json")
+  /// 创建时一次固化的公开快照（模板/章节公开标题 + 选中片段），读者只读快照，不读 run 本体。
+  snapshotJson           String    @map("snapshot_json")
   /// PUBLISHED / WITHDRAWN
   status                 String    @default("PUBLISHED")
   publishedPostId        String?   @map("published_post_id")
@@ -1595,8 +1598,9 @@ model StoryShare {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  run  StoryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  run                StoryRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storyTurnSelection StoryShareTurn[]
 
   @@index([runId])
   @@index([userId, createdAt])
@@ -1616,4 +1620,20 @@ model SceneFunnelEvent {
   @@unique([userId, conversationId, event])
   @@index([createdAt])
   @@map("scene_funnel_events")
+}
+
+/// 分享快照与消息的固定对应（创建时写入，消息删除随之置空，快照本身不改）。
+model StoryShareTurn {
+  id        String   @id @default(cuid())
+  shareId   String   @map("share_id")
+  messageId String?  @map("message_id")
+  position  Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  share   StoryShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  message Message?   @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@unique([shareId, position])
+  @@index([messageId])
+  @@map("story_share_turns")
 }

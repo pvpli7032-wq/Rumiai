@@ -2,10 +2,6 @@ import { NextResponse } from 'next/server';
 import { logRouteError } from '@/lib/logger';
 import { getAuthUser } from '@/lib/auth';
 import { ConversationMessageError, deleteMessageAndFollowing, editUserMessage } from '@/lib/conversations/message-service';
-// Composition root wiring: the story side registers its same-transaction history
-// invalidation at module load (dependency inversion — conversations never import
-// stories). Without this import a story-conversation edit fails closed with 503.
-import '@/lib/stories/lifecycle/invalidation';
 
 function messageError(error: unknown) {
   return error instanceof ConversationMessageError ? NextResponse.json({error: error.message}, {status: error.status}) : null;

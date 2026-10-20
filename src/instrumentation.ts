@@ -10,6 +10,11 @@
  * 运维开关：STORY_WORKER_DISABLED=1 跳过启动，供 worker 暂停/恢复演练与
  * 「状态提取问题先停 worker 再处理」的降级口径使用；默认开启（单实例部署）。
  */
+// Composition root for the story side of message edits/deletes: registering here (not
+// from a route module) means every server code path that edits a message gets the
+// same-transaction invalidation, with no dependency on which route loaded first.
+import './lib/stories/lifecycle/invalidation';
+
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
   if (process.env.STORY_WORKER_DISABLED?.trim() === '1') return;

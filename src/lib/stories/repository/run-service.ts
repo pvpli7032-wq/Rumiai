@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
+import { logWarning } from '@/lib/logger';
 import { StoryError, parseCreate, readVersion } from './contracts';
 
 export const runInclude = {templateVersion: {include: {template: true}}, conversation: {include: {character: true}}} as const;
@@ -45,16 +46,19 @@ export async function view(client: Client, run: Run) {
     where: {runId: run.id, status: 'CONFIRMED', invalidatedAt: null, sourceTurn: {runId: run.id, status: 'COMMITTED', stateStatus: 'PROCESSED'}, sourceMessage: {conversationId: run.conversationId}},
     orderBy: [{createdAt: 'desc'}, {id: 'desc'}], take: 100,
   });
-  const events = rows.map(row => {
-    // The public event envelope is distinct from extractor/private state JSON.
-    let payload: {summary: string};
+  // The public event envelope is distinct from extractor/private state JSON. A row that
+  // fails validation is skipped (and counted) instead of failing the whole view: the same
+  // rule the export uses, so a single bad row cannot turn the detail endpoint into a 500
+  // for its own owner.
+  let unreadable = 0;
+  const events = rows.flatMap(row => {
     try {
       const parsed = JSON.parse(row.payloadJson);
       if (parsed.schemaVersion !== 1 || typeof parsed.publicSummary !== 'string' || !parsed.publicSummary.trim() || parsed.publicSummary.length > 2000) throw Error();
-      payload = {summary: parsed.publicSummary};
-    } catch { throw new StoryError('INVALID_STORY_DATA', '故事事件数据不完整。', 422); }
-    return {id: row.id, type: row.type, status: row.status, chapterKey: row.chapterKey, payload, sourceMessageId: row.sourceMessageId, createdAt: row.createdAt};
+      return [{id: row.id, type: row.type, status: row.status, chapterKey: row.chapterKey, payload: {summary: parsed.publicSummary}, sourceMessageId: row.sourceMessageId, createdAt: row.createdAt}];
+    } catch { unreadable += 1; return []; }
   });
+  if (unreadable) logWarning('story_view_unreadable_events', {runId: run.id, count: unreadable});
   return {
     id: run.id, conversationId: run.conversationId,
     template: {id: run.templateVersion.templateId, version: run.templateVersion.version, locale: run.templateVersion.locale, title: run.templateVersion.template.title, publicSummary: definition.publicSummary},

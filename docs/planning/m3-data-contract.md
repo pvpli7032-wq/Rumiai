@@ -64,7 +64,7 @@ Conversation 当前 user FK Cascade、character FK Cascade，Message 对 Convers
 
 StoryRunView 字段：id, conversationId, template:{id,version,locale,title,publicSummary}, chapter:{key,title}, status, revision, lastCommittedTurnNo, stateProcessedThroughTurnNo, events:[{id,type,status,chapterKey,payload,sourceMessageId,createdAt}], turns:[{id,turnNo,status,stateStatus,inputMessageId,assistantMessageId,errorCode,committedAt}], createdAt, updatedAt。只包含当前用户可见的审核公开模板字段、已确认事件与处理状态；**不得包含隐藏事实、完整提示词、密钥、其他用户信息或未授权消息内容**。不在 View 放完整聊天正文；消息沿用现有授权 conversation messages API。Summary 仅 id,conversationId,templateTitle,chapterKey,status,revision,updatedAt。
 
-错误：401 无有效登录；403 Run 不属当前用户或角色/内容无权访问；404 Run/版本/消息不存在或对当前用户不可见（防枚举）；409 expectedRevision 过期、requestId 同键不同 hash、活跃生成冲突；422 参数/JSON schema 错、章节条件不满足、sourceMessage 不属 Run；429 用户限流/额度限制（沿用现有额度错误与 Retry-After）；503 AI/存储/worker 不可用或 SQLite 写锁超时（仅明确未启动操作可重试）；500 未知内部错误且不泄露细节。
+错误：401 无有效登录；404 Run/版本/消息不存在或对当前用户不可见（**他人 Run 一律 404，不用 403**：403 会区分「存在但无权」与「不存在」，形成枚举侧信道；全站统一 404 且文案一致，见 `m1-story-privacy.md` 第 4 节口径）；409 expectedRevision 过期、requestId 同键不同 hash、活跃生成冲突；422 参数/JSON schema 错、章节条件不满足、sourceMessage 不属 Run；429 用户限流/额度限制（沿用现有额度错误与 Retry-After）；503 AI/存储/worker 不可用或 SQLite 写锁超时（仅明确未启动操作可重试）；500 未知内部错误且不泄露细节。
 
 expectedRevision 是 StoryRun 乐观版本：写入前比较；每个状态变更事务成功时递增一次。回合接受、整理提交、关闭/恢复、失效各按事务更新并返回新 revision。不匹配返回 409 {code:'REVISION_CONFLICT',currentRevision,run}，客户端刷新，不自动覆盖/重放生成。
 
@@ -150,14 +150,15 @@ SQLite 单写者不等于应用层串行。接受回合时短事务做 StoryRun 
 
 ### 12.2 分享语义（A09）
 
-- **创建**：仅 run 所有者；`POST /api/story-runs/[id]/shares`；校验所有权 + selectedMessageIds 全部属于本 run 的 COMMITTED 回合（未提交或他人消息一律 422，不暴露存在性）。
+- **创建**：仅 run 所有者；`POST /api/story-runs/[id]/shares`；校验所有权 + selectedMessageIds 全部属于本 run 的 COMMITTED 回合、且这些消息仍在 run 自己的 conversation 里（未提交、他人消息、故事开始前的开场白一律 422，不暴露存在性）。创建时把模板公开标题、章节标题与选中片段**一次性固化**进 `snapshotJson`，并写 `story_share_turns`（shareId+position 唯一，messageId 随消息删除置空）。
 - **撤回**：`DELETE /api/story-runs/[id]/shares/[shareId]`；仅置 status=WITHDRAWN + withdrawnAt，**不碰 run 本体**（revision 不变、updatedAt 不变、无状态变更）；重复撤回 409；他人分享 404。
-- **读者口径**：读者读取任何 WITHDRAWN 分享一律 404（不暴露存在性）；读者只获得 selectedMessageIds 对应消息的快照，**不继承**分享者的任何私人经历——状态、事件、关系数值、备注一概不可见。读者入口属社区体系（计划书第 11 章），本阶段不开前台入口。
+- **读者口径**：读者读取任何 WITHDRAWN 分享一律 404（不暴露存在性）；读者只获得 `snapshotJson`（公开模板/章节标题 + 选中片段），**不继承**分享者的任何私人经历——状态、事件、关系数值、备注、内部 id 一概不可见。读者入口属社区体系（计划书第 11 章），本阶段不开前台入口。
+- **删除/编辑联动**：消息被编辑或删除时，同一事务把引用了该回合消息的 PUBLISHED 分享置 WITHDRAWN，并把 `snapshotJson` 改写为不含正文的占位——用户删掉的文字不能靠分享或导出复活。
 - **注销**：随 run 的 Conversation 级联删除（§3 方案 A），无残留。
 
 ### 12.3 导出白名单（A13/A04）
 
-- 每实例导出 `GET /api/story-runs/[id]/export`：JSON 附件，`Cache-Control: private, no-store`。内容白名单：run 公开字段、本人 conversation 消息、turn 簿记（无 lease/requestHash）、事件公开信封投影（summary；信封校验失败的行跳过而非不安全导出）、本人分享记录。**永不包含**：隐藏剧情字段、角色提示词/快照、抽取私有 stateJson、租约、requestHash、他人任何数据。
-- 账户级导出（users/me/export）新增 `stories` section（version 2→3）：run 簿记 + 事件公开投影 + turn 簿记，不含消息正文（正文已在 conversations section），同一事务快照。
+- 每实例导出 `GET /api/story-runs/[id]/export`：JSON 附件，`Cache-Control: private, no-store`。内容白名单：run 公开字段、**该 run 各回合自己的消息**（按 StoryTurn.inputMessageId/assistantMessageId 归属，不是整段会话）、turn 簿记（无 lease/requestHash）、事件公开信封投影（summary；信封校验失败或已失效的行跳过而非不安全导出）、本人分享记录（含固化快照，不含 selectedMessageIds/publishedPostId 等内部 id）。**永不包含**：隐藏剧情字段、角色提示词/快照、抽取私有 stateJson、租约、requestHash、他人任何数据。
+- 账户级导出（users/me/export）新增 `stories` section（version 2→3）：run 簿记 + 事件公开投影 + turn 簿记，不含消息正文（正文已在 conversations section 的完整会话里），同一事务快照。两处口径互补而不重叠：会话段给全文，故事段给簿记与公开信封。
 - 下架边界（A08/W07）：模板下架后 run **保留**列表/详情/导出；**禁止**新回合与 PAUSED 恢复（422 STORY_OFFLINE）；结章（簿记动作）仍允许；下架模板不可新建 run（404 既有语义）。
 - 注销级联：eraseAccountConversations 同事务级联清除 run/turn/event/checkpoint/share，含进行中租约与 activeTurnId 槽；模板与版本是公共内容不删（ownerId SetNull）。

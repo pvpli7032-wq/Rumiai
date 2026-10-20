@@ -17,6 +17,13 @@ async function conflictWithRun(userId: string, runId: string, currentRevision: n
   return new StoryError('REVISION_CONFLICT', '故事状态已更新，请刷新后重试。', 409, {currentRevision, run});
 }
 
+/** True when every message the turn still references is present in its conversation. */
+async function messagesStillExist(tx: Parameters<Parameters<typeof db.$transaction>[0]>[0], turn: {inputMessageId: string | null; assistantMessageId: string | null}) {
+  const ids = [turn.inputMessageId, turn.assistantMessageId].filter((id): id is string => typeof id === 'string');
+  if (!ids.length) return true;
+  return (await tx.message.count({where: {id: {in: ids}}})) === ids.length;
+}
+
 /**
  * Re-queues the state extraction of a committed turn. Only the extraction is
  * redone — the committed messages are never re-sent to the model (B8).
@@ -25,9 +32,14 @@ export async function retryStoryState(userId: string, runId: string, turnId: str
   const {expectedRevision} = parseRevision(input);
   return await db.$transaction(async tx => {
       await requireVisibleRun(tx, userId, runId);
-      const turn = await tx.storyTurn.findFirst({where: {id: turnId, runId}, select: {id: true, status: true, stateStatus: true}});
+      const turn = await tx.storyTurn.findFirst({where: {id: turnId, runId}, select: {id: true, status: true, stateStatus: true, inputMessageId: true, assistantMessageId: true}});
       if (!turn) throw new StoryError('STORY_NOT_FOUND', '回合不存在。', 404);
       if (turn.status !== 'COMMITTED') throw new StoryError('TURN_NOT_COMMITTED', '只有已提交的回合才能重试状态整理。', 422);
+      // A turn whose messages the user edited or deleted must not be re-extracted:
+      // that would turn a cleared summary back into a confirmed event (§7).
+      if ((turn.inputMessageId || turn.assistantMessageId) && !(await messagesStillExist(tx, turn))) {
+        throw new StoryError('STATE_NOT_RETRYABLE', '该回合的对话已被修改或删除，无法重新整理状态。', 422);
+      }
       if (turn.stateStatus === 'PROCESSING') throw new StoryError('STATE_IN_PROGRESS', '状态整理正在进行中，请稍后再试。', 409);
       if (turn.stateStatus !== 'FAILED' && turn.stateStatus !== 'PENDING') {
         throw new StoryError('STATE_NOT_RETRYABLE', '该回合的状态无需重试。', 422);

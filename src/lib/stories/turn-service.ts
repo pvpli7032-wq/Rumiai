@@ -163,17 +163,19 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
   const {expectedRevision, requestId, content} = parseTurn(input.input);
   const hash = requestHash(content);
 
+  // Ownership first: the idempotency lookup below must never answer for a run the
+  // caller cannot see, not even with a 409 that would leak "a turn is in progress".
+  const run = await requireVisibleRun(db, input.userId, input.runId);
+
   // Fast idempotency path before any quota or rate-limit cost: a settled turn replays as-is.
   const prior = classifyExisting(await db.storyTurn.findUnique({where: {runId_requestId: {runId: input.runId, requestId}}}), hash);
   if (prior === 'conflict') throw new StoryError('REQUEST_CONFLICT', '请求标识已用于不同的回合内容。', 409);
   if (prior === 'in-progress') throw new StoryError('TURN_IN_PROGRESS', '同一回合仍在生成中，请稍后查询结果。', 409);
   if (prior === 'committed' || prior === 'terminal') {
-    const run = await requireVisibleRun(db, input.userId, input.runId);
     const turn = await db.storyTurn.findUniqueOrThrow({where: {runId_requestId: {runId: input.runId, requestId}}});
     return replayStream(replayTurn(run, turn));
   }
 
-  const run = await requireVisibleRun(db, input.userId, input.runId);
   if (run.status !== 'ACTIVE') throw new StoryError('RUN_NOT_ACTIVE', '故事当前不在进行中，无法继续回合。', 409);
   requirePublishedTemplate(run);
 
