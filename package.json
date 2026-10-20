@@ -7,6 +7,7 @@
     "build": "next build",
     "verify:build": "node scripts/verify-production-build.mjs",
     "db:local": "node scripts/make-local-db.mjs",
+    "story:publish": "node --import tsx scripts/publish-story-template.mjs",
     "verify:done": "node scripts/check-definition-of-done.mjs",
     "start": "node scripts/start-production.mjs",
     "lint": "next lint",

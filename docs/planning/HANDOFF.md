@@ -1,11 +1,11 @@
-# 交接说明（2026-10-20 14:2x 终版）
+# 交接说明（2026-10-21 c5 已上线生产）
 
 > 目的：让接手的人（人或 AI）不必回溯对话就能继续。所有数字与路径均为本机核对结果，不是叙述推测。
 > 交接对象注意：本文件是唯一权威入口。规划书全文在 `docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx`，可 grep 纯文本版 `.temp/plan-final.txt`；回归基线与终验记录在 `.workbuddy/memory/baseline-2026-10-20.md`。
 
 ## 1. 一句话现状
 
-V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）全部完成并已提交**：M0 抽取、M3 数据模型+回合编排、M4 记忆与章节闭环、W08 评测框架+执行器、W07 生命周期（导出/分享/下架/级联）、灰度旗标 F1–F4，全部终验通过（记录见 `.workbuddy/memory/baseline-2026-10-20.md` 第四/五/六节）。本地 HEAD `9cb5029`，工作区干净（仅 dev.db 运行时文件不提交）。本地 48 条迁移（生产仍 45 条，3 条纯增量待发布：story_run_contract、scene_funnel_events、story_shares）。发布文档全部就绪并已同步计数：`docs/planning/releases/m5-pilot-runbook.md`（主流程）、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。**剩余全部是用户决策，不是开发工作**：① 发布批次拍板（建议方案 A 合并上线，见 checklist）；② 上线指令（说「上线」即按 m5-pilot-runbook 情形 2 走）；③ 管理员密码轮换（生产仍是 `123123`，发布前置项）；④ 灰度观察期需要的试点名单与告警责任人。
+V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）全部完成并已提交**：M0 抽取、M3 数据模型+回合编排、M4 记忆与章节闭环、W08 评测框架+执行器、W07 生命周期（导出/分享/下架/级联）、灰度旗标 F1–F4，全部终验通过（记录见 `.workbuddy/memory/baseline-2026-10-20.md` 第四/五/六节）。生产当前已切到 `commercial-20261021-c5`；BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准；生产 48 条迁移，PM2 online/restarts 0、exec cwd 指向 c5，`pm2 save` 已完成，60 秒 soak 12/12 返回 200。回滚位 `c2`/`c3`/`c4-rc2` 保留。发布文档全部就绪并已同步计数：`docs/planning/releases/m5-pilot-runbook.md`（主流程）、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。**当前剩余是用户决策与灰度观察**：管理员密码轮换、试点名单与告警责任人。
 
 ## 2. 代码位置与状态
 
@@ -33,12 +33,12 @@ V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）
 | 项 | 值 |
 |---|---|
 | 域名 | `https://lh.y-98.cn`，`/` 307 → `/zh` |
-| 当前发布 | `commercial-20261020-c4-rc2`（BUILD_ID `tRBseGKiU88NSsGiOCagr`） |
-| 部署路径 | `/www/wwwroot/khui-ai/releases/commercial-20261020-c4-rc2` |
+| 当前发布 | `commercial-20261021-c5`（BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准） |
+| 部署路径 | `/www/wwwroot/khui-ai/releases/commercial-20261021-c5` |
 | PM2 | 单实例 `khui-ai`，online，重启 0；3000 端口仅此一个 next-server |
-| 数据库 | `/www/wwwroot/khui-ai/shared/database.db`，45 条迁移全部 applied |
+| 数据库 | `/www/wwwroot/khui-ai/shared/database.db`，48 条迁移全部 applied |
 | 备份 | `shared/backups/database-release-c4rc2-20261020`、`database-release-c3-20261020` |
-| 回滚位 | `c3` 与 `c2` 目录均保留 |
+| 回滚位 | `c2`、`c3`、`c4-rc2` 目录均保留 |
 | SSH | `ssh -i ~/.ssh/khui_deploy_ed25519 root@43.242.194.115` |
 
 认证（2026-10-20 02:0x + 03:0x 两次核对）：`/zh`、`/discover`、`/shop`、`/api/site`、`/admin`、`/login` 全 200；匿名 `/api/admin/access` 401；旧前缀 `/api/v1/site` 404。
@@ -178,7 +178,7 @@ M4 已合入（`0e72f85` 闭环主体 + `e89bdc2` W08 执行器 + `ed0cd03` work
 - **持久租约与失效**：worker 条件认领（updateMany where stateStatus=PENDING）、租约保护提交、失效胜过 live lease、坏 stateJson 拒绝置 FAILED/STATE_DATA_CORRUPT 不静默覆盖——边界攻击 A1–A5 全部守住。
 - 失效事务（C3–C5）已随编辑/删除接线启用并验证：消息变更与 StoryEvent/Checkpoint/stateJson 失效同事务、turnNo 因果、重建回退游标。
 
-M5 试点交付文档（W09，release-prep）：`docs/planning/releases/` 下 `m5-pilot-runbook.md`（R4 发布 runbook，含 Phase E 降级/回滚）、`story-rollout-flags.md`（灰度开关设计）、`m3-m4-release-checklist.md`（上线批次对照，待拍板）。生产发布前生产库仍 45 条迁移，发布须走 m5-pilot-runbook（合并了 m3-launch-runbook 流程骨架）。
+M5 试点交付文档（W09，release-prep）：`docs/planning/releases/` 下 `m5-pilot-runbook.md`（R4 发布 runbook，含 Phase E 降级/回滚）、`story-rollout-flags.md`（灰度开关设计）、`m3-m4-release-checklist.md`（上线批次对照）。生产已切到 `commercial-20261021-c5`，生产库 48 条迁移；本次时间线与实测门记录见 `docs/planning/releases/cutover-record-20261021.md`。
 
 ## 13. 2026-10-20 M5/W07 完成记录与终验结论
 

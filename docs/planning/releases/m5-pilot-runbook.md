@@ -21,10 +21,10 @@
 |---|---|
 | 本地代码基线 | `commercial-refactor` 分支，M3+M4+M5 文档已合入（M4 闭环起点 `0e72f85`，当前 HEAD `ed0cd03`） |
 | 本地迁移总数 | 48 条（45 条生产既有 + `20261020120000_story_run_contract` 6 张 story 表 + `20261020150000_scene_funnel_events` 1 张埋点表 + `20261020160000_story_shares` 1 张分享表），均纯增量 |
-| 当前生产发布 | `releases/commercial-20261020-c4-rc2`（BUILD_ID `tRBseGKiU88NSsGiOCagr`） |
+| 当前生产发布 | `releases/commercial-20261021-c5`（BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准） |
 | PM2 | 单实例 `khui-ai`，www 身份，仅监听 `127.0.0.1:3000`，`PM2_HOME=/www/wwwroot/khui-ai/shared/pm2` |
-| 生产库 | `/www/wwwroot/khui-ai/shared/database.db`，当前 45 条迁移 applied |
-| 回滚位 | `c3`、`c2` 目录保留；本次新增回滚位 = `c4-rc2` |
+| 生产库 | `/www/wwwroot/khui-ai/shared/database.db`，当前 48 条迁移 applied |
+| 回滚位 | `c2`、`c3`、`c4-rc2` 目录保留 |
 | worker 事实 | `c4-rc2` 旧应用**没有** state worker；新应用 worker 由 `src/instrumentation.ts` 启动，`STORY_WORKER_DISABLED=1` 可跳过（已实现，提交 `ed0cd03`） |
 
 ### 前置分支核对（二选一，写进操作记录）
@@ -106,7 +106,8 @@ npm run build
 npm run verify:build
 ```
 
-- 成功判据：`next build` 退出 0（产物在 `.next-build/`）；`verify:build` 在独立空库上完成 48 条迁移 + 生产构建验证。
+- 明确顺序：先执行 `npm run build` 生成可供浏览器/预启动使用的 `.next-build/`，再执行 `npm run verify:build` 做隔离目录构建与验证。`verify:build` 会把构建写到隔离目录；如果直接跑 `npm run release:check`，它会因找不到当前 `.next-build` 而失败。
+- 成功判据：`npm run build` 退出 0 且产物在 `.next-build/`；随后 `verify:build` 在隔离空库上完成 48 条迁移 + 生产构建验证。
 - 失败处理：按构建报错修复；确认 `prisma/.local` 无残留锁（`npm run test:clean`）。
 
 ### A3 打包
@@ -137,6 +138,7 @@ tar -xzf <RELEASE>.tar.gz -C /www/wwwroot/khui-ai/releases/
 cd /www/wwwroot/khui-ai/releases/<RELEASE>
 npm ci
 npx prisma generate
+npm run build
 npm run verify:build
 ```
 
@@ -306,6 +308,11 @@ runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 logs
 > 顺序红线：**先关 worker / 关写入，再切回旧应用**（规划书第 27 章回退操作 + roadmap 操作门第 5 条）。故事开关关闭不得触发重复扣费或退款；不为回退直接删除新增表。
 
 ### E0 决策门
+
+#### 已验证排障：发布目录与 PM2 cwd
+
+- `pm2 start --update-env` 不会刷新旧 app 的 `exec cwd`。需要切换到新 release 时，先 `pm2 delete khui-ai`，再从新 release 的 ecosystem 文件执行 `pm2 start`；随后检查 `pm2 describe khui-ai` 的 cwd 指向目标 release。
+- 本次切流后确认：生产为 `commercial-20261021-c5`，PM2 online，restarts=0，exec cwd 指向 c5；`pm2 save` 已完成。
 
 | 触发 | 动作 |
 |---|---|
