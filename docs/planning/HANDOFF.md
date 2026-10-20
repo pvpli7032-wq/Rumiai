@@ -47,6 +47,18 @@ V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）
 
 生产端到端实测（2026-10-21 04:1x）：注册 → `POST /api/story-runs` 201 建实例 → 同 requestId 幂等重放返回同一实例 → 不存在章节 422 → 详情 200 → 匿名详情/回合/导出/分享/列表全 401；全程 `pageerror` 0。测试账号事后经 `POST /api/users/me/close` 走产品自身的注销路径清理，`story_runs` 归 0、`conversations` 回到 3、`messages` 回到 6。
 
+### 3.2 M4 记忆闭环（已提交，未上线）
+
+worker 把每回合抽出的确认事实写进 `run.stateJson`，但 `turn-service` 生成时只用近期消息 + 当前输入 —— 规划书第 19 章要求的「模板版本 + 已确认事实 + 近期消息 + 当前输入」此前只做了后半段。现已补上：
+
+- `src/lib/stories/lifecycle/context-service.ts` 的 `buildStoryContext(run)`：白名单组装故事标题、当前章节标题、公开简介、最近 40 条已确认事实与三条固定规则（事实不得改写、不得声称用户答应过未答应的事、用户行动不得代劳）。
+- `chat-stream.ts` 的 `stream[OI]Response` 接受可选 `context`，仅在提供时以空行追加；**不传时系统提示逐字不变**，自由聊天零影响。
+- `turn-service.ts` 只计算一次，真实与 mock 路径共用。
+- 泄漏红线：hiddenFacts、原始 stateJson、完整 prompt、leaseOwner、requestHash 都不进入；模板损坏只降级成 chapterKey。
+- 测试：`tests/story-context.test.mjs`（5 条）。
+
+上线后可用 `story_state_worker_started` 日志确认 worker 在跑（`51b4747`）。
+
 ### 3.1 故事模板（已发布 1 个）
 
 `story_templates` / `story_template_versions` 原本没有任何写入路径，等于 `POST /api/story-runs` 恒定 404。现已补上唯一入口：
@@ -136,7 +148,8 @@ DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PAS
 | ~~模板~~ | ~~生产无已发布故事模板~~ | **已发布林澈试点模板 v1**（`story:publish`） |
 | 前置 | 管理员密码轮换（`admin-password-rotation-plan.md` 就绪） | **等用户** |
 | 灰度 | F1–F4 开关已实现（`b5f12db`）；观察指标与扩量/暂停门槛见 `story-rollout-flags.md` §3/§4 | 需先定试点名单与告警责任人 |
-| 待发 | worker 启动日志（`51b4747`）与 `story:publish` 工具本身还没随包上线，下次发布一起带上 | 攒批 |
+| 待发 | 下列 4 项已提交但**不在生产 c5 里**，下次发布一起带上：worker 启动日志（`51b4747`）、`story:publish` 工具（`35366e2`）、M4 记忆闭环 buildContext（`ab2f64b`）、失效钩子注释修正（`a443a7e`） | 攒批 |
+| 已修 | M4 记忆闭环缺口：worker 抽出的确认事实此前从不进入生成提示词（只喂了近期消息），现已由 `context-service.ts` 接上 | 已提交 |
 
 已清项：灰度旗标 F1–F3（原待办）已实现；导出/分享/下架/级联（W07）已完成并终验。
 
