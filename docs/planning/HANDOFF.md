@@ -4,8 +4,7 @@
 
 ## 1. 一句话现状
 
-V0 已上线生产并验收通过；M0 的聊天应用服务抽取与 M3 的数据模型已合入本地分支但**未部署**。
-M3 的创建、列表、详情 API 与仓储服务已在工作区实现（未提交、未部署，见第 11 节）；下一步是 M3 故事回合编排与可靠性，然后 M4 记忆闭环。
+V0 已上线生产并验收通过；M0 抽取、M3（数据模型 + 回合编排）与 M4（记忆与章节闭环）已全部合入本地分支（`0e72f85..ed0cd03`，含 W08 评测框架与执行器），**均未部署**。本地库 47 条迁移（生产仍 45 条，`20261020120000_story_run_contract` 与 `20261020150000_scene_funnel_events` 两条待发布）。M5 试点交付文档（runbook + 灰度设计 + 批次对照）已就绪：`docs/planning/releases/m5-pilot-runbook.md`、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。下一步是用户对上线批次拍板 → 发布窗口 → M5 灰度观察。
 
 ## 2. 代码位置与状态
 
@@ -104,12 +103,11 @@ DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PAS
 
 | 阶段 | 内容 | 写作用域 |
 |---|---|---|
-| M3-2 | `/api/story-runs` 端点 + `src/lib/stories/repository/**` | `src/app/api/story-runs/**`、`src/lib/stories/repository/**` |
-| M3-3 | `chat-application-service` 按 `StoryRun` 存在性分流 | `src/lib/conversations/**`（串行，一次一个写入者） |
-| M4 | 状态抽取 worker、章节闭环、失效事务、60 例评测 | `src/lib/stories/lifecycle/**`、`tests/story-evaluation/**` |
-| M5 | 生命周期、导出删除、灰度与回退演练 | `src/lib/stories/lifecycle/**`、`docs/planning/releases/**` |
+| M5 拍板 | 上线批次决策（一次窗口 vs 两次窗口）：`docs/planning/releases/m3-m4-release-checklist.md` | 决策记录写入该文档 §4 |
+| M5 发布 | 按 `docs/planning/releases/m5-pilot-runbook.md` 执行（Phase A 本地 → B 预装 → C 窗口 → 观察期）；前置：灰度旗标 F1–F3 实现（`story-rollout-flags.md`，另立任务）、管理员密码轮换 | `src/lib/stories/**`（旗标）、生产操作 |
+| M5 观察期 | 灰度观察指标与扩量/暂停决策：`story-rollout-flags.md` §3/§4 | 运维记录、`docs/planning/releases/**` |
 
-**M3-3 是唯一会碰旧发送路径的改动**，必须有普通发送与重生成的回归证据（`m0-behavior-parity.md` 逐行对照）。
+M4 剩余尾巴：`deleteMessageAndFollowing` 同毫秒相邻消息一并删除的精度问题（M4 终验 §5.6，低优先级，建议后续按 turnNo/message ID 收紧删除范围）；M4 退出条件中的备份恢复演练归入 M5 发布流程（runbook Phase B3）。
 
 ## 9. 团队与文档
 
@@ -140,3 +138,15 @@ DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PAS
 验证入口：`node --import tsx --test tests/story-run-service.test.mjs`（8 条，真实隔离 SQLite + 46 条迁移，含 HTTP 适配器、并发创建、隐私、级联）。聊天应用/消息/会话回归 13 条、M0 路由 14 条、M2 上下文 4 条、V0 5 条均通过；类型检查、完成定义 8 项通过。生产构建/门禁结果见后续验证记录。
 
 下一步：M3 回合服务（turns SSE、requestHash/revision CAS、activeTurnId、消息原子提交、未知结果恢复），替换当前故事发送拒绝分支；接着 M4 retry-state/close-chapter/resume、worker 与历史失效事务。未实现端点不能记为已完成。生产发布仍须先过第 7 节流程。
+
+## 12. 2026-10-20 M4 完成记录（记忆与章节闭环）
+
+M4 已合入（`0e72f85` 闭环主体 + `e89bdc2` W08 执行器 + `ed0cd03` worker 接线），终验通过（`.workbuddy/memory/baseline-2026-10-20.md` 第五节：全量基线绿、W08 实跑 15/0/44/1、边界攻击 11 项全过、浏览器矩阵 9 PASS/1 SKIP）。关键决策：
+
+- **依赖倒置**：`message-service` 不直接 import story 模块，改为 `registerStoryHistoryInvalidator` 注册回调——旧聊天模块与故事失效事务解耦，普通会话编辑/删除语义零变化（m0-route 14 条 + chat 13 条 + lifecycle "normal conversations keep their edit and delete semantics untouched" 锁定）。
+- **额度预留**：state worker 的整理调用走 `story-state-quota` 预留，模型调用成功但整理失败不重复扣同一条聊天费用（第 23 章计费原则）；预算不足延后整理、保留已保存内容，不以编造回复兜底。
+- **运维开关**：`STORY_WORKER_DISABLED=1`（`src/instrumentation.ts` 启动前检查，提交 `ed0cd03`）——worker 暂停/恢复演练与生产降级路径（m5-pilot-runbook §6 E1）的既有基础。
+- **持久租约与失效**：worker 条件认领（updateMany where stateStatus=PENDING）、租约保护提交、失效胜过 live lease、坏 stateJson 拒绝置 FAILED/STATE_DATA_CORRUPT 不静默覆盖——边界攻击 A1–A5 全部守住。
+- 失效事务（C3–C5）已随编辑/删除接线启用并验证：消息变更与 StoryEvent/Checkpoint/stateJson 失效同事务、turnNo 因果、重建回退游标。
+
+M5 试点交付文档（W09，release-prep）：`docs/planning/releases/` 下 `m5-pilot-runbook.md`（R4 发布 runbook，含 Phase E 降级/回滚）、`story-rollout-flags.md`（灰度开关设计，**未实现**，F1–F3 待批准另立任务）、`m3-m4-release-checklist.md`（上线批次对照，待拍板）。生产发布前生产库仍 45 条迁移，发布须走 m5-pilot-runbook（合并了 m3-launch-runbook 流程骨架）。
