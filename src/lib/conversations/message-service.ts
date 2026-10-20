@@ -1,6 +1,27 @@
 import type { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 
+/**
+ * Dependency inversion for story history (m3-data-contract.md §7): the single
+ * direction rule forbids conversations → stories imports, so the story side
+ * registers its invalidation handler here at module load (see
+ * src/lib/stories/lifecycle/invalidation.ts). Ordinary conversations never call
+ * it. Fail closed: a story conversation without a registered handler refuses
+ * the change instead of silently skipping derived-state invalidation.
+ */
+type StoryHistoryInvalidator = (tx: Prisma.TransactionClient, runId: string, messageId: string) => Promise<void>;
+let storyHistoryInvalidator: StoryHistoryInvalidator | null = null;
+
+export function registerStoryHistoryInvalidator(impl: StoryHistoryInvalidator | null) {
+  storyHistoryInvalidator = impl;
+}
+
+async function invalidateStoryHistory(tx: Prisma.TransactionClient, runId: string | null, messageId: string) {
+  if (!runId) return;
+  if (!storyHistoryInvalidator) throw new ConversationMessageError('故事历史修改暂不可用，请稍后重试。', 503);
+  await storyHistoryInvalidator(tx, runId, messageId);
+}
+
 export async function readConversationMessages(userId: string, conversationId: string) {
   const conversation = await db.conversation.findUnique({where: {id: conversationId}, select: {userId: true}});
   if (!conversation) throw new ConversationMessageError('Not found', 404);
@@ -97,7 +118,6 @@ export async function setMessageLiked(userId: string, conversationId: string, me
 export async function editUserMessage(userId: string, conversationId: string, messageId: string, input: unknown) {
   return db.$transaction(async tx => {
     const message = await requireOwnedMessage(tx, conversationId, messageId, userId);
-    if (message.conversation.storyRun) throw new ConversationMessageError('故事历史修改尚未开放。', 409);
     if (message.role !== 'USER') throw new ConversationMessageError('Only your own message can be edited', 400);
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ConversationMessageError('Message data is invalid', 400);
     const rawContent = (input as Record<string, unknown>).content;
@@ -105,12 +125,18 @@ export async function editUserMessage(userId: string, conversationId: string, me
     if (!content) throw new ConversationMessageError('content is required', 400);
     if (content.length > MAX_MESSAGE_CONTENT) throw new ConversationMessageError(`content must be ${MAX_MESSAGE_CONTENT} characters or fewer`, 400);
 
+    // Story history: the message change and the invalidation of every derived
+    // event/checkpoint from this turn share ONE transaction (contract §7); the
+    // story side supplies the invalidation rules through the registered handler.
+    const storyRunId = message.conversation.storyRun?.id ?? null;
+
     const updated = await tx.message.update({
       where: {id: messageId},
       data: {content},
       select: {id: true, role: true, content: true, likedAt: true, createdAt: true},
     });
     const dropped = await tx.message.deleteMany({where: {conversationId, createdAt: {gt: message.createdAt}}});
+    await invalidateStoryHistory(tx, storyRunId, messageId);
     return {message: updated, droppedReplies: dropped.count};
   });
 }
@@ -118,7 +144,11 @@ export async function editUserMessage(userId: string, conversationId: string, me
 export async function deleteMessageAndFollowing(userId: string, conversationId: string, messageId: string) {
   return db.$transaction(async tx => {
     const message = await requireOwnedMessage(tx, conversationId, messageId, userId);
-    if (message.conversation.storyRun) throw new ConversationMessageError('故事历史修改尚未开放。', 409);
+    // Story history: same-transaction invalidation from the owning turn (contract §7).
+    // Must resolve BEFORE the message is deleted — StoryTurn's message references are
+    // onDelete: SetNull, so a lookup after the delete would find nothing.
+    const storyRunId = message.conversation.storyRun?.id ?? null;
+    await invalidateStoryHistory(tx, storyRunId, messageId);
     const removed = await tx.message.deleteMany({where: {conversationId, createdAt: {gte: message.createdAt}}});
     return {success: true, removed: removed.count};
   });

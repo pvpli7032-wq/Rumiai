@@ -76,13 +76,15 @@ SQLite 单写者不等于应用层串行。接受回合时短事务做 StoryRun 
 
 持久租约使用 StoryTurn 的 leaseOwner String?、leaseExpiresAt DateTime?、stateStatus、stateAttempts Int @default(0) @map("state_attempts")。worker 对 PENDING 或过期 PROCESSING 做条件更新认领并设 owner/expiry；提交需 owner 匹配且 lease 未过期。消息事务同时保存 USER/ASSISTANT、turn message IDs、COMMITTED、state PENDING、Run lastCommittedTurnNo；事务提交后 worker 扫描表，不用裸 Promise。
 
-崩溃恢复：到期 PROCESSING 状态任务可被重新认领，整理需幂等；已提交消息对应 turn 永不自动重发模型。模型生成中断且上游结果未知时标 UNKNOWN，先查本地消息/AI 调用记录；用户确认后才可用新 requestId 重试。超时恢复只重做状态整理，不重复扣费/生成。状态失败保留已保存回复并显示整理失败。
+崩溃恢复：到期 PROCESSING 状态任务可被重新认领，整理需幂等；已提交消息对应 turn 永不自动重发模型。模型生成中断且上游结果未知时标 UNKNOWN，先查本地消息/AI 调用记录；用户确认后才可用新 requestId 重试。超时恢复只重做状态整理，不重复扣费/生成。状态失败保留已保存回复并显示整理失败。进程启动由 `src/instrumentation.ts` 的 register() 拉起 worker（默认开启，单实例部署）；运维暂停/恢复演练与降级口径用 `STORY_WORKER_DISABLED=1` 跳过启动——任务在库中持久，重启即续。
 
 ## 7. 编辑/删除回合失效事务
 
 编辑或删除故事消息 N 时，同一事务读取其稳定 turnNo（不以 createdAt 或前端数组下标排序），执行原消息变更，再将 StoryEvent 中 sourceTurn.turnNo >= N 的行设 status=INVALIDATED、invalidatedAt=now()；StoryCheckpoint where throughTurnNo >= N 设 invalidatedAt；相关 StoryTurn.stateStatus=INVALIDATED；StoryRun.stateJson 重建为最近有效 checkpoint/确认事件，lastCommittedTurnNo 与 stateProcessedThroughTurnNo 回退至 N-1，revision + 1。CHAPTER_RESULT 是 StoryEvent.type，按同规则失效。
 
 消息服务与 stories 必须由同一 chat-application-service 事务协调，避免消息变更成功而事件仍有效。旧自由聊天原编辑/重生成契约逐项保持。新故事顺序采用 StoryTurn.turnNo + message ID；当前 Message createdAt 同刻排序不足以定义因果。若 interactive transaction 无法覆盖既有消息服务调用，先抽取共享事务入口再开放故事历史修改；不能用两个事务冒充原子性。
+
+**依赖方向拍板（2026-10-20，M4 落地时）**：编辑/删除失效曾以 message-service 直接 import `stories/lifecycle/invalidation` 实现，代码结构审查判定违反「依赖方向保持单向」（conversations → stories 不允许）。改为**依赖倒置 + 失闭**：message-service 自持一个窄注册表 `registerStoryHistoryInvalidator(impl)`（类型 `(tx, runId, messageId) => Promise<void>`），stories 的 invalidation 模块在加载时注册真实处理器；messages 路由作为组合根 import 该 stories 模块保证服务进程必注册。未注册时故事会话的历史修改**拒绝（503）而非静默跳过失效**——注册缺失永远 fail closed。选此而非事件总线的原因：失效必须与消息变更同事务，同步注册能直接传递 tx；异步领域事件做不到「同一事务」。普通会话（无 StoryRun）路径只多一次空值判断，零行为变化。失效规则仍全部在 stories 侧执行，符合第 16 章「原消息操作由 conversations 执行，失效规则由 stories 执行」。
 
 ## 8. 明确不做
 

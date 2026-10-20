@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {spawnSync} from 'node:child_process';
 import {rmSync} from 'node:fs';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
@@ -18,8 +17,10 @@ process.env.AI_MODEL='cost-fixture';
 process.env.AI_INPUT_PRICE_PER_MILLION='1';
 process.env.AI_OUTPUT_PRICE_PER_MILLION='2';
 const env={...process.env};delete env.RUST_LOG;
-const migrated=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{env,encoding:'utf8',windowsHide:true});
-assert.equal(migrated.status,0,migrated.stdout+migrated.stderr);
+// The Prisma schema engine cannot run in restricted environments (OS error 5);
+// the repo convention is to apply migrations with node:sqlite instead.
+const {createIsolatedDatabase}=await import('../scripts/helpers/create-isolated-db.mjs');
+createIsolatedDatabase(path.resolve('prisma', file));
 
 const {db}=await import('../src/lib/db.ts');
 const {bootstrapOwner,saveOperator,saveRole}=await import('../src/lib/admin/management-service.ts');

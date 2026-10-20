@@ -105,9 +105,14 @@ test('ordinary chat does not reuse story runs and old writes cannot bypass story
   }
   assert.equal(await db.message.count({where: {conversationId: run.conversationId}}), 0);
   const message = await db.message.create({data: {conversationId: run.conversationId, role: 'USER', content: 'preserve'}});
-  await assert.rejects(editUserMessage(f.owner.id, run.conversationId, message.id, {content: 'change'}), fails(409));
-  await assert.rejects(deleteMessageAndFollowing(f.owner.id, run.conversationId, message.id), fails(409));
-  assert.equal((await db.message.findUnique({where: {id: message.id}})).content, 'preserve');
+  // M4 opens story history edits; the message change and the derived-state
+  // invalidation share one transaction (deep coverage in story-lifecycle-service.test.mjs).
+  // The story side registers its invalidation handler via the import below.
+  await import('../src/lib/stories/lifecycle/invalidation.ts');
+  await editUserMessage(f.owner.id, run.conversationId, message.id, {content: 'change'});
+  assert.equal((await db.message.findUnique({where: {id: message.id}})).content, 'change');
+  await deleteMessageAndFollowing(f.owner.id, run.conversationId, message.id);
+  assert.equal(await db.message.findUnique({where: {id: message.id}}), null);
   await deleteConversation(f.owner.id, run.conversationId);
   assert.equal(await db.storyRun.findUnique({where: {id: run.id}}), null);
   assert.equal(await db.storyCheckpoint.count({where: {runId: run.id}}), 0);

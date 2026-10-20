@@ -21,7 +21,8 @@ export async function requireVisibleRun(client: Client, userId: string, id: stri
   return run;
 }
 
-async function view(client: Client, run: Run) {
+/** Public run view; lifecycle services reuse it inside their own transactions. */
+export async function view(client: Client, run: Run) {
   const definition = readVersion(run.templateVersion.definitionJson, run.templateVersion.characterSnapshotJson);
   const chapter = definition.chapters.find(item => item.key === run.chapterKey);
   if (!chapter || definition.characterId !== run.conversation.characterId) throw new StoryError('INVALID_STORY_DATA', '故事版本数据不完整。', 422);

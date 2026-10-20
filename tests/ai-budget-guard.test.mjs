@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { budgetCircuitBreakerMode } from '../src/lib/ai/budget-config.ts';
@@ -18,9 +17,10 @@ process.env.AI_INPUT_PRICE_PER_MILLION = '2';
 process.env.AI_OUTPUT_PRICE_PER_MILLION = '4';
 process.env.CHAT_RATE_LIMIT = '100';
 process.env.CHAT_DAILY_LIMIT = '3';
-const migrationEnv = { ...process.env }; delete migrationEnv.RUST_LOG;
-const migrated = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { env: migrationEnv, encoding: 'utf8' });
-assert.equal(migrated.status, 0, migrated.stdout + migrated.stderr);
+// The Prisma schema engine cannot run in restricted environments (OS error 5);
+// the repo convention is to apply migrations with node:sqlite instead.
+const { createIsolatedDatabase } = await import('../scripts/helpers/create-isolated-db.mjs');
+createIsolatedDatabase(path.resolve('prisma', file));
 const { db, pragmasReady } = await import('../src/lib/db.ts'); await pragmasReady;
 const { reserveAiCall, finishAiCall, AiQuotaError, quotaDay } = await import('../src/lib/ai/ai-usage.ts');
 const { readCostBudgetBlock } = await import('../src/lib/ai/budget-guard.ts');

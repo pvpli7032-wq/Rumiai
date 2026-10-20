@@ -37,6 +37,15 @@ export function parseTurn(input: unknown) {
   return {expectedRevision: body.expectedRevision, requestId: text(body.requestId, 200), content};
 }
 
+/** Lifecycle endpoints (retry-state / close-chapter / resume) only carry the optimistic version. */
+export function parseRevision(input: unknown) {
+  const body = object(input);
+  if (typeof body.expectedRevision !== 'number' || !Number.isInteger(body.expectedRevision) || body.expectedRevision < 0) {
+    throw new StoryError('INVALID_STORY_REQUEST', '请求参数不正确。', 422);
+  }
+  return {expectedRevision: body.expectedRevision};
+}
+
 /** Only explicitly public fields leave this module; definitions may contain hidden plot data. */
 export function readVersion(definitionJson: string, characterSnapshotJson: string) {
   try {

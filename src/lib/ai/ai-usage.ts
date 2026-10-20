@@ -18,8 +18,14 @@ const logBudgetBlock = (event:string,block:AiBudgetBlock,callId?:string) => logW
 /** One accepted user action spends one slot, even if its upstream later fails.
  * The conditional write and call record share a transaction, so concurrent requests
  * and process restarts cannot mint extra daily slots.
+ *
+ * STATE_EXTRACT is the background state-extraction worker (stories lifecycle): it
+ * is checked against the cost budget and recorded in the call ledger, but does NOT
+ * consume the user's chat daily slots — 独立用量口径. Budget exhaustion defers the
+ * extraction instead of failing the user's already-committed replies.
  */
-export async function reserveAiCall(userId:string,conversationId:string,operation:'SEND'|'REGENERATE',modelKeys?:string[]){
+export type AiOperation = 'SEND' | 'REGENERATE' | 'STATE_EXTRACT';
+export async function reserveAiCall(userId:string,conversationId:string,operation:AiOperation,modelKeys?:string[]){
   await pragmasReady;
   const now=new Date();
   if(CHAT_DAILY_LIMIT===0)throw new AiQuotaError(Math.ceil((quotaReset(now).getTime()-now.getTime())/1000));
@@ -28,9 +34,11 @@ export async function reserveAiCall(userId:string,conversationId:string,operatio
     // A request queued behind another completion must evaluate that completion, too.
     await tx.$executeRaw`UPDATE ai_daily_usage SET count=count WHERE user_id=${userId}`;
     const now=new Date(),day=quotaDay(now);
-    const changed=await tx.$executeRaw`INSERT INTO ai_daily_usage (user_id,day,count) VALUES (${userId},${day},1)
-      ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < ${CHAT_DAILY_LIMIT}`;
-    if(!changed)throw new AiQuotaError(Math.ceil((quotaReset(now).getTime()-now.getTime())/1000));
+    if(operation!=='STATE_EXTRACT'){
+      const changed=await tx.$executeRaw`INSERT INTO ai_daily_usage (user_id,day,count) VALUES (${userId},${day},1)
+        ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < ${CHAT_DAILY_LIMIT}`;
+      if(!changed)throw new AiQuotaError(Math.ceil((quotaReset(now).getTime()-now.getTime())/1000));
+    }
     const callCurrency=currency();
     const block=await readCostBudgetBlock(tx,userId,now,callCurrency,modelKeys);
     if(block)throw new AiQuotaError(block.status===429?Math.ceil((quotaReset(now).getTime()-now.getTime())/1000):0,block);
