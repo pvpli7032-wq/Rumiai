@@ -22,6 +22,7 @@ import { readActiveAiProviders } from '@/lib/ai/providers/management-service';
 import { readAiModelPlan } from '@/lib/ai/models/runtime-service';
 import { aiErrorCode, aiUserError, streamMockResponse, streamOpenAIResponse } from '@/lib/conversations/chat-stream';
 import { readRecentMessageHistory } from '@/lib/conversations/message-service';
+import { buildStoryContext } from './lifecycle/context-service';
 import { HISTORY_TURNS, CHAT_LIMIT, CHAT_WINDOW_MS } from '@/lib/ai/config';
 import type { AiStreamMetrics } from '@/lib/ai/types';
 
@@ -228,9 +229,11 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
         await db.storyTurn.updateMany({where: {id: turn.id, status: 'ACCEPTED'}, data: {status: 'GENERATING'}});
         // The user message is not persisted yet, so nothing is excluded from history.
         const history = await readRecentMessageHistory(run.conversationId, '', HISTORY_TURNS);
+        const storyContext = buildStoryContext(run);
+        const streamOptions = {signal: abort.signal, onMetrics: (value: AiStreamMetrics) => { metrics = value; }, providers: configuredProviders, models: modelPlan ?? undefined, mapEvent, context: storyContext};
         assistantContent = usingRealAi
-          ? await streamOpenAIResponse(controller, run.conversation.character, history, content, run.conversation.aiModel, {signal: abort.signal, onMetrics: value => { metrics = value; }, providers: configuredProviders, models: modelPlan ?? undefined, mapEvent})
-          : await streamMockResponse(controller, run.conversation.character, content, abort.signal, {mapEvent});
+          ? await streamOpenAIResponse(controller, run.conversation.character, history, content, run.conversation.aiModel, streamOptions)
+          : await streamMockResponse(controller, run.conversation.character, content, abort.signal, {mapEvent, context: storyContext});
       } catch (error) {
         logRouteError('POST /api/story-runs/[id]/turns', error);
         const code = cancelled ? 'CANCELLED' : aiErrorCode(error);

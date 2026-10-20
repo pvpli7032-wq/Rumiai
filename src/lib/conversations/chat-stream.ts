@@ -65,6 +65,7 @@ export function mockBeat(name: string): string {
  */
 export interface StreamWireOptions {
   mapEvent?: (event: Record<string, unknown>) => Record<string, unknown>;
+  context?: string;
 }
 
 export async function streamMockResponse(controller: ReadableStreamDefaultController, character: { name: string; personality: string }, userMessage: string, signal?:AbortSignal, options: StreamWireOptions = {}): Promise<string> {
@@ -227,7 +228,7 @@ export async function streamOpenAIResponse(
   messages: Array<{ role: string; content: string }>,
   userMessage: string,
   preferredModel?: string | null,
-  options:{signal?:AbortSignal;onMetrics?:(metrics:AiStreamMetrics)=>void;providers?:RuntimeProvider[];models?:RuntimeAiModel[];mapEvent?:(event:Record<string, unknown>)=>Record<string, unknown>}={}
+  options:{signal?:AbortSignal;onMetrics?:(metrics:AiStreamMetrics)=>void;providers?:RuntimeProvider[];models?:RuntimeAiModel[];mapEvent?:(event:Record<string, unknown>)=>Record<string, unknown>;context?:string}={}
 ): Promise<string> {
   const deadline=new AbortController();
   const timer=setTimeout(()=>deadline.abort(new AiStreamError('REQUEST_TIMEOUT')),readAiInteger('AI_REQUEST_TIMEOUT_MS',60000,100,300000));
@@ -249,7 +250,7 @@ export async function streamOpenAIResponse(
     for(const candidate of candidates){
       for(let attempt=0;attempt<=candidate.retries;attempt++){
         signal.throwIfAborted();metrics.model=candidate.model;metrics.modelKey=candidate.config?.key;metrics.attempts=(metrics.attempts||0)+1;
-        try{response=await openUpstream(candidate.model,buildSystemPrompt(character),messages,userMessage,signal,candidate.provider,candidate.config);break;}
+        try{const basePrompt=buildSystemPrompt(character);const systemPrompt=options.context?basePrompt+'\n\n'+options.context:basePrompt;response=await openUpstream(candidate.model,systemPrompt,messages,userMessage,signal,candidate.provider,candidate.config);break;}
         catch(error){
           if(signal.aborted)throw signal.reason;
           lastError=error;
