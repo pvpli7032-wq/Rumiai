@@ -50,6 +50,7 @@ const DEFAULT_MATRIX = [
   'test:m5:closure:browser',
   'test:m5:export:browser',
   'test:story:browser',
+  'test:chat:paging:browser',
   // 经济并发：签到/任务/打赏的「只能成功一次」不变量，必须打已经在跑的实例，
   // 所以它挂在矩阵里而不是自己起服务；所需任务夹具由 seedHttpFixtures 准备。
   'stress:economy',

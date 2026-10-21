@@ -114,7 +114,8 @@
     "test:creators:follow": "node --import tsx --test tests/creator-follow.test.mjs",
     "test:discovery:read": "node --import tsx --test tests/discovery-read.test.mjs",
     "test:production:guards": "node scripts/run-production-guards.mjs",
-    "test:story:browser": "node scripts/verify-story-browser.mjs"
+    "test:story:browser": "node scripts/verify-story-browser.mjs",
+    "test:chat:paging:browser": "node scripts/verify-chat-pagination-browser.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

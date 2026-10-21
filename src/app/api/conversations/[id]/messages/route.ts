@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { logRouteError } from '@/lib/logger';
-import { ConversationMessageError, readConversationMessages } from '@/lib/conversations/message-service';
+import { ConversationMessageError, readConversationMessagePage, readConversationMessages } from '@/lib/conversations/message-service';
 import { getAuthUser } from '@/lib/auth';
 import { AiQuotaError, ChatTurnHttpError, ConversationError, executeChatTurn } from '@/lib/conversations/chat-application-service';
 
@@ -9,8 +9,18 @@ export async function GET(request: Request, { params: paramsPromise }: { params:
   try {
     const authUser = await getAuthUser(request);
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const messages = await readConversationMessages(authUser.userId, params.id);
-    return NextResponse.json(messages);
+    // 迁移期两种模式并存（规划书 §21）：不传 limit 的旧调用方继续拿完整数组，
+    // 显式要分页的新前端拿 {messages, hasMore, nextCursor}，不会突然收到不同结构。
+    const {searchParams} = new URL(request.url);
+    const paged = searchParams.has('limit') || searchParams.has('before');
+    if (!paged) {
+      const messages = await readConversationMessages(authUser.userId, params.id);
+      return NextResponse.json(messages);
+    }
+    const page = await readConversationMessagePage(authUser.userId, params.id, {
+      limit: searchParams.get('limit'), before: searchParams.get('before'),
+    });
+    return NextResponse.json(page);
   } catch (error) {
     const accessError = error instanceof ConversationMessageError ? error : null;
     if (accessError) return NextResponse.json({error: accessError.message}, {status: accessError.status});

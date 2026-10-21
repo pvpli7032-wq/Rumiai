@@ -26,6 +26,7 @@ import { trackSceneFunnelEvent } from '@/lib/analytics/scene-funnel-client';
 import { notifyChatListChanged } from '@/lib/conversations/chat-events';
 import { Send, Loader2, ArrowLeft, Flag } from 'lucide-react';
 import type {ChatMessage as Message} from '@/lib/api-types/conversations';
+import {fetchEarlierMessagePage, fetchLatestMessagePage, refetchPageSize} from '@/lib/conversations/message-history-client';
 import Link from 'next/link';
 
 
@@ -109,7 +110,13 @@ function ChatContent() {
   const [mockNotice, setMockNotice] = useState(false);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  // 历史分页：cursor 指向本页最早一条，hasEarlier 决定是否显示"加载更早"。
+  const [earlierCursor, setEarlierCursor] = useState<string | null>(null);
+  const [hasEarlier, setHasEarlier] = useState(false);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const skipAutoScrollRef = useRef(false);
   const [reporting, setReporting] = useState(false);
   const [reportingMessage,setReportingMessage]=useState<string|null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -133,7 +140,11 @@ function ChatContent() {
   // "新建聊天" on the detail dialog asks for a fresh room instead of reopening the last one.
   const wantsNewChat = searchParams.get('new') === '1';
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, streamingText]);
+  useEffect(() => {
+    // 加载更早的历史时不能滚到底部，否则用户刚翻上去就被弹回来。
+    if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return; }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingText]);
 
   useEffect(() => {
     if (!charId) { setLoading(false); return; }
@@ -157,13 +168,10 @@ function ChatContent() {
         setConversationId(convData.conversation.id);
         // A brand new room did not exist when the sidebar last loaded.
         notifyChatListChanged();
-        return fetch(`/api/conversations/${convData.conversation.id}/messages`, { headers });
+        return fetchLatestMessagePage(token, convData.conversation.id);
       }
-    }).then(r => r?.json()).then(msgs => {
-      if (Array.isArray(msgs)) {
-        setMessages(msgs);
-        setLikedIds(new Set(msgs.filter(m => m.likedAt).map(m => m.id)));
-      }
+    }).then(page => {
+      if (page) applyLatestPage(page);
     }).catch(error => setChatError(error.message || '无法加载对话，请重试。'))
       .finally(() => setLoading(false));
   }, [charId, token, authLoading, requestedConversation]);
@@ -176,6 +184,36 @@ function ChatContent() {
     trackedSceneOpenRef.current = conversationId;
     trackSceneFunnelEvent(token, 'scene_opened', { conversationId, sceneId: activeScene.id });
   }, [activeScene, conversationId, token]);
+
+  /** 首屏/重新对齐：用最新一页替换整段，并重置分页游标。 */
+  function applyLatestPage(page: {messages: Message[]; hasMore: boolean; nextCursor: string | null}) {
+    setMessages(page.messages);
+    setLikedIds(new Set(page.messages.filter(m => m.likedAt).map(m => m.id)));
+    setHasEarlier(page.hasMore);
+    setEarlierCursor(page.nextCursor);
+  }
+
+  /** 往前翻一页并接到顶部；滚动位置要保住，否则用户会被弹回底部。 */
+  async function loadEarlierMessages() {
+    if (!conversationId || !earlierCursor || loadingEarlier) return;
+    setLoadingEarlier(true);
+    const container = messageListRef.current;
+    const before = container ? container.scrollHeight - container.scrollTop : 0;
+    try {
+      const page = await fetchEarlierMessagePage(token!, conversationId, earlierCursor);
+      if (!page) return;
+      skipAutoScrollRef.current = true;
+      setMessages(prev => [...page.messages, ...prev]);
+      setHasEarlier(page.hasMore);
+      setEarlierCursor(page.nextCursor);
+      // 让浏览器先完成布局，再按高度差把视口钉在原处。
+      requestAnimationFrame(() => {
+        if (container) container.scrollTop = container.scrollHeight - before;
+      });
+    } finally {
+      setLoadingEarlier(false);
+    }
+  }
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -207,13 +245,10 @@ function ChatContent() {
         if (activeScene && firstSceneMessage) trackSceneFunnelEvent(token, 'scene_first_message_sent', { conversationId, sceneId: activeScene.id });
         // Re-read the thread so both messages carry their real database ids; the optimistic
         // ids above are timestamps, and liking a reply needs the id the server assigned.
-        const fresh = await fetch(`/api/conversations/${conversationId}/messages`, {
-          signal,headers: { Authorization: `Bearer ${token}` },
-        }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+        const fresh = await fetchLatestMessagePage(token!, conversationId, refetchPageSize(messages.length), signal);
         signal.throwIfAborted();
-        if (Array.isArray(fresh)) {
-          setMessages(fresh);
-          setLikedIds(new Set(fresh.filter(m => m.likedAt).map(m => m.id)));
+        if (fresh) {
+          applyLatestPage(fresh);
         } else {
           setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ASSISTANT', content: full, createdAt: new Date().toISOString() }]);
         }
@@ -251,13 +286,8 @@ function ChatContent() {
 
   async function reloadMessages(signal?:AbortSignal) {
     if (!conversationId) return;
-    const fresh = await fetch(`/api/conversations/${conversationId}/messages`, {
-      signal,headers: { Authorization: `Bearer ${token}` },
-    }).then(r => (r.ok ? r.json() : null)).catch(() => null);
-    if (!signal?.aborted && Array.isArray(fresh)) {
-      setMessages(fresh);
-      setLikedIds(new Set(fresh.filter(m => m.likedAt).map(m => m.id)));
-    }
+    const fresh = await fetchLatestMessagePage(token!, conversationId, refetchPageSize(messages.length), signal);
+    if (!signal?.aborted && fresh) applyLatestPage(fresh);
   }
 
   /** Shared by send and regenerate: both read the same SSE wire format. */
@@ -412,7 +442,19 @@ function ChatContent() {
       ) : (
       <>
       {/* Messages */}
-      <div className={`flex-1 overflow-y-auto px-4 py-6 w-full mx-auto ${readingMode ? 'max-w-2xl space-y-6 text-[15px] leading-loose' : 'max-w-3xl space-y-4'}`}>
+      <div ref={messageListRef} className={`flex-1 overflow-y-auto px-4 py-6 w-full mx-auto ${readingMode ? 'max-w-2xl space-y-6 text-[15px] leading-loose' : 'max-w-3xl space-y-4'}`}>
+        {hasEarlier && (
+          <div className="flex justify-center pb-2">
+            <button
+              type="button"
+              onClick={loadEarlierMessages}
+              disabled={loadingEarlier}
+              className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-60"
+            >
+              {loadingEarlier ? '正在加载…' : '加载更早的消息'}
+            </button>
+          </div>
+        )}
         {messages.length === 0 && character && (
           <div className="text-center py-8">
             <CharacterAvatar character={character} size={64} className="mx-auto mb-3" />
@@ -544,7 +586,8 @@ function ChatContent() {
             placeholder={"发送消息给" + (character?.name || '角色') + "..."}
             className="flex-1 px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all disabled:opacity-50"
           />
-          <button type="submit" disabled={streaming || !input.trim()}
+          {/* 图标按钮没有文字，必须给可访问名，否则读屏与自动化都点不到。 */}
+          <button type="submit" aria-label={"发送"} disabled={streaming || !input.trim()}
             className="p-3 bg-linear-to-br/srgb from-purple-600 to-pink-600 rounded-xl text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20">
             {streaming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           </button>

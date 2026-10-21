@@ -35,6 +35,72 @@ export async function readConversationMessages(userId: string, conversationId: s
   });
 }
 
+/** 历史分页的稳定游标：createdAt 是主序，id 破同毫秒并列。 */
+type MessageCursor = {createdAt: string; id: string};
+
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+
+function decodeCursor(value?: string | null): MessageCursor | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<MessageCursor>;
+    if (typeof parsed.createdAt !== 'string' || typeof parsed.id !== 'string' || !parsed.id) throw Error();
+    if (Number.isNaN(Date.parse(parsed.createdAt))) throw Error();
+    return {createdAt: parsed.createdAt, id: parsed.id};
+  } catch { throw new ConversationMessageError('历史游标格式不正确。', 422); }
+}
+
+function encodeCursor(cursor: MessageCursor): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function pageSizeOf(value?: string | null): number {
+  if (value == null || value === '') return DEFAULT_PAGE_SIZE;
+  if (!/^\d+$/.test(value)) throw new ConversationMessageError('每页数量须为 1–200。', 422);
+  const size = Number(value);
+  if (size < 1 || size > MAX_PAGE_SIZE) throw new ConversationMessageError('每页数量须为 1–200。', 422);
+  return size;
+}
+
+/**
+ * 按页读取会话历史，从最新一页往前翻。
+ *
+ * 规划书 §21 要求：新增 before 游标、limit 与 nextCursor，并保留旧调用方的原响应。
+ * 因此本函数只服务显式选择分页模式的调用方；`readConversationMessages` 保持整段返回。
+ * 顺序与整段读取一致（createdAt 升序、id 破并列），游标指向本页最早一条，
+ * 下一页取"严格早于它"的消息，所以翻页不会重复也不会漏。
+ */
+export async function readConversationMessagePage(
+  userId: string,
+  conversationId: string,
+  options: {limit?: string | null; before?: string | null} = {},
+) {
+  const conversation = await db.conversation.findUnique({where: {id: conversationId}, select: {userId: true}});
+  if (!conversation) throw new ConversationMessageError('Not found', 404);
+  if (conversation.userId !== userId) throw new ConversationMessageError('Forbidden', 403);
+  const take = pageSizeOf(options.limit);
+  const before = decodeCursor(options.before);
+  const rows = await db.message.findMany({
+    where: {
+      conversationId,
+      ...(before ? {OR: [{createdAt: {lt: new Date(before.createdAt)}}, {createdAt: new Date(before.createdAt), id: {lt: before.id}}]} : {}),
+    },
+    // 多取一条只用来判断还有没有更早的，不返回给调用方。
+    orderBy: [{createdAt: 'desc'}, {id: 'desc'}],
+    take: take + 1,
+    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true},
+  });
+  const hasMore = rows.length > take;
+  const page = (hasMore ? rows.slice(0, take) : rows).reverse();
+  const oldest = page[0];
+  return {
+    messages: page,
+    hasMore,
+    nextCursor: hasMore && oldest ? encodeCursor({createdAt: oldest.createdAt.toISOString(), id: oldest.id}) : null,
+  };
+}
+
 export async function createUserMessage(conversationId: string, content: string) {
   return db.message.create({data: {conversationId, role: 'USER', content}});
 }
