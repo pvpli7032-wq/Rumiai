@@ -11,7 +11,7 @@
       "verificationTier": "load",
       "modelPolicy": "none",
       "status": "skeleton",
-      "description": "规划书第 21 章：长聊天初始建议 50 条分页；虚拟列表与锚点恢复；响应体不能全量返回。测试环境使用本地随机端口与隔离库，不占用 3000/18782。",
+      "description": "规划书第 21 章：长聊天初始建议 50 条分页；响应体不能全量返回。**功能已实现并验证**：readConversationMessagePage 游标分页 + 路由按参数分流（旧调用方仍拿数组）+ 聊天页首屏一页/加载更早/滚动锚定；证据在 tests/conversation-message-pagination.test.mjs（含 1 万条只取一页）与 scripts/verify-chat-pagination-browser.mjs。本用例保持 skeleton 的原因是仍缺正式负载报告（固定并发与持续时长下的 p50/p95、错误率），不是功能缺失。",
       "steps": [
         {
           "actor": "runner",
@@ -32,7 +32,7 @@
         }
       ],
       "dependsOn": [
-        "消息分页实现",
+        "正式负载报告（并发/时长/p50-p95）",
         "M0 冻结的性能条件"
       ]
     },
