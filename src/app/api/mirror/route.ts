@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   }
   try {
     const state = await readRequestState(request);
-    const payload = (body ?? {}) as {answers?: unknown; characterId?: unknown};
+    const payload = (body ?? {}) as {answers?: unknown; characterId?: unknown; requestId?: unknown};
     const generated = await generateMirror(state, payload);
     return applyMirrorCookies(NextResponse.json({result: generated.result, quota: generated.quota}), generated.cookies);
   } catch (error) {

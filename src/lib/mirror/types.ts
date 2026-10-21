@@ -75,7 +75,6 @@ export type MirrorQuota = {
   blockedReason: string | null;
   /** 额度按这个时区的自然日重置。 */
   timezone: string;
-  purchase: MirrorPurchase;
 };
 
 export type MirrorRules = {

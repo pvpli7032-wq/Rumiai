@@ -76,6 +76,8 @@ src/components/notifications/    顶栏通知铃铛与抽屉
 
 `requestId` 重放返回同一费用单与结果，不重复调模型、不重复扣币。计费开关关闭时不建费用单、不扣币，只记录 AI 成本。
 
+费用单的 `operation` 目前有四类：`CHAT_SEND`、`CHAT_REGENERATE`、`STORY_TURN`、`MIRROR`。Mirror 的超额购买走同一入口（`src/lib/mirror/purchase.ts`）：一次超额生成 = 一张 `operation=MIRROR` 的费用单，生成成功 settle、失败 release，免费额度那条路仍是进程内计数。
+
 ## 5. 站内通知
 
 一套 `notifications` 表服务全部通知场景，首版只做四类：

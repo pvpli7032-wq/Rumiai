@@ -10,14 +10,15 @@ import {consumeMirrorLimit, effectiveMirrorUsed, mirrorDayKey, mirrorQuotaView, 
 import {hashMirrorIp, mirrorAttributionCookieName, mirrorIpSalt, newMirrorSubject, readCookie, readMirrorQuotaCookie, signMirrorAttribution, toOwnerResult, toPublicResult, type MirrorRow} from './share';
 import {readConfigFor, type MirrorConfig} from './config';
 import {MirrorError} from './errors';
+import {beginMirrorPurchase, isPaidPurchase, purchaseBlockedReason, purchasePlanOf, readPurchasedToday, type BillingTurn} from './purchase';
 import {MIRROR_QUOTA_COOKIE, MIRROR_SUBJECT_COOKIE, type MirrorCharacterOption, type MirrorOwnerResult, type MirrorQuota} from './types';
 
 /**
  * 他眼中的你：上下文、角色名单、额度与生成编排。
  *
  * 依赖方向（实施契约 §2）：mirror → billing, settings, ai, community/posts。
- * 计费域尚未落地，所以 overLimitPolicy=CHARGE 目前只做到「没有可售价格就不开售、
- * 如实提示」，不在这里私造扣币；接入 billing 后只替换 charge 分支。
+ * 超额后的「购买次数」不在这里造扣费逻辑：一次超额生成 = 一张 operation=MIRROR 的
+ * 费用单，走 billing 的 hold → settle/release 唯一入口（见 purchase.ts）。
  */
 
 /** 首页「运营指定角色」数量：已审核公开且标了「本站原创」优先，不足用最热门公开角色补齐。 */
@@ -94,8 +95,8 @@ export function quotaOf(context: MirrorContext, config: MirrorConfig, subject: s
     limit: quotaLimit(config, context.userId),
     overLimitPolicy: config.overLimitPolicy,
     timezone: config.timezone,
-    // 计费域接入前 Mirror 没有可售价格，CHARGE 也买不到次数；如实提示，不假装能买。
-    purchasable: false,
+    // 能买的前提：开关打开 + 已定价 + 已登录（匿名没有余额也没有长期身份）。
+    purchasable: config.purchaseEnabled && config.purchaseCoins > 0 && !!context.userId,
   });
 }
 
@@ -149,7 +150,7 @@ export function newMirrorShareId(): string {
 }
 
 /** 生成：规则校验 → 双路额度 → 一次生成（含至多一次格式修复） → 保存 → 返回本人视图。 */
-export async function generateMirror(context: MirrorContext, input: {answers?: unknown; characterId?: unknown}): Promise<MirrorGenerationResult> {
+export async function generateMirror(context: MirrorContext, input: {answers?: unknown; characterId?: unknown; requestId?: unknown}): Promise<MirrorGenerationResult> {
   const config = await readConfigFor(context.userId);
   if (!config.enabled) throw new MirrorError('他眼中的你暂时关闭。', 404, 'MIRROR_DISABLED');
 
@@ -169,12 +170,24 @@ export async function generateMirror(context: MirrorContext, input: {answers?: u
   const subject = context.userId ? null : context.subject ?? newMirrorSubject();
   const identity = identityOf(context, subject, config.timezone);
   const day = mirrorDayKey(new Date(), config.timezone);
+
+  // 免费额度：先占位，失败再还回去。超额后走购买分支，两条路都只成功计一次。
+  let purchase: BillingTurn | null = null;
   if (effectiveMirrorUsed(identity, day) >= limit) {
-    // 计费域未落地：CHARGE 没有可售价格，只能按「额度用尽」拦下并如实说明，不静默免费放开。
-    throw new MirrorError(config.overLimitPolicy === 'CHARGE' ? '今天的次数已用完，购买次数尚未开放，请明天再来。' : '今天的次数已用完，明天再来。', 429, 'MIRROR_OVER_LIMIT');
+    if (config.overLimitPolicy !== 'CHARGE' || !context.userId) {
+      throw new MirrorError(config.overLimitPolicy === 'CHARGE' ? '今天的次数已用完，购买次数尚未开放，请明天再来。' : '今天的次数已用完，明天再来。', 429, 'MIRROR_OVER_LIMIT');
+    }
+    const usedToday = await readPurchasedToday(context.userId, config.timezone);
+    const plan = purchasePlanOf(config, false, usedToday);
+    if (!plan.available) throw new MirrorError(purchaseBlockedReason(plan, config.overLimitPolicy), 429, 'MIRROR_OVER_LIMIT');
+    const turn = await beginMirrorPurchase({userId: context.userId, requestId: String(input.requestId ?? '')});
+    // 免费模式或未定价时 held=false：退回「额度用尽」，不白送一次。
+    if (!isPaidPurchase(turn)) throw new MirrorError(purchaseBlockedReason(plan, config.overLimitPolicy), 429, 'MIRROR_OVER_LIMIT');
+    purchase = turn;
+  } else {
+    const decision = consumeMirrorLimit(identity, limit, day);
+    if (!decision.allowed) throw new MirrorError(decision.channel === 'ip' ? '这个网络环境的匿名次数已用完，明天再来。' : '今天的次数已用完，明天再来。', 429, 'MIRROR_OVER_LIMIT');
   }
-  const decision = consumeMirrorLimit(identity, limit, day);
-  if (!decision.allowed) throw new MirrorError(decision.channel === 'ip' ? '这个网络环境的匿名次数已用完，明天再来。' : '今天的次数已用完，明天再来。', 429, 'MIRROR_OVER_LIMIT');
 
   const metrics: AiStreamMetrics = {attempts: 0};
   let outcome: Awaited<ReturnType<typeof generateMirrorResult>>;
@@ -187,12 +200,14 @@ export async function generateMirror(context: MirrorContext, input: {answers?: u
       limits: config,
     });
   } catch (error) {
-    // 失败不占额度：成功额度和用户费用只算一次。
+    // 失败不占额度也不扣币：成功额度和用户费用只算一次。
     releaseMirrorLimit(identity, day);
+    await purchase?.release('mirror_generation_failed');
     await recordMirrorCall({...context, subject}, metrics, 'FAILED', aiErrorCode(error));
     throw toMirrorError(error);
   }
   await recordMirrorCall({...context, subject}, metrics, 'SUCCEEDED');
+  await purchase?.settle();
 
   const shareId = newMirrorShareId();
   const expiresAt = context.userId ? null : new Date(Date.now() + config.resultRetentionDays * 24 * 60 * 60 * 1000);

@@ -7,6 +7,10 @@ export type MirrorConfig = MirrorRulesView & {
   anonymousDailyLimit: number;
   userDailyLimit: number;
   overLimitPolicy: MirrorOverLimitPolicy;
+  /** 购买次数：开关、每次币价、每日购买上限。 */
+  purchaseEnabled: boolean;
+  purchaseCoins: number;
+  purchaseDailyCap: number;
   template: string;
 };
 
@@ -46,6 +50,9 @@ export async function readConfigFor(userId: string | null): Promise<MirrorConfig
     anonymousDailyLimit: number(MIRROR_SETTINGS.anonymousDailyLimit, 1),
     userDailyLimit: number(MIRROR_SETTINGS.userDailyLimit, 3),
     overLimitPolicy: byKey.get(MIRROR_SETTINGS.overLimitPolicy) === 'CHARGE' ? 'CHARGE' : 'PAUSE',
+    purchaseEnabled: byKey.get(MIRROR_SETTINGS.purchaseEnabled) === true,
+    purchaseCoins: number(MIRROR_SETTINGS.purchaseCoins, 0),
+    purchaseDailyCap: number(MIRROR_SETTINGS.purchaseDailyCap, 0),
     template: String(byKey.get(MIRROR_SETTINGS.prompt) ?? ''),
     timezone: normalizeTimezone(String(byKey.get('billing.dayTimezone') ?? 'UTC')),
   };

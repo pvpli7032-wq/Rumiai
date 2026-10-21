@@ -293,3 +293,37 @@ test('过期的结果同样读不到', async () => {
   assert.equal(isMirrorReadable({status: 'READY', expiresAt: new Date(Date.now() - 1000)}), false);
   await assert.rejects(readMirrorResult(shareId, {userId: null, subject: null}), error => error.status === 404);
 });
+
+test('购买次数：开关、定价、匿名与每日上限共同决定能不能买', async () => {
+  const {purchasePlanOf, purchaseBlockedReason} = await import('../src/lib/mirror/purchase.ts');
+  const config = {purchaseEnabled: true, purchaseCoins: 30, purchaseDailyCap: 2};
+  const buyable = purchasePlanOf(config, false, 0);
+  assert.equal(buyable.available, true);
+  assert.equal(buyable.coins, 30);
+  assert.equal(buyable.remaining, 2);
+  assert.equal(purchasePlanOf({...config, purchaseEnabled: false}, false, 0).available, false);
+  assert.equal(purchasePlanOf({...config, purchaseCoins: 0}, false, 0).available, false);
+  assert.equal(purchasePlanOf(config, true, 0).available, false);
+  assert.equal(purchaseBlockedReason(purchasePlanOf({...config, purchaseEnabled: false}, false, 0), 'CHARGE'), '今天的次数已用完，购买次数尚未开放，明天再来。');
+  const used = purchasePlanOf(config, false, 2);
+  assert.equal(used.available, false);
+  assert.equal(used.remaining, 0);
+  assert.equal(purchaseBlockedReason(used, 'CHARGE'), '今天的次数和购买次数都用完了，明天再来。');
+  assert.equal(purchasePlanOf({...config, purchaseDailyCap: 0}, false, 99).available, true);
+});
+
+test('购买次数：今日已购按业务日统计，跨日与其他操作不计入', async () => {
+  const {readPurchasedToday} = await import('../src/lib/mirror/purchase.ts');
+  const user = await db.user.create({data: {username: 'mirror-buyer', email: 'mirror-buyer@example.invalid', passwordHash: 'synthetic-only'}});
+  const now = new Date('2026-03-05T04:00:00.000Z');
+  const make = (requestId, operation, status, heldAt) => db.generationCharge.create({
+    data: {userId: user.id, requestId, operation, status, coins: 30, priceSnapshotJson: '{}', allowanceSource: 'PAID', heldAt},
+  });
+  await make('r-today-held', 'MIRROR', 'HELD', new Date('2026-03-05T01:00:00.000Z'));
+  await make('r-today-settled', 'MIRROR', 'SETTLED', new Date('2026-03-05T02:00:00.000Z'));
+  await make('r-released', 'MIRROR', 'RELEASED', new Date('2026-03-05T03:00:00.000Z'));
+  await make('r-other-op', 'CHAT_SEND', 'SETTLED', new Date('2026-03-05T03:30:00.000Z'));
+  await make('r-yesterday', 'MIRROR', 'SETTLED', new Date('2026-03-03T20:00:00.000Z'));
+  assert.equal(await readPurchasedToday(user.id, 'UTC', now), 2);
+  assert.equal(await readPurchasedToday(user.id, 'Asia/Shanghai', now), 2);
+});
