@@ -81,7 +81,7 @@ export async function modelSimulatedExecutor(c) {
       queue: 'model-output 人工复核队列',
       case: c.id,
       assertions: reviewAssertions.map(a => `${a.target}: ${a.expect}`),
-      note: `复核基准：docs/content/drafts/ 的种子案例与 confirmed 事实清单；模拟输出（demo 标记）不作为语义准确性证据。运行键 requestId=${c.id}，可复跑追溯。`,
+      note: `复核基准：首发三篇草稿的种子案例与 confirmed 事实清单；模拟输出（demo 标记）不作为语义准确性证据。运行键 requestId=${c.id}，可复跑追溯。`,
     },
   };
 }

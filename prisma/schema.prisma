@@ -92,6 +92,15 @@ model User {
   adminOperator AdminOperator?
   comments           Comment[]
   commentLikes       CommentLike[]
+  settingOverrides   UserSettingOverride[]
+  dailyAllowances    UserDailyAllowance[]
+  generationCharges  GenerationCharge[]
+  mirrorResults      MirrorResult[]
+  disputeCases       DisputeCase[]
+  disputeVotes       DisputeVote[]
+  memoryFacts        MemoryFact[]
+  notifications      Notification[]
+  productEvents      ProductEvent[]
 
   @@index([createdAt, id])
   @@index([suspendedAt, deletedAt])
@@ -502,6 +511,8 @@ model Conversation {
   messages  Message[]
   /// 只有从故事入口开始的会话才有实例；历史自由聊天保持 null，继续走原聊天路径。
   storyRun  StoryRun?
+  /// 普通聊天的滚动摘要；故事会话走既有 StoryCheckpoint，不复用这张表。
+  memory    ConversationMemory?
 
   @@index([userId])
   @@index([characterId])
@@ -603,6 +614,10 @@ model CoinTransaction {
   amount      Int
   type        String   // PURCHASE, EARNED, SPENT
   description String?
+  /// 聊天计费：同一条费用单的 HOLD（负数）/ RELEASE（正数）各只允许一行。
+  /// 既有流水这两列为 NULL，不参与唯一约束。
+  chargeId     String? @map("charge_id")
+  chargeAction String? @map("charge_action") // HOLD, SETTLE, RELEASE
   createdAt   DateTime @default(now()) @map("created_at")
 
   // Relationships
@@ -611,6 +626,7 @@ model CoinTransaction {
   refund PaymentRefund? @relation("RefundDebit", fields: [refundId], references: [id], onDelete: Restrict)
   refundRelease PaymentRefund? @relation("RefundRelease", fields: [refundReleaseId], references: [id], onDelete: Restrict)
 
+  @@unique([chargeId, chargeAction])
   @@index([userId])
   @@index([type])
   @@index([createdAt])
@@ -1147,8 +1163,13 @@ model AiDailyUsage {
 
 model AiCall {
   id String @id @default(cuid())
-  userId String @map("user_id")
-  conversationId String @map("conversation_id")
+  /// 匿名玩法（Mirror 公开生成）没有账号，成本仍必须计量，所以这两列可空。
+  userId String? @map("user_id")
+  conversationId String? @map("conversation_id")
+  /// 业务任务类型：chat / story / mirror / dispute_verdict / memory_summary。
+  taskType String? @map("task_type")
+  /// 匿名主体的服务端归属标识（不信任客户端传入的用户 ID）。
+  anonymousSubject String? @map("anonymous_subject")
   operation String
   status String @default("STARTED")
   model String?
@@ -1163,10 +1184,11 @@ model AiCall {
   startedAt DateTime @default(now()) @map("started_at")
   finishedAt DateTime? @map("finished_at")
   durationMs Int? @map("duration_ms")
-  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  user User? @relation(fields:[userId],references:[id],onDelete:Cascade)
 
   @@index([userId,startedAt])
   @@index([currency,startedAt])
+  @@index([taskType,startedAt])
   @@map("ai_calls")
 }
 
@@ -1235,6 +1257,7 @@ model AiModel {
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
   prices          AiModelPrice[]
+  coinPrices      ModelCoinPrice[]
   characters      CharacterAiModel[]
 
   @@unique([providerId, modelCode])
@@ -1636,4 +1659,261 @@ model StoryShareTurn {
   @@unique([shareId, position])
   @@index([messageId])
   @@map("story_share_turns")
+}
+
+// ==========================================
+// 商业改造（2026-10-21，V3 实施版）
+// 迁移：20261021180000_commercial_platform
+// ==========================================
+
+/// 运营公共参数。value 存校验后的 JSON 字符串，读取方按 registry 的类型解析。
+/// 每项只有一个主编辑位置：设置中心。
+model OperationSetting {
+  key       String   @id
+  group     String
+  value     String
+  version   Int      @default(0)
+  updatedBy String   @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([group])
+  @@map("operation_settings")
+}
+
+/// 用户特例：只有额度、计费模式、折扣倍率与指定玩法次数允许覆盖。
+/// 到期后自动回落公共值（读取时判断 expires_at，不做后台清理任务）。
+model UserSettingOverride {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  key       String
+  value     String
+  expiresAt DateTime? @map("expires_at")
+  version   Int       @default(0)
+  updatedBy String    @map("updated_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([expiresAt])
+  @@map("user_setting_overrides")
+}
+
+/// 设置变更历史。恢复历史值时写一条新记录，不原地改旧记录。
+model SettingRevision {
+  id         String   @id @default(cuid())
+  key        String
+  scope      String // GLOBAL, USER
+  userId     String?  @map("user_id")
+  oldValue   String?  @map("old_value")
+  newValue   String   @map("new_value")
+  operatorId String   @map("operator_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([key, createdAt])
+  @@index([scope, createdAt])
+  @@map("setting_revisions")
+}
+
+/// 模型收费币价（用户侧），与供应商成本价 AiModelPrice 分开存，各自有历史。
+model ModelCoinPrice {
+  id            String   @id @default(cuid())
+  modelId       String   @map("model_id")
+  coinsPerReply Int      @map("coins_per_reply")
+  effectiveAt   DateTime @map("effective_at")
+  version       Int      @default(0)
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  model         AiModel  @relation(fields: [modelId], references: [id], onDelete: Restrict)
+
+  @@unique([modelId, effectiveAt])
+  @@map("model_coin_prices")
+}
+
+/// 一次生成请求的计费单。状态机：HELD → SETTLED / RELEASED，结果不明为 UNKNOWN。
+/// 价格快照在预扣时固化，后续改价不影响已开始请求。
+model GenerationCharge {
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  requestId         String    @map("request_id")
+  operation         String // CHAT_SEND, CHAT_REGENERATE, STORY_TURN, MIRROR, DISPUTE_VERDICT, MEMORY_SUMMARY
+  status            String    @default("HELD") // HELD, SETTLED, RELEASED, UNKNOWN
+  coins             Int       @default(0)
+  priceSnapshotJson String    @map("price_snapshot_json")
+  allowanceSource   String?   @map("allowance_source") // FREE_QUOTA, PAID
+  conversationId    String?   @map("conversation_id")
+  messageId         String?   @map("message_id")
+  aiCallId          String?   @map("ai_call_id")
+  heldAt            DateTime  @default(now()) @map("held_at")
+  settledAt         DateTime? @map("settled_at")
+  releasedAt        DateTime? @map("released_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, operation, requestId])
+  @@index([status, heldAt])
+  @@map("generation_charges")
+}
+
+/// 每日免费次数。free_reserved 是并发预占，成功后并入 free_used。
+model UserDailyAllowance {
+  userId       String @map("user_id")
+  day          String
+  freeUsed     Int    @default(0) @map("free_used")
+  freeReserved Int    @default(0) @map("free_reserved")
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@map("user_daily_allowances")
+}
+
+/// 他眼中的你：一次生成结果。share_id 为公开分享标识，删除后公开接口 404。
+model MirrorResult {
+  id               String    @id @default(cuid())
+  shareId          String    @unique @map("share_id")
+  userId           String?   @map("user_id")
+  anonymousSubject String?   @map("anonymous_subject")
+  characterId      String    @map("character_id")
+  answersJson      String    @map("answers_json")
+  title            String
+  observationsJson String    @map("observations_json")
+  quote            String
+  indicesJson      String    @map("indices_json")
+  rawJson          String?   @map("raw_json")
+  status           String    @default("READY") // READY, FAILED, HIDDEN, EXPIRED
+  chargeId         String?   @map("charge_id")
+  expiresAt        DateTime? @map("expires_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("mirror_results")
+}
+
+/// 评理案例。复用帖子承载评论点赞举报，这里只存案例、规则快照、票数与结案结果。
+model DisputeCase {
+  id               String    @id @default(cuid())
+  postId           String    @unique @map("post_id")
+  authorId         String    @map("author_id")
+  characterId      String?   @map("character_id")
+  excerptJson      String    @map("excerpt_json")
+  claim            String
+  ruleSnapshotJson String    @map("rule_snapshot_json")
+  deadlineAt       DateTime  @map("deadline_at")
+  voteCount        Int       @default(0) @map("vote_count")
+  closeStatus      String    @default("OPEN") @map("close_status") // OPEN, CLOSING, CLOSED
+  verdictJson      String?   @map("verdict_json")
+  closedAt         DateTime? @map("closed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  author           User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes            DisputeVote[]
+
+  @@index([closeStatus, deadlineAt])
+  @@index([authorId, createdAt])
+  @@map("dispute_cases")
+}
+
+/// 一人一票，可改票有限次；唯一键保证并发下不会出现两张票。
+model DisputeVote {
+  id          String      @id @default(cuid())
+  caseId      String      @map("case_id")
+  userId      String      @map("user_id")
+  choice      String // AUTHOR, OTHER, SPLIT
+  reviseCount Int         @default(0) @map("revise_count")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  case        DisputeCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([userId, createdAt])
+  @@map("dispute_votes")
+}
+
+/// 普通聊天的滚动摘要，一个会话一行；关闭记忆后不再更新与注入。
+model ConversationMemory {
+  id               String       @id @default(cuid())
+  conversationId   String       @unique @map("conversation_id")
+  summary          String
+  coveredMessageId String?      @map("covered_message_id")
+  version          Int          @default(0)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_memories")
+}
+
+/// 从对话里确认的关键事实。source_message_id 不设外键：消息删除由失效逻辑显式处理。
+model MemoryFact {
+  id              String   @id @default(cuid())
+  conversationId  String   @map("conversation_id")
+  userId          String   @map("user_id")
+  text            String
+  sourceMessageId String?  @map("source_message_id")
+  pinned          Boolean  @default(false)
+  status          String   @default("ACTIVE") // ACTIVE, INVALID, DELETED
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, status])
+  @@index([userId, createdAt])
+  @@map("memory_facts")
+}
+
+/// 统一后台任务：持久化、可重入、带租约。与 StoryTurn 的租约语义一致但互不干扰。
+model BackgroundTask {
+  id         String    @id @default(cuid())
+  kind       String
+  subjectId  String    @map("subject_id")
+  status     String    @default("PENDING") // PENDING, RUNNING, DONE, FAILED
+  attempts   Int       @default(0)
+  nextRunAt  DateTime  @default(now()) @map("next_run_at")
+  leaseOwner String?   @map("lease_owner")
+  leaseUntil DateTime? @map("lease_until")
+  lastError  String?   @map("last_error")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([kind, subjectId])
+  @@index([status, nextRunAt])
+  @@map("background_tasks")
+}
+
+/// 站内通知：审核结果、回复提醒、到账、活动结果共用一套。
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  type       String
+  title      String
+  body       String?
+  targetType String?   @map("target_type")
+  targetId   String?   @map("target_id")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+/// 新玩法漏斗事件（Mirror / 评理）。既有 SceneFunnelEvent 继续服务故事，不双写同一事件。
+model ProductEvent {
+  id               String   @id @default(cuid())
+  name             String
+  subjectKey       String?  @map("subject_key")
+  userId           String?  @map("user_id")
+  anonymousSubject String?  @map("anonymous_subject")
+  propertiesJson   String?  @map("properties_json")
+  createdAt        DateTime @default(now()) @map("created_at")
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([name, createdAt])
+  @@map("product_events")
 }

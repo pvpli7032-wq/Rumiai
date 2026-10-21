@@ -1,5 +1,5 @@
 /**
- * History-invalidation transaction (m3-data-contract.md §7, plan chapter 16).
+ * History-invalidation transaction（V3 第 16 章）。
  *
  * Editing or deleting story message of turn N must, in the SAME transaction as
  * the message change: invalidate every derived event and checkpoint at or after

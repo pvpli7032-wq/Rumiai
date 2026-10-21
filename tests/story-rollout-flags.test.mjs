@@ -4,7 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {rmSync} from 'node:fs';
 import path from 'node:path';
 
-// 灰度旗标 F1-F3（docs/planning/releases/story-rollout-flags.md）：
+// 灰度旗标 F1-F3（V3 第 27 章「渐进上线」）：
 // 开 = 503 SERVICE_DISABLED、关 = 行为逐字节不变、三旗标互相独立。
 // 注意：所有 turn SSE 必须读到 done 再收尾，未读完的流会在测试结束后继续后台生成。
 const file = `story-flags-${process.pid}-${Date.now()}.db`;

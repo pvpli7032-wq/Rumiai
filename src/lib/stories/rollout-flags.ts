@@ -1,7 +1,7 @@
 import {StoryError} from './repository/contracts';
 
 /**
- * Story 灰度旗标（docs/planning/releases/story-rollout-flags.md）。
+ * Story 灰度旗标（F1–F4，V3 第 27 章「渐进上线」）。
  *
  * 与 STORY_WORKER_DISABLED 同口径：值为 "1"（trim 后比较）时生效，set env + 重启即生效，
  * 不依赖写库。旗标只落在 route 入口薄层、拒绝新工作：存量记录保留、只读可见，

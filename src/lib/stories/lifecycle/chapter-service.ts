@@ -1,5 +1,5 @@
 /**
- * Chapter lifecycle: retry-state, close-chapter, resume (m3-data-contract.md §5).
+ * Chapter lifecycle: retry-state, close-chapter, resume（V3 第 16 章）。
  *
  * All three are revision-CAS transactions: they compare expectedRevision, do one
  * state change, and increment the revision exactly once. A mismatch is a 409 that

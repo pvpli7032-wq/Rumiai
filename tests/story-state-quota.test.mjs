@@ -11,13 +11,17 @@ const databasePath = path.resolve('prisma', file);
 process.env.DATABASE_URL = `file:${databasePath.replace(/\\/g, '/')}`;
 process.env.JWT_SECRET = randomUUID() + randomUUID();
 // Pin BEFORE the first src import: a configured key forces the worker's real-AI
-// path, and a zero daily limit makes reserveAiCall reject every operation.
+// path. 每日上限来自设置中心（billing.hardDailyMessages），建库后写成 0 让
+// reserveAiCall 拒绝每一次调用。
 process.env.OPENAI_API_KEY = 'test-key-forced-real-path';
-process.env.CHAT_DAILY_LIMIT = '0';
 process.env.DISABLE_MOCK_AI = 'false';
 const {createIsolatedDatabase} = await import('../scripts/helpers/create-isolated-db.mjs');
 createIsolatedDatabase(databasePath);
 const {db} = await import('../src/lib/db.ts');
+const {clearKeyEverywhere} = await import('../src/lib/settings/cache.ts');
+// 上限 0 = 暂停新请求（不是无限）：worker 的每次 reserveAiCall 都应被拒。
+await db.operationSetting.upsert({where: {key: 'billing.hardDailyMessages'}, create: {key: 'billing.hardDailyMessages', group: 'chat', value: '0', version: 1, updatedBy: 'test-operator'}, update: {value: '0', version: {increment: 1}, updatedBy: 'test-operator'}});
+clearKeyEverywhere('billing.hardDailyMessages');
 const {createStoryRun} = await import('../src/lib/stories/repository/run-service.ts');
 const {processPendingStateWork} = await import('../src/lib/stories/lifecycle/state-worker.ts');
 test.after(async () => { await db.$disconnect(); for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), {force: true}); });

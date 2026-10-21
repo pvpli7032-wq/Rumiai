@@ -1,9 +1,10 @@
 'use client';
 
 import { Eye, X } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { CharacterAssetsEditor } from './character-assets-editor';
-import { CHARACTER_LIMITS } from '@/lib/characters/validation';
+import { buildCharacterLimits } from '@/lib/characters/limits';
+import { useUiConfig } from '@/lib/settings/use-ui-config';
 import { AdminNotice, AdminPanel } from '../admin-page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,12 @@ const textFields = [['name', '角色名称'], ['tagline', '简介'], ['personali
 const WIDE_FIELDS = ['background', 'copyrightStatement'];
 
 export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, onPublish, onClose }: { character: ManagedCharacter | null; canEdit: boolean; canPublish: boolean; busy: boolean; onSave: (content: CharacterContent, reason: string) => Promise<boolean>; onPublish: (action: 'PUBLISH' | 'UNPUBLISH', reason: string) => Promise<boolean>; onClose: () => void }) {
+  const uiConfig = useUiConfig();
+  // 上限由设置中心决定：未加载时给 0（浏览器里等于不限），服务端仍按真实配置校验。
+  const CHARACTER_LIMITS = useMemo(() => buildCharacterLimits(key => {
+    const value = uiConfig[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  }), [uiConfig]);
   const [content, setContent] = useState<CharacterContent>(character ? contentFrom(character) : { ...emptyContent });
   const [reason, setReason] = useState(''), [preview, setPreview] = useState(false), [pending, setPending] = useState<'PUBLISH' | 'UNPUBLISH' | null>(null);
   const original = character ? contentFrom(character) : null;

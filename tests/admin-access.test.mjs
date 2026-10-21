@@ -15,7 +15,7 @@ const {db,pragmasReady}=await import('../src/lib/db.ts');await pragmasReady;
 const {signToken}=await import('../src/lib/auth.ts');
 const {GET}=await import('../src/app/api/admin/access/route.ts');
 const {getFinanceAdmin}=await import('../src/lib/payments/finance-auth.ts');
-const {getModerator}=await import('../src/lib/moderator.ts');
+const {requireAdmin}=await import('../src/lib/http/auth.ts');
 const users=[];
 for(let i=0;i<4;i++)users.push(await db.user.create({data:{username:'admin-fixture-'+i,email:`admin-${i}@example.invalid`,passwordHash:'synthetic-only'}}));
 const tokens=new Map();
@@ -32,14 +32,14 @@ test('anonymous, ordinary, moderation, finance and dual roles retain independent
   const req=request(users[i]);const response=await GET(req);
   assert.equal(response.status,200);assert.deepEqual(await response.json(),expected[i]);
   assert.match(response.headers.get('cache-control'),/private, no-store/);
-  assert.equal(Boolean(await getModerator(req)),expected[i].moderation);
+  assert.equal((await requireAdmin(req,'moderation.read')).ok,expected[i].moderation);
   assert.equal((await getFinanceAdmin(req)).status,expected[i].finance?200:403);
  }
 });
 test('revoking configured privileges affects the same token immediately',async()=>{
  process.env.MODERATOR_USER_IDS='';process.env.PAYMENT_ADMIN_USER_IDS='';
  const req=request(users[3]);assert.deepEqual(await (await GET(req)).json(),{moderation:false,finance:false,analytics:false,growth:false,operations:false,compliance:false});
- assert.equal((await getFinanceAdmin(req)).status,403);assert.equal(await getModerator(req),null);
+ assert.equal((await getFinanceAdmin(req)).status,403);assert.equal((await requireAdmin(req,'moderation.read')).ok,false);
 });
 test('retired credentials cannot obtain administration capabilities',async()=>{
  const req=request(users[3]);

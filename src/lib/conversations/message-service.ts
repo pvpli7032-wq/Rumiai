@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 
 /**
- * Dependency inversion for story history (m3-data-contract.md §7): the single
+ * Dependency inversion for story history（V3 第 16 章）：the single
  * direction rule forbids conversations → stories imports, so the story side
  * registers its invalidation handler here at module load (see
  * src/lib/stories/lifecycle/invalidation.ts). Ordinary conversations never call

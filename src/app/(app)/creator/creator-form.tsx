@@ -1,5 +1,6 @@
 'use client';
-import { CHARACTER_LIMITS } from '@/lib/characters/validation';
+import { useUiConfig } from '@/lib/settings/use-ui-config';
+import { buildCharacterLimits, CHARACTER_TECHNICAL_LIMITS } from '@/lib/characters/limits';
 import { zhError } from '@/lib/copy/zh';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,7 +21,18 @@ const DRAFT_KEY = 'xingban:character-draft';
 /** 改名前的键，第一次读取时迁移过来再删掉。 */
 const LEGACY_DRAFT_KEY = 'khuiai:character-draft';
 
-const LIMITS = { ...CHARACTER_LIMITS, description: CHARACTER_LIMITS.personality, bio: CHARACTER_LIMITS.background };
+/**
+ * 字数上限由设置中心统一管理（content.character.*），前端从 /api/ui-config 取同一份值，
+ * 与服务端校验共用 buildCharacterLimits。未加载时给 0：maxLength={0} 在浏览器里等于不限，
+ * 服务端仍按真实配置校验，不会因为前端还没拿到配置就把用户输入截断。
+ */
+function limitsFromConfig(config: Record<string, unknown>) {
+  const base = buildCharacterLimits(key => {
+    const value = config[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  });
+  return { ...base, description: base.personality, bio: base.background, roleTemplate: CHARACTER_TECHNICAL_LIMITS.roleTemplate };
+}
 
 const SECTIONS = [
   { id: 'identity', label: "身份", desc: "名称、简介和头像", icon: UserRound },
@@ -56,6 +68,8 @@ const EMPTY: Draft = {
 
 export default function CreatorForm({ editId }: { editId?: string }) {
   const draftKey = editId ? DRAFT_KEY + ':edit:' + editId : DRAFT_KEY;
+  const uiConfig = useUiConfig();
+  const LIMITS = useMemo(() => limitsFromConfig(uiConfig), [uiConfig]);
   const [loaded, setLoaded] = useState(!editId);
   const { token, user, isLoading: authLoading } = useAuth();
   const router = useRouter();

@@ -90,7 +90,7 @@ const khuiAllow = file => {
   return p === 'LICENSE' || p === 'THIRD_PARTY_NOTICES.md'
     // 部署名与运维文档：决策 D4 明确保留。
     || p.startsWith('prisma/migrations/') || p.startsWith('deploy/')
-    || p.startsWith('docs/')
+    || p.startsWith('docs/') || p.startsWith('content/')
     // 旧站拉取的语言词典，键名沿用上游，替换键名会把 PULLED_FIELDS 映射一起弄坏。
     || p.startsWith('src/lib/i18n/dictionaries/') || p === 'src/lib/i18n.ts'
     // 下面三处是「提到 khui 是为了禁掉它」，不是残留。
@@ -101,7 +101,8 @@ const khuiAllow = file => {
     // 上游仓库联系链接，属于来源信息。
     || p.startsWith('.github/') || p.startsWith('tests/');
 };
-const tracked = walk(root).filter(file => /\.(ts|tsx|js|mjs|cjs|json|md|yml|service|conf)$/.test(file) && !rel(file).startsWith('.workbuddy/'));
+// 团队协作状态与本地临时目录不是源码，不参与命名检查。
+const tracked = walk(root).filter(file => /\.(ts|tsx|js|mjs|cjs|json|md|yml|service|conf)$/.test(file) && !rel(file).startsWith('.workbuddy/') && !rel(file).startsWith('.agent-teams/'));
 const khuiHits = tracked.filter(file => /khui/i.test(read(file)) && !khuiAllow(file)).map(rel);
 if (khuiHits.length) failures.push(`khui 命名残留：${khuiHits.join(', ')}`);
 else notes.push('khui 命名：白名单外 0 处（部署名、历史迁移、旧站拉取词典保留）');
@@ -109,14 +110,10 @@ else notes.push('khui 命名：白名单外 0 处（部署名、历史迁移、�
 /**
  * 9. 文档不是门禁项。
  *
- * 曾经在这里检查 ARCHITECTURE.md / README.md / docs/待完成清单.md 是否存在，但文档
- * 去留由负责人决定（2026-10-20 决定删除根目录说明文档与历史清单），拿文件存在性当
- * 完成定义只会逼人留一份没人维护的空壳。这里只保留一条可执行的事实：规划书基线文档
- * 必须在仓库内，因为实施范围以它为准。
+ * 曾经在这里检查 ARCHITECTURE.md / README.md / docs/待完成清单.md，后来又检查过规划书
+ * docx 是否存在。文档已按 V3 第 27 章精简为三份（docs/deployment.md、docs/modules-and-apis.md、
+ * docs/configuration.md），拿文件存在性当完成定义只会逼人留一份没人维护的空壳。
  */
-if (!existsSync(path.join(root, 'docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx'))) {
-  failures.push('缺少规划书基线文档：docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx');
-}
 
 console.log('完成定义检查');
 for (const note of notes) console.log(`  ok   ${note}`);

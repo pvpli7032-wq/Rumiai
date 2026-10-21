@@ -10,7 +10,7 @@ export class CreatorCharacterError extends Error {
 
 export async function createCreatorCharacter(actorId: string, input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new CreatorCharacterError('角色数据格式不正确。', 400);
-  const validated = validateCharacter(input, true);
+  const validated = await validateCharacter(input, true);
   if (validated.error) throw new CreatorCharacterError(validated.error, 400);
   const body = {...input as Record<string, unknown>, ...validated.data};
   const {name, tagline, personality, background, greeting, tags, badges, isExclusive} = body;
@@ -22,7 +22,6 @@ export async function createCreatorCharacter(actorId: string, input: unknown) {
   if (typeof name !== 'string' || !name || typeof personality !== 'string' || !personality) {
     throw new CreatorCharacterError('Name and personality are required', 400);
   }
-  if (personality.length > 1000) throw new CreatorCharacterError('Personality too long (max 1000 chars)', 400);
 
   const avatarUrl = body.avatarUrl ?? body.avatar_url;
   const roleTemplate = body.roleTemplate ?? body.role_template ?? null;
@@ -49,7 +48,7 @@ export async function createCreatorCharacter(actorId: string, input: unknown) {
 }
 
 export async function updateCreatorCharacter(actorId: string, characterId: string, input: unknown) {
-  const validated = validateCharacter(input, false);
+  const validated = await validateCharacter(input, false);
   if (validated.error) throw new CreatorCharacterError(validated.error, 400);
   const { isPublic: requested, ...content } = validated.data;
   return db.$transaction(async tx => {

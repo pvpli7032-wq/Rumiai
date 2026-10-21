@@ -1,0 +1,187 @@
+'use client';
+
+import {useState, type FormEvent} from 'react';
+import {DetailDrawer, DetailRow, DetailSection} from '@/components/admin/layout/detail-drawer';
+import {AdminNotice} from '@/components/admin/admin-page';
+import {Button} from '@/components/ui/button';
+import {Input} from '@/components/ui/input';
+import {
+  NOT_CONFIGURED,
+  defaultEffectiveInput,
+  formatAmount,
+  formatCoins,
+  formatDateTime,
+  type ModelPriceRow,
+} from './types';
+
+/** 一次编辑要提交的两类价格：收费币价（币/条）与供应商成本价（每百万 Token）。 */
+export interface PriceDraft {
+  coinsPerReply: string;
+  inputPricePerMillion: string;
+  outputPricePerMillion: string;
+  currency: string;
+  effectiveAt: string;
+  source: string;
+  reason: string;
+}
+
+export interface ModelPriceDrawerProps {
+  row: ModelPriceRow | null;
+  canManage: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (row: ModelPriceRow, draft: PriceDraft) => void;
+}
+
+const DECIMAL = /^\d{1,12}(\.\d{1,6})?$/;
+
+function initialDraft(row: ModelPriceRow): PriceDraft {
+  return {
+    coinsPerReply: row.coinPrice ? String(row.coinPrice.coinsPerReply) : '',
+    inputPricePerMillion: row.costPrice?.inputPricePerMillion ?? '',
+    outputPricePerMillion: row.costPrice?.outputPricePerMillion ?? '',
+    currency: row.costPrice?.currency ?? 'USD',
+    effectiveAt: defaultEffectiveInput(row.costPrice),
+    source: '',
+    reason: '',
+  };
+}
+
+/**
+ * 价格编辑抽屉：依次填收费价、供应商成本价、币种和生效时间。
+ *
+ * 两类价格是两条历史：收费币价追加 ModelCoinPrice 版本，成本价追加 AiModelPrice 版本，
+ * 都不会改写已有版本，也不会影响已预扣的费用单。
+ */
+export function ModelPriceDrawer({row, canManage, busy, onClose, onSubmit}: ModelPriceDrawerProps) {
+  const [draft, setDraft] = useState<PriceDraft | null>(row ? initialDraft(row) : null);
+  const [error, setError] = useState('');
+
+  const wantsCost = Boolean(draft && (draft.inputPricePerMillion.trim() || draft.outputPricePerMillion.trim()));
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!row || !draft) return;
+    const coins = draft.coinsPerReply.trim();
+    if (!coins) { setError('请填写收费币价；不收费填 0。'); return; }
+    if (!/^\d{1,7}$/.test(coins)) { setError('收费币价必须是 0–1000000 的整数。'); return; }
+    if (wantsCost) {
+      if (!DECIMAL.test(draft.inputPricePerMillion.trim()) || !DECIMAL.test(draft.outputPricePerMillion.trim())) {
+        setError('成本价要按「每百万 Token」填数字，最多 6 位小数；不知道就先留空。');
+        return;
+      }
+      if (!/^[A-Z]{3}$/.test(draft.currency)) { setError('成本币种必须是三个大写字母，例如 USD。'); return; }
+      if (!draft.source.trim()) { setError('填写成本价时必须写价格来源，方便以后核对。'); return; }
+      if (!draft.reason.trim()) { setError('填写成本价时必须写操作理由，会写入管理审计。'); return; }
+    }
+    if (!draft.effectiveAt) { setError('请选择生效时间。'); return; }
+    setError('');
+    onSubmit(row, draft);
+  }
+
+  return (
+    <DetailDrawer
+      open={Boolean(row)}
+      onClose={onClose}
+      title={row ? `编辑价格 · ${row.displayName}` : '编辑价格'}
+      description="收费价与成本价分别追加版本；保存后从新请求开始生效，历史账本不变。"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button type="submit" form="model-price-form" loading={busy} disabled={!canManage}>{busy ? '保存中…' : '保存价格'}</Button>
+        </>
+      }
+    >
+      {row && draft && (
+        <form id="model-price-form" onSubmit={submit} className="space-y-5">
+          <DetailSection title="当前版本" description="只读；历史版本在下方列出，编辑只追加新版本。">
+            <div className="space-y-1.5">
+              <DetailRow label="收费币价">
+                {row.coinPrice ? `${formatCoins(row.coinPrice.coinsPerReply)}/条 · v${row.coinPrice.version} · 生效 ${formatDateTime(row.coinPrice.effectiveAt)}` : NOT_CONFIGURED}
+              </DetailRow>
+              <DetailRow label="成本价">
+                {row.costPrice
+                  ? `${row.costPrice.currency} 输入 ${row.costPrice.inputPricePerMillion} / 输出 ${row.costPrice.outputPricePerMillion} · 每百万 Token · 生效 ${formatDateTime(row.costPrice.effectiveAt)}`
+                  : NOT_CONFIGURED}
+              </DetailRow>
+              {row.coinPricePending && <DetailRow label="待生效收费价">v{row.coinPricePending.version} · {formatDateTime(row.coinPricePending.effectiveAt)}</DetailRow>}
+              {row.costPricePending && <DetailRow label="待生效成本价">{row.costPricePending.currency} · {formatDateTime(row.costPricePending.effectiveAt)}</DetailRow>}
+            </div>
+          </DetailSection>
+
+          <DetailSection title="收费币价" description="用户每条回复要付的币数，整数；免费额度适用时本次收费为 0。">
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">每条回复币价</span>
+              <div className="flex items-center gap-2">
+                <Input
+                  inputMode="numeric"
+                  pattern="\d{1,7}"
+                  required
+                  value={draft.coinsPerReply}
+                  onChange={event => setDraft({...draft, coinsPerReply: event.target.value})}
+                  aria-label="每条回复币价"
+                />
+                <span className="shrink-0 text-sm text-muted-foreground">币/条</span>
+              </div>
+            </label>
+          </DetailSection>
+
+          <DetailSection title="供应商成本价" description="按每百万 Token 记录输入与输出单价；不知道就留空，页面会显示「待配置」而不是按 0 计。">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">输入单价</span>
+                <Input inputMode="decimal" value={draft.inputPricePerMillion} onChange={event => setDraft({...draft, inputPricePerMillion: event.target.value})} aria-label="输入单价" placeholder="例如 0.15" />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">输出单价</span>
+                <Input inputMode="decimal" value={draft.outputPricePerMillion} onChange={event => setDraft({...draft, outputPricePerMillion: event.target.value})} aria-label="输出单价" placeholder="例如 0.6" />
+              </label>
+            </div>
+          </DetailSection>
+
+          <DetailSection title="币种与生效时间">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">成本币种</span>
+                <Input maxLength={3} className="uppercase" value={draft.currency} onChange={event => setDraft({...draft, currency: event.target.value.toUpperCase()})} aria-label="成本币种" placeholder="USD" />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">生效时间（按本机时区）</span>
+                <Input type="datetime-local" value={draft.effectiveAt} onChange={event => setDraft({...draft, effectiveAt: event.target.value})} aria-label="生效时间" />
+              </label>
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">默认立即生效；预约调价把时间往后填即可，已有版本不会被改写。</p>
+          </DetailSection>
+
+          <DetailSection title="来源与理由" description="填写成本价时必填：来源写供应商公开价格页或合同版本，理由会写入管理审计。">
+            <div className="space-y-3">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">价格来源</span>
+                <Input maxLength={500} value={draft.source} onChange={event => setDraft({...draft, source: event.target.value})} aria-label="价格来源" placeholder="供应商公开价格页或合同版本" />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">操作理由</span>
+                <Input maxLength={300} value={draft.reason} onChange={event => setDraft({...draft, reason: event.target.value})} aria-label="操作理由" />
+              </label>
+            </div>
+          </DetailSection>
+
+          {row.usage.length > 0 && (
+            <DetailSection title="近 7 天用量" description="用于估算平均成本与收入；未知成本单列，不按 0 计。">
+              <ul className="space-y-1 text-sm">
+                {row.usage.map(item => (
+                  <li key={`${item.currency}`} className="break-words text-muted-foreground">
+                    {item.currency} · 调用 {item.calls} · 已知成本 {item.knownCostCalls} · 未知成本 {item.unknownCostCalls} · 已知估算 {formatAmount(item.estimatedCost, item.currency)}
+                  </li>
+                ))}
+              </ul>
+            </DetailSection>
+          )}
+
+          {!canManage && <AdminNotice tone="info" title="当前账号只能查看价格" description="保存需要「AI 成本管理」权限。" />}
+          {error && <AdminNotice tone="error" title={error} />}
+        </form>
+      )}
+    </DetailDrawer>
+  );
+}

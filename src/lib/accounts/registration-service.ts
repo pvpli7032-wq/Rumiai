@@ -3,8 +3,9 @@ import { db } from '@/lib/db';
 import { ensureAuthSigningConfiguration } from '@/lib/auth';
 import { allocateHandle, isUniqueViolation } from '@/lib/user-identity';
 import { recordRegistrationConsents, RegistrationConsentError } from '@/lib/compliance/policy-service';
+import { readRegistrationRules } from '@/lib/settings';
 
-const MIN_PASSWORD_LENGTH = 6;
+/** 72 是 bcrypt 的输入上限，属于算法约束，不是运营参数。 */
 const MAX_PASSWORD_BYTES = 72;
 
 export class AccountRegistrationError extends Error {
@@ -23,7 +24,9 @@ export async function registerAccount(input: unknown) {
   const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : typeof body.name === 'string' ? body.name.trim() : '';
 
   if (!email || !password || (!requestedHandle && !displayName)) throw new AccountRegistrationError('Missing required fields', 400);
-  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) throw new AccountRegistrationError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`, 400);
+  // 密码位数与注册赠币都由设置中心决定，改完下一次注册就生效。
+  const rules = await readRegistrationRules();
+  if (typeof password !== 'string' || password.length < rules.passwordMinLength) throw new AccountRegistrationError(`Password must be at least ${rules.passwordMinLength} characters`, 400);
   if (Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES) throw new AccountRegistrationError('Password is too long', 400);
 
   ensureAuthSigningConfiguration();
@@ -41,7 +44,7 @@ export async function registerAccount(input: unknown) {
   try {
     return await db.$transaction(async tx => {
       const user = await tx.user.create({
-        data: { username, displayName: displayName || null, email, passwordHash, coins: 100, tier: 'ROOKIE' },
+        data: { username, displayName: displayName || null, email, passwordHash, coins: rules.signupBonusCoins, tier: 'ROOKIE' },
         select: { id: true, username: true, displayName: true, tokenVersion: true, email: true, avatarUrl: true, tier: true, coins: true, streakCount: true, createdAt: true },
       });
       try { await recordRegistrationConsents(tx, user.id, body.consents); }

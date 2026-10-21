@@ -19,7 +19,7 @@ function checkedId(value: unknown, existing: Set<string>, used: Set<string>) {
 async function checkedUrl(value: unknown, ownerId: string | null, previous: string | null, optional = false, allowSiteOwned = false) {
   const url = text(value ?? '', '素材地址', 2048, !optional);
   if (!url) return '';
-  const valid = validateCharacter({avatarUrl: url}, false);
+  const valid = await validateCharacter({avatarUrl: url}, false);
   if (valid.error) throw new CharacterAssetError(valid.error);
   if (url.startsWith('/uploads/') && url !== previous && (!ownerId || !await mayAttachAccountUpload(ownerId, url, {allowSiteOwned}))) throw new CharacterAssetError('上传素材须属于角色作者或已归属站点。');
   return url;

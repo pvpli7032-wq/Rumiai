@@ -4,6 +4,8 @@ import path from 'node:path';
 import { db, pragmasReady } from '@/lib/db';
 import type {Prisma} from '@prisma/client';
 
+import { readUploadMaxBytes } from '@/lib/settings';
+
 import { uploadDirectory } from './storage-location.mjs';
 export { uploadDirectory } from './storage-location.mjs';
 export const uploadOwnerPrefix = (userId: string) => createHash('sha256').update(userId).digest('hex') + '-';
@@ -26,7 +28,8 @@ export async function retainCharacterUploadsForSite(tx: Prisma.TransactionClient
 export async function saveAccountUpload(userId: string, file: File) {
   const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type];
   if (!extension) throw new UploadError('仅支持 JPG、PNG 和 WebP 图片。', 415);
-  if (!file.size || file.size > 5 * 1024 * 1024) throw new UploadError('图片不能为空，且不能超过 5 MB。', 413);
+  const maxBytes = await readUploadMaxBytes();
+  if (!file.size || file.size > maxBytes) throw new UploadError(`图片不能为空，且不能超过 ${Math.floor(maxBytes / (1024 * 1024))} MB。`, 413);
   const buffer = Buffer.from(await file.arrayBuffer());
   const signature = buffer.length >= 12 && (file.type === 'image/jpeg' ? buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff : file.type === 'image/png' ? buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) : buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP');
   if (!signature) throw new UploadError('图片内容与格式不符。', 415);

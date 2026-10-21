@@ -21,7 +21,7 @@ try {
   const topics = await db.circle.findMany({ where: { id: { startsWith: 'xingban-topic-' }, status: 'ACTIVE' }, select: { id: true, name: true, description: true, tags: true } });
   assert.equal(topics.length, 10);
   assert(topics.every(topic => topic.description.length >= 30 && topic.tags));
-  const sourceRegister = await fs.readFile('docs/content/内容来源登记.md', 'utf8');
+  const sourceRegister = await fs.readFile('content/内容来源登记.md', 'utf8');
   assert(roles.every(role => sourceRegister.includes(role.name)));
   assert(topics.every(topic => sourceRegister.includes(topic.name)));
   mark('30 个原创角色、10 个圈子话题均已种入；角色授权说明、登记名录和项目 SVG 资源可核对');

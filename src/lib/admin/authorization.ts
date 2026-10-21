@@ -11,8 +11,12 @@ export async function readAdminAuthorization(userId: string, reader: Reader = db
   const operator = await reader.adminOperator.findUnique({where: {userId}, include: {assignments: {include: {role: {include: {permissions: true}}}}}});
   if (operator) {
     const roles = operator.enabled ? operator.assignments.map(item => item.role) : [];
-    const permissions = [...new Set(roles.flatMap(role => role.permissions.map(item => item.permission)).filter((key): key is AdminPermission => Object.hasOwn(PERMISSIONS, key)))];
-    return {managed: true, enabled: operator.enabled, owner: roles.some(role => role.system && role.code === 'OWNER'), roles: roles.map(role => role.code), permissions};
+    const owner = roles.some(role => role.system && role.code === 'OWNER');
+    // 所有者始终拥有全部权限：新增权限项后不必再改库，也不会出现「所有者看不到新页面」。
+    const permissions: AdminPermission[] = owner
+      ? Object.keys(PERMISSIONS) as AdminPermission[]
+      : [...new Set(roles.flatMap(role => role.permissions.map(item => item.permission)).filter((key): key is AdminPermission => Object.hasOwn(PERMISSIONS, key)))];
+    return {managed: true, enabled: operator.enabled, owner, roles: roles.map(role => role.code), permissions};
   }
   // Legacy lists remain valid until this account is explicitly managed in the database.
   const permissions: AdminPermission[] = [];

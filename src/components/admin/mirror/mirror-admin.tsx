@@ -1,0 +1,258 @@
+'use client';
+
+import {RefreshCw} from 'lucide-react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel, AdminStat, AdminStatGrid} from '@/components/admin/admin-page';
+import {DataTable} from '@/components/admin/layout/data-table';
+import {FilterBar} from '@/components/admin/layout/filter-bar';
+import {useAdminAccess} from '@/components/admin/use-admin-access';
+import {Badge} from '@/components/ui/badge';
+import {Button} from '@/components/ui/button';
+import {Select} from '@/components/ui/select';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import {apiFetch} from '@/lib/api-client';
+import {API} from '@/lib/api-paths';
+import {MirrorConfigPanel} from './mirror-config-panel';
+import {MirrorResultDrawer} from './mirror-result-drawer';
+import {
+  MIRROR_RATE_MIN_SAMPLE,
+  MIRROR_STATUS_FILTERS,
+  MIRROR_STATUS_LABELS,
+  MIRROR_STATUS_VARIANTS,
+  formatDateTime,
+  type MirrorConfigPayload,
+  type MirrorResultItem,
+  type MirrorResultPage,
+  type MirrorStatus,
+} from './types';
+
+/** 统计卡用最近这么多条结果算成功率；后台接口按游标分页，没有单独的聚合端点。 */
+const SAMPLE_LIMIT = 50;
+const PAGE_LIMIT = 20;
+
+/**
+ * 「他眼中的你」后台：结果列表 + 生成成功率，配置只读并指向唯一编辑位置。
+ *
+ * 隐藏是把状态置 HIDDEN（分享码失效、记录保留对账），因此动作只出现在结果详情里，
+ * 列表每行只保留「查看详情」。
+ */
+export function MirrorAdmin() {
+  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const canRead = permissions.includes('mirror.read');
+  const canManage = permissions.includes('mirror.manage');
+
+  const [tab, setTab] = useState<'results' | 'config'>('results');
+  const [status, setStatus] = useState<MirrorStatus | 'ALL'>('ALL');
+  const [page, setPage] = useState<MirrorResultPage | null>(null);
+  const [sample, setSample] = useState<MirrorResultItem[] | null>(null);
+  const [config, setConfig] = useState<MirrorConfigPayload | null>(null);
+  const [configError, setConfigError] = useState('');
+  const [loadingList, setLoadingList] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [selected, setSelected] = useState<MirrorResultItem | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const loadList = useCallback(async (cursor: string | null, append: boolean) => {
+    if (!token) return;
+    setLoadingList(true);
+    setError('');
+    try {
+      const query = new URLSearchParams({limit: String(PAGE_LIMIT)});
+      if (status !== 'ALL') query.set('status', status);
+      if (cursor) query.set('cursor', cursor);
+      const data = await apiFetch<MirrorResultPage>(API.admin.mirrorResults(query.toString()), {token, cache: 'no-store'});
+      setPage(current => (append && current ? {items: [...current.items, ...data.items], nextCursor: data.nextCursor} : data));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '结果列表加载失败。');
+    } finally {
+      setLoadingList(false);
+    }
+  }, [token, status]);
+
+  useEffect(() => {
+    setPage(null);
+    setSelected(null);
+    setNotice('');
+    if (token && canRead) void loadList(null, false);
+  }, [token, canRead, status, refreshKey, loadList]);
+
+  // 成功率样本：不带状态筛选，取最近一批结果，标签上写清样本量。
+  useEffect(() => {
+    if (!token || !canRead) return;
+    const controller = new AbortController();
+    setSample(null);
+    void apiFetch<MirrorResultPage>(API.admin.mirrorResults(new URLSearchParams({limit: String(SAMPLE_LIMIT)}).toString()), {
+      token,
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(data => { if (!controller.signal.aborted) setSample(data.items); })
+      .catch(() => { if (!controller.signal.aborted) setSample([]); });
+    return () => controller.abort();
+  }, [token, canRead, refreshKey]);
+
+  // 配置标签只读：角色候选与规则都来自公开初始化接口，编辑入口在设置中心与角色管理。
+  useEffect(() => {
+    if (!token || !canRead) return;
+    const controller = new AbortController();
+    setConfig(null);
+    setConfigError('');
+    void apiFetch<MirrorConfigPayload>(API.mirror.generate, {cache: 'no-store', signal: controller.signal})
+      .then(data => { if (!controller.signal.aborted) setConfig({characters: data.characters ?? [], rules: data.rules}); })
+      .catch(cause => { if (!controller.signal.aborted) setConfigError(cause instanceof Error ? cause.message : '配置读取失败。'); });
+    return () => controller.abort();
+  }, [token, canRead, refreshKey]);
+
+  const stats = useMemo(() => {
+    if (!sample) return null;
+    const total = sample.length;
+    const failed = sample.filter(item => item.status === 'FAILED').length;
+    return {total, failed, success: total - failed, rate: total > 0 ? (total - failed) / total : null, enough: total >= MIRROR_RATE_MIN_SAMPLE};
+  }, [sample]);
+
+  async function hideResult(item: MirrorResultItem) {
+    if (!token || busy) return;
+    if (!window.confirm(`隐藏结果 ${item.shareId}？分享码会立即失效，记录保留以便与费用单对账。`)) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      // 隐藏接口是 DELETE /api/admin/mirror/results/{id}，路径表目前只登记了列表地址。
+      await apiFetch(`/api/admin/mirror/results/${encodeURIComponent(item.id)}`, {token, method: 'DELETE'});
+      setNotice(`结果 ${item.shareId} 已隐藏，分享页不再可访问。`);
+      setSelected(null);
+      setRefreshKey(value => value + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '隐藏失败，请稍后重试。');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在验证管理权限…" /></AdminPage>;
+  if (!token || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有「他眼中的你」查看权限。'} /></AdminPage>;
+
+  return (
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="增长与玩法"
+        title="他眼中的你"
+        description="看结果与生成成功率；角色、题目与版式只在设置中心和角色管理里改，同一项不设第二个编辑位置。"
+        actions={<Button variant="outline" leadingIcon={<RefreshCw className="h-4 w-4" />} disabled={loadingList} onClick={() => setRefreshKey(value => value + 1)}>刷新</Button>}
+        meta={<Badge variant="outline">最近 {SAMPLE_LIMIT} 条结果统计</Badge>}
+      />
+
+      {error && <AdminNotice tone="error" title={error} className="py-6" />}
+      {notice && <AdminNotice tone="success" title={notice} className="py-6" />}
+
+      <Tabs value={tab} onValueChange={value => setTab(value === 'config' ? 'config' : 'results')}>
+        <TabsList aria-label="他眼中的你视图">
+          <TabsTrigger value="results">结果列表</TabsTrigger>
+          <TabsTrigger value="config">配置</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="results">
+          <div className="flex flex-col gap-5">
+            <AdminStatGrid className="xl:grid-cols-3">
+              <AdminStat
+                label="生成成功率"
+                value={stats ? (stats.enough ? `${Math.round((stats.rate ?? 0) * 100)}%` : '样本不足') : '—'}
+                hint={stats ? (stats.enough ? `最近 ${stats.total} 条结果，成功 ${stats.success} 条` : `最近样本只有 ${stats.total} 条，少于 ${MIRROR_RATE_MIN_SAMPLE} 条不显示比例`) : '正在读取结果样本'}
+                tone={stats && stats.enough && (stats.rate ?? 1) < 0.9 ? 'warning' : 'success'}
+              />
+              <AdminStat label="样本内失败" value={stats ? String(stats.failed) : '—'} hint="状态为生成失败的结果，按条计数" tone={stats && stats.failed > 0 ? 'warning' : 'default'} />
+              <AdminStat label="结果总量（样本）" value={stats ? String(stats.total) : '—'} hint="后台接口按游标分页，这里只统计已加载的样本" />
+            </AdminStatGrid>
+
+            <AdminPanel
+              title="结果列表"
+              description="按状态筛选；过期是按 expires_at 计算的展示判断，不改变保存的状态。"
+              badge={page ? <Badge>{page.items.length} 条已加载</Badge> : undefined}
+              flush
+              bodyClassName="p-5"
+            >
+              <DataTable
+                rows={page?.items ?? []}
+                getRowId={item => item.id}
+                loading={loadingList && !page}
+                filters={
+                  <FilterBar
+                    onReset={() => setStatus('ALL')}
+                    aria-label="结果筛选"
+                  >
+                    <div className="w-full sm:w-48">
+                      <Select
+                        aria-label="结果状态"
+                        value={status}
+                        onChange={event => setStatus(event.target.value as MirrorStatus | 'ALL')}
+                      >
+                        {MIRROR_STATUS_FILTERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </Select>
+                    </div>
+                  </FilterBar>
+                }
+                emptyTitle="没有匹配的结果"
+                emptyDescription="换一个状态筛选，或等前台产生新的结果。"
+                error={error || undefined}
+                onRetry={() => setRefreshKey(value => value + 1)}
+                columns={[
+                  {
+                    id: 'result',
+                    header: '结果',
+                    cell: item => (
+                      <span className="block max-w-sm">
+                        <span className="block break-words font-medium">{item.title}</span>
+                        <span className="mt-0.5 block break-words text-xs text-muted-foreground">{item.quote}</span>
+                      </span>
+                    ),
+                  },
+                  {id: 'character', header: '角色', width: '140px', cell: item => <span className="break-words">{item.character?.name ?? '—'}</span>},
+                  {id: 'author', header: '作者', width: '140px', cell: item => <span className="break-words">{item.anonymous ? '匿名访客' : item.author?.name ?? '已注销'}</span>},
+                  {
+                    id: 'status',
+                    header: '状态',
+                    width: '150px',
+                    cell: item => (
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant={MIRROR_STATUS_VARIANTS[item.status]}>{MIRROR_STATUS_LABELS[item.status]}</Badge>
+                        {item.expired && item.status !== 'EXPIRED' && <Badge variant="warning">已过期</Badge>}
+                      </span>
+                    ),
+                  },
+                  {id: 'created', header: '创建时间', width: '170px', cell: item => <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(item.createdAt)}</span>},
+                  {id: 'expires', header: '过期时间', width: '170px', cell: item => <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(item.expiresAt)}</span>},
+                  {
+                    id: 'actions',
+                    header: '操作',
+                    width: '110px',
+                    cell: item => (
+                      <Button size="sm" variant="outline" aria-label={`查看结果 ${item.shareId}`} onClick={() => { setSelected(item); setError(''); setNotice(''); }}>
+                        查看详情
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                {page?.nextCursor && (
+                  <Button variant="outline" size="sm" loading={loadingList} onClick={() => void loadList(page.nextCursor, true)}>加载更多</Button>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {page ? (page.nextCursor ? '还有更多结果' : '已经到底了') : '正在读取结果…'}
+                </span>
+              </div>
+            </AdminPanel>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="config">
+          <MirrorConfigPanel config={config} error={configError} loading={!config && !configError} />
+        </TabsContent>
+      </Tabs>
+
+      <MirrorResultDrawer item={selected} canManage={canManage} busy={busy} onClose={() => setSelected(null)} onHide={item => void hideResult(item)} />
+    </AdminPage>
+  );
+}

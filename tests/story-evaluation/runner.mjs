@@ -14,7 +14,7 @@ export const RESULT = {
   ERROR: 'ERROR',       // 框架自身异常
 };
 
-// 执行器注册表：key = verificationTier。按 docs/planning/w08-eval-plan.md 第 6 节逐步落地：
+// 执行器注册表：key = verificationTier。按 V3 第 20 章（评测）逐步落地：
 // - domain / model-simulated：已实现（M3-3 回合服务口径；model-output 断言进人工复核队列）。
 // TODO(W08/M5): 实现 model-real 执行器（须显式授权 env 开关 + 预算上限，缺一即 BLOCKED）。
 // TODO(W08/M5): 实现 load 执行器（固定场景压测，采集 p50/p95/锁等待/费用）。

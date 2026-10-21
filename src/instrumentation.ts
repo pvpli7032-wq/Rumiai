@@ -1,22 +1,23 @@
 /**
- * Process startup wiring (runs once per server process).
+ * 进程启动接线（每个 server 进程只跑一次）。
  *
- * The story state-extraction worker is started here so committed turns get their
- * state processed without hanging a request on it. Tasks live in the database
- * with a persisted lease (StoryTurn.leaseOwner/leaseExpiresAt), so pausing and
- * restarting the process loses nothing — the first scan re-claims whatever
- * expired while the worker was down.
- *
- * 运维开关：STORY_WORKER_DISABLED=1 跳过启动，供 worker 暂停/恢复演练与
- * 「状态提取问题先停 worker 再处理」的降级口径使用；默认开启（单实例部署）。
+ * 两件事：
+ * 1) 故事状态提取 worker——已提交的回合在后台补齐状态，不挂在请求上。任务落在数据库里
+ *    带持久租约（StoryTurn.leaseOwner/leaseExpiresAt），进程重启不丢，第一次扫描重新领取
+ *    过期租约。STORY_WORKER_DISABLED=1 可单独停它做演练。
+ * 2) 统一后台任务入口——摘要、结案、过期清理、对账、备份清理都在这里轮询
+ *    （V3 第 24 章）。轮询间隔、批量、重试上限读设置中心，改完不用重启进程。
  */
-// Composition root for the story side of message edits/deletes: registering here (not
-// from a route module) means every server code path that edits a message gets the
-// same-transaction invalidation, with no dependency on which route loaded first.
+// 消息编辑/删除的失效逻辑在这里注册（不在路由模块里），保证任何改消息的路径
+// 都走同一个同事务失效，与哪个路由先加载无关。
 import './lib/stories/lifecycle/invalidation';
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+
+  const {startTaskRunner} = await import('./lib/tasks/runner');
+  startTaskRunner();
+
   if (process.env.STORY_WORKER_DISABLED?.trim() === '1') {
     console.info(JSON.stringify({event: 'story_state_worker_disabled'}));
     return;

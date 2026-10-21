@@ -6,11 +6,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { afterLoginTarget } from '@/lib/next-path';
+import { useUiConfig, readNumber } from '@/lib/settings/use-ui-config';
 import { UserPlus, Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
+  // 密码位数由设置中心决定（accounts.passwordMinLength），前端提示与服务端校验同一份值。
+  const passwordMinLength = readNumber(useUiConfig(), 'accounts.passwordMinLength');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,7 +29,7 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (password.length < 6) { setError("密码至少需要 6 个字符"); return; }
+    if (passwordMinLength !== undefined && password.length < passwordMinLength) { setError(`密码至少需要 ${passwordMinLength} 个字符`); return; }
     setLoading(true);
     const result = await register(username, email, password, {ageConfirmed,termsAccepted,privacyAccepted});
     setLoading(false);
@@ -93,7 +96,8 @@ export default function RegisterPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  placeholder={"至少 6 个字符"}
+                  minLength={passwordMinLength}
+                  placeholder={passwordMinLength !== undefined ? `至少 ${passwordMinLength} 个字符` : '请输入密码'}
                   className="w-full px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all pr-12"
                 />
                 <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors">

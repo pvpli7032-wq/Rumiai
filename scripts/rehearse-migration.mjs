@@ -1,7 +1,7 @@
 /**
  * 副本迁移演练：对一份生产库副本执行待应用迁移，全程不触碰生产写库。
  *
- * 对应 HANDOFF.md 第 7 节第 4 步「在副本上先跑迁移」的可脚本化版本。
+ * 对应 docs/deployment.md 第 5 节「先在数据库副本上演练同一个 migrate deploy」的可脚本化版本。
  *
  * 用法：
  *   1. node scripts/rehearse-migration.mjs /abs/path/to/copy.db

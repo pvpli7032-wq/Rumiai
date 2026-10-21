@@ -6,7 +6,8 @@ import {recordAdminAudit} from '@/lib/admin/management-service';
 import {mayAttachAccountUpload} from '@/lib/uploads/read-service';
 import {retainCharacterUploadsForSite} from '@/lib/uploads/storage-service';
 import {saveCharacterAssets, CharacterAssetError} from './managed-assets';
-import {validateCharacter, CHARACTER_LIMITS} from './validation';
+import {validateCharacter} from './validation';
+import {CHARACTER_FIELDS} from './limits';
 
 export class CharacterManagementError extends Error {
   constructor(message: string, public status = 400) {super(message);}
@@ -32,17 +33,17 @@ export async function readManagedCharacter(actor: string, id: string) {
   if (!character) throw new CharacterManagementError('角色不存在。', 404);
   return character;
 }
-function payload(input: unknown) {
+async function payload(input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new CharacterManagementError('角色数据格式错误。');
   const body = input as Record<string, unknown>;
   if (typeof body.reason !== 'string' || !body.reason.trim() || body.reason.trim().length > 500) throw new CharacterManagementError('请填写1–500字操作理由。');
   if (!body.content || typeof body.content !== 'object' || Array.isArray(body.content)) throw new CharacterManagementError('角色内容格式错误。');
   if (Object.hasOwn(body.content, 'isPublic') || Object.hasOwn(body.content, 'is_public')) throw new CharacterManagementError('内容编辑不能直接公开角色，请使用发布操作。');
-  const validated = validateCharacter(body.content, false);
+  const validated = await validateCharacter(body.content, false);
   if (validated.error) throw new CharacterManagementError(validated.error);
 
   const raw = body.content as Record<string, unknown>;
-  const allowed = new Set([...Object.keys(CHARACTER_LIMITS), 'isAdult', 'isExclusive', 'relationshipStatus', 'initialRomance', 'initialIntimacy', 'images', 'emojis', 'supportCast']);
+  const allowed = new Set([...CHARACTER_FIELDS, 'isAdult', 'isExclusive', 'relationshipStatus', 'initialRomance', 'initialIntimacy', 'images', 'emojis', 'supportCast']);
   if (Object.keys(raw).some(key => !allowed.has(key))) throw new CharacterManagementError('包含不支持的角色内容字段。');
   const relationship = raw.relationshipStatus;
   if (relationship !== undefined) {
@@ -55,9 +56,9 @@ function payload(input: unknown) {
   return {body, content: validated.data, assets: raw, reason: body.reason.trim()};
 }
 export async function saveManagedCharacter(actor: string, id: string | null, input: unknown) {
-  const {body, content, assets, reason} = payload(input);
+  const {body, content, assets, reason} = await payload(input);
   if (id && (typeof body.updatedAt !== 'string' || !Number.isFinite(Date.parse(body.updatedAt)))) throw new CharacterManagementError('缺少有效角色版本。');
-  if (!id) {const validated = validateCharacter(content, true); if (validated.error) throw new CharacterManagementError(validated.error);}
+  if (!id) {const validated = await validateCharacter(content, true); if (validated.error) throw new CharacterManagementError(validated.error);}
   await pragmasReady;
   return db.$transaction(async tx => {
     await tx.$executeRaw`UPDATE users SET account_version = account_version WHERE id = ${actor}`;

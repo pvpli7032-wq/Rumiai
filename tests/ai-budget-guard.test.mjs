@@ -15,14 +15,25 @@ process.env.AI_PRICE_MODEL = 'fixture-model';
 process.env.AI_PRICE_CURRENCY = 'USD';
 process.env.AI_INPUT_PRICE_PER_MILLION = '2';
 process.env.AI_OUTPUT_PRICE_PER_MILLION = '4';
-process.env.CHAT_RATE_LIMIT = '100';
-process.env.CHAT_DAILY_LIMIT = '3';
+
 // The Prisma schema engine cannot run in restricted environments (OS error 5);
 // the repo convention is to apply migrations with node:sqlite instead.
 const { createIsolatedDatabase } = await import('../scripts/helpers/create-isolated-db.mjs');
 createIsolatedDatabase(path.resolve('prisma', file));
 const { db, pragmasReady } = await import('../src/lib/db.ts'); await pragmasReady;
 const { reserveAiCall, finishAiCall, AiQuotaError, quotaDay } = await import('../src/lib/ai/ai-usage.ts');
+const { clearKeyEverywhere } = await import('../src/lib/settings/cache.ts');
+/** 每日请求上限与频率窗口现在来自设置中心；测试按同一张表写入并清缓存。 */
+async function setSetting(key, group, value) {
+  await db.operationSetting.upsert({
+    where: {key},
+    create: {key, group, value: JSON.stringify(value), version: 1, updatedBy: 'test-operator'},
+    update: {value: JSON.stringify(value), version: {increment: 1}, updatedBy: 'test-operator'},
+  });
+  clearKeyEverywhere(key);
+}
+await setSetting('billing.hardDailyMessages', 'chat', 3);
+await setSetting('limits.chat.perWindow', 'chat', 100);
 const { readCostBudgetBlock } = await import('../src/lib/ai/budget-guard.ts');
 const { signToken } = await import('../src/lib/auth.ts');
 const { POST: send } = await import('../src/app/api/conversations/[id]/messages/route.ts');

@@ -45,6 +45,18 @@ export const PERMISSIONS = {
   'operations.certificates.check': '检查站点 HTTPS 证书状态',
   'compliance.read': '查看注册年龄与条款版本设置',
   'compliance.manage': '配置注册年龄与条款版本要求',
+  'settings.read': '查看运营设置与修改历史',
+  'settings.write': '保存运营设置与恢复历史版本',
+  'accounts.settings.manage': '设置用户额度与计费特例',
+  'billing.read': '查看计费单、免费额度与模型币价',
+  'billing.manage': '设置模型币价与计费开关',
+  'mirror.read': '查看他眼中的你结果与统计',
+  'mirror.manage': '编辑他眼中的你配置与内容',
+  'disputes.read': '查看评理案例与结案状态',
+  'disputes.manage': '处理评理案例、提前结案与隐藏',
+  'tasks.read': '查看后台任务运行状态',
+  'tasks.manage': '启停与手动执行后台任务',
+  'notifications.read': '查看站内通知投递记录',
 } as const;
 export type AdminPermission = keyof typeof PERMISSIONS;
 export const OWNER_ONLY: AdminPermission[] = ['admin.staff.manage', 'admin.roles.manage'];
@@ -68,4 +80,8 @@ export const SYSTEM_ROLES = [
   {code: 'OPERATIONS_MANAGER', name: '运维配置管理员', permissions: ['operations.read', 'operations.maintenance.manage', 'operations.certificates.check'] as AdminPermission[]},
   {code: 'COMPLIANCE_MANAGER', name: '合规设置管理员', permissions: ['compliance.read', 'compliance.manage'] as AdminPermission[]},
   {code: 'PAYMENT_MERCHANT_MANAGER', name: '支付商户管理员', permissions: ['payments.merchants.read', 'payments.merchants.manage', 'payments.merchants.secrets.manage', 'payments.merchants.test'] as AdminPermission[]},
+  // 以下是 V3 新增业务面的职责角色：运营参数、玩法、计费与任务。
+  {code: 'SETTINGS_MANAGER', name: '运营设置管理员', permissions: ['settings.read', 'settings.write', 'growth.read', 'growth.manage', 'mirror.read', 'mirror.manage', 'disputes.read'] as AdminPermission[]},
+  {code: 'BILLING_MANAGER', name: '计费管理员', permissions: ['billing.read', 'billing.manage', 'settings.read', 'settings.write', 'accounts.settings.manage', 'ai.costs.read'] as AdminPermission[]},
+  {code: 'TASK_OPERATOR', name: '后台任务操作员', permissions: ['tasks.read', 'tasks.manage', 'operations.read', 'notifications.read'] as AdminPermission[]},
 ];

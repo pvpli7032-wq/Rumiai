@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useSiteContent } from '@/lib/use-site-content';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 
 /** Sticky top bar shown above the main column (brand on mobile, coins + account always). */
 export function Topbar() {
@@ -24,6 +25,8 @@ export function Topbar() {
             <span className="mr-1">🪙</span>
             <span className="font-bold">{user?.coins ?? 0}</span>
           </Link>
+
+          <NotificationBell />
 
           {!isLoading &&
             (user ? (

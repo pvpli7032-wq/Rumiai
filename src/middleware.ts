@@ -8,7 +8,7 @@ import {logRouteError} from '@/lib/logger';
  * public marketing routes are localised for now, so the existing signed-in app
  * paths (/discover, /chat, …) are left alone until they move under the segment too.
  */
-const LOCALISED_ROOTS = ['', 'about', 'explore', 'terms-and-policy', 'character', 'auth'];
+const LOCALISED_ROOTS = ['', 'about', 'explore', 'terms-and-policy', 'character', 'auth', 'disputes', 'mirror'];
 
 /**
  * The origin a browser should be sent to. Derived from the request rather than from

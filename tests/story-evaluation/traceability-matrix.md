@@ -75,7 +75,7 @@
 | EV-A05-007 | 同一开场双路径对照（接受 vs 拒绝） | model-simulated |
 | EV-A05-008 | 跨章一致性四处核对（开场/归属/提及/经历） | model-simulated |
 
-注：A05 评测模板以 `docs/content/drafts/` 首发三篇（许棠·怀表 / 陆遥·点歌 / 秦晚·猫咖）为基准，闻舟·唱片店已由团队负责人确认替换为秦晚；准确性以人工复核的后续回复为准，不以 JSON 可解析为通过条件（第 20 章）。hiddenFacts 扫描（EV-A04-003 / EV-A09-003）以各篇「公开信息与隐藏事实（内部模板字段）」小节内容为负例来源；受控模板改写后若 hiddenFacts 落为结构化字段，以 content-writer 补充的字段命名约定为准。
+注：A05 评测模板以首发三篇草稿（许棠·怀表 / 陆遥·点歌 / 秦晚·猫咖；草稿随文档精简移出仓库，素材以数据库种子与 `content/stories/` 为准）为基准，闻舟·唱片店已由团队负责人确认替换为秦晚；准确性以人工复核的后续回复为准，不以 JSON 可解析为通过条件（第 20 章）。hiddenFacts 扫描（EV-A04-003 / EV-A09-003）以各篇「公开信息与隐藏事实（内部模板字段）」小节内容为负例来源；受控模板改写后若 hiddenFacts 落为结构化字段，以 content-writer 补充的字段命名约定为准。
 
 ### A06 编辑与删除历史
 | 用例 | 标题 | 层级 |
@@ -157,7 +157,7 @@
 - **依赖解除说明**：EV-A06-001/002 的原依赖「M4 历史失效事务」已随 M3-3 落地（`src/lib/stories/lifecycle/invalidation.ts`，message-service 同事务调用，contract §7），两例转 implemented。EV-A06-005 口径同步更新：旧 SEND/REGENERATE 仍 409；编辑/删除走同事务失效（不再 409）。
 - **已知漂移**：`tests/story-run-service.test.mjs`「old writes cannot bypass story lifecycle」一例仍断言编辑/删除 409，与 M3-3 失效事务语义不一致（该文件不在 W08 写作范围，未改动，需归属团队处理）。
 
-## 内容种子案例映射（docs/content/drafts/README.md EV-01–EV-15）
+## 内容种子案例映射（EV-01–EV-15）
 
 任务 #10 交付的三篇内容各含 5 条种子案例，是 model-simulated 层用例的具体输入；60 例骨架可在每条种子上按“三主角 × 三分支”扩展。映射关系（种子是素材，不替代本矩阵的用例定义与状态机口径）：
 

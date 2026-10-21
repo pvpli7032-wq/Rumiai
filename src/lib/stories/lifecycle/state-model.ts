@@ -1,7 +1,7 @@
 /**
  * Versioned schemas for persisted story state and extractor output.
  *
- * SQLite stores JSON as text (m3-data-contract.md §2): the database guarantees
+ * SQLite stores JSON as text：the database guarantees
  * neither syntax nor shape, so every read validates against the versioned schema
  * here. Corrupt stored state is a data-integrity fault — callers refuse to
  * advance state and surface a failure instead of overwriting it.

@@ -136,7 +136,7 @@ export async function openUpstream(
       max_tokens: maxTokens,
       messages: [
         { role: 'system', content: systemPrompt },
-        // Already limited to the most recent HISTORY_TURNS by the caller; slicing
+        // Already limited to the configured history count by the caller; slicing
         // again here used to throw away half of the context that was fetched.
         ...messages.map(m => ({ role: m.role.toLowerCase() === 'user' ? 'user' : 'assistant', content: m.content })),
         { role: 'user', content: userMessage },

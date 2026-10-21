@@ -6,7 +6,7 @@ import {readAiModelPriceCoverage} from './costs/model-price-service';
 export { parseDailyBudgets } from './budget-config';
 
 type Budget = DailyCostBudget;
-type Usage = { userId: string; currency: string; knownCost: number; unknownCalls: number };
+type Usage = { userId: string | null; currency: string; knownCost: number; unknownCalls: number };
 
 export function evaluateDailyBudgets(budgets: Record<string, Budget>, usage: Usage[]) {
   const alerts: { scope: 'site' | 'user'; currency: string; userId: string | null; knownCost: number; budget: number }[] = [];

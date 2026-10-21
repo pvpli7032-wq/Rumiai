@@ -1,13 +1,17 @@
 /**
  * M3-3 story turn orchestration: one accepted request is one story turn.
  *
- * Reliability model (docs/planning/m3-data-contract.md §6):
+ * Reliability model（V3 第 17 章）：
  * - Accept is a short transaction: revision CAS + the unique activeTurnId slot.
  * - The USER/ASSISTANT messages, the turn row and the run cursor commit in ONE
  *   transaction after generation; a turn that never committed never saved a message.
  * - Terminal turns are idempotency records: the same (runId, requestId) with the
  *   same requestHash replays the outcome, a different hash is a conflict, and an
  *   UNKNOWN/FAILED/CANCELLED turn is surfaced instead of silently regenerated.
+ *
+ * 计费（V3 第 20/21 章）：STORY_TURN 走与普通聊天同一个 @/lib/billing 费用服务。
+ * 预扣在预留 AiCall 之前；回合提交成功后结算（记下回复消息 id），失败/取消释放；
+ * 关闭收费时不建费用单，只记 AiCall 成本。相同 requestId 重放不重复扣费。
  */
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
@@ -23,8 +27,9 @@ import { readAiModelPlan } from '@/lib/ai/models/runtime-service';
 import { aiErrorCode, aiUserError, streamMockResponse, streamOpenAIResponse } from '@/lib/conversations/chat-stream';
 import { readRecentMessageHistory } from '@/lib/conversations/message-service';
 import { buildStoryContext } from './lifecycle/context-service';
-import { HISTORY_TURNS, CHAT_LIMIT, CHAT_WINDOW_MS } from '@/lib/ai/config';
+import {readChatRules} from '@/lib/settings';
 import type { AiStreamMetrics } from '@/lib/ai/types';
+import {beginBillingTurn, readBalance, readTurnReceipt, toChargeError, type BillingTurn} from '@/lib/billing/turn';
 
 type Run = Prisma.StoryRunGetPayload<{include: typeof runInclude}>;
 type TurnRow = Prisma.StoryTurnGetPayload<Record<string, never>>;
@@ -116,7 +121,12 @@ async function abandonTurn(runId: string, turnId: string, status: 'FAILED' | 'CA
   } catch (error) { logRouteError('POST /api/story-runs/[id]/turns (abandon)', error); }
 }
 
-/** One atomic commit: both messages, the turn row and the run cursor, or nothing. */
+/**
+ * One atomic commit: both messages, the turn row and the run cursor, or nothing.
+ *
+ * 提交成功之后才结算（caller 里紧跟着 billing.settle）；万一结算那一步中断，
+ * recovery 读回合的权威状态（COMMITTED）补结算，不会出现「回合已提交、费用仍冻结」。
+ */
 async function commitTurn(run: Run, turn: {id: string; turnNo: number}, userContent: string, assistantContent: string | null, acceptedRevision: number) {
   return db.$transaction(async tx => {
     // The user's own words and the assistant reply are distinct rows; an earlier
@@ -141,9 +151,16 @@ async function commitTurn(run: Run, turn: {id: string; turnNo: number}, userCont
   });
 }
 
-function replayStream(replay: {turn: TurnRow; revision: number}): ReadableStream<Uint8Array> {
+/** 计费回执随 SSE 发出，避免为了计数再查一次库。 */
+async function costEvents(party: Parameters<typeof readTurnReceipt>[0]): Promise<Record<string, unknown>[]> {
+  const receipt = await readTurnReceipt(party);
+  if (!receipt) return [];
+  return [{costResult: {...receipt, balance: await readBalance(party.userId)}}];
+}
+
+function replayStream(replay: {turn: TurnRow; revision: number}, narration: Record<string, unknown>[] = []): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
-    start(controller) {
+    async start(controller) {
       const encoder = new TextEncoder();
       const push = (event: Record<string, unknown>) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       const turn = replay.turn;
@@ -154,6 +171,7 @@ function replayStream(replay: {turn: TurnRow; revision: number}): ReadableStream
         const failure = TERMINAL_ERROR[turn.status] ?? {code: 'TURN_FAILED', message: '回合未能完成，请使用新的请求重试。'};
         push({type: 'error', turnId: turn.id, code: turn.errorCode ?? failure.code, message: failure.message});
       }
+      for (const event of narration) push(event);
       push({type: 'done', turnId: turn.id});
       controller.close();
     },
@@ -174,7 +192,8 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
   if (prior === 'in-progress') throw new StoryError('TURN_IN_PROGRESS', '同一回合仍在生成中，请稍后查询结果。', 409);
   if (prior === 'committed' || prior === 'terminal') {
     const turn = await db.storyTurn.findUniqueOrThrow({where: {runId_requestId: {runId: input.runId, requestId}}});
-    return replayStream(replayTurn(run, turn));
+    // 相同请求号重放：返回同一回合与同一费用单，不再扣币。
+    return replayStream(replayTurn(run, turn), await costEvents({userId: input.userId, conversationId: run.conversationId, operation: 'STORY_TURN', requestId}));
   }
 
   if (run.status !== 'ACTIVE') throw new StoryError('RUN_NOT_ACTIVE', '故事当前不在进行中，无法继续回合。', 409);
@@ -188,8 +207,28 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
   if (!isAiChatAvailable({...process.env, OPENAI_API_KEY: usingRealAi ? 'configured' : ''})) {
     throw new StoryError('AI_UNAVAILABLE', 'AI 服务未配置，暂时无法聊天。', 503);
   }
-  const burst = checkRateLimit('chat:min:' + input.userId, CHAT_LIMIT, CHAT_WINDOW_MS);
+  const rules = await readChatRules();
+  const burst = checkRateLimit('chat:min:' + input.userId, rules.perWindow, rules.windowMs);
   if (!burst.allowed) throw new StoryError('RATE_LIMITED', '发送过快，请稍后再试。', 429, {retryAfter: burst.retryAfter});
+
+  // 与普通聊天同一费用服务：先预扣再预留 AiCall；余额不足 402，不占用当日额度。
+  let billing: BillingTurn;
+  try {
+    billing = await beginBillingTurn({userId: input.userId, conversationId: run.conversationId, operation: 'STORY_TURN', requestId}, {modelKey: modelPlan?.[0]?.key ?? null});
+  } catch (error) {
+    const chargeError = toChargeError(error);
+    if (chargeError) throw new StoryError(chargeError.body.code === 'INSUFFICIENT_COINS' ? 'INSUFFICIENT_COINS' : 'REQUEST_CONFLICT', chargeError.message, chargeError.status, chargeError.body);
+    throw error;
+  }
+  // 相同 requestId 重放：费用单已在，说明这次回合要么在生成、要么已结算，绝不重复扣费。
+  if (billing.hold.replayed) {
+    if (billing.hold.status === 'SETTLED' && billing.hold.messageId) {
+      const turn = await db.storyTurn.findUnique({where: {runId_requestId: {runId: input.runId, requestId}}});
+      if (turn) return replayStream(replayTurn(run, turn), await costEvents({userId: input.userId, conversationId: run.conversationId, operation: 'STORY_TURN', requestId}));
+    }
+    if (billing.hold.status === 'HELD') throw new StoryError('TURN_IN_PROGRESS', '同一回合仍在生成中，请稍后查询结果。', 409);
+    throw new StoryError('REQUEST_CONFLICT', '这条请求已结束且没有产生回复，请重新发送。', 409);
+  }
   const reservedCall = await reserveAiCall(input.userId, run.conversationId, 'SEND', modelPlan?.map(model => model.key));
   let settled = false;
   const settle = async (status: 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'MOCK', metrics: AiStreamMetrics, errorCode?: string) => {
@@ -200,9 +239,11 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
 
   const accepted = await acceptTurn(input.userId, input.runId, expectedRevision, requestId, hash);
   if (accepted.kind === 'replay') {
-    // A concurrent sibling won the accept while quota was reserved; no model call happened.
+    // 并发同号的兄弟请求先拿到了回合位：本次没有调用模型，也不能释放那张共用的费用单
+    // （否则兄弟的这次生成就白送了）。只回收自己的 AiCall 预留，费用单交给它的实际结果。
     await settle('FAILED', {}, 'TURN_REJECTED');
-    return replayStream(accepted);
+    if (accepted.turn.status === 'COMMITTED') await billing.settle({messageId: accepted.turn.assistantMessageId}).catch(error => logRouteError('POST /api/story-runs/[id]/turns (charge settle)', error));
+    return replayStream(accepted, await costEvents({userId: input.userId, conversationId: run.conversationId, operation: 'STORY_TURN', requestId}));
   }
   const turn = accepted.turn;
 
@@ -220,6 +261,8 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)); } catch { /* disconnected */ }
       };
       const mapEvent = (event: Record<string, unknown>) => ('content' in event ? {type: 'delta', turnId: turn.id, content: event.content} : {type: 'demo', turnId: turn.id});
+      const notice = billing.notice();
+      if (notice) emit({type: 'cost', turnId: turn.id, ...notice});
       emit({type: 'accepted', turnId: turn.id, revision: accepted.revision});
 
       let metrics: AiStreamMetrics = {};
@@ -228,22 +271,28 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
       try {
         await db.storyTurn.updateMany({where: {id: turn.id, status: 'ACCEPTED'}, data: {status: 'GENERATING'}});
         // The user message is not persisted yet, so nothing is excluded from history.
-        const history = await readRecentMessageHistory(run.conversationId, '', HISTORY_TURNS);
+        const history = await readRecentMessageHistory(run.conversationId, '', rules.historyMessages);
         const storyContext = buildStoryContext(run);
         const streamOptions = {signal: abort.signal, onMetrics: (value: AiStreamMetrics) => { metrics = value; }, providers: configuredProviders, models: modelPlan ?? undefined, mapEvent, context: storyContext};
         assistantContent = usingRealAi
           ? await streamOpenAIResponse(controller, run.conversation.character, history, content, run.conversation.aiModel, streamOptions)
           : await streamMockResponse(controller, run.conversation.character, content, abort.signal, {mapEvent, context: storyContext});
+        if (assistantContent) billing.sawOutput();
       } catch (error) {
         logRouteError('POST /api/story-runs/[id]/turns', error);
         const code = cancelled ? 'CANCELLED' : aiErrorCode(error);
         await abandonTurn(run.id, turn.id, cancelled ? 'CANCELLED' : 'FAILED', code);
         await settle(cancelled ? 'CANCELLED' : 'FAILED', metrics, code);
+        await billing.release(code).catch(releaseError => logRouteError('POST /api/story-runs/[id]/turns (charge release)', releaseError));
         failure = {code, message: cancelled ? '回合已取消。' : aiUserError(error)};
       }
       if (!failure) {
         try {
+          // 「已输出即收费」：首个片段已送达时取消也提交这次回合。
+          if (cancelled && !billing.deliveredOutput()) throw new StoryError('TURN_CANCELLED', '回合已取消。', 409);
           const receipt = await commitTurn(run, turn, content, assistantContent, accepted.revision);
+          // 回合与消息同事务提交后结算；结算失败由 recovery 按回合权威状态补结算。
+          await billing.settle({messageId: receipt.assistantMessageId, aiCallId: reservedCall.id}).catch(error => logRouteError('POST /api/story-runs/[id]/turns (charge settle)', error));
           emit({type: 'committed', turnId: turn.id, ...receipt});
           emit({type: 'state_pending', turnId: turn.id, stateStatus: 'PENDING'});
           await settle(usingRealAi ? 'SUCCEEDED' : 'MOCK', metrics);
@@ -251,9 +300,11 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
           logRouteError('POST /api/story-runs/[id]/turns (persistence)', error);
           await abandonTurn(run.id, turn.id, 'FAILED', 'PERSISTENCE_ERROR');
           await settle('FAILED', metrics, 'PERSISTENCE_ERROR');
+          await billing.release('PERSISTENCE_ERROR').catch(releaseError => logRouteError('POST /api/story-runs/[id]/turns (charge release)', releaseError));
           failure = {code: 'PERSISTENCE_ERROR', message: '回合保存失败，请刷新后确认。'};
         }
       }
+      for (const event of await costEvents({userId: input.userId, conversationId: run.conversationId, operation: 'STORY_TURN', requestId}).catch(() => [])) emit(event);
       if (failure) emit({type: 'error', turnId: turn.id, code: failure.code, message: failure.message});
       emit({type: 'done', turnId: turn.id});
       input.signal.removeEventListener('abort', onAbort);

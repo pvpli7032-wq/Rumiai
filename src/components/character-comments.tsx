@@ -8,6 +8,7 @@ import { Heart, Reply, Trash2, Pencil, Flag, Send, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context';
 import { loginWithNext } from '@/lib/next-path';
 import { compactNumber } from '@/lib/i18n';
+import { readNumber, useUiConfig } from '@/lib/settings/use-ui-config';
 import { ReportDialog } from './report-dialog';
 
 interface Author {
@@ -29,7 +30,8 @@ interface CommentNode {
   replyCount?: number;
 }
 
-const MAX_BODY = 2_000;
+/** 配置未到达时的兜底值；真实上限来自设置中心 content.comment.maxChars，服务端按它校验。 */
+const DEFAULT_MAX_BODY = 2_000;
 
 /** "3 分钟前" — relative time, since a comment's age matters more than its date. */
 function ago(iso: string): string {
@@ -47,6 +49,7 @@ function ago(iso: string): string {
 export function CharacterComments({ characterId }: { characterId: string }) {
   const { token, user } = useAuth();
   const router = useRouter();
+  const maxBody = readNumber(useUiConfig(), 'content.comment.maxChars') ?? DEFAULT_MAX_BODY;
   const [comments, setComments] = useState<CommentNode[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,14 +168,14 @@ export function CharacterComments({ characterId }: { characterId: string }) {
       <div className="mb-4">
         <textarea
           value={draft}
-          onChange={(e) => setDraft(e.target.value.slice(0, MAX_BODY))}
+          onChange={(e) => setDraft(e.target.value.slice(0, maxBody))}
           rows={2}
           placeholder={token ? "写下评论…" : "登录后发表评论"}
           onFocus={() => { if (!token) router.push(loginWithNext()); }}
           className="w-full resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
         />
         <div className="mt-1 flex items-center justify-between">
-          <span className="text-[11px] text-zinc-600">{draft.length}/{MAX_BODY}</span>
+          <span className="text-[11px] text-zinc-600">{draft.length}/{maxBody}</span>
           <button
             onClick={() => post(draft)}
             disabled={busy || !draft.trim()}
@@ -194,6 +197,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
             <li key={c.id}>
               <CommentRow
                 node={c}
+                maxBody={maxBody}
                 editing={editingId === c.id}
                 editDraft={editDraft}
                 busy={busy}
@@ -211,7 +215,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                 <div className="ml-10 mt-2">
                   <textarea
                     value={replyDraft}
-                    onChange={(e) => setReplyDraft(e.target.value.slice(0, MAX_BODY))}
+                    onChange={(e) => setReplyDraft(e.target.value.slice(0, maxBody))}
                     rows={2}
                     autoFocus
                     placeholder={"回复 " + (c.author.name || c.author.username)}
@@ -239,6 +243,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                     <li key={r.id}>
                       <CommentRow
                         node={r}
+                        maxBody={maxBody}
                         compact
                         editing={editingId === r.id}
                         editDraft={editDraft}
@@ -298,6 +303,7 @@ function mapTree(
 function CommentRow({
   node,
   compact,
+  maxBody,
   editing,
   editDraft,
   busy,
@@ -312,6 +318,7 @@ function CommentRow({
 }: {
   node: CommentNode;
   compact?: boolean;
+  maxBody: number;
   editing: boolean;
   editDraft: string;
   busy: boolean;
@@ -354,7 +361,7 @@ function CommentRow({
           <div className="mt-1">
             <textarea
               value={editDraft}
-              onChange={(e) => onEditDraft(e.target.value.slice(0, MAX_BODY))}
+              onChange={(e) => onEditDraft(e.target.value.slice(0, maxBody))}
               rows={2}
               autoFocus
               className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-xs text-white focus:border-brand-strong/50 focus:outline-hidden"

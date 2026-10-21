@@ -57,13 +57,18 @@ function fakeDeps(env,{throwAI=false,persistGate=null,throwPersist=false,reviewS
     return 'fake';
   };
   const streamOpenAIResponse=async(...args)=>{state.chatCalls++;state.providersPassed=args[5]?.providers;state.modelsPassed=args[5]?.models;if(throwAI) throw Error('upstream down');return 'AI result';};
-  const config={HISTORY_TURNS:20,CHAT_LIMIT:30,CHAT_WINDOW_MS:60000};
+  // 聊天规则改由设置中心读取；这里给固定值，路由用例不依赖数据库设置。
+  const chatRules={maxMessageChars:5000,historyMessages:20,perWindow:30,windowMs:60000};
   const service={streamMockResponse,streamOpenAIResponse,aiErrorCode:()=>"UPSTREAM_ERROR",aiUserError:()=>"AI 服务暂时不可用，请稍后重试。"};
   class ConversationError extends Error { constructor(message,status){super(message);this.status=status;} }
   const stubs={
     'next/server':next,'@/lib/db':{db},'@/lib/logger':{logRouteError:()=>{}, logWarning:()=>{}},
     '@/lib/auth':baseAuth,'@/lib/rate-limit':{checkRateLimit:()=>({allowed:true})},
-    '@/lib/ai/config':config,'@/lib/conversations/chat-stream':service,'@/lib/ai/providers/management-service':{readActiveAiProviders:async()=>providers},'@/lib/ai/models/runtime-service':{readAiModelPlan:async()=>modelPlan,readAiModelCatalog:async()=>modelCatalog},'@/lib/ai/ai-usage':{AiQuotaError:class AiQuotaError extends Error{},reserveAiCall:async()=>({id:'usage1',startedAt:new Date()}),finishAiCall:async()=>{}},'@/lib/launch-guards':policy,
+    '@/lib/settings':{readChatRules:async()=>chatRules},
+    // 记忆注入与计费粘合层不属于路由行为用例：按「无记忆、不收费」返回。
+    '@/lib/memory':{buildMemoryContext:async()=>({text:null}),enqueueSummaryIfDue:async()=>{}},
+    '@/lib/billing/turn':{beginBillingTurn:async party=>({requestId:party.requestId,hold:{held:false},sawOutput(){},deliveredOutput(){return false},notice(){return null},release:async()=>{},settle:async()=>{}}),parseJsonBody:async request=>request?request.clone().json().then(body=>body&&typeof body==='object'?body:null).catch(()=>null):null,readBalance:async()=>0,readTurnReceipt:async()=>null,resolveRequestId:raw=>typeof raw==='string'&&/^[A-Za-z0-9_-]{8,64}$/.test(raw)?raw:'srv-test-request',toChargeError:()=>null},
+    '@/lib/conversations/chat-stream':service,'@/lib/ai/providers/management-service':{readActiveAiProviders:async()=>providers},'@/lib/ai/models/runtime-service':{readAiModelPlan:async()=>modelPlan,readAiModelCatalog:async()=>modelCatalog},'@/lib/ai/ai-usage':{AiQuotaError:class AiQuotaError extends Error{},reserveAiCall:async()=>({id:'usage1',startedAt:new Date()}),finishAiCall:async()=>{}},'@/lib/launch-guards':policy,
     '@/lib/conversations/conversation-service':{
       ConversationError,
       readConversationForChat: async(userId,id)=>{

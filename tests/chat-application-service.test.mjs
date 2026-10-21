@@ -23,7 +23,18 @@ function harness(options={}){
   '@/lib/rate-limit':{checkRateLimit:()=>{state.calls.push('rate');return options.rate??{allowed:true,retryAfter:9}}},
   '@/lib/ai/ai-usage':{AiQuotaError,reserveAiCall:async(u,c,mode)=>{state.calls.push('reserve');state.reserveModes.push(mode);return{id:'call1',startedAt:new Date()}},finishAiCall:async(...args)=>{state.calls.push('finish');state.finished.push(args)}},
   '@/lib/conversations/chat-stream':{aiErrorCode:e=>e?.name==='AbortError'?'CANCELLED':'UPSTREAM_ERROR',aiUserError:()=> 'AI 服务暂时不可用，请稍后重试。',streamOpenAIResponse:async(controller,character,history,content,model,opts)=>{state.calls.push('generate');if(options.abortWait)return await new Promise((resolve,reject)=>opts.signal.addEventListener('abort',()=>reject(opts.signal.reason),{once:true}));if(options.failGenerate)throw Error('upstream');controller.enqueue(new TextEncoder().encode('data: {"content":"reply"}\n\n'));return'reply'},streamMockResponse:async(controller)=>{state.calls.push('generate');controller.enqueue(new TextEncoder().encode('data: {"demo":true}\n\n'));return'reply'}},
-  '@/lib/ai/types':{},'@/lib/ai/config':{HISTORY_TURNS:20,CHAT_LIMIT:30,CHAT_WINDOW_MS:60000},
+  '@/lib/ai/types':{},'@/lib/settings':{readChatRules:async()=>options.chatRules??{maxMessageChars:5000,historyMessages:20,perWindow:30,windowMs:60000}},
+  '@/lib/memory':{buildMemoryContext:async()=>({text:null}),enqueueSummaryIfDue:async()=>{}},
+  '@/lib/db':{db:{}},
+  // 计费粘合层：本文件只验证聊天链路本身，费用单按「不收费」返回。
+  '@/lib/billing/turn':{
+   beginBillingTurn:async party=>({requestId:party.requestId,hold:{held:false},sawOutput(){},deliveredOutput(){return false},notice(){return null},release:async()=>{},settle:async()=>{}}),
+   parseJsonBody:async request=>request?request.clone().json().then(body=>body&&typeof body==='object'?body:null).catch(()=>null):null,
+   readBalance:async()=>0,
+   readTurnReceipt:async()=>null,
+   resolveRequestId:raw=>typeof raw==='string'&&/^[A-Za-z0-9_-]{8,64}$/.test(raw)?raw:'srv-test-request',
+   toChargeError:()=>null,
+  },
   '@/lib/ai/providers/management-service':{readActiveAiProviders:async()=>[]},
   '@/lib/ai/models/runtime-service':{readAiModelPlan:async()=>null},
  };

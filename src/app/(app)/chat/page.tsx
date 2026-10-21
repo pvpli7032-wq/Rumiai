@@ -7,6 +7,7 @@ import { zhError } from '@/lib/copy/zh';
 import { useEffect, useRef, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { readNumber, useUiConfig } from '@/lib/settings/use-ui-config';
 import { loginWithNext } from '@/lib/next-path';
 import { RelationshipPanel } from '@/components/chat/relationship-panel';
 import { ReportDialog } from '@/components/report-dialog';
@@ -96,6 +97,8 @@ function ChatContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, token, isLoading: authLoading } = useAuth();
+  // 单条消息上限取设置中心下发值；未加载时省略约束，服务端仍按配置校验。
+  const chatMaxChars = readNumber(useUiConfig(), 'chat.maxMessageChars');
   const [character, setCharacter] = useState<Character | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -582,7 +585,7 @@ function ChatContent() {
             value={input}
             onChange={e => setInput(e.target.value)}
             disabled={streaming}
-            maxLength={5000}
+            maxLength={chatMaxChars}
             placeholder={"发送消息给" + (character?.name || '角色') + "..."}
             className="flex-1 px-4 py-3 bg-zinc-800 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all disabled:opacity-50"
           />

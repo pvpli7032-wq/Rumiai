@@ -1,6 +1,7 @@
 import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
+import {readSettingValue} from '@/lib/settings';
 
 const SOURCES=[
   {key:'CHECKIN_REWARD',label:'每日签到'},
@@ -41,6 +42,18 @@ export async function readRewardBudgetReport(actorId:string,days:number){
       const day=daily.get(row.day)??{claims:0,coins:0};day.claims+=claims;day.coins+=coins;daily.set(row.day,day);
     }
     const sources=SOURCES.map(({key,label})=>({key,label,...totals.get(key)!}));
-    return {generatedAt:generatedAt.toISOString(),since:since.toISOString(),days,budgetLimitConfigured:false,totalClaims:sources.reduce((sum,row)=>sum+row.claims,0),totalCoins:sources.reduce((sum,row)=>sum+row.coins,0),sources,daily:[...daily].map(([date,value])=>({date,...value}))};
+    // 发币上限由设置中心决定（grant.dailyCapCoins / grant.perUserDailyCapCoins），空表示不设额外上限。
+    const [siteCap, perUserCap] = await Promise.all([
+      readSettingValue<number | null>('grant.dailyCapCoins').catch(() => null),
+      readSettingValue<number | null>('grant.perUserDailyCapCoins').catch(() => null),
+    ]);
+    const totalCoins = sources.reduce((sum,row)=>sum+row.coins,0);
+    return {
+      generatedAt:generatedAt.toISOString(),since:since.toISOString(),days,
+      budgetLimitConfigured: siteCap !== null || perUserCap !== null,
+      dailyCapCoins: siteCap, perUserDailyCapCoins: perUserCap,
+      overDailyCap: siteCap !== null && totalCoins > siteCap,
+      totalClaims:sources.reduce((sum,row)=>sum+row.claims,0),totalCoins,sources,daily:[...daily].map(([date,value])=>({date,...value})),
+    };
   });
 }

@@ -59,6 +59,10 @@ test('analytics reports real scoped aggregates, protects permission and states u
   assert.equal(report.engagement.visiblePosts,1);assert.equal(report.engagement.visibleComments,1);assert.equal(report.engagement.moderationActions,1);
   assert.equal(report.payments.paidOrders,1);assert.equal(report.payments.paidAmountCnyCents,600);
   assert.equal(report.aiCosts.find(row=>row.currency==='USD').knownCostCalls,1);assert.equal(report.aiCosts.find(row=>row.currency==='USD').unknownCostCalls,1);
+  // 工作台趋势图的数据源：逐日序列按天补齐，缺的日期给 0，不省略成断线。
+  assert.equal(report.daily.length,report.days);
+  assert.equal(report.daily.reduce((sum,row)=>sum+row.assistantMessages,0),1);
+  assert.match(report.daily.at(-1).date,/^\d{4}-\d{2}-\d{2}$/);
   assert.equal(report.definitions.retentionAvailable,true);assert.equal(report.definitions.grossMarginAvailable,false);
   const oldCohortReport=report.retention.cohorts.find(row=>row.cohortDate===oldCohortDate.toISOString().slice(0,10));assert(oldCohortReport,JSON.stringify(report.retention));assert.equal(oldCohortReport.cohortSize,1);assert.equal(oldCohortReport.d1.rate,1);assert.equal(oldCohortReport.d7.rate,1);assert.equal(oldCohortReport.d30.rate,1);
   assert(await getAuthUser(await req(ordinary,'/api/admin/analytics')));assert.equal(await db.userActivityDay.count({where:{userId:ordinary.id}}),1);

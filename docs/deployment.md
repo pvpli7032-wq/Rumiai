@@ -1,0 +1,125 @@
+# 启动与部署
+
+> 权威依据：`docs/planning/commercial-implementation-plan.md`（工程契约）与 V3 终稿第 27 章（迁移部署与资料整理）。
+> 本文件只写**本仓库当前真实存在的命令、路径与流程**；服务器地址、账号与密钥一律不写入仓库，凭据只留在本机受保护位置。
+
+## 1. 环境与依赖
+
+- Node.js：生产按 `deploy/baota/README.md` 使用服务器已安装的 Node 24；本地用仓库 `node_modules` 同一锁文件。
+- 数据库：SQLite（单文件），Prisma 管理结构与迁移。
+- 依赖安装：`npm ci`（发布包必须带 `package-lock.json`，不新增依赖）。
+
+## 2. 本地启动
+
+```bash
+npm ci
+npx prisma generate
+npm run db:local        # 用 node:sqlite 顺序执行 prisma/migrations，适合本机
+npm run dev             # 开发服务器
+```
+
+`db:local` 是在本机 Prisma schema engine 不可用时的替代入口：它按顺序执行 `prisma/migrations/**/migration.sql` 并写入 `_prisma_migrations`。正式库升级仍以 `npx prisma migrate deploy` 为准。
+
+## 3. 环境变量
+
+模板见 `.env.example`，生产配置放在服务器 `/www/wwwroot/khui-ai/shared/app.env`（权限 600，发布目录软链读取，禁止打进源码包）。
+
+只列**必须在环境里给**的：
+
+| 变量 | 说明 |
+|---|---|
+| `DATABASE_URL` | 必须是数据库文件绝对路径；本地用 `file:./dev.db`。 |
+| `UPLOADS_DIRECTORY` | 上传目录，与数据库同实例、同备份、同恢复。 |
+| `JWT_SECRET` | 至少 32 位随机会话密钥；恢复数据库后轮换。 |
+| `AI_PROVIDER_ENCRYPTION_KEY` / `PAYMENT_MERCHANT_ENCRYPTION_KEY` | 64 位十六进制主密钥，加密保存在库里的供应商/商户凭据；**保持稳定并单独备份**，更换会导致历史凭据不可读。 |
+| `DISABLE_MOCK_AI` / `ALLOW_SIMULATED_PURCHASES` | 生产必须 `true` / `false`：不模拟 AI、不模拟充值。 |
+| `EZFP_ENABLED` / `EZFP_REFUNDS_ENABLED` | 真实支付总开关，默认关闭；开启前先在后台配好套餐人民币价与正式商户。 |
+
+运营参数（字数、频率、额度、币价、玩法开关、提示词）已迁到设置中心，见 `docs/modules-and-apis.md` 第 6 节，**不再新增环境变量**；旧的兜底环境变量随该组迁移完成即删除。
+
+## 4. 构建与验证
+
+```bash
+npm run typecheck                          # tsc --noEmit
+npm run verify:build                       # 独立空库跑迁移 + 生产构建（ISOLATED_BUILD_DIR）
+npm run build                              # 生产构建，产物在 .next-build
+npm run release:check -- <数据库绝对路径>   # 只读核对迁移历史是否兼容本发布
+```
+
+- 生产构建产物固定写 `.next-build`，避免覆盖开发服务器的 `.next` 缓存。
+- `verify:build` 的隔离库每次随机命名，构建结束即删除；不得把生产库当构建库。
+- `release:check` 拒绝待应用、未完成与数据库独有的迁移；`npm start` 启动前会自动执行同一检查，退出码非 0 不放行。
+
+## 5. 迁移与备份
+
+```bash
+npm run db:backup -- <标签>       # 数据库备份
+npm run state:backup -- <标签>    # 数据库 + 上传的联合备份（切换前必做）
+npx prisma migrate deploy         # 只追加结构，不清空既有订单与消息
+npm run state:restore -- <标签>   # 恢复到全新目录，不覆盖源库
+```
+
+规则：
+
+1. 迁移只增量；回退走「上一发布版本 + 数据恢复」，**不执行破坏性回滚**。
+2. 正式库升级前，先在数据库副本上演练同一个 `migrate deploy`。
+3. 备份与上传目录必须同时备份、同时恢复；只恢复数据库会让图片与附件对不上。
+4. 发布包排除：运行数据库及其 `-wal`/`-shm`、上传文件、`.env`、构建缓存、日志、Windows 依赖。
+
+## 6. 发布流程（单机 Next + PM2 + Nginx）
+
+1. **准备**：停写 → `npm run state:backup -- <标签>` 联合备份 → 在新版本目录 `npm ci && npx prisma generate && npm run verify:build`。
+2. **副本演练**：数据库副本上 `npx prisma migrate deploy`，用备用端口（如 3100）接副本库启动，验证登录、权限、关键流程。
+3. **发布**：`npm run release:check -- <生产库绝对路径>` → `npx prisma migrate deploy` → 按 `deploy/baota/ecosystem.config.js` 启动 PM2（进程名 `khui-ai`，单实例，`127.0.0.1:3000`，`NEXT_DIST_DIR=.next-build`）。
+4. **断言**：HTTPS、登录、中文导航、后台权限、上传授权、支付关闭状态；关闭真实模型时聊天返回 503 是预期行为。
+5. **观察**：`npm run test:production:guards` 与健康检查通过后 `pm2 save`。
+
+PM2 必须使用项目独立目录：
+
+```bash
+runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 list
+```
+
+跨发布目录时 `startOrReload` 可能仍指向旧目录，必须核对实际 `pm_cwd`。
+
+## 7. 开关与回退
+
+| 能力 | 关闭方式 | 关闭后的行为 |
+|---|---|---|
+| 聊天收费 | 设置中心 `billing.chargingEnabled=false` | 只停止新预扣；已 HELD 的费用单按实际结果结算或释放，不抹账本。 |
+| 他眼中的你 | `mirror.enabled=false` | 入口隐藏，已生成结果仍可查看。 |
+| 评理广场 | `dispute.enabled=false` | 停止新发起，已有案例按创建时写入的规则快照结束。 |
+| 聊天记忆 | `memory.enabled=false` | 不再生成摘要与注入事实，已存在的数据保留。 |
+| 真实支付 | `EZFP_ENABLED=false` | 下单入口关闭，历史订单与退款记录保留。 |
+
+回退：切换前保留上一发布目录与联合备份；需要回退时先停写，`state:restore` 恢复到全新目录，再一起切换代码、数据库、上传与配置。切换后已有新写入时，先保存现状与恢复来源，人工核对新增数据，禁止直接回旧库丢弃记录。
+
+## 7.1 发布记录
+
+| 发布 | 迁移 | 说明 |
+|---|---|---|
+| `commercial-20261021-c11` | 第 49 条 `20261021180000_commercial_platform` | 当前线上版本：设置中心、计费、Mirror、评理、记忆、后台任务、站内通知、六个后台分组。 |
+| `commercial-20261021-c9` | 第 48 条 | 上一版本，保留用于回退。 |
+
+切换时的顺序与实测要点：
+
+1. 用 `sqlite3 <库> ".backup '<副本>'"` 复制生产库（库在 WAL 模式，直接 `cp` 会丢未 checkpoint 的写入）。
+2. 副本上 `npx prisma migrate deploy`，核对行数与 `pragma integrity_check`，再用 3100 端口接副本启动一次。
+3. 正式库：`pm2 stop khui-ai` → `npm run state:backup -- <标签>` → `npx prisma migrate deploy` → `npm run release:check -- <生产库>`（要求 `compatible:true`）。
+4. 新目录 `npm ci`（**不要加 `--omit=dev`**：构建与 `release:check` 需要 `tsx`、`typescript`）→ `npm run build`。
+5. `pm2 delete khui-ai` 再 `pm2 start deploy/baota/ecosystem.config.js`：跨发布目录时 `startOrReload` 可能仍指向旧目录，必须核对 `pm_cwd`。
+6. 断言：`/api/admin/session` 权限码数量、`/api/admin/{settings,tasks,mirror/results,disputes/cases,billing/charges,ai/coin-prices}` 全部 200、设置 PATCH 写入后读回一致且历史留痕。
+
+## 8. 验收与回归
+
+| 命令 | 覆盖 |
+|---|---|
+| `npx tsc --noEmit` | 类型检查（0 错误为通过） |
+| `npm run test:notifications` | 站内通知：未读计数、标记已读、跳转字段、同事件不重复 |
+| `npm test` | API 端到端测试跑（需先启动被测服务） |
+| `npm run test:browser` | 浏览器关键流程矩阵 |
+| `npm run test:production:guards` | 生产守卫检查 |
+| `npm run test:commercial` | 商业改造六个域共 59 条：设置运行时、计费、Mirror、评理、通知、后台任务、后台商业接口 |
+| `npm run test:clean` | 列出（加 `--apply` 删除）验收脚本遗留的一次性数据库 |
+
+静态检查只覆盖改动文件与受影响调用方；不为一个设置改动跑全站。

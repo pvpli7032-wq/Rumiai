@@ -2,7 +2,7 @@
 // 本模块顶层不 import 任何 TypeScript 业务源；只有在执行器真正运行时才动态加载，
 // 因此 runner.mjs 在无 tsx 的普通 node 进程里加载本文件是安全的。
 //
-// 隔离口径（w08-eval-plan.md 第 7 节）：
+// 隔离口径：
 // - 每个评测进程自建一次性 SQLite（scripts/helpers/create-isolated-db.mjs），
 //   不连生产库；沙箱环境跑不了 prisma migrate deploy，沿用 node:sqlite 应用迁移的仓库约定。
 // - 路径一律按 import.meta.url 推导仓库根，不依赖 cwd。

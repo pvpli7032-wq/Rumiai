@@ -1,5 +1,5 @@
 /**
- * State-extraction worker (m3-data-contract.md §6, roadmap M4).
+ * State-extraction worker（V3 第 17 章，M4）。
  *
  * Every committed story turn leaves a durable PENDING task; this worker claims
  * tasks with a persisted lease (StoryTurn.leaseOwner/leaseExpiresAt), extracts

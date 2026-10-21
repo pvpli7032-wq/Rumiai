@@ -14,7 +14,7 @@ export async function readAnalyticsReport(actorId:string,days:number){
     if(!await hasAdminPermission(actorId,'analytics.read',tx))throw new AnalyticsReportError('当前账号没有运营分析权限。',403);
     const generatedAt=new Date(),since=new Date(generatedAt.getTime()-days*86400000),todayUtc=new Date(Date.UTC(generatedAt.getUTCFullYear(),generatedAt.getUTCMonth(),generatedAt.getUTCDate())),cohortSince=new Date(Date.UTC(generatedAt.getUTCFullYear(),generatedAt.getUTCMonth(),generatedAt.getUTCDate()-days-30));
     const paidWhere={currency:'CNY',status:{in:['PAID','REFUND_PENDING','REFUNDED']},paidAt:{gte:since,lte:generatedAt}};
-    const [newUsers,activeUsers,newConversations,userMessages,assistantMessages,visiblePosts,visibleComments,moderationActions,paidOrders,payingUsers,paidTotals,refundTotals,aiCosts,paymentMetrics,activityFloor,cohortRows]=await Promise.all([
+    const [newUsers,activeUsers,newConversations,userMessages,assistantMessages,visiblePosts,visibleComments,moderationActions,paidOrders,payingUsers,paidTotals,refundTotals,aiCosts,paymentMetrics,activityFloor,cohortRows,dailyRows]=await Promise.all([
       tx.user.count({where:{createdAt:{gte:since,lte:generatedAt}}}),
       tx.user.count({where:{lastActiveAt:{gte:since,lte:generatedAt},deletedAt:null,suspendedAt:null}}),
       tx.conversation.count({where:{createdAt:{gte:since,lte:generatedAt}}}),
@@ -39,6 +39,12 @@ export async function readAnalyticsReport(actorId:string,days:number){
         FROM users u WHERE u.deleted_at IS NULL AND u.created_at >= ${cohortSince} AND u.created_at <= ${generatedAt}
         GROUP BY date(u.created_at / 1000.0,'unixepoch') ORDER BY cohort_date DESC LIMIT ${days}
       `,
+      // 工作台趋势图要逐日序列：按 UTC 日聚合已保存的 AI 回复，缺的日期补 0（不省略成断线）。
+      tx.$queryRaw<Array<{day:string;replies:number}>>`
+        SELECT date(created_at / 1000.0,'unixepoch') AS day, COUNT(*) AS replies
+        FROM messages WHERE role='ASSISTANT' AND created_at >= ${since} AND created_at <= ${generatedAt}
+        GROUP BY day ORDER BY day
+      `,
     ]);
     const retentionCohorts=cohortRows.map(row=>{
       const cohortDate=new Date(`${row.cohort_date}T00:00:00.000Z`),cohortSize=Number(row.cohortSize);
@@ -46,12 +52,18 @@ export async function readAnalyticsReport(actorId:string,days:number){
       return {cohortDate:row.cohort_date,cohortSize,d1:metric(1,row.d1),d7:metric(7,row.d7),d30:metric(30,row.d30)};
     });
     const retentionDataFrom=activityFloor._min.activityDate?.toISOString()??null;
+    const dailyByDay=new Map(dailyRows.map(row=>[row.day,Number(row.replies)]));
+    const daily=Array.from({length:days},(_,index)=>{
+      const day=new Date(generatedAt.getTime()-(days-1-index)*86400000).toISOString().slice(0,10);
+      return {date:day,assistantMessages:dailyByDay.get(day)??0};
+    });
     return{
       generatedAt:generatedAt.toISOString(),since:since.toISOString(),days,
       users:{registered:newUsers,active:activeUsers,payingUsers,registrationPaymentRate:paymentMetrics.newUserPaymentRate},
       engagement:{newConversations,userMessages,assistantMessages,visiblePosts,visibleComments,moderationActions},
       payments:{paidOrders,paidAmountCnyCents:paidTotals._sum.amountCnyCents??0,completedRefunds:refundTotals._count._all,refundedAmountCnyCents:refundTotals._sum.amountCnyCents??0},
       aiCosts,
+      daily,
       retention:{available:retentionDataFrom!==null,dataFrom:retentionDataFrom,cohorts:retentionCohorts},
       definitions:{
         activeUsers:'统计窗口内有活动记录且未注销/停用的账号；活动记录按账号最近活动时间计算。',

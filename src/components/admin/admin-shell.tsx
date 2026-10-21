@@ -5,7 +5,7 @@ import {usePathname} from 'next/navigation';
 import {
   Activity, ArrowLeft, BarChart3, Bot, ChevronDown, ChevronRight, ClipboardList, Coins, Cpu,
   ExternalLink, FileText, Gift, KeyRound, Landmark, LayoutDashboard, LayoutTemplate, LogOut, Menu,
-  MessageSquare, PanelLeftClose, PanelLeftOpen, ScrollText, ShieldCheck, UserCog, Users, Wallet, X,
+  MessageSquare, PanelLeftClose, PanelLeftOpen, RefreshCw, Scale, ScrollText, Settings, ShieldCheck, Sparkles, UserCog, Users, Wallet, X,
   type LucideIcon,
 } from 'lucide-react';
 import {useAuth} from '@/lib/auth-context';
@@ -33,6 +33,10 @@ const ICONS: Record<AdminNavIcon, LucideIcon> = {
   compliance: ScrollText,
   operators: KeyRound,
   audit: ClipboardList,
+  mirror: Sparkles,
+  disputes: Scale,
+  tasks: RefreshCw,
+  settings: Settings,
 };
 
 const SIDEBAR_STATE_KEY = 'admin.sidebar.collapsed';

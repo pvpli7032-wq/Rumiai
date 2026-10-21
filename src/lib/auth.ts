@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { db } from '@/lib/db';
+import { readSettingValue } from '@/lib/settings/service';
 import {logActivityStorageUnavailable,recordUserActivityDay} from '@/lib/analytics/activity-service';
 
 /**
@@ -75,13 +76,16 @@ export async function signToken(payload: {
   tokenVersion?: number;
 }): Promise<string> {
   const header = base64urlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  // 登录有效期读设置中心（accounts.sessionDays）：后台改完，下一个签发的令牌就按新天数。
+  // 读失败按 7 天兜底，绝不让登录因为设置读不到而失败。
+  const sessionDays = await readSettingValue<number>('accounts.sessionDays').catch(() => 7);
   const claims = base64urlEncode(
     JSON.stringify({
       userId: payload.userId,
       email: payload.email,
       tv: payload.tokenVersion ?? 0,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * sessionDays,
     })
   );
   const signature = createHmac('sha256', resolveSecret())

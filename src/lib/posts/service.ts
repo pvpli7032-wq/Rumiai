@@ -48,8 +48,8 @@ export async function listPostComments(postId: string, query: {limit?: number; c
 }
 export async function createPost(userId: string, circleId: string, input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) postError('帖子数据格式不正确。');
-  const body = input as Record<string, unknown>, content = validatePostContent(body.content), characterId = body.characterId == null || body.characterId === '' ? null : typeof body.characterId === 'string' ? body.characterId : postError('关联角色无效。');
-  claimPostRateLimit(userId, 'post'); await pragmasReady;
+  const body = input as Record<string, unknown>, content = await validatePostContent(body.content), characterId = body.characterId == null || body.characterId === '' ? null : typeof body.characterId === 'string' ? body.characterId : postError('关联角色无效。');
+  await claimPostRateLimit(userId, 'post'); await pragmasReady;
   return db.$transaction(async tx => {
     await claimWriter(tx, userId); await requireMembership(tx, circleId, userId);
     if (characterId && !await tx.character.findFirst({where: {id: characterId, isPublic: true, reviewStatus: 'APPROVED'}, select: {id: true}})) postError('只能关联已审核通过的公开角色。');
@@ -59,7 +59,7 @@ export async function createPost(userId: string, circleId: string, input: unknow
 }
 export async function editPost(userId: string, postId: string, input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) postError('帖子数据格式不正确。');
-  const body = input as Record<string, unknown>, expected = version(body.updatedAt), content = validatePostContent(body.content);
+  const body = input as Record<string, unknown>, expected = version(body.updatedAt), content = await validatePostContent(body.content);
   const characterId = body.characterId === undefined ? undefined : body.characterId == null || body.characterId === '' ? null : typeof body.characterId === 'string' ? body.characterId : postError('关联角色无效。');
   await pragmasReady;
   return db.$transaction(async tx => {
@@ -90,8 +90,8 @@ export async function deletePost(userId: string, postId: string, expectedValue: 
 }
 export async function createPostComment(userId: string, postId: string, input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) postError('评论数据格式不正确。');
-  const body = input as Record<string, unknown>, {content, imageUrl} = validatePostComment(body.content, body.imageUrl);
-  claimPostRateLimit(userId, 'comment'); await pragmasReady;
+  const body = input as Record<string, unknown>, {content, imageUrl} = await validatePostComment(body.content, body.imageUrl);
+  await claimPostRateLimit(userId, 'comment'); await pragmasReady;
   return db.$transaction(async tx => {
     await claimWriter(tx, userId);
     const post = await tx.post.findFirst({where: {id: postId, status: 'VISIBLE', circle: {status: 'ACTIVE'}}, select: {id: true, circleId: true}});
@@ -102,7 +102,7 @@ export async function createPostComment(userId: string, postId: string, input: u
 }
 export async function editPostComment(userId: string, commentId: string, input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) postError('评论数据格式不正确。');
-  const body = input as Record<string, unknown>, expected = version(body.updatedAt), {content, imageUrl} = validatePostComment(body.content, body.imageUrl);
+  const body = input as Record<string, unknown>, expected = version(body.updatedAt), {content, imageUrl} = await validatePostComment(body.content, body.imageUrl);
   return db.$transaction(async tx => {
     await claimWriter(tx, userId);
     const comment = await tx.postComment.findUnique({where: {id: commentId}, select: {authorId: true, status: true, updatedAt: true, post: {select: {status: true, circleId: true, circle: {select: {status: true}}}}}});

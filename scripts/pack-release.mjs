@@ -52,8 +52,7 @@ function packRelease(label, options) {
       return false;
     }
     if (/^\.env(\..+)?$/.test(name) || name === 'app.env') return true;
-    if (/\.(db|db-wal|db-shm|db-journal|log)$/.test(name)) return true;
-    return name === '线上测试文档资料.txt';
+    return /\.(db|db-wal|db-shm|db-journal|log)$/.test(name);
   }
 
   function copyTree(source, target, relative = '') {

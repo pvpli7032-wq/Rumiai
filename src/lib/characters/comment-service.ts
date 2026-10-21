@@ -1,11 +1,9 @@
 import { db } from '@/lib/db';
+import { readCommunityRules } from '@/lib/settings';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { formatUser } from '@/lib/user-identity';
 
 const PAGE_SIZE = 30;
-const MAX_BODY = 2_000;
-const COMMENT_LIMIT = Number(process.env.COMMENT_RATE_LIMIT) || 20;
-const COMMENT_WINDOW_MS = Number(process.env.COMMENT_RATE_WINDOW_MS) || 600_000;
 const AUTHOR_SELECT = {id: true, username: true, displayName: true, avatarUrl: true} as const;
 
 export class CharacterCommentError extends Error {
@@ -80,7 +78,9 @@ export async function createCharacterComment(authorId: string, characterId: stri
   const body = input as Record<string, unknown>;
   const text = typeof body.body === 'string' ? body.body.trim() : '';
   if (!text) throw new CharacterCommentError('body is required', 400);
-  if (text.length > MAX_BODY) throw new CharacterCommentError(`body must be ${MAX_BODY} characters or fewer`, 400);
+  // 字数上限读设置中心（content.comment.maxChars），与帖子评论共用同一项。
+  const {commentMaxChars} = await readCommunityRules();
+  if (text.length > commentMaxChars) throw new CharacterCommentError(`body must be ${commentMaxChars} characters or fewer`, 400);
 
   const rawParent = body.parentId ?? body.parent_id;
   let parentId: string | null = null;
@@ -90,7 +90,9 @@ export async function createCharacterComment(authorId: string, characterId: stri
     parentId = parent.parentId ?? parent.id;
   }
 
-  const limit = checkRateLimit(`comment:${authorId}`, COMMENT_LIMIT, COMMENT_WINDOW_MS);
+  // 频率窗口读设置中心（limits.comment.*），与帖子评论共用同一项运营参数。
+  const rules = await readCommunityRules();
+  const limit = checkRateLimit(`comment:${authorId}`, rules.commentPerWindow, rules.commentWindowMs);
   if (!limit.allowed) throw new CharacterCommentError('评论太频繁了，请稍后再试', 429, limit.retryAfter);
 
   const comment = await db.comment.create({
@@ -115,7 +117,8 @@ export async function updateCharacterComment(authorId: string, commentId: string
   const body = (input as Record<string, unknown>).body;
   const text = typeof body === 'string' ? body.trim() : '';
   if (!text) throw new CharacterCommentError('body is required', 400);
-  if (text.length > MAX_BODY) throw new CharacterCommentError(`body must be ${MAX_BODY} characters or fewer`, 400);
+  const {commentMaxChars} = await readCommunityRules();
+  if (text.length > commentMaxChars) throw new CharacterCommentError(`body must be ${commentMaxChars} characters or fewer`, 400);
   return db.comment.update({
     where: {id: commentId}, data: {body: text},
     select: {id: true, body: true, likeCount: true, createdAt: true, updatedAt: true},
