@@ -5,7 +5,7 @@
 
 ## 1. 一句话现状
 
-V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）全部完成并已提交**：M0 抽取、M3 数据模型+回合编排、M4 记忆与章节闭环、W08 评测框架+执行器、W07 生命周期（导出/分享/下架/级联）、灰度旗标 F1–F4，全部终验通过（记录见 `.workbuddy/memory/baseline-2026-10-20.md` 第四/五/六节）。生产当前已切到 `commercial-20261021-c6`；BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准；生产 48 条迁移（c6 无新迁移），PM2 online、exec cwd 指向 c6，`pm2 save` 已完成，20/20 soak 返回 200，端到端 11/11。回滚位 `c2`/`c3`/`c4-rc2`/`c5` 保留。发布文档全部就绪并已同步计数：`docs/planning/releases/m5-pilot-runbook.md`（主流程）、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。**当前剩余是用户决策与灰度观察**：管理员密码轮换、试点名单与告警责任人。
+V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）全部完成并已提交**：M0 抽取、M3 数据模型+回合编排、M4 记忆与章节闭环、W08 评测框架+执行器、W07 生命周期（导出/分享/下架/级联）、灰度旗标 F1–F4，全部终验通过（记录见 `.workbuddy/memory/baseline-2026-10-20.md` 第四/五/六节）。生产当前已切到 `commercial-20261021-c6`；BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准；生产 48 条迁移（c6 无新迁移），PM2 online（restarts=1 为修复属主后的主动重启）、exec cwd 指向 c6，`pm2 save` 已完成，20/20 soak 返回 200，端到端 11/11。回滚位 `c2`/`c3`/`c4-rc2`/`c5` 保留。发布文档全部就绪并已同步计数：`docs/planning/releases/m5-pilot-runbook.md`（主流程）、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。**当前剩余是用户决策与灰度观察**：管理员密码轮换、试点名单与告警责任人。
 
 ## 2. 代码位置与状态
 

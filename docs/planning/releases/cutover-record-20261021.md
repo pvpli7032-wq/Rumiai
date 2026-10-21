@@ -55,7 +55,7 @@ c5 已上线生产。48 条迁移、PM2 online/restarts 0/cwd=c5、`pm2 save` �
 |---|---|
 | 发布目录 | `commercial-20261021-c6` |
 | 生产迁移 | 48 条（与 c5 相同，本批无新迁移） |
-| PM2 | online；exec cwd 指向 c6；`pm2 save` 已执行 |
+| PM2 | online；exec cwd 指向 c6；`pm2 save` 已执行；restarts=1（属修复属主后的**主动** `pm2 restart`，非崩溃重启；unstable restarts=0） |
 | 数据库 | `users=14 / deleted=9 / live=5`、`story_runs=0`、`story_templates=1`、`conversations=3`、`messages=6` |
 | 预切备份 | `shared/backups/pre-c6-20261021-084806`，`integrity_check=ok` |
 | worker | 启动日志 `{"event":"story_state_worker_started","intervalMs":15000}` 已在 out 日志出现 |
@@ -86,4 +86,4 @@ c5 已上线生产。48 条迁移、PM2 online/restarts 0/cwd=c5、`pm2 save` �
 
 ## 结论
 
-c6 已上线生产。48 条迁移、PM2 online/cwd=c6、`pm2 save`、11/11 端到端、20/20 soak 均已核实；`users live=5` 与切流前一致，探针账号 6 个全部走产品注销接口关闭（未用 SQL 直改生产库）。回滚位 `c2`/`c3`/`c4-rc2`/`c5` 保留。
+c6 已上线生产（服务器 `.next-build/BUILD_ID` = `dAyjVHVYk17AzkwYF52Ca`）。48 条迁移、PM2 online/cwd=c6、`pm2 save`、11/11 端到端、20/20 soak 均已核实；`users live=5` 与切流前一致，探针账号 6 个全部走产品注销接口关闭（未用 SQL 直改生产库）。回滚位 `c2`/`c3`/`c4-rc2`/`c5` 保留。
