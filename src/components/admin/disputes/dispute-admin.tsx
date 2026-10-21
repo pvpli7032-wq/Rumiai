@@ -13,15 +13,18 @@ import {Select} from '@/components/ui/select';
 import {apiFetch} from '@/lib/api-client';
 import {API} from '@/lib/api-paths';
 import {DisputeCaseDrawer} from './dispute-case-drawer';
+import {DisputeRewardPanel} from './dispute-reward-panel';
 import {
   DISPUTE_STATUS_FILTERS,
   DISPUTE_STATUS_LABELS,
   DISPUTE_STATUS_VARIANTS,
+  REWARD_SETTING_KEYS,
   describeDeadline,
   formatDateTime,
   type DisputeCaseItem,
   type DisputeCasePage,
   type DisputeStatus,
+  type RewardSettingKey,
 } from './types';
 
 const PAGE_LIMIT = 20;
@@ -36,6 +39,7 @@ export function DisputeAdmin() {
   const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('disputes.read');
   const canManage = permissions.includes('disputes.manage');
+  const canReadSettings = permissions.includes('settings.read');
 
   const [status, setStatus] = useState<DisputeStatus | 'ALL'>('ALL');
   const [page, setPage] = useState<DisputeCasePage | null>(null);
@@ -45,6 +49,9 @@ export function DisputeAdmin() {
   const [selected, setSelected] = useState<DisputeCaseItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [rewardValues, setRewardValues] = useState<Partial<Record<RewardSettingKey, unknown>> | null>(null);
+  const [rewardError, setRewardError] = useState('');
+  const [rewardLoading, setRewardLoading] = useState(false);
 
   const loadList = useCallback(async (cursor: string | null, append: boolean) => {
     if (!token) return;
@@ -69,6 +76,27 @@ export function DisputeAdmin() {
     setNotice('');
     if (token && canRead) void loadList(null, false);
   }, [token, canRead, status, refreshKey, loadList]);
+
+  // 奖励四个键只读展示：编辑位置在设置中心，这里不重复放输入框。
+  useEffect(() => {
+    if (!token || !canReadSettings) { setRewardValues(null); return; }
+    const controller = new AbortController();
+    setRewardLoading(true);
+    setRewardError('');
+    void apiFetch<{values: {key: string; value: unknown}[]}>(API.admin.settings + '?group=growth', {token, cache: 'no-store', signal: controller.signal})
+      .then(data => {
+        if (controller.signal.aborted) return;
+        const picked: Partial<Record<RewardSettingKey, unknown>> = {};
+        for (const key of REWARD_SETTING_KEYS) {
+          const row = data.values.find(item => item.key === key);
+          if (row) picked[key] = row.value;
+        }
+        setRewardValues(picked);
+      })
+      .catch(cause => { if (!controller.signal.aborted) setRewardError(cause instanceof Error ? cause.message : '奖励参数读取失败。'); })
+      .finally(() => { if (!controller.signal.aborted) setRewardLoading(false); });
+    return () => controller.abort();
+  }, [token, canReadSettings, refreshKey]);
 
   const stats = useMemo(() => {
     const items = page?.items ?? [];
@@ -223,6 +251,8 @@ export function DisputeAdmin() {
           <span className="text-xs text-muted-foreground">{page ? (page.nextCursor ? '还有更多案例' : '已经到底了') : '正在读取案例…'}</span>
         </div>
       </AdminPanel>
+
+      <DisputeRewardPanel values={rewardValues} canReadSettings={canReadSettings} error={rewardError} loading={rewardLoading} />
 
       <DisputeCaseDrawer item={selected} canManage={canManage} busy={busy} onClose={() => setSelected(null)} onCloseCase={item => void closeCase(item)} />
     </AdminPage>

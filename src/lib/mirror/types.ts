@@ -34,11 +34,16 @@ export type MirrorOwnerResult = MirrorPublicResult & {
   canDelete: boolean;
 };
 
+/** 推广角色的来源：后台指定，或名单为空时按热度自动选取。 */
+export type MirrorFeaturedSource = 'CONFIGURED' | 'AUTO';
+
 export type MirrorCharacterOption = {
   id: string;
   name: string;
   avatarUrl: string | null;
   tagline: string | null;
+  /** 这个角色是被指定的还是自动补齐的；前台不展示，后台配置页用它标来源。 */
+  source: MirrorFeaturedSource;
 };
 
 export type MirrorOverLimitPolicy = 'PAUSE' | 'CHARGE';
@@ -52,21 +57,30 @@ export type MirrorPurchase = {
   enabled: boolean;
   /** 每次超额生成的币价；0 表示未定价。 */
   coins: number;
-  /** 真的能买：开关打开 + 已定价 + 已登录 + 没超过每日购买上限。 */
+  /**
+   * 可以尝试购买：开关打开 + 已定价 + 已登录。
+   * 每日购买上限与余额在真正购买时校验，所以这里只回答「有没有这个选项」。
+   */
   available: boolean;
-  /** 今天已经买了多少次。 */
-  usedToday: number;
-  /** 每日购买上限；0 表示不额外限制。 */
-  dailyCap: number;
-  /** 今天还能买几次；null 表示不额外限制（只受余额约束）。 */
-  remaining: number | null;
 };
 
-/** 额度状态：匿名按 Cookie 与 IP 哈希两路计数，counted 为较严者。 */
+/** 单条通道的额度明细。 */
+export type MirrorQuotaChannel = {
+  used: number;
+  limit: number;
+  remaining: number;
+};
+
+/**
+ * 额度状态。登录只看用户维度；匿名同时走 Cookie 与 IP 两条通道，
+ * 各自上限独立（V3 表 9：Cookie 1 次/日、同一 IP 10 次/日），实际放行取较严者。
+ */
 export type MirrorQuota = {
   anonymous: boolean;
+  /** 生效通道的上限与已用；匿名时是当前较严的那条通道。 */
   limit: number;
   used: number;
+  /** 两条通道里更少的剩余；为 0 表示免费次数已用完。 */
   remaining: number;
   overLimitPolicy: MirrorOverLimitPolicy;
   /** 免费次数用完后能不能继续生成：要么还有免费次数，要么可以购买。 */
@@ -75,6 +89,9 @@ export type MirrorQuota = {
   blockedReason: string | null;
   /** 额度按这个时区的自然日重置。 */
   timezone: string;
+  purchase: MirrorPurchase;
+  /** 匿名双路明细；登录用户两条都是 null。 */
+  channels: {cookie: MirrorQuotaChannel | null; ip: MirrorQuotaChannel | null};
 };
 
 export type MirrorRules = {
@@ -96,6 +113,8 @@ export const MIRROR_SETTINGS = {
   questionCount: 'mirror.questionCount',
   answerMaxChars: 'mirror.answerMaxChars',
   anonymousDailyLimit: 'mirror.anonymousDailyLimit',
+  anonymousIpDailyLimit: 'mirror.anonymousIpDailyLimit',
+  featuredCharacterIds: 'mirror.featuredCharacterIds',
   userDailyLimit: 'mirror.userDailyLimit',
   compareLimit: 'mirror.compareLimit',
   overLimitPolicy: 'mirror.overLimitPolicy',

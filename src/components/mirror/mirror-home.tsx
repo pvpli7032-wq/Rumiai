@@ -12,6 +12,7 @@ import {MirrorCharacterPicker} from './character-picker';
 import {MirrorQuotaNote} from './quota-note';
 import {MirrorResultCard} from './result-card';
 import {MirrorActions} from './mirror-actions';
+import {trackProductEvent} from '@/lib/analytics/product-events-client';
 import type {MirrorGenerateResponse, MirrorPageResponse} from './client-types';
 
 /**
@@ -47,11 +48,15 @@ export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageRespon
   // 页面在服务端不能写 Cookie，首次挂载时用初始化接口给匿名访客签发主体标识。
   useEffect(() => { if (!initialPage) void load(); }, [initialPage, load]);
 
+  // 访问埋点：每次进入页面记一次，登录态由服务端补 userId，匿名走服务端签发的匿名主体。
+  useEffect(() => { trackProductEvent(token, 'mirror_visited'); }, [token]);
+
   const rules = page?.rules ?? null;
   const selected = useMemo(() => page?.characters.find(item => item.id === characterId) ?? null, [page, characterId]);
 
   async function generate() {
     if (!rules || !characterId || !page) return;
+    trackProductEvent(token, 'mirror_started', {subjectKey: characterId});
     setSubmitting(true);
     setError(null);
     try {

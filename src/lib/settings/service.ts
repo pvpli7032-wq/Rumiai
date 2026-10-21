@@ -75,19 +75,21 @@ export async function readPublicUiConfig(): Promise<Record<string, JsonValue>> {
   return Object.fromEntries(values.map(item => [item.key, item.value]));
 }
 
-export async function saveGroup(input: {
-  group: SettingGroup;
+/**
+ * 写入一批设置：跨分组、单事务，任何一项版本冲突都整体回滚。
+ *
+ * 这是唯一的写入口 —— 分组的 PATCH 与「导入确认」都走这里，
+ * 校验规则、版本检查与历史记录只存在一份。
+ */
+export async function saveChanges(input: {
   changes: SettingChange[];
   expectedVersions: Record<string, number>;
   operatorId: string;
-  userId?: string | null;
 }): Promise<SaveGroupResult> {
-  const definitions = definitionsOfGroup(input.group);
-  const allowed = new Map(definitions.map(def => [def.key, def]));
   const normalized: {def: SettingDefinition; value: JsonValue}[] = [];
   for (const change of input.changes) {
-    const def = allowed.get(change.key);
-    if (!def) throw new SettingValidationError(change.key, '不属于当前分组。');
+    const def = SETTINGS_BY_KEY[change.key];
+    if (!def) throw new SettingValidationError(change.key, '未登记的设置键。');
     normalized.push({def, value: normalizeSettingValue(def, change.value)});
   }
   if (normalized.length === 0) return {saved: [], versions: {}};
@@ -114,6 +116,20 @@ export async function saveGroup(input: {
   });
   for (const {def} of normalized) clearKeyEverywhere(def.key);
   return {saved: normalized.map(item => item.def.key), versions};
+}
+
+/** 按分组保存：先确认每一项都属于这个分组，再交给 saveChanges。 */
+export async function saveGroup(input: {
+  group: SettingGroup;
+  changes: SettingChange[];
+  expectedVersions: Record<string, number>;
+  operatorId: string;
+}): Promise<SaveGroupResult> {
+  const allowed = new Set(definitionsOfGroup(input.group).map(def => def.key));
+  for (const change of input.changes) {
+    if (!allowed.has(change.key)) throw new SettingValidationError(change.key, '不属于当前分组。');
+  }
+  return saveChanges({changes: input.changes, expectedVersions: input.expectedVersions, operatorId: input.operatorId});
 }
 
 export async function readHistory(input: {group?: SettingGroup; key?: string; cursor?: string | null; take?: number}) {

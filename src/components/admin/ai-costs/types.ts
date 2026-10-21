@@ -82,12 +82,28 @@ export interface BudgetRow {
   updatedAt: string;
 }
 
+/** 一个 AI 任务的今日已用与预算；limit 为 null 表示未设上限，不是 0。 */
+export interface TaskBudgetUsage {
+  currency: string;
+  knownCost: number;
+  unknownCalls: number;
+}
+
+export interface TaskBudgetRow {
+  taskType: string;
+  label: string;
+  limit: number | null;
+  usage: TaskBudgetUsage[];
+}
+
 export interface CostDashboard {
   generatedAt: string;
   since: string;
   days: number;
   costs: CostRow[];
   modelCosts: ModelCostRow[];
+  /** 任务级每日预算：达到只暂停该任务，消耗仍计入全站预算。 */
+  taskBudgets: TaskBudgetRow[];
   budget: {
     unknownCostCalls: number;
     pricingConfigured: boolean;

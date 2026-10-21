@@ -4,6 +4,8 @@ import { ensureAuthSigningConfiguration } from '@/lib/auth';
 import { allocateHandle, isUniqueViolation } from '@/lib/user-identity';
 import { recordRegistrationConsents, RegistrationConsentError } from '@/lib/compliance/policy-service';
 import { readRegistrationRules } from '@/lib/settings';
+import { readInviteSettings, resolveInviterId } from '@/lib/growth/invite-service';
+import { recordProductEvent } from '@/lib/analytics/product-events';
 
 /** 72 是 bcrypt 的输入上限，属于算法约束，不是运营参数。 */
 const MAX_PASSWORD_BYTES = 72;
@@ -40,15 +42,21 @@ export async function registerAccount(input: unknown) {
     username = await allocateHandle(email.split('@')[0]);
   }
 
+  // 邀请码写错不能让注册失败：解析不出来就当没有邀请人（V3 表 22 记录分享来源）。
+  const invite = await readInviteSettings();
+  const inviterId = invite.enabled ? await resolveInviterId(typeof body.inviteCode === 'string' ? body.inviteCode : null, '') : null;
+
   const passwordHash = await bcrypt.hash(password, 10);
   try {
     return await db.$transaction(async tx => {
       const user = await tx.user.create({
-        data: { username, displayName: displayName || null, email, passwordHash, coins: rules.signupBonusCoins, tier: 'ROOKIE' },
+        data: { username, displayName: displayName || null, email, passwordHash, coins: rules.signupBonusCoins, tier: 'ROOKIE', invitedByUserId: inviterId },
         select: { id: true, username: true, displayName: true, tokenVersion: true, email: true, avatarUrl: true, tier: true, coins: true, streakCount: true, createdAt: true },
       });
       try { await recordRegistrationConsents(tx, user.id, body.consents); }
       catch (error) { if (error instanceof RegistrationConsentError) throw new AccountRegistrationError(error.message, 400); throw error; }
+      // 邀请漏斗：有归属才记一条，埋点失败不影响注册（V3 表 22 邀请与分享）。
+      if (inviterId) void recordProductEvent({event: 'invite_registered', userId: user.id, subjectKey: inviterId});
       return user;
     });
   } catch (error) {

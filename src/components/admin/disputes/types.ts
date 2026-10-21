@@ -71,6 +71,23 @@ export function describeDeadline(deadlineAt: string, now = Date.now()): string {
   return diffMinutes >= 0 ? `还剩 ${text}` : `已逾期 ${text}`;
 }
 
+/** 奖励四个键的编辑位置只有设置中心「增长玩法」；后台这里只读展示。 */
+export const REWARD_SETTING_KEYS = [
+  'dispute.participateRewardCoins',
+  'dispute.hotRewardCoins',
+  'dispute.hotRewardTopN',
+  'dispute.rewardDailyCapCoins',
+] as const;
+
+export type RewardSettingKey = (typeof REWARD_SETTING_KEYS)[number];
+
+export const REWARD_SETTING_LABELS: Record<RewardSettingKey, {label: string; unit: string}> = {
+  'dispute.participateRewardCoins': {label: '参与投票奖励', unit: '币'},
+  'dispute.hotRewardCoins': {label: '热门案例奖励', unit: '币'},
+  'dispute.hotRewardTopN': {label: '热门奖励名额', unit: '名'},
+  'dispute.rewardDailyCapCoins': {label: '评理奖励每日上限', unit: '币'},
+};
+
 export function disputePostPath(id: string): string {
   return `/zh/disputes/${encodeURIComponent(id)}`;
 }

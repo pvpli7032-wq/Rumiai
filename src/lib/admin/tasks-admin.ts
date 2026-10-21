@@ -11,7 +11,7 @@ import {AdminOpsError, idParam} from './ops-error';
  * 与巡检走完全相同的租约、重试与上限。
  */
 
-export const ADMIN_TASK_KINDS = ['story-state', 'memory-summary', 'dispute-close', 'mirror-expire', 'charge-recovery', 'backup-cleanup'] as const;
+export const ADMIN_TASK_KINDS = ['story-state', 'memory-summary', 'dispute-close', 'mirror-expire', 'charge-recovery', 'backup-cleanup', 'daily-backup', 'event-cleanup'] as const;
 export type AdminTaskKind = typeof ADMIN_TASK_KINDS[number];
 
 interface TaskDefinition {
@@ -29,6 +29,8 @@ const DEFINITIONS: readonly TaskDefinition[] = [
   {kind: 'mirror-expire', name: '他眼中的你过期', description: '把超过保留天数的结果标记为过期', switchKey: 'mirror.enabled'},
   {kind: 'charge-recovery', name: '计费冻结核对', description: '核对超时仍处于冻结的费用单', switchKey: 'billing.chargingEnabled'},
   {kind: 'backup-cleanup', name: '备份清理', description: '按保留份数清理旧备份', switchKey: null},
+  {kind: 'daily-backup', name: '每日自动备份', description: '每天备份一次数据库，文件名带业务日期', switchKey: null},
+  {kind: 'event-cleanup', name: '玩法事件清理', description: '按事件保留天数删除更早的玩法埋点', switchKey: null},
 ];
 
 export interface AdminTaskItem {

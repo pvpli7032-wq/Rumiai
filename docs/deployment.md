@@ -54,6 +54,7 @@ npm run release:check -- <数据库绝对路径>   # 只读核对迁移历史是
 
 ```bash
 npm run db:backup -- <标签>       # 数据库备份
+npm run account:password -- <邮箱> <新密码>  # 设置指定账号密码（运维一次性动作）
 npm run state:backup -- <标签>    # 数据库 + 上传的联合备份（切换前必做）
 npx prisma migrate deploy         # 只追加结构，不清空既有订单与消息
 npm run state:restore -- <标签>   # 恢复到全新目录，不覆盖源库
@@ -121,7 +122,7 @@ runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 list
 | `npm test` | API 端到端测试跑（需先启动被测服务） |
 | `npm run test:browser` | 浏览器关键流程矩阵 |
 | `npm run test:production:guards` | 生产守卫检查 |
-| `npm run test:commercial` | 商业改造六个域共 59 条：设置运行时、计费、Mirror、评理、通知、后台任务、后台商业接口 |
+| `npm run test:commercial` | 商业改造十个域：设置运行时、计费（含取消策略）、Mirror、评理（含奖励）、通知、后台任务、后台商业接口、玩法埋点、增长邀请与引导、AI 任务预算 |
 | `npm run test:clean` | 列出（加 `--apply` 删除）验收脚本遗留的一次性数据库 |
 
 静态检查只覆盖改动文件与受影响调用方；不为一个设置改动跑全站。

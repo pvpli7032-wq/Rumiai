@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {db} from '@/lib/db';
 import {holdCharge, InsufficientCoinsError, ChargeRequestConflictError, readCharge, releaseCharge, settleCharge} from './charge-service';
+import {settleCancellation} from './cancel';
 import type {ChargeHoldResult, ChargeOperation} from './types';
 
 /**
@@ -36,8 +37,10 @@ export interface BillingTurn {
   sawOutput(): void;
   deliveredOutput(): boolean;
   notice(): BillingNotice | null;
-  /** 生成失败/取消：HELD → RELEASED，免费额度还回去；幂等。 */
+  /** 生成失败（非用户原因）：HELD → RELEASED，免费额度还回去，不消耗免费取消次数；幂等。 */
   release(reason: string): Promise<void>;
+  /** 用户取消：按 billing.cancelPolicy 与当日免费取消次数决定释放还是按已输出结算（V3 表 16）。 */
+  cancel(input?: {messageId?: string | null; aiCallId?: string | null}): Promise<void>;
   /** 消息已保存：HELD → SETTLED，并记下消息与调用 id 供重放与核对。幂等。 */
   settle(input?: {messageId?: string | null; aiCallId?: string | null}): Promise<void>;
 }
@@ -98,6 +101,10 @@ export async function beginBillingTurn(
     async release(reason) {
       if (!hold.held) return;
       await releaseCharge({userId: party.userId, requestId: party.requestId, operation: party.operation, reason, aiCallId: hold.aiCallId});
+    },
+    async cancel(input = {}) {
+      if (!hold.held) return;
+      await settleCancellation({userId: party.userId, requestId: party.requestId, operation: party.operation, outputDelivered: delivered, messageId: input.messageId ?? null, aiCallId: input.aiCallId ?? hold.aiCallId});
     },
     async settle(input = {}) {
       if (!hold.held) return;

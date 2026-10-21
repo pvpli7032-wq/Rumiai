@@ -76,7 +76,21 @@ src/components/notifications/    顶栏通知铃铛与抽屉
 
 `requestId` 重放返回同一费用单与结果，不重复调模型、不重复扣币。计费开关关闭时不建费用单、不扣币，只记录 AI 成本。
 
+**用户取消**（V3 表 8 / 表 16）：判定集中在 `src/lib/billing/cancel.ts`，聊天与故事共用一份。首个内容片段未送达 → 一律释放；已送达且策略为 `RELEASE_ALWAYS` → 释放；已送达且策略为 `CHARGE_WHEN_OUTPUT`（默认）→ 当日免费取消次数未用完则释放并占用一次，用完则按已输出结算。非用户原因（供应商失败、空回复、持久化失败）永远释放、不占次数。
+
+**任务预算**（V3 表 9 / §22）：`src/lib/ai/task-budget.ts` 按 `budget.task.*` 给六类任务各设每日成本上限，用量从 `AiCall.task_type` 聚合、复用全站同一条币种换算。任务预算触发只停该任务，消耗仍计入全站预算；他眼中的你匿名预算未填或为 0 时匿名入口关闭并提示待设置。这些键是 `decimal`，可填 0.01 这类小数。
+
 费用单的 `operation` 目前有四类：`CHAT_SEND`、`CHAT_REGENERATE`、`STORY_TURN`、`MIRROR`。Mirror 的超额购买走同一入口（`src/lib/mirror/purchase.ts`）：一次超额生成 = 一张 `operation=MIRROR` 的费用单，生成成功 settle、失败 release，免费额度那条路仍是进程内计数。
+
+## 4.1 玩法埋点与漏斗
+
+`product_events` 一张表承接全部玩法事件（V3 表 5 / 表 22）。写入口径：访问类事件由客户端上报，完成类事件由服务端在真实结果落库后写，不接受客户端自称完成。上报端点 `POST /api/events` 只收白名单内的事件名；后台 `GET /api/admin/analytics/product-funnel` 按 `COUNT(DISTINCT 'u:'||user_id / 'a:'||anonymous_subject)` 算漏斗，分母为 0 显示「样本不足」而不是 0%。事件保留天数由 `growth.eventRetentionDays` 决定，`event-cleanup` 巡检任务调用 `pruneProductEvents` 删除更早的记录。
+
+## 4.2 增长：邀请与新手引导
+
+邀请码是账号自带的稳定标识（`users.invite_code`），首次需要时生成一次后长期复用 —— 每次现算会让已发出去的链接全部失效。注册时按 `?invite=` 记录 `invited_by_user_id`；邀请码写错、自己邀请自己、邀请人已注销都只当没有邀请人，不让注册失败。被邀请人完成首次聊天后按 `growth.inviteRewardCoins` 给邀请人发一次币，业务键 `invite-first-chat:{userId}`，靠 `coin_transactions.reward_key` 唯一约束幂等。
+
+新手引导是可选流程：`growth.onboardingEnabled` 关闭或用户已完成后端都不拦。兴趣标签只收 `growth.interestTags` 白名单里的值；推荐角色只取已审核公开的角色，按标签命中数排序，一个都没命中就按热度。
 
 ## 5. 站内通知
 
@@ -102,13 +116,13 @@ src/components/notifications/    顶栏通知铃铛与抽屉
 
 ## 6. 运营设置键
 
-全部键在 `src/lib/settings/registry.ts` 登记，分五组；下表只列分组与代表键，默认值与范围以后台界面为准（后台是唯一编辑入口）。
+全部键在 `src/lib/settings/registry.ts` 登记（当前 86 个），分五组；下表只列分组与代表键，默认值与范围以后台界面为准（后台是唯一编辑入口）。每个键都有真实读取方，没有只登记不生效的键。
 
 | 分组 | 键 |
 |---|---|
 | `chat` 聊天与内容 | `chat.maxMessageChars`、`chat.historyMessages`、`limits.chat.*`、`billing.hardDailyMessages`、`content.post.*`、`content.comment.maxChars`、`content.character.*`、`upload.maxMB`、`limits.post.*`、`limits.comment.*` |
-| `billing` 计费额度 | `billing.chargingEnabled`、`billing.freeDailyMessages`、`billing.priceMultiplier`、`billing.holdTimeoutMinutes`、`billing.targetMarginPercent`、`billing.marginAlertPercent`、`billing.dayTimezone`、`story.chargingEnabled`、`story.coinPrice` |
-| `growth` 增长玩法 | `grant.*`、`mirror.*`、`dispute.*`、`memory.*`、`tasks.*` |
+| `billing` 计费额度 | `billing.chargingEnabled`、`billing.freeDailyMessages`、`billing.priceMultiplier`、`billing.holdTimeoutMinutes`、`billing.targetMarginPercent`、`billing.marginAlertPercent`、`billing.dayTimezone`、`billing.cancelPolicy`、`billing.freeCancelPerDay`、`budget.task.*`（六类任务每日成本上限）、`story.chargingEnabled`、`story.coinPrice` |
+| `growth` 增长玩法 | `grant.*`、`mirror.*`（含 `mirror.anonymousIpDailyLimit`、`mirror.featuredCharacterIds`、`mirror.purchase*`）、`dispute.*`（含四个奖励键）、`growth.*`（引导开关、兴趣标签、邀请开关与奖励、事件保留天数）、`memory.*`、`tasks.*` |
 | `accounts` 账号运行 | `accounts.passwordMinLength`、`accounts.sessionDays` |
 | `prompts` 提示词 | `prompt.mirror`、`prompt.disputeVerdict`、`prompt.memorySummary` |
 
@@ -118,13 +132,15 @@ src/components/notifications/    顶栏通知铃铛与抽屉
 - 权限码在 `src/lib/admin/permissions.ts` 登记，按「读 / 写 / 敏感操作」拆分；退款审批与申请分离，申请人不能自批。
 - 商业改造新增：`settings.read`、`settings.write`、`accounts.settings.manage`、`billing.read`、`billing.manage`、`mirror.read`、`mirror.manage`、`disputes.read`、`disputes.manage`、`tasks.read`、`tasks.manage`、`notifications.read`。
 - 所有者（OWNER 角色）在代码层始终拥有全部权限（`src/lib/admin/authorization.ts`）：新增权限码不需要回库补授权，也不会出现「所有者看不到新页面」。其他角色仍按库里登记的权限码判定。
-- 后台商业接口：`/api/admin/settings`（GET 分组读 / PATCH 分组写）、`/api/admin/settings/history`、`/api/admin/settings/restore`、`/api/admin/accounts/[id]/settings`（单用户特例）、`/api/admin/mirror/results`、`/api/admin/disputes/cases`、`/api/admin/disputes/cases/[id]/close`、`/api/admin/tasks`、`/api/admin/tasks/[id]/run`、`/api/admin/ai/coin-prices`、`/api/admin/billing/charges`。
+- 后台商业接口：`/api/admin/settings`（GET 分组读 / PATCH 分组写）、`/api/admin/settings/history`、`/api/admin/settings/restore`、`/api/admin/settings/export`、`/api/admin/settings/import`（预览）与 `/api/admin/settings/import/confirm`（一次事务写入，走与 PATCH 同一条 `saveChanges`）、`/api/admin/settings/prompts/preview`（试生成，记 AiCall 不扣币）、`/api/admin/analytics/product-funnel`、`/api/admin/accounts/[id]/settings`（单用户特例）、`/api/admin/mirror/results`、`/api/admin/disputes/cases`、`/api/admin/disputes/cases/[id]/close`、`/api/admin/tasks`、`/api/admin/tasks/[id]/run`、`/api/admin/ai/coin-prices`、`/api/admin/billing/charges`。
 
 ## 8. 接口约定
 
 - 统一错误体 `{error, code}`，`error` 是中文可读文案，`code` 是稳定的机器码（`src/lib/http/errors.ts`）。
 - 登录态只认 `Authorization: Bearer`；所有私有响应带 `Cache-Control: private, no-store`。
 - 请求体统一走 `readJsonBody`（带大小上限与统一的中文解析失败文案）。
+- 公开上报端点 `POST /api/events`：事件名必须在 `PRODUCT_EVENTS` 白名单内，匿名可调，按用户/IP 限流；埋点写失败只记日志，不影响主流程。
+- 增长端点 `GET/POST /api/growth/onboarding`、`GET /api/growth/invite`。
 - 路由实现约定：先鉴权，再校验入参，业务错误抛带 `status`/`code` 的领域错误，最后用 `jsonError` 兜底为 500 并只记日志。
 
 ## 9. 前台入口

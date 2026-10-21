@@ -6,9 +6,10 @@ import {budgetCircuitBreakerMode} from './budget-config';
 
 export type AiBudgetBlock = {
   status: 429 | 503;
-  code: 'AI_BUDGET_CONFIGURATION' | 'AI_COST_BUDGET' | 'AI_COST_UNKNOWN';
+  /** AI_TASK_BUDGET 是任务级预算：只暂停该任务，不触发全站熔断。 */
+  code: 'AI_BUDGET_CONFIGURATION' | 'AI_COST_BUDGET' | 'AI_COST_UNKNOWN' | 'AI_TASK_BUDGET';
   message: string;
-  scope?: 'site' | 'user';
+  scope?: 'site' | 'user' | 'task';
   currency?: string;
 };
 

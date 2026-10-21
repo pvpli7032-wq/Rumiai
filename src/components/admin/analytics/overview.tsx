@@ -5,6 +5,7 @@ import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page
 import {DataTable} from '@/components/ui/data-table';
 import {Select} from '@/components/ui/select';
 import {SceneFunnelPanel} from './scene-funnel-panel';
+import {ProductFunnelPanel} from './product-funnel-panel';
 
 type Report={
   generatedAt:string;since:string;days:number;
@@ -79,6 +80,7 @@ export function AnalyticsOverview({token}:{token:string}){
             : <p className="text-sm text-muted-foreground">此周期没有 AI 调用记录。</p>}
         </AdminPanel>
       </div>
+      <ProductFunnelPanel token={token} days={days} />
       <SceneFunnelPanel token={token} days={days} />
       <AdminPanel title="注册 cohort 留存" description={`按 UTC 注册日统计在第 1、7、30 天再次认证的账号比例；仅展示汇总，不含用户标识。新采集数据从 ${report.retention.dataFrom?new Date(report.retention.dataFrom).toLocaleDateString('zh-CN'):'今天'} 起，历史日期不会回填。`}>
         {!report.retention.cohorts.length

@@ -28,7 +28,7 @@ function harness(options={}){
   '@/lib/db':{db:{}},
   // 计费粘合层：本文件只验证聊天链路本身，费用单按「不收费」返回。
   '@/lib/billing/turn':{
-   beginBillingTurn:async party=>({requestId:party.requestId,hold:{held:false},sawOutput(){},deliveredOutput(){return false},notice(){return null},release:async()=>{},settle:async()=>{}}),
+   beginBillingTurn:async party=>({requestId:party.requestId,hold:{held:false},sawOutput(){},deliveredOutput(){return false},notice(){return null},release:async()=>{},cancel:async()=>{},settle:async()=>{}}),
    parseJsonBody:async request=>request?request.clone().json().then(body=>body&&typeof body==='object'?body:null).catch(()=>null):null,
    readBalance:async()=>0,
    readTurnReceipt:async()=>null,
@@ -37,6 +37,8 @@ function harness(options={}){
   },
   '@/lib/ai/providers/management-service':{readActiveAiProviders:async()=>[]},
   '@/lib/ai/models/runtime-service':{readAiModelPlan:async()=>null},
+  // 邀请奖励是回复保存之后的旁路调用，本文件只确认它不阻塞聊天。
+  '@/lib/growth/invite-service':{grantInviteRewardIfDue:async()=>{state.calls.push('invite');return false}},
  };
  const mod={exports:{}};const process={env:options.env??{NODE_ENV:'development',DISABLE_MOCK_AI:'false'}};
  const wrapper=vm.runInNewContext('(function(require,module,exports,process,ReadableStream,TextEncoder,AbortController,DOMException){'+transpile()+'\n})',{ReadableStream,TextEncoder,AbortController,DOMException,Headers});

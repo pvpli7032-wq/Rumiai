@@ -7,6 +7,7 @@ import { estimateAiCallCost } from './cost-accounting';
 import { logWarning } from '@/lib/logger';
 import { readAiDailyBudgetConfiguration } from './costs/budget-config-service';
 import {readCurrentAiModelPrices,estimateAiCostFromPrice} from './costs/model-price-service';
+import {ledgerTaskType, readTaskBudget, readTaskUsageOf, taskBudgetBlock, type AiTaskType} from './task-budget';
 
 /** 每日调用额度的业务日；时区来自 billing.dayTimezone，默认 UTC（V3 表 8）。 */
 export const quotaDay = (now = new Date(), timezone = 'UTC') => resolveZonedDay(now, timezone);
@@ -21,26 +22,35 @@ const logBudgetBlock = (event:string,block:AiBudgetBlock,callId?:string) => logW
  * The conditional write and call record share a transaction, so concurrent requests
  * and process restarts cannot mint extra daily slots.
  *
- * STATE_EXTRACT is the background state-extraction worker (stories lifecycle): it
- * is checked against the cost budget and recorded in the call ledger, but does NOT
- * consume the user's chat daily slots — 独立用量口径. Budget exhaustion defers the
- * extraction instead of failing the user's already-committed replies.
+ * STATE_EXTRACT / DISPUTE_VERDICT / MEMORY_SUMMARY / PROMPT_PREVIEW are background tasks: they are
+ * checked against the cost budget and recorded in the call ledger, but do NOT consume
+ * the user's chat daily slots — 独立用量口径. Budget exhaustion defers the background
+ * task instead of failing the user's already-committed replies.
  */
-export type AiOperation = 'SEND' | 'REGENERATE' | 'STATE_EXTRACT';
-export async function reserveAiCall(userId:string,conversationId:string,operation:AiOperation,modelKeys?:string[]){
+export type AiOperation = 'SEND' | 'REGENERATE' | 'STATE_EXTRACT' | 'DISPUTE_VERDICT' | 'MEMORY_SUMMARY' | 'PROMPT_PREVIEW';
+/** 只有用户主动的聊天回合消耗聊天每日次数；后台任务只受成本预算约束。 */
+const CONSUMES_DAILY_SLOT = new Set<AiOperation>(['SEND', 'REGENERATE']);
+/**
+ * task 是业务任务类型（V3 表 9）：写进台账 task_type，并按任务预算单独设闸。
+ * 任务预算触发只暂停该任务，不触发全站熔断；它的消耗仍计入全站预算。
+ */
+export async function reserveAiCall(userId:string,conversationId:string,operation:AiOperation,modelKeys?:string[],task?:AiTaskType){
   await pragmasReady;
   const now=new Date();
   // 上限与时区来自设置中心；0 表示暂停新请求，不是无限。
   const rules=await readDailyRequestRules();
   const timezone=isValidTimezone(rules.timezone)?rules.timezone:'UTC';
   const limit=rules.hardDailyMessages;
-  if(limit===0)throw new AiQuotaError(Math.ceil((quotaReset(now,timezone).getTime()-now.getTime())/1000));
+  const consumesSlot=CONSUMES_DAILY_SLOT.has(operation);
+  if(consumesSlot&&limit===0)throw new AiQuotaError(Math.ceil((quotaReset(now,timezone).getTime()-now.getTime())/1000));
+  // 任务预算在事务外读设置：设置缓存可能另开连接，别和写事务抢同一条 SQLite 连接。
+  const taskLimit=task?await readTaskBudget(task):null;
   try { return await db.$transaction(async tx=>{
     // Claim the quota writer before choosing the UTC day or inspecting completed costs.
     // A request queued behind another completion must evaluate that completion, too.
     await tx.$executeRaw`UPDATE ai_daily_usage SET count=count WHERE user_id=${userId}`;
     const now=new Date(),day=quotaDay(now,timezone);
-    if(operation!=='STATE_EXTRACT'){
+    if(consumesSlot){
       const changed=await tx.$executeRaw`INSERT INTO ai_daily_usage (user_id,day,count) VALUES (${userId},${day},1)
         ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < ${limit}`;
       if(!changed)throw new AiQuotaError(Math.ceil((quotaReset(now,timezone).getTime()-now.getTime())/1000));
@@ -48,7 +58,11 @@ export async function reserveAiCall(userId:string,conversationId:string,operatio
     const callCurrency=currency();
     const block=await readCostBudgetBlock(tx,userId,now,callCurrency,modelKeys);
     if(block)throw new AiQuotaError(block.status===429?Math.ceil((quotaReset(now,timezone).getTime()-now.getTime())/1000):0,block);
-    return tx.aiCall.create({data:{userId,conversationId,operation,currency:callCurrency,startedAt:now}});
+    if(task&&taskLimit!==null){
+      const taskBlock=taskBudgetBlock(task,taskLimit,await readTaskUsageOf(tx,now,task));
+      if(taskBlock)throw new AiQuotaError(Math.ceil((quotaReset(now,timezone).getTime()-now.getTime())/1000),taskBlock);
+    }
+    return tx.aiCall.create({data:{userId,conversationId,operation,currency:callCurrency,startedAt:now,...(task?{taskType:ledgerTaskType(task)}:{})}});
   }); } catch(error) {
     if(error instanceof AiQuotaError && error.block)logBudgetBlock('ai_budget_blocked',error.block);
     throw error;

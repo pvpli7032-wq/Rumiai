@@ -1,7 +1,9 @@
 import type {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
 import {readSettingValue} from '@/lib/settings';
+import {recordProductEvent} from '@/lib/analytics/product-events';
 import {DisputeError, snapshotOf} from './case-service';
+import {awardVoteReward} from './reward-service';
 import {isDisputeChoice, type DisputeChoice} from './types';
 
 /**
@@ -58,8 +60,9 @@ export async function applyVote(tx: Prisma.TransactionClient, caseId: string, us
 
 export async function voteDispute(caseId: string, userId: string, input: unknown) {
   await pragmasReady;
+  let outcome: VoteOutcome & {closeAtVotes: number};
   try {
-    return await db.$transaction(tx => applyVote(tx, caseId, userId, input));
+    outcome = await db.$transaction(tx => applyVote(tx, caseId, userId, input));
   } catch (error) {
     // SQLite 串行化冲突：让客户端重试，不静默吞掉。
     if (typeof error === 'object' && error && 'code' in error && (error as {code?: string}).code === 'P2034') {
@@ -67,4 +70,10 @@ export async function voteDispute(caseId: string, userId: string, input: unknown
     }
     throw error;
   }
+  if (outcome.kind === 'VOTED') {
+    // 漏斗埋点与参与奖都在投票事务之外：两者都不会回滚用户已经提交的投票。
+    await recordProductEvent({event: 'dispute_voted', userId, subjectKey: caseId});
+    await awardVoteReward(caseId, userId);
+  }
+  return outcome;
 }

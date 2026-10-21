@@ -20,7 +20,8 @@ export function normalizeSettingValue(def: SettingDefinition, raw: unknown): Jso
         fail(def, '需要填写数值。');
       }
       const value = typeof raw === 'number' ? raw : Number(String(raw).trim());
-      if (!Number.isFinite(value) || !Number.isInteger(value)) fail(def, '必须是整数。');
+      if (!Number.isFinite(value)) fail(def, '需要填写数值。');
+      if (!def.decimal && !Number.isInteger(value)) fail(def, '必须是整数。');
       if (def.min !== undefined && value < def.min) fail(def, '不能小于 ' + def.min + '。');
       if (def.max !== undefined && value > def.max) fail(def, '不能大于 ' + def.max + '。');
       return value;

@@ -217,7 +217,7 @@ async function processTurn(turnId: string): Promise<'processed' | 'failed' | 'de
     } else {
       let reservedCall;
       try {
-        reservedCall = await reserveAiCall(run.userId, run.conversationId, 'STATE_EXTRACT', plan.models?.map(model => model.key));
+        reservedCall = await reserveAiCall(run.userId, run.conversationId, 'STATE_EXTRACT', plan.models?.map(model => model.key), 'story');
       } catch (error) {
         if (error instanceof AiQuotaError) {
           // 预算不足延后状态整理：the committed replies stay untouched and the task

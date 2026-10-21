@@ -30,7 +30,7 @@ const CHARGE_SELECT = {
   allowanceSource: true, conversationId: true, messageId: true, aiCallId: true, heldAt: true, settledAt: true, releasedAt: true,
 } as const;
 
-type HeldChargeRow = Prisma.GenerationChargeGetPayload<{select: typeof CHARGE_SELECT}>;
+export type HeldChargeRow = Prisma.GenerationChargeGetPayload<{select: typeof CHARGE_SELECT}>;
 
 /** 免费额度的预留行 id：由 requestId 与业务日推出，结算/释放据它做幂等条件。 */
 export function reservationId(requestId: string, day: string): string {
@@ -197,67 +197,77 @@ export async function holdCharge(input: HoldInput): Promise<ChargeHoldResult> {
   }
 }
 
+/**
+ * 事务内的结算/释放：取消策略（cancel.ts）要在一个事务里「判定 + 占用免费取消次数 + 落账」，
+ * 所以把两条路径拆成事务内函数，公开的 settleCharge / releaseCharge 只是包一层事务。
+ */
+export type Tx = Prisma.TransactionClient;
+
+export async function findChargeInTx(tx: Tx, userId: string, operation: ChargeOperation, requestId: string): Promise<HeldChargeRow | null> {
+  return tx.generationCharge.findUnique({where: {userId_operation_requestId: {userId, operation, requestId}}, select: CHARGE_SELECT});
+}
+
+function replayedOutcome(row: HeldChargeRow, input: {userId: string; requestId: string; operation: ChargeOperation}): ChargeOutcome {
+  return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: row.status as ChargeStatus, coins: row.coins, allowanceSource: (row.allowanceSource ?? 'PAID') as ChargeHoldResult['allowanceSource'], balanceDelta: 0, replayed: true, row});
+}
+
 /** 消息已保存 → 结算。HELD → SETTLED，预扣流水归为聊天消费，不再扣余额。 */
-export async function settleCharge(input: SettleInput): Promise<ChargeOutcome> {
-  const now = input.now ?? new Date();
-  const outcome = await db.$transaction(async tx => {
-    const existing = await tx.generationCharge.findUnique({where: {userId_operation_requestId: {userId: input.userId, operation: input.operation, requestId: input.requestId}}, select: CHARGE_SELECT});
-    if (!existing) return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'FREE', coins: 0, allowanceSource: 'FREE_MODE', balanceDelta: 0, replayed: false});
-    if (input.messageId && !existing.messageId) await tx.generationCharge.updateMany({where: {id: existing.id, messageId: null}, data: {messageId: input.messageId}});
-    if (input.aiCallId && !existing.aiCallId) await tx.generationCharge.updateMany({where: {id: existing.id, aiCallId: null}, data: {aiCallId: input.aiCallId}});
-    const settled = await tx.generationCharge.updateMany({where: {id: existing.id, status: 'HELD'}, data: {status: 'SETTLED', settledAt: now, updatedAt: now}});
-    if (!settled.count) {
-      // 已结算不再扣、已释放不再补、UNKNOWN 不动——重复回调拿到同一结果。
-      const current = await tx.generationCharge.findUniqueOrThrow({where: {id: existing.id}, select: CHARGE_SELECT});
-      return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: current.status as ChargeStatus, coins: current.coins, allowanceSource: (current.allowanceSource ?? 'PAID') as ChargeHoldResult['allowanceSource'], balanceDelta: 0, replayed: true, row: current});
-    }
-    const snapshot = parseSnapshot(existing.priceSnapshotJson);
-    if (snapshot.allowanceSource === 'FREE_QUOTA') {
-      // 预占转为已用：同一条语句里 --reserved / ++used，额度判定仍按 free_used + free_reserved。
-      await tx.$executeRaw`UPDATE user_daily_allowances SET free_reserved = free_reserved - 1, free_used = free_used + 1
-        WHERE user_id = ${input.userId} AND day = ${snapshot.day} AND free_reserved > 0`;
-    } else {
-      await tx.coinTransaction.updateMany({where: {chargeId: existing.id, chargeAction: 'HOLD'}, data: {sourceKey: SETTLE_SOURCE_KEY}});
-    }
-    const row = await tx.generationCharge.findUniqueOrThrow({where: {id: existing.id}, select: CHARGE_SELECT});
-    return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'SETTLED', coins: row.coins, allowanceSource: (row.allowanceSource ?? 'PAID') as ChargeHoldResult['allowanceSource'], balanceDelta: 0, replayed: false, row});
-  }, {timeout: 30_000});
-  return outcome;
+export async function settleInTx(tx: Tx, existing: HeldChargeRow | null, input: SettleInput, now: Date): Promise<ChargeOutcome> {
+  if (!existing) return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'FREE', coins: 0, allowanceSource: 'FREE_MODE', balanceDelta: 0, replayed: false});
+  if (input.messageId && !existing.messageId) await tx.generationCharge.updateMany({where: {id: existing.id, messageId: null}, data: {messageId: input.messageId}});
+  if (input.aiCallId && !existing.aiCallId) await tx.generationCharge.updateMany({where: {id: existing.id, aiCallId: null}, data: {aiCallId: input.aiCallId}});
+  const settled = await tx.generationCharge.updateMany({where: {id: existing.id, status: 'HELD'}, data: {status: 'SETTLED', settledAt: now, updatedAt: now}});
+  // 已结算不再扣、已释放不再补、UNKNOWN 不动——重复回调拿到同一结果。
+  if (!settled.count) return replayedOutcome(await tx.generationCharge.findUniqueOrThrow({where: {id: existing.id}, select: CHARGE_SELECT}), input);
+  const snapshot = parseSnapshot(existing.priceSnapshotJson);
+  if (snapshot.allowanceSource === 'FREE_QUOTA') {
+    // 预占转为已用：同一条语句里 --reserved / ++used，额度判定仍按 free_used + free_reserved。
+    await tx.$executeRaw`UPDATE user_daily_allowances SET free_reserved = free_reserved - 1, free_used = free_used + 1
+      WHERE user_id = ${input.userId} AND day = ${snapshot.day} AND free_reserved > 0`;
+  } else {
+    // 付费那条：负数流水从「聊天预扣」归为「聊天消费」，金额不再变动。
+    await tx.coinTransaction.updateMany({where: {chargeId: existing.id, chargeAction: 'HOLD'}, data: {sourceKey: SETTLE_SOURCE_KEY}});
+  }
+  const row = await tx.generationCharge.findUniqueOrThrow({where: {id: existing.id}, select: CHARGE_SELECT});
+  return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'SETTLED', coins: row.coins, allowanceSource: (row.allowanceSource ?? 'PAID') as ChargeHoldResult['allowanceSource'], balanceDelta: 0, replayed: false, row});
 }
 
 /** 失败/取消 → 释放。HELD → RELEASED：补回原预扣金额一次 + 唯一正数流水。 */
+export async function releaseInTx(tx: Tx, existing: HeldChargeRow | null, input: ReleaseInput, now: Date): Promise<ChargeOutcome> {
+  if (!existing) return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'FREE', coins: 0, allowanceSource: 'FREE_MODE', balanceDelta: 0, replayed: false});
+  if (input.messageId) await tx.generationCharge.updateMany({where: {id: existing.id, messageId: null}, data: {messageId: input.messageId}});
+  const released = await tx.generationCharge.updateMany({where: {id: existing.id, status: 'HELD'}, data: {status: 'RELEASED', releasedAt: now, updatedAt: now, ...(input.aiCallId ? {aiCallId: input.aiCallId} : {})}});
+  // 已释放不重复补、已结算不再退——重复回调拿到同一结果。
+  if (!released.count) return replayedOutcome(await tx.generationCharge.findUniqueOrThrow({where: {id: existing.id}, select: CHARGE_SELECT}), input);
+  const snapshot = parseSnapshot(existing.priceSnapshotJson);
+  let delta = 0;
+  if (snapshot.allowanceSource === 'FREE_QUOTA') {
+    // 免费额度：预占还回去，free_used 不动（未消耗）。
+    await tx.$executeRaw`UPDATE user_daily_allowances SET free_reserved = free_reserved - 1
+      WHERE user_id = ${input.userId} AND day = ${snapshot.day} AND free_reserved > 0`;
+  } else if (existing.coins > 0) {
+    await tx.user.update({where: {id: input.userId}, data: {coins: {increment: existing.coins}}});
+    await tx.coinTransaction.create({
+      data: {
+        userId: input.userId, amount: existing.coins, type: 'EARNED', sourceKey: RELEASE_SOURCE_KEY,
+        description: `生成未完成，返还预扣 ${existing.coins} 币（请求 ${input.requestId} · ${(input.reason ?? 'CANCELLED').slice(0, 40)}）`,
+        chargeId: existing.id, chargeAction: 'RELEASE',
+      },
+    });
+    delta = existing.coins;
+  }
+  const row = await tx.generationCharge.findUniqueOrThrow({where: {id: existing.id}, select: CHARGE_SELECT});
+  return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'RELEASED', coins: row.coins, allowanceSource: (row.allowanceSource ?? 'PAID') as ChargeHoldResult['allowanceSource'], balanceDelta: delta, replayed: false, row});
+}
+
+export async function settleCharge(input: SettleInput): Promise<ChargeOutcome> {
+  const now = input.now ?? new Date();
+  return db.$transaction(async tx => settleInTx(tx, await findChargeInTx(tx, input.userId, input.operation, input.requestId), input, now), {timeout: 30_000});
+}
+
 export async function releaseCharge(input: ReleaseInput): Promise<ChargeOutcome> {
   const now = input.now ?? new Date();
-  return db.$transaction(async tx => {
-    const existing = await tx.generationCharge.findUnique({where: {userId_operation_requestId: {userId: input.userId, operation: input.operation, requestId: input.requestId}}, select: CHARGE_SELECT});
-    if (!existing) return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'FREE', coins: 0, allowanceSource: 'FREE_MODE', balanceDelta: 0, replayed: false});
-    if (input.messageId) await tx.generationCharge.updateMany({where: {id: existing.id, messageId: null}, data: {messageId: input.messageId}});
-    const released = await tx.generationCharge.updateMany({where: {id: existing.id, status: 'HELD'}, data: {status: 'RELEASED', releasedAt: now, updatedAt: now, ...(input.aiCallId ? {aiCallId: input.aiCallId} : {})}});
-    if (!released.count) {
-      // 已释放不重复补、已结算不再退——重复回调拿到同一结果。
-      const current = await tx.generationCharge.findUniqueOrThrow({where: {id: existing.id}, select: CHARGE_SELECT});
-      return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: current.status as ChargeStatus, coins: current.coins, allowanceSource: (current.allowanceSource ?? 'PAID') as ChargeHoldResult['allowanceSource'], balanceDelta: 0, replayed: true, row: current});
-    }
-    const snapshot = parseSnapshot(existing.priceSnapshotJson);
-    let delta = 0;
-    if (snapshot.allowanceSource === 'FREE_QUOTA') {
-      // 免费额度：预占还回去，free_used 不动（未消耗）。
-      await tx.$executeRaw`UPDATE user_daily_allowances SET free_reserved = free_reserved - 1
-        WHERE user_id = ${input.userId} AND day = ${snapshot.day} AND free_reserved > 0`;
-    } else if (existing.coins > 0) {
-      await tx.user.update({where: {id: input.userId}, data: {coins: {increment: existing.coins}}});
-      await tx.coinTransaction.create({
-        data: {
-          userId: input.userId, amount: existing.coins, type: 'EARNED', sourceKey: RELEASE_SOURCE_KEY,
-          description: `生成未完成，返还预扣 ${existing.coins} 币（请求 ${input.requestId} · ${(input.reason ?? 'CANCELLED').slice(0, 40)}）`,
-          chargeId: existing.id, chargeAction: 'RELEASE',
-        },
-      });
-      delta = existing.coins;
-    }
-    const row = await tx.generationCharge.findUniqueOrThrow({where: {id: existing.id}, select: CHARGE_SELECT});
-    return toOutcome({userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'RELEASED', coins: row.coins, allowanceSource: (row.allowanceSource ?? 'PAID') as ChargeHoldResult['allowanceSource'], balanceDelta: delta, replayed: false, row});
-  }, {timeout: 30_000});
+  return db.$transaction(async tx => releaseInTx(tx, await findChargeInTx(tx, input.userId, input.operation, input.requestId), input, now), {timeout: 30_000});
 }
 
 /**

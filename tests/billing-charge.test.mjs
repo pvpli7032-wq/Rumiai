@@ -21,6 +21,9 @@ const {applyPriceMultiplier, quoteReplyPrice} = await import('../src/lib/billing
 const {resolveBillingDay, resolveBillingDayBoundary, readDailyAllowance} = await import('../src/lib/billing/allowance.ts');
 const {holdCharge, settleCharge, releaseCharge, markChargeUnknown, readCharge, InsufficientCoinsError, ChargeRequestConflictError} = await import('../src/lib/billing/charge-service.ts');
 const {reconcileHeldCharges, readPendingChargeSummary} = await import('../src/lib/billing/recovery.ts');
+const {settleCancellation, readCancelPolicy} = await import('../src/lib/billing/cancel.ts');
+const {signToken} = await import('../src/lib/auth.ts');
+const {GET: readQuota} = await import('../src/app/api/me/quota/route.ts');
 const {encryptProviderSecret} = await import('../src/lib/ai/providers/secret.ts');
 const {executeChatTurn} = await import('../src/lib/conversations/chat-application-service.ts');
 const {executeStoryTurn} = await import('../src/lib/stories/turn-service.ts');
@@ -383,4 +386,190 @@ test('聊天与故事共用费用服务：SEND 结算、失败释放；STORY_TUR
   assert.equal((await db.storyTurn.findFirstOrThrow({where: {runId: run.id, requestId: failTurnId}})).status, 'FAILED');
   globalThis.fetch = realFetch;
   void model;
+});
+
+/** 等到费用单离开 HELD（取消/结算都是异步收尾）。 */
+async function waitForCharge(user, operation, requestId) {
+  for (let i = 0; i < 100; i += 1) {
+    const row = await chargeRow(user, operation, requestId);
+    if (row && row.status !== 'HELD') return row;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  throw new Error('费用单一直停在 HELD：' + requestId);
+}
+
+test('取消策略：未输出释放不占次数、有免费次数释放并占用、用完按已输出结算、RELEASE_ALWAYS 一律释放', async () => {
+  const {user, conversation} = await billingFixture({coins: 100});
+  await enableCharging(await pricedModel(20));
+  await setSetting('billing.freeCancelPerDay', 1);
+  await setSetting('billing.cancelPolicy', 'CHARGE_WHEN_OUTPUT');
+  assert.equal(await readCancelPolicy(user.id), 'CHARGE_WHEN_OUTPUT');
+  const cancel = async (outputDelivered, now) => {
+    const requestId = randomUUID();
+    await holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: conversation.id});
+    return settleCancellation({userId: user.id, requestId, operation: 'CHAT_SEND', outputDelivered, now});
+  };
+
+  // 1) 首个片段未送达：释放，不消耗免费取消次数。
+  assert.equal((await cancel(false)).status, 'RELEASED');
+  assert.equal(await balanceOf(user), 100);
+  assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 0);
+
+  // 2) 已送达 + 当日还有免费取消次数：释放并占用一次。
+  assert.equal((await cancel(true)).status, 'RELEASED');
+  assert.equal(await balanceOf(user), 100);
+  const used = await readDailyAllowance(user.id);
+  assert.deepEqual([used.freeCancelDaily, used.freeCancelUsed, used.freeCancelRemaining], [1, 1, 0]);
+
+  // 3) 次数用完：按已输出结算，余额扣一次。
+  assert.equal((await cancel(true)).status, 'SETTLED');
+  assert.equal(await balanceOf(user), 80);
+  assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 1);
+
+  // 4) RELEASE_ALWAYS：已输出也释放，且不占用次数。
+  await setSetting('billing.cancelPolicy', 'RELEASE_ALWAYS');
+  assert.equal(await readCancelPolicy(user.id), 'RELEASE_ALWAYS');
+  const released = await cancel(true);
+  assert.equal(released.status, 'RELEASED');
+  assert.equal(released.balanceDelta, 20);
+  assert.equal(await balanceOf(user), 80);
+  assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 1);
+});
+
+test('取消幂等与并发：重复取消不重复退款，两次同时取消只占用一次免费额度', async () => {
+  const {user, conversation} = await billingFixture({coins: 100});
+  await enableCharging(await pricedModel(20));
+  await setSetting('billing.freeCancelPerDay', 1);
+  await setSetting('billing.cancelPolicy', 'CHARGE_WHEN_OUTPUT');
+
+  // 并发：同一业务日只剩一次免费取消，两条同时取消只有一条白免。
+  const ids = [randomUUID(), randomUUID()];
+  for (const requestId of ids) await holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: conversation.id});
+  const outcomes = await Promise.all(ids.map(requestId => settleCancellation({userId: user.id, requestId, operation: 'CHAT_SEND', outputDelivered: true})));
+  assert.deepEqual(outcomes.map(outcome => outcome.status).sort(), ['RELEASED', 'SETTLED']);
+  assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 1, '只占用一次免费取消');
+  assert.equal(await balanceOf(user), 80, '另一条按已输出结算');
+
+  // 重复取消同一条：不再退款、不再占用次数。
+  const releasedId = ids[outcomes.findIndex(outcome => outcome.status === 'RELEASED')];
+  const again = await settleCancellation({userId: user.id, requestId: releasedId, operation: 'CHAT_SEND', outputDelivered: true});
+  assert.equal(again.status, 'RELEASED');
+  assert.equal(again.replayed, true);
+  assert.equal(again.balanceDelta, 0);
+  assert.equal(await balanceOf(user), 80);
+  assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 1);
+});
+
+test('非用户原因一律释放且不吃免费取消次数；免费取消次数按业务日重置', async () => {
+  const {user, conversation} = await billingFixture({coins: 100});
+  await enableCharging(await pricedModel(20));
+  await setSetting('billing.freeCancelPerDay', 1);
+  await setSetting('billing.cancelPolicy', 'CHARGE_WHEN_OUTPUT');
+
+  // 供应商失败：走 release，不占次数。
+  const failedId = randomUUID();
+  await holdCharge({userId: user.id, requestId: failedId, operation: 'CHAT_SEND', conversationId: conversation.id});
+  const failed = await releaseCharge({userId: user.id, requestId: failedId, operation: 'CHAT_SEND', reason: 'UPSTREAM_ERROR'});
+  assert.equal(failed.status, 'RELEASED');
+  assert.equal(await balanceOf(user), 100);
+  assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 0);
+
+  // 今天用掉唯一一次免费取消。
+  const todayId = randomUUID();
+  await holdCharge({userId: user.id, requestId: todayId, operation: 'CHAT_SEND', conversationId: conversation.id});
+  assert.equal((await settleCancellation({userId: user.id, requestId: todayId, operation: 'CHAT_SEND', outputDelivered: true})).status, 'RELEASED');
+  assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 1);
+
+  // 跨业务日：新的业务日额度从 0 开始，取消又是免费的。
+  const tomorrow = new Date(Date.now() + 25 * 60 * 60 * 1000);
+  const tomorrowId = randomUUID();
+  await holdCharge({userId: user.id, requestId: tomorrowId, operation: 'CHAT_SEND', conversationId: conversation.id, now: tomorrow});
+  const tomorrowCancel = await settleCancellation({userId: user.id, requestId: tomorrowId, operation: 'CHAT_SEND', outputDelivered: true, now: tomorrow});
+  assert.equal(tomorrowCancel.status, 'RELEASED');
+  assert.equal(await balanceOf(user), 100);
+  const nextDay = await readDailyAllowance(user.id, {now: tomorrow});
+  assert.deepEqual([nextDay.freeCancelUsed, nextDay.freeCancelRemaining], [1, 0], '新业务日重新计一次');
+  assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 1, '今天那次仍记在今天');
+});
+
+test('聊天链路：已输出后取消按策略释放并占用一次免费取消；次数为 0 时按已输出结算', async () => {
+  const {user, conversation} = await billingFixture({coins: 100});
+  const model = await enableCharging(await pricedModel(20));
+  await db.characterAiModel.create({data: {characterId: conversation.characterId, modelKey: model.key}});
+  await setSetting('billing.freeCancelPerDay', 3);
+  await setSetting('billing.cancelPolicy', 'CHARGE_WHEN_OUTPUT');
+
+  // 上游只吐一个片段就停在那里：用户读到内容后断开，正好是「已输出 + 取消」。
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"你好"},"finish_reason":null}]}\n\n'));
+      // 客户端断开后连接随之结束：真实上游也是这样收尾的。
+      setTimeout(() => { try { controller.close(); } catch { /* already closed */ } }, 150);
+    },
+  }), {status: 200, headers: {'Content-Type': 'text/event-stream'}});
+  const sendAndCancel = async requestId => {
+    const abort = new AbortController();
+    const request = new Request('http://local/api/conversations/' + conversation.id + '/messages', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content: '你好', requestId})});
+    const {stream} = await executeChatTurn({userId: user.id, conversationId: conversation.id, mode: 'SEND', input: {request}, signal: abort.signal});
+    const reader = stream.getReader();
+    await reader.read();
+    await reader.read();
+    abort.abort();
+    const row = await waitForCharge(user, 'CHAT_SEND', requestId);
+    await reader.cancel().catch(() => {});
+    return row;
+  };
+
+  try {
+    const freeCancelId = randomUUID();
+    assert.equal((await sendAndCancel(freeCancelId)).status, 'RELEASED');
+    assert.equal(await balanceOf(user), 100, '有免费取消次数时不扣币');
+    assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 1);
+    // V3 表 16：本轮仍不保存部分回复，取消后不落库任何半截内容。
+    assert.equal(await db.message.count({where: {conversationId: conversation.id, role: 'ASSISTANT'}}), 0, '不保存部分回复');
+
+    // 免费取消次数为 0：取消即收费，按已输出结算。
+    await setSetting('billing.freeCancelPerDay', 0);
+    const chargedId = randomUUID();
+    assert.equal((await sendAndCancel(chargedId)).status, 'SETTLED');
+    assert.equal(await balanceOf(user), 80);
+    assert.equal((await readDailyAllowance(user.id)).freeCancelUsed, 1, '次数为 0 时不占用额度');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('GET /api/me/quota 暴露取消策略与免费取消额度（前端契约字段名不变）', async () => {
+  const {user} = await billingFixture({coins: 100});
+  await enableCharging(await pricedModel(20));
+  await setSetting('billing.freeCancelPerDay', 3);
+  await setSetting('billing.cancelPolicy', 'CHARGE_WHEN_OUTPUT');
+
+  const token = await signToken({userId: user.id, email: user.email});
+  const read = async () => {
+    const response = await readQuota(new Request('http://local/api/me/quota', {headers: {Authorization: 'Bearer ' + token}}));
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+
+  const fresh = await read();
+  assert.equal(fresh.cancelPolicy, 'CHARGE_WHEN_OUTPUT');
+  assert.equal(fresh.freeCancelDaily, 3);
+  assert.equal(fresh.freeCancelRemaining, 3);
+
+  // 后台改成「一律释放」后，同一个接口立即反映新策略。
+  await setSetting('billing.cancelPolicy', 'RELEASE_ALWAYS');
+  assert.equal((await read()).cancelPolicy, 'RELEASE_ALWAYS');
+
+  // 用掉一次免费取消后剩余次数下降。
+  await setSetting('billing.cancelPolicy', 'CHARGE_WHEN_OUTPUT');
+  const requestId = randomUUID();
+  await holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: null});
+  await settleCancellation({userId: user.id, requestId, operation: 'CHAT_SEND', outputDelivered: true});
+  const used = await read();
+  assert.equal(used.freeCancelRemaining, 2);
+
+  // 未登录一律 401。
+  assert.equal((await readQuota(new Request('http://local/api/me/quota'))).status, 401);
 });

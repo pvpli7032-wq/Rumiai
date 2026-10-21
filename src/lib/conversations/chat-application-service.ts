@@ -12,6 +12,7 @@ import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
 import {readAiModelPlan} from '@/lib/ai/models/runtime-service';
 import {beginBillingTurn, parseJsonBody, readBalance, readTurnReceipt, resolveRequestId, toChargeError, type BillingTurn} from '@/lib/billing/turn';
 import {db} from '@/lib/db';
+import {grantInviteRewardIfDue} from '@/lib/growth/invite-service';
 
 export type ChatTurnMode = 'SEND' | 'REGENERATE';
 export type ChatTurnInput = {request: Request} | {targetMessageId: string; requestId?: string};
@@ -93,7 +94,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
     // RELEASED / UNKNOWN：上次尝试已作废且未产生回复，用新的请求号重新发送即可。
     throw new ChatTurnHttpError('这条请求已结束且没有产生回复，请重新发送。', 409);
   }
-  const call = await reserveAiCall(input.userId, input.conversationId, input.mode, modelPlan?.map(model => model.key)); reservedCall = call;
+  const call = await reserveAiCall(input.userId, input.conversationId, input.mode, modelPlan?.map(model => model.key), 'chat'); reservedCall = call;
   try {
     if (input.mode === 'SEND') { const userMessage = await createUserMessage(input.conversationId, content); history = await readRecentMessageHistory(input.conversationId, userMessage.id, rules.historyMessages); }
   } catch (error) {
@@ -123,31 +124,38 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
       if (notice) emit(controller, 'data: ' + JSON.stringify({cost: {requestId, charged: notice.charged, coins: notice.coins, allowanceSource: notice.allowanceSource, balance: await readBalance(input.userId)}}) + '\n\n', () => cancelled);
       let assistantContent = ''; let failure: unknown; let metrics: AiStreamMetrics = {}; let persistedMessageId: string | null = null;
       try {
-        if (usingRealAi) assistantContent = await streamOpenAIResponse(controller, conversation.character, history ?? [], content, conversation.aiModel, {signal: abort.signal, onMetrics: value => { metrics = value; }, providers: configuredProviders, models: modelPlan ?? undefined});
-        else assistantContent = await streamMockResponse(controller, conversation.character, content, abort.signal);
+        // 「已输出」在首个内容片段写入响应流的那一刻成立，而不是整段生成结束之后。
+        const markDelivered = (event: Record<string, unknown>) => { if ('content' in event) billing.sawOutput(); return event; };
+        if (usingRealAi) assistantContent = await streamOpenAIResponse(controller, conversation.character, history ?? [], content, conversation.aiModel, {signal: abort.signal, onMetrics: value => { metrics = value; }, providers: configuredProviders, models: modelPlan ?? undefined, mapEvent: markDelivered});
+        else assistantContent = await streamMockResponse(controller, conversation.character, content, abort.signal, {mapEvent: markDelivered});
       } catch (error) {
         failure = error; logRouteError(input.mode === 'SEND' ? 'POST /api/conversations/[id]/messages' : 'POST /api/conversations/[id]/messages/[messageId]/regenerate', error);
         const message = aiUserError(error) + (input.mode === 'REGENERATE' ? ' 原回复已保留。' : '');
         emit(controller, 'data: ' + JSON.stringify({error: message}) + '\n\n', () => cancelled);
       } finally {
-        // 「已输出」以服务端已写出首个内容片段为准：出了片段即计费，未出则释放。
-        if (assistantContent) billing.sawOutput();
-        const delivered = billing.deliveredOutput();
+        // 用户取消：我们自己 abort 造成的中断，不能被当成供应商故障（否则取消策略永远走不到）。
+        const userCancelled = cancelled && (!failure || aiErrorCode(failure) === 'CANCELLED');
         try {
-          // 失败或首个片段送达前取消：不保存空回复。已输出后取消按已消费处理，保留已显示内容。
+          // V3 表 16：本轮不保存部分回复——失败与用户取消都不落库半截内容（取消仍可能计费）。
           if (input.mode === 'SEND') {
-            if (cancelled && !delivered) assistantContent = '';
-            if (failure && !delivered) assistantContent = '';
+            if (userCancelled || failure) assistantContent = '';
             const saved = await persistAssistantResponse(input.conversationId, conversation.characterId, assistantContent);
             persistedMessageId = saved?.id ?? null;
             // 新消息累计到阈值才登记摘要任务；任务由统一后台入口执行，不在响应后裸跑 Promise。
             if (saved) await enqueueSummaryIfDue(input.conversationId).catch(error => logRouteError('chat memory summary enqueue', error));
-          } else if (!failure && (!cancelled || delivered)) {
+            // 被邀请人首次成功聊天：邀请奖励由服务自己判断（没邀请人/已发过都直接返回），
+            // 不阻塞回复落地，也不影响计费链路。
+            if (saved) void grantInviteRewardIfDue(input.userId);
+          } else if (!failure && !cancelled) {
+            // 重新生成被取消时保留原回复，不写半截内容。
             const replaced = await replaceMessageReply(input.conversationId, replaceAt!, assistantContent);
             persistedMessageId = replaced?.id ?? null;
           }
           await finishAiCall(call.id, call.startedAt, failure && aiErrorCode(failure) !== 'CANCELLED' ? 'FAILED' : cancelled ? 'CANCELLED' : usingRealAi ? 'SUCCEEDED' : 'MOCK', metrics, failure ? aiErrorCode(failure) : cancelled ? 'CANCELLED' : undefined);
-          if (failure || (cancelled && !delivered)) await billing.release(failure ? aiErrorCode(failure) : 'CANCELLED');
+          // 用户取消交给取消策略（可能消耗一次免费取消，也可能按已输出结算）；
+          // 非用户原因一律释放，不消耗次数。
+          if (userCancelled) await billing.cancel({messageId: persistedMessageId, aiCallId: call.id});
+          else if (failure) await billing.release(aiErrorCode(failure));
           else await billing.settle({messageId: persistedMessageId, aiCallId: call.id});
           const receipt = await readTurnReceipt({userId: input.userId, conversationId: input.conversationId, operation: CHARGE_OPERATION[input.mode], requestId});
           if (receipt && !cancelled) emit(controller, 'data: ' + JSON.stringify({costResult: {...receipt, balance: await readBalance(input.userId)}}) + '\n\n', () => false);

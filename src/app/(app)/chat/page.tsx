@@ -18,6 +18,9 @@ import { speak, stopSpeaking } from '@/lib/speech';
 import { parseShortcuts, parseBannedWords, containsBannedWord, type Shortcut } from '@/lib/preferences';
 import { HiddenReply } from '@/components/chat/hidden-reply';
 import { ActionSuggestions } from '@/components/chat/action-suggestions';
+import { QuotaBar } from '@/components/chat/quota-bar';
+import { StreamCancelRow } from '@/components/chat/stream-cancel';
+import { useQuota } from '@/lib/hooks/use-quota';
 import { ChapterClose } from '@/components/stories/chapter-close';
 import { EndChapterDialog } from '@/components/stories/end-chapter-dialog';
 import { getSceneConfigByCharacterId } from '@/lib/stories/scene-config';
@@ -111,6 +114,9 @@ function ChatContent() {
   function startRequest(){activeRequest.current?.abort();const controller=new AbortController();activeRequest.current=controller;return controller.signal;}
   const [chatError, setChatError] = useState<string | null>(null);
   const [mockNotice, setMockNotice] = useState(false);
+  // 额度行与取消计费提示（V3 表 15/16）：数值只来自 /api/me/quota 与 SSE 的 cost 事件。
+  const {quota, loading: quotaLoading, error: quotaError, reload: reloadQuota, applyCost} = useQuota(token);
+  const [insufficientNotice, setInsufficientNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
@@ -231,6 +237,7 @@ function ChatContent() {
     setStreamingText('');
     setChatError(null);
     setMockNotice(false);
+    setInsufficientNotice('');
 
     const signal=startRequest();
     try {
@@ -258,10 +265,32 @@ function ChatContent() {
       }
     } catch (err) {
       if(signal.aborted)return;
+      const failure = err as {code?: string; status?: number};
+      if (failure.code === 'INSUFFICIENT_COINS' || failure.status === 402) {
+        // 余额不足：草稿已在上面恢复，撤掉这条还没落库的乐观消息，并刷新额度给充值入口。
+        setMessages(prev => prev.filter(item => item.id !== userMsg.id));
+        setInsufficientNotice(err instanceof Error ? err.message : '金币余额不足。');
+        void reloadQuota();
+        return;
+      }
       console.error(err);
       setChatError(err instanceof Error ? zhError(err.message) : '发送失败，请稍后重试。');
+      // 失败会释放预扣（含免费次数的预占），余额与免费剩余可能已经变了。
+      void reloadQuota();
       await reloadMessages(signal);
     } finally { if(!signal.aborted){setStreaming(false);setStreamingText('');} }
+  }
+
+  /**
+   * 用户取消生成（V3 表 16）：断开连接后服务端按策略结算或释放，但不会再推 costResult。
+   * 结算与保存回复在同一段收尾里，所以先等消息刷新回来，再重读额度，避免读到结算前的余额。
+   */
+  function cancelStreaming() {
+    activeRequest.current?.abort();
+    setStreaming(false);
+    setStreamingText('');
+    setBusyId(null);
+    void reloadMessages().then(() => reloadQuota()).catch(() => {});
   }
 
   async function toggleMessageLike(messageId: string) {
@@ -297,7 +326,12 @@ function ChatContent() {
   async function consumeStream(res: Response) {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(zhError(data.error || '') || `请求失败 (${res.status})`);
+      // 402 余额不足要单独处理：保留草稿、给充值入口，不当成普通发送失败。
+      // 服务端目前只透传文案不带 code，所以状态码也一起记下来，两条路都能认。
+      const failure = new Error(zhError(data.error || '') || `请求失败 (${res.status})`) as Error & {code?: string; status: number};
+      failure.code = typeof data.code === 'string' ? data.code : undefined;
+      failure.status = res.status;
+      throw failure;
     }
     if (!res.body) throw new Error('服务器没有返回聊天数据。');
     const reader = res.body.getReader();
@@ -316,9 +350,15 @@ function ChatContent() {
         if (!line.startsWith('data: ')) continue;
         const data = line.slice(6).trim();
         if (data === '[DONE]') { finished = true; break; }
-        let event: { content?: string; error?: string; demo?: boolean };
+        let event: {
+          content?: string; error?: string; demo?: boolean;
+          cost?: {requestId: string; charged: boolean; coins: number; allowanceSource: string; balance: number};
+          costResult?: {requestId: string; chargeId: string; status: string; coins: number; allowanceSource: string; balance: number};
+        };
         try { event = JSON.parse(data); } catch { continue; }
         if (event.error) throw new Error(event.error);
+        // 计费事件就地更新余额与免费剩余，不整页刷新（V3 表 15）。
+        if (event.cost || event.costResult) { applyCost(event); continue; }
         if (event.demo) setMockNotice(true);
         full += event.content || '';
         setStreamingText(full);
@@ -554,6 +594,24 @@ function ChatContent() {
 
       {/* Input */}
       <div className="bg-zinc-900/80 border-t border-white/10 backdrop-blur-xs px-4 py-4">
+        <QuotaBar quota={quota} loading={quotaLoading} error={quotaError} insufficient={Boolean(insufficientNotice)} onRetry={() => void reloadQuota()} />
+        {insufficientNotice && (
+          <div role="alert" className="mx-auto mb-3 flex max-w-3xl flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            <span className="min-w-0 flex-1">{insufficientNotice}</span>
+            <span className="text-xs text-amber-300/80">草稿已保留</span>
+            <Link href="/shop" className="rounded-full border border-amber-400/40 px-2.5 py-1 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-400/20">
+              去充值
+            </Link>
+          </div>
+        )}
+        {streaming && (
+          <StreamCancelRow
+            cancelPolicy={quota?.cancelPolicy}
+            freeCancelRemaining={quota?.freeCancelRemaining}
+            outputStarted={streamingText.length > 0}
+            onCancel={cancelStreaming}
+          />
+        )}
         {chatError && (
           <div role="alert" className="mx-auto mb-3 max-w-3xl rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
             {chatError}

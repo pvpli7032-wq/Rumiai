@@ -15,81 +15,89 @@ datasource db {
 
 /// User account model managing profile, auth credentials, tier, and economy state
 model User {
-  id           String    @id @default(cuid())
-  username     String    @unique
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  avatarUrl    String?   @map("avatar_url")
+  id                   String    @id @default(cuid())
+  username             String    @unique
+  email                String    @unique
+  passwordHash         String    @map("password_hash")
+  avatarUrl            String?   @map("avatar_url")
   /// Public display name shown above the @username on creator cards
-  displayName  String?   @map("display_name")
-  tier         String    @default("ROOKIE") // ROOKIE, PRO, MASTER, LEGEND, EPIC, MYTHIC
+  displayName          String?   @map("display_name")
+  tier                 String    @default("ROOKIE") // ROOKIE, PRO, MASTER, LEGEND, EPIC, MYTHIC
   /// Cached creator-leaderboard counters (see prisma/seed-creators.ts)
-  followerCount        Int @default(0) @map("follower_count")
-  characterCount       Int @default(0) @map("character_count")
-  messageCount         Int @default(0) @map("message_count")
-  chatCount            Int @default(0) @map("chat_count")
-  universeMessageCount Int @default(0) @map("universe_message_count")
-  universeChatCount    Int @default(0) @map("universe_chat_count")
+  followerCount        Int       @default(0) @map("follower_count")
+  characterCount       Int       @default(0) @map("character_count")
+  messageCount         Int       @default(0) @map("message_count")
+  chatCount            Int       @default(0) @map("chat_count")
+  universeMessageCount Int       @default(0) @map("universe_message_count")
+  universeChatCount    Int       @default(0) @map("universe_chat_count")
   /// Followers gained in the last seven days — powers the "มาแรงสัปดาห์นี้" tab
-  weeklyFollowerGain   Int @default(0) @map("weekly_follower_gain")
+  weeklyFollowerGain   Int       @default(0) @map("weekly_follower_gain")
   /// Bumped on logout to invalidate every token issued before it. Tokens carry this
   /// value, so a leaked one stops working as soon as the user signs out.
-  tokenVersion Int       @default(0) @map("token_version")
-  deletedAt DateTime? @map("deleted_at")
-  suspendedAt DateTime? @map("suspended_at")
-  suspensionReason String? @map("suspension_reason")
-  accountVersion Int @default(0) @map("account_version")
-  lastLoginAt DateTime? @map("last_login_at")
-  lastActiveAt DateTime? @map("last_active_at")
-  communityBannedAt DateTime? @map("community_banned_at")
-  communityBanReason String? @map("community_ban_reason")
+  tokenVersion         Int       @default(0) @map("token_version")
+  deletedAt            DateTime? @map("deleted_at")
+  suspendedAt          DateTime? @map("suspended_at")
+  suspensionReason     String?   @map("suspension_reason")
+  accountVersion       Int       @default(0) @map("account_version")
+  lastLoginAt          DateTime? @map("last_login_at")
+  lastActiveAt         DateTime? @map("last_active_at")
+  communityBannedAt    DateTime? @map("community_banned_at")
+  communityBanReason   String?   @map("community_ban_reason")
   /// Reader preferences from the chat panel. bannedWords is a newline-separated list
   /// ("คำที่ไม่ต้องการ"); shortcuts is JSON for the quick-insert buttons.
-  bannedWords  String?   @map("banned_words")
-  readingMode  Boolean   @default(false) @map("reading_mode")
-  shortcuts    String?
-  coins        Int       @default(100)
-  streakCount  Int       @default(0) @map("streak_count")
-  lastCheckin  DateTime? @map("last_checkin")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  bannedWords          String?   @map("banned_words")
+  readingMode          Boolean   @default(false) @map("reading_mode")
+  shortcuts            String?
+  coins                Int       @default(100)
+  streakCount          Int       @default(0) @map("streak_count")
+  lastCheckin          DateTime? @map("last_checkin")
+  /// 新手引导选中的兴趣标签（JSON 数组）；为空表示还没选过。
+  interestsJson        String?   @map("interests_json")
+  /// 引导完成时间；为空表示还没走完或跳过。
+  onboardedAt          DateTime? @map("onboarded_at")
+  /// 本人的邀请码；分享链接带它进入注册。
+  inviteCode           String?   @unique @map("invite_code")
+  /// 注册时归属的邀请人。只做归属与发奖判断，不建外键关系（不参与级联）。
+  invitedByUserId      String?   @map("invited_by_user_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  circles Circle[]
-  circleMemberships CircleMember[]
-  circleRestrictions CircleMembershipRestriction[] @relation("CircleRestrictedUser")
+  circles                   Circle[]
+  circleMemberships         CircleMember[]
+  circleRestrictions        CircleMembershipRestriction[] @relation("CircleRestrictedUser")
   circleRestrictionsApplied CircleMembershipRestriction[] @relation("CircleRestrictionActor")
-  posts Post[]
-  postLikes PostLike[]
-  postComments PostComment[]
-  following Follow[] @relation("Following")
-  followers Follow[] @relation("Followers")
-  moderationActions ModerationAction[]
+  posts                     Post[]
+  postLikes                 PostLike[]
+  postComments              PostComment[]
+  following                 Follow[]                      @relation("Following")
+  followers                 Follow[]                      @relation("Followers")
+  moderationActions         ModerationAction[]
   siteContentDrafts         SiteContentDraft[]
   siteContentRevisions      SiteContentRevision[]
-  appeals CommunityAppeal[]
+  appeals                   CommunityAppeal[]
 
   // Relationships
-  characters       Character[]       @relation("CreatedCharacters")
-  conversations    Conversation[]
-  storyTemplates   StoryTemplate[]
-  storyRuns        StoryRun[]
-  storyShares      StoryShare[]
-  activityDays     UserActivityDay[]
-  checkins         Checkin[]
-  giftsSent        Gift[]            @relation("UserGiftsSent")
-  coinTransactions CoinTransaction[]
-  paymentOrders    PaymentOrder[]
-  userMissions     UserMission[]
+  characters         Character[]           @relation("CreatedCharacters")
+  conversations      Conversation[]
+  storyTemplates     StoryTemplate[]
+  storyRuns          StoryRun[]
+  storyShares        StoryShare[]
+  activityDays       UserActivityDay[]
+  checkins           Checkin[]
+  giftsSent          Gift[]                @relation("UserGiftsSent")
+  coinTransactions   CoinTransaction[]
+  paymentOrders      PaymentOrder[]
+  userMissions       UserMission[]
   characterLikes     CharacterLike[]
   characterBookmarks CharacterBookmark[]
-  reportsFiled       Report[]            @relation("ReportsFiled")
+  reportsFiled       Report[]              @relation("ReportsFiled")
   questProgress      UserCharacterQuest[]
   aiCalls            AiCall[]
   aiDailyUsage       AiDailyUsage[]
-  accountClosure AccountClosure?
-  consents UserConsent[]
-  uploadAssets UploadAsset[]
-  adminOperator AdminOperator?
+  accountClosure     AccountClosure?
+  consents           UserConsent[]
+  uploadAssets       UploadAsset[]
+  adminOperator      AdminOperator?
   comments           Comment[]
   commentLikes       CommentLike[]
   settingOverrides   UserSettingOverride[]
@@ -104,50 +112,51 @@ model User {
 
   @@index([createdAt, id])
   @@index([suspendedAt, deletedAt])
+  @@index([invitedByUserId])
   @@map("users")
 }
 
 model AdminOperator {
-  userId String @id @map("user_id")
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
-  enabled Boolean @default(true)
-  version Int @default(0)
+  userId      String                @id @map("user_id")
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  enabled     Boolean               @default(true)
+  version     Int                   @default(0)
   assignments AdminRoleAssignment[]
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
 
   @@map("admin_operators")
 }
 
 model AdminRole {
-  id String @id @default(cuid())
-  code String @unique
-  name String
-  system Boolean @default(false)
-  version Int @default(0)
+  id          String                @id @default(cuid())
+  code        String                @unique
+  name        String
+  system      Boolean               @default(false)
+  version     Int                   @default(0)
   permissions AdminRolePermission[]
   assignments AdminRoleAssignment[]
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
 
   @@map("admin_roles")
 }
 
 model AdminRolePermission {
-  roleId String @map("role_id")
+  roleId     String    @map("role_id")
   permission String
-  role AdminRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role       AdminRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permission])
   @@map("admin_role_permissions")
 }
 
 model AdminRoleAssignment {
-  userId String @map("user_id")
-  roleId String @map("role_id")
-  operator AdminOperator @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  role AdminRole @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  createdAt DateTime @default(now()) @map("created_at")
+  userId    String        @map("user_id")
+  roleId    String        @map("role_id")
+  operator  AdminOperator @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  role      AdminRole     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  createdAt DateTime      @default(now()) @map("created_at")
 
   @@id([userId, roleId])
   @@index([roleId])
@@ -155,12 +164,12 @@ model AdminRoleAssignment {
 }
 
 model AdminAuditLog {
-  id String @id @default(cuid())
-  actorId String @map("actor_id")
-  action String
-  targetId String @map("target_id")
-  reason String
-  changes String
+  id        String   @id @default(cuid())
+  actorId   String   @map("actor_id")
+  action    String
+  targetId  String   @map("target_id")
+  reason    String
+  changes   String
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([createdAt])
@@ -183,27 +192,27 @@ model CompliancePolicy {
 }
 
 model SiteCertificateStatus {
-  id String @id @default("primary")
-  hostname String?
-  port Int?
-  status String @default("NOT_CHECKED")
-  verified Boolean @default(false)
-  validFrom DateTime? @map("valid_from")
-  validUntil DateTime? @map("valid_until")
-  checkedAt DateTime? @map("checked_at")
-  errorCode String? @map("error_code")
+  id             String    @id @default("primary")
+  hostname       String?
+  port           Int?
+  status         String    @default("NOT_CHECKED")
+  verified       Boolean   @default(false)
+  validFrom      DateTime? @map("valid_from")
+  validUntil     DateTime? @map("valid_until")
+  checkedAt      DateTime? @map("checked_at")
+  errorCode      String?   @map("error_code")
   fingerprint256 String?
 
   @@map("site_certificate_status")
 }
 
 model MaintenancePolicy {
-  id String @id @default("primary")
-  enabled Boolean @default(false)
-  message String @default("系统维护中，暂时无法提交操作，请稍后重试。")
-  retryAfterSeconds Int @default(300) @map("retry_after_seconds")
-  version Int @default(0)
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String   @id @default("primary")
+  enabled           Boolean  @default(false)
+  message           String   @default("系统维护中，暂时无法提交操作，请稍后重试。")
+  retryAfterSeconds Int      @default(300) @map("retry_after_seconds")
+  version           Int      @default(0)
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("maintenance_policies")
 }
@@ -225,25 +234,25 @@ model UserConsent {
 }
 
 model AccountClosure {
-  id String @id @default(cuid())
-  userId String @unique @map("user_id")
-  fileUrlsJson String @map("file_urls_json")
-  status String @default("PENDING_FILES")
-  createdAt DateTime @default(now()) @map("created_at")
-  completedAt DateTime? @map("completed_at")
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id           String    @id @default(cuid())
+  userId       String    @unique @map("user_id")
+  fileUrlsJson String    @map("file_urls_json")
+  status       String    @default("PENDING_FILES")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  completedAt  DateTime? @map("completed_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@map("account_closures")
 }
 
 model UploadAsset {
-  id String @id @default(cuid())
+  id        String   @id @default(cuid())
   /// Original uploading account; `siteOwned` records the asset's current business owner.
-  ownerId String @map("owner_id")
-  siteOwned Boolean @default(false) @map("site_owned")
-  url String @unique
+  ownerId   String   @map("owner_id")
+  siteOwned Boolean  @default(false) @map("site_owned")
+  url       String   @unique
   createdAt DateTime @default(now()) @map("created_at")
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
 
   @@index([ownerId])
   @@map("upload_assets")
@@ -251,43 +260,43 @@ model UploadAsset {
 
 /// Character model for AI persona (both user-created and system featured characters)
 model Character {
-  communityPosts Post[]
-  id          String   @id @default(cuid())
-  name        String
+  communityPosts       Post[]
+  id                   String             @id @default(cuid())
+  name                 String
   /// Short hook shown on cards in the explore page
-  tagline     String?
-  personality String
-  background  String
-  greeting    String?
-  avatarUrl   String?  @map("avatar_url")
-  creatorId   String?  @map("creator_id")
-  isPublic    Boolean  @default(false) @map("is_public")
-  publicationRequested Boolean @default(false) @map("publication_requested")
-  reviewStatus String @default("DRAFT") @map("review_status")
-  reviewReason String? @map("review_reason")
-  copyrightStatement String? @map("copyright_statement")
-  reviewedBy String? @map("reviewed_by")
-  reviewedAt DateTime? @map("reviewed_at")
-  chatCount   Int      @default(0) @map("chat_count")
+  tagline              String?
+  personality          String
+  background           String
+  greeting             String?
+  avatarUrl            String?            @map("avatar_url")
+  creatorId            String?            @map("creator_id")
+  isPublic             Boolean            @default(false) @map("is_public")
+  publicationRequested Boolean            @default(false) @map("publication_requested")
+  reviewStatus         String             @default("DRAFT") @map("review_status")
+  reviewReason         String?            @map("review_reason")
+  copyrightStatement   String?            @map("copyright_statement")
+  reviewedBy           String?            @map("reviewed_by")
+  reviewedAt           DateTime?          @map("reviewed_at")
+  chatCount            Int                @default(0) @map("chat_count")
   /// Shown with the "Only on 星伴" badge on cards
-  isExclusive Boolean  @default(false) @map("is_exclusive")
+  isExclusive          Boolean            @default(false) @map("is_exclusive")
   /// Comma-separated feature emojis rendered on the card (e.g. "☺️,🎹")
-  badges      String?
+  badges               String?
   /// Comma-separated tag keys (e.g. "Female,NC,นอกใจ")
-  tags        String?
+  tags                 String?
   /// Persona template for the player character, shown under "บทบาท" — the live site
   /// ships a fill-in-the-blanks profile the user adopts.
-  roleTemplate String? @map("role_template")
+  roleTemplate         String?            @map("role_template")
   /// Opening situation, shown under "สถานการณ์".
-  scenario     String?
+  scenario             String?
   /// Cached counters the detail header shows: ไลก์ / แชท / ข้อความ / ของขวัญ.
   /// chatCount already exists; likes and gifts are also derivable from their tables,
   /// but the header reads them on every card so they are denormalised here.
-  likeCount    Int @default(0) @map("like_count")
-  messageCount Int @default(0) @map("message_count")
-  giftCount    Int @default(0) @map("gift_count")
+  likeCount            Int                @default(0) @map("like_count")
+  messageCount         Int                @default(0) @map("message_count")
+  giftCount            Int                @default(0) @map("gift_count")
   /// 18+ content, which the live site warns about above the fold.
-  isAdult      Boolean @default(false) @map("is_adult")
+  isAdult              Boolean            @default(false) @map("is_adult")
   /// Starting relationship, shown as "ค่าความสัมพันธ์เริ่มต้น": a status label plus
   /// two meters (romance and intimacy).
   ///
@@ -295,20 +304,20 @@ model Character {
   /// its bar about half filled, so the fill is relative to the band of the current
   /// status tier rather than to a 0-100 range. Only non-negative is enforced here; the
   /// tier thresholds that drive the bar are not known.
-  relationshipStatus String? @map("relationship_status")
-  initialRomance     Int     @default(0) @map("initial_romance")
-  initialIntimacy    Int     @default(0) @map("initial_intimacy")
-  aiModelsRestricted Boolean @default(false) @map("ai_models_restricted")
-  aiModelScopeVersion Int @default(0) @map("ai_model_scope_version")
-  allowedAiModels CharacterAiModel[]
+  relationshipStatus   String?            @map("relationship_status")
+  initialRomance       Int                @default(0) @map("initial_romance")
+  initialIntimacy      Int                @default(0) @map("initial_intimacy")
+  aiModelsRestricted   Boolean            @default(false) @map("ai_models_restricted")
+  aiModelScopeVersion  Int                @default(0) @map("ai_model_scope_version")
+  allowedAiModels      CharacterAiModel[]
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  creator       User?          @relation("CreatedCharacters", fields: [creatorId], references: [id], onDelete: SetNull)
+  creator       User?               @relation("CreatedCharacters", fields: [creatorId], references: [id], onDelete: SetNull)
   conversations Conversation[]
-  giftsReceived Gift[]         @relation("CharacterGiftsReceived")
+  giftsReceived Gift[]              @relation("CharacterGiftsReceived")
   images        CharacterImage[]
   emojis        CharacterEmoji[]
   supportCast   SupportCharacter[]
@@ -324,10 +333,10 @@ model Character {
 }
 
 model CharacterAiModel {
-  characterId String @map("character_id")
-  modelKey String @map("model_key")
-  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  model AiModel @relation(fields: [modelKey], references: [key], onDelete: Restrict)
+  characterId String    @map("character_id")
+  modelKey    String    @map("model_key")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  model       AiModel   @relation(fields: [modelKey], references: [key], onDelete: Restrict)
 
   @@id([characterId, modelKey])
   @@index([modelKey])
@@ -353,11 +362,11 @@ model CharacterImage {
 /// One picture per emotion, shown in the "อิโมจิตัวละคร" strip. The live site uses
 /// happy / sad / angry / embarrassed / confident / blank.
 model CharacterEmoji {
-  id          String   @id @default(cuid())
-  characterId String   @map("character_id")
+  id          String @id @default(cuid())
+  characterId String @map("character_id")
   emotion     String
   url         String
-  sortOrder   Int      @default(0) @map("sort_order")
+  sortOrder   Int    @default(0) @map("sort_order")
 
   character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
@@ -367,12 +376,12 @@ model CharacterEmoji {
 
 /// Secondary cast listed under "ตัวละครสนับสนุน", each with its own portrait and notes.
 model SupportCharacter {
-  id          String   @id @default(cuid())
-  characterId String   @map("character_id")
+  id          String  @id @default(cuid())
+  characterId String  @map("character_id")
   name        String
-  avatarUrl   String?  @map("avatar_url")
+  avatarUrl   String? @map("avatar_url")
   description String
-  sortOrder   Int      @default(0) @map("sort_order")
+  sortOrder   Int     @default(0) @map("sort_order")
 
   character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
@@ -414,15 +423,15 @@ model CharacterBookmark {
 /// Per-character quests, shown as "ภารกิจ (4)" on the detail dialog. The existing
 /// Mission model is platform-wide; these belong to one character.
 model CharacterQuest {
-  id          String   @id @default(cuid())
-  characterId String   @map("character_id")
-  title       String
-  description String?
-  rewardCoins Int      @default(0) @map("reward_coins")
-  requiredMessages Int @default(1) @map("required_messages")
-  sortOrder   Int      @default(0) @map("sort_order")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  characterId      String   @map("character_id")
+  title            String
+  description      String?
+  rewardCoins      Int      @default(0) @map("reward_coins")
+  requiredMessages Int      @default(1) @map("required_messages")
+  sortOrder        Int      @default(0) @map("sort_order")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   character Character            @relation(fields: [characterId], references: [id], onDelete: Cascade)
   progress  UserCharacterQuest[]
@@ -450,27 +459,27 @@ model UserCharacterQuest {
 /// for readers to flag it, so this is deliberately broad: any target type, the same
 /// categories the live site offers, and the extra fields its copyright form collects.
 model Report {
-  id         String   @id @default(cuid())
-  reporterId String   @map("reporter_id")
+  id              String   @id @default(cuid())
+  reporterId      String   @map("reporter_id")
   /// CHARACTER, USER, COMMENT, POST, UNIVERSE or MESSAGE.
-  targetType String   @map("target_type")
-  targetId   String   @map("target_id")
+  targetType      String   @map("target_type")
+  targetId        String   @map("target_id")
   /// One of the categories in community/report-types.ts.
-  category   String
+  category        String
   /// Narrows an inappropriateImage report: realPerson, explicit, violent or other.
-  imageReason String? @map("image_reason")
-  details    String
+  imageReason     String?  @map("image_reason")
+  details         String
   /// Submitted assistant reply retained as evidence even if its chat is deleted.
-  evidenceContent String? @map("evidence_content")
+  evidenceContent String?  @map("evidence_content")
   /// Copyright claims carry provenance the other categories do not.
-  workTitle    String? @map("work_title")
-  relationship String?
-  sourceLink   String? @map("source_link")
-  contactType  String? @map("contact_type")
-  contactValue String? @map("contact_value")
+  workTitle       String?  @map("work_title")
+  relationship    String?
+  sourceLink      String?  @map("source_link")
+  contactType     String?  @map("contact_type")
+  contactValue    String?  @map("contact_value")
   /// OPEN, REVIEWING, ACTIONED or DISMISSED.
-  status     String   @default("OPEN")
-  createdAt  DateTime @default(now()) @map("created_at")
+  status          String   @default("OPEN")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   reporter User @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
 
@@ -482,32 +491,32 @@ model Report {
 
 /// Conversation container between a User and a Character
 model Conversation {
-  id          String   @id @default(cuid())
-  userId      String   @map("user_id")
-  characterId String   @map("character_id")
-  title       String?
+  id                 String    @id @default(cuid())
+  userId             String    @map("user_id")
+  characterId        String    @map("character_id")
+  title              String?
   /// Relationship state belongs to the conversation, not the character: the live chat
   /// page shows these moving as you talk, and seeds them from the character's initial
   /// values. A user can hold several conversations with one character, each at its own
   /// stage.
-  relationshipStatus String? @map("relationship_status")
-  romance            Int     @default(0)
-  intimacy           Int     @default(0)
+  relationshipStatus String?   @map("relationship_status")
+  romance            Int       @default(0)
+  intimacy           Int       @default(0)
   /// The "โหมดความสัมพันธ์ (ทดลอง)" switch, per chat.
-  relationshipMode Boolean @default(true) @map("relationship_mode")
+  relationshipMode   Boolean   @default(true) @map("relationship_mode")
   /// Overrides AI_MODEL for this chat only, chosen from a server-side allowlist so a
   /// reader cannot point the shared provider quota at an arbitrary model.
-  aiModel     String?  @map("ai_model")
+  aiModel            String?   @map("ai_model")
   /// Free-text notes the reader keeps for this chat ("โน้ตตัวละคร").
-  notes       String?
+  notes              String?
   /// Set when the chat is moved out of the sidebar list ("แชทที่จัดเก็บ").
-  archivedAt  DateTime? @map("archived_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  archivedAt         DateTime? @map("archived_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   // Relationships
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character           @relation(fields: [characterId], references: [id], onDelete: Cascade)
   messages  Message[]
   /// 只有从故事入口开始的会话才有实例；历史自由聊天保持 null，继续走原聊天路径。
   storyRun  StoryRun?
@@ -523,23 +532,23 @@ model Conversation {
 
 /// Chat message history inside a conversation
 model Message {
-  id             String   @id @default(cuid())
-  conversationId String   @map("conversation_id")
-  role           String   // USER, ASSISTANT, SYSTEM
+  id             String    @id @default(cuid())
+  conversationId String    @map("conversation_id")
+  role           String // USER, ASSISTANT, SYSTEM
   content        String
   /// Set when the reader taps the thumbs-up on a reply.
   likedAt        DateTime? @map("liked_at")
   /// A picture generated alongside the reply, as the live greeting message carries.
   imageUrl       String?   @map("image_url")
-  createdAt      DateTime @default(now()) @map("created_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   // Relationships
-  conversation        Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation        Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   /// 故事回合对消息的引用。消息被删除时置空而不是级联：回合本身是幂等与恢复的
   /// 凭据，不能因为一条消息被编辑就消失。
-  storyInputTurns     StoryTurn[]  @relation("StoryInputMessage")
-  storyAssistantTurns StoryTurn[]  @relation("StoryAssistantMessage")
-  storyEvents         StoryEvent[] @relation("StorySourceMessage")
+  storyInputTurns     StoryTurn[]      @relation("StoryInputMessage")
+  storyAssistantTurns StoryTurn[]      @relation("StoryAssistantMessage")
+  storyEvents         StoryEvent[]     @relation("StorySourceMessage")
   storyShareTurns     StoryShareTurn[]
 
   @@index([conversationId])
@@ -574,8 +583,8 @@ model Gift {
   createdAt   DateTime @default(now()) @map("created_at")
 
   // Relationships
-  sender    User      @relation("UserGiftsSent", fields: [senderId], references: [id], onDelete: Cascade)
-  character Character @relation("CharacterGiftsReceived", fields: [characterId], references: [id], onDelete: Cascade)
+  sender    User             @relation("UserGiftsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  character Character        @relation("CharacterGiftsReceived", fields: [characterId], references: [id], onDelete: Cascade)
   catalog   GiftCatalogItem? @relation(fields: [catalogId], references: [id], onDelete: SetNull)
 
   @@index([senderId])
@@ -586,44 +595,46 @@ model Gift {
 
 /// Server-priced gift options; Gift.amount remains the immutable historical price snapshot.
 model GiftCatalogItem {
-  id String @id @default(cuid())
-  code String @unique
-  name String
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
   description String?
-  emoji String @default("🎁")
-  coinPrice Int @map("coin_price")
-  isActive Boolean @default(true) @map("is_active")
-  sortOrder Int @default(0) @map("sort_order")
-  version Int @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  gifts Gift[]
+  emoji       String   @default("🎁")
+  coinPrice   Int      @map("coin_price")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  version     Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  gifts       Gift[]
 
-  @@index([isActive,sortOrder])
+  @@index([isActive, sortOrder])
   @@map("gift_catalog_items")
 }
 
 /// Ledger tracking all coin adjustments (purchases, rewards, spent)
 model CoinTransaction {
-  id          String   @id @default(cuid())
-  userId      String   @map("user_id")
-  sourceKey   String   @default("OTHER") @map("source_key")
-  paymentOrderId String? @unique @map("payment_order_id")
-  refundId String? @unique @map("refund_id")
-  refundReleaseId String? @unique @map("refund_release_id")
-  amount      Int
-  type        String   // PURCHASE, EARNED, SPENT
-  description String?
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  sourceKey       String   @default("OTHER") @map("source_key")
+  paymentOrderId  String?  @unique @map("payment_order_id")
+  refundId        String?  @unique @map("refund_id")
+  refundReleaseId String?  @unique @map("refund_release_id")
+  amount          Int
+  type            String // PURCHASE, EARNED, SPENT
+  description     String?
   /// 聊天计费：同一条费用单的 HOLD（负数）/ RELEASE（正数）各只允许一行。
   /// 既有流水这两列为 NULL，不参与唯一约束。
-  chargeId     String? @map("charge_id")
-  chargeAction String? @map("charge_action") // HOLD, SETTLE, RELEASE
-  createdAt   DateTime @default(now()) @map("created_at")
+  chargeId        String?  @map("charge_id")
+  chargeAction    String?  @map("charge_action") // HOLD, SETTLE, RELEASE
+  /// 奖励发放的唯一业务键（例如评理参与奖「caseId:userId」），同一键只发一次。
+  rewardKey       String?  @unique @map("reward_key")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   // Relationships
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  paymentOrder PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
-  refund PaymentRefund? @relation("RefundDebit", fields: [refundId], references: [id], onDelete: Restrict)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentOrder  PaymentOrder?  @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  refund        PaymentRefund? @relation("RefundDebit", fields: [refundId], references: [id], onDelete: Restrict)
   refundRelease PaymentRefund? @relation("RefundRelease", fields: [refundReleaseId], references: [id], onDelete: Restrict)
 
   @@unique([chargeId, chargeAction])
@@ -637,31 +648,31 @@ model CoinTransaction {
 /// A server-priced EZFP checkout. Coin and CNY amounts are immutable snapshots;
 /// paymentOrderId on CoinTransaction gives each order at most one coin credit.
 model PaymentOrder {
-  id                 String   @id @default(cuid())
-  orderNo            String   @unique @map("order_no")
-  idempotencyKey     String   @map("idempotency_key")
-  userId             String   @map("user_id")
-  packageId          String?  @map("package_id")
-  packageCoins       Int      @map("package_coins")
-  packageBonus       Int      @map("package_bonus")
-  coinAmount         Int      @map("coin_amount")
-  amountCnyCents     Int      @map("amount_cny_cents")
-  currency           String   @default("CNY")
-  status             String   @default("PENDING")
-  provider            String   @default("EZFP")
+  id                 String                   @id @default(cuid())
+  orderNo            String                   @unique @map("order_no")
+  idempotencyKey     String                   @map("idempotency_key")
+  userId             String                   @map("user_id")
+  packageId          String?                  @map("package_id")
+  packageCoins       Int                      @map("package_coins")
+  packageBonus       Int                      @map("package_bonus")
+  coinAmount         Int                      @map("coin_amount")
+  amountCnyCents     Int                      @map("amount_cny_cents")
+  currency           String                   @default("CNY")
+  status             String                   @default("PENDING")
+  provider           String                   @default("EZFP")
   merchantRevisionId String?                  @map("merchant_revision_id")
   merchantRevision   PaymentMerchantRevision? @relation(fields: [merchantRevisionId], references: [id], onDelete: Restrict)
-  providerTradeNo     String?  @unique @map("provider_trade_no")
-  providerPayType     String?  @map("provider_pay_type")
-  providerPayInfo     String?  @map("provider_pay_info")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
-  paidAt              DateTime? @map("paid_at")
+  providerTradeNo    String?                  @unique @map("provider_trade_no")
+  providerPayType    String?                  @map("provider_pay_type")
+  providerPayInfo    String?                  @map("provider_pay_info")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+  paidAt             DateTime?                @map("paid_at")
 
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  coinTransaction CoinTransaction?
-  refund PaymentRefund?
-  callbackEvents  PaymentCallbackEvent[]
+  user               User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinTransaction    CoinTransaction?
+  refund             PaymentRefund?
+  callbackEvents     PaymentCallbackEvent[]
   reconciliationRows PaymentReconciliationEntry[]
 
   @@unique([userId, idempotencyKey])
@@ -689,12 +700,12 @@ model PaymentCallbackEvent {
 
 /// Bounded, low-cardinality callback rejection monitoring. Raw notification data is never stored.
 model PaymentCallbackAlertSample {
-  id            String   @id @default(cuid())
-  provider      String
-  minuteStart   DateTime @map("minute_start")
-  reasonCode    String   @map("reason_code")
-  firstSeenAt   DateTime @map("first_seen_at")
-  lastSeenAt    DateTime @map("last_seen_at")
+  id          String   @id @default(cuid())
+  provider    String
+  minuteStart DateTime @map("minute_start")
+  reasonCode  String   @map("reason_code")
+  firstSeenAt DateTime @map("first_seen_at")
+  lastSeenAt  DateTime @map("last_seen_at")
 
   @@unique([provider, minuteStart, reasonCode])
   @@index([minuteStart, provider])
@@ -703,43 +714,43 @@ model PaymentCallbackAlertSample {
 
 /// Immutable imported channel statement and local order reconciliation result.
 model PaymentReconciliationBatch {
-  id                 String   @id @default(cuid())
-  provider           String   @default("EZFP")
-  sourceSha256       String   @unique @map("source_sha256")
-  importedById       String   @map("imported_by_id")
-  importReason       String   @map("import_reason")
-  rowCount           Int      @map("row_count")
-  matchedRowCount    Int      @map("matched_row_count")
-  exceptionRowCount  Int      @map("exception_row_count")
-  grossCnyCents      BigInt   @map("gross_cny_cents")
-  feeCnyCents        BigInt   @map("fee_cny_cents")
-  periodStart        DateTime @map("period_start")
-  periodEnd          DateTime @map("period_end")
-  createdAt          DateTime @default(now()) @map("created_at")
-  rows               PaymentReconciliationEntry[]
+  id                String                       @id @default(cuid())
+  provider          String                       @default("EZFP")
+  sourceSha256      String                       @unique @map("source_sha256")
+  importedById      String                       @map("imported_by_id")
+  importReason      String                       @map("import_reason")
+  rowCount          Int                          @map("row_count")
+  matchedRowCount   Int                          @map("matched_row_count")
+  exceptionRowCount Int                          @map("exception_row_count")
+  grossCnyCents     BigInt                       @map("gross_cny_cents")
+  feeCnyCents       BigInt                       @map("fee_cny_cents")
+  periodStart       DateTime                     @map("period_start")
+  periodEnd         DateTime                     @map("period_end")
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  rows              PaymentReconciliationEntry[]
 
   @@index([createdAt])
   @@map("payment_reconciliation_batches")
 }
 
 model PaymentReconciliationEntry {
-  id                         String   @id @default(cuid())
-  batchId                    String   @map("batch_id")
-  entrySource                String   @default("STATEMENT") @map("entry_source")
-  lineNumber                 Int?     @map("line_number")
-  providerTradeNo            String?  @map("provider_trade_no")
-  orderNo                    String   @map("order_no")
-  grossCnyCents              Int?     @map("gross_cny_cents")
-  feeCnyCents                Int?     @map("fee_cny_cents")
-  paidAt                     DateTime @map("paid_at")
-  matchStatus                String   @map("match_status")
-  exceptionCode              String?  @map("exception_code")
-  paymentOrderId             String?  @map("payment_order_id")
-  internalAmountCnyCents     Int?     @map("internal_amount_cny_cents")
-  internalOrderStatus        String?  @map("internal_order_status")
-  createdAt                  DateTime @default(now()) @map("created_at")
-  batch                      PaymentReconciliationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  paymentOrder               PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  id                     String                     @id @default(cuid())
+  batchId                String                     @map("batch_id")
+  entrySource            String                     @default("STATEMENT") @map("entry_source")
+  lineNumber             Int?                       @map("line_number")
+  providerTradeNo        String?                    @map("provider_trade_no")
+  orderNo                String                     @map("order_no")
+  grossCnyCents          Int?                       @map("gross_cny_cents")
+  feeCnyCents            Int?                       @map("fee_cny_cents")
+  paidAt                 DateTime                   @map("paid_at")
+  matchStatus            String                     @map("match_status")
+  exceptionCode          String?                    @map("exception_code")
+  paymentOrderId         String?                    @map("payment_order_id")
+  internalAmountCnyCents Int?                       @map("internal_amount_cny_cents")
+  internalOrderStatus    String?                    @map("internal_order_status")
+  createdAt              DateTime                   @default(now()) @map("created_at")
+  batch                  PaymentReconciliationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  paymentOrder           PaymentOrder?              @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
 
   @@unique([batchId, lineNumber])
   @@index([batchId, matchStatus])
@@ -816,29 +827,29 @@ model PaymentMerchantRevision {
 
 /// One full refund per order. PROCESSING/UNKNOWN reserve coins until confirmed.
 model PaymentRefund {
-  id String @id @default(cuid())
-  paymentOrderId String @unique @map("payment_order_id")
-  refundNo String @unique @map("refund_no")
-  providerRefundNo String? @unique @map("provider_refund_no")
-  actorId String @map("actor_id")
-  approvedById String? @map("approved_by_id")
-  approvedAt DateTime? @map("approved_at")
-  approvalReason String? @map("approval_reason")
-  rejectedById String? @map("rejected_by_id")
-  rejectedAt DateTime? @map("rejected_at")
-  rejectionReason String? @map("rejection_reason")
-  lastActionById String? @map("last_action_by_id")
-  reason String
-  amountCnyCents Int @map("amount_cny_cents")
-  coinAmount Int @map("coin_amount")
-  status String @default("PROCESSING")
-  errorCode String? @map("error_code")
-  attemptedAt DateTime @default(now()) @map("attempted_at")
-  createdAt DateTime @default(now()) @map("created_at")
-  completedAt DateTime? @map("completed_at")
-  paymentOrder PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
-  debit CoinTransaction? @relation("RefundDebit")
-  release CoinTransaction? @relation("RefundRelease")
+  id               String           @id @default(cuid())
+  paymentOrderId   String           @unique @map("payment_order_id")
+  refundNo         String           @unique @map("refund_no")
+  providerRefundNo String?          @unique @map("provider_refund_no")
+  actorId          String           @map("actor_id")
+  approvedById     String?          @map("approved_by_id")
+  approvedAt       DateTime?        @map("approved_at")
+  approvalReason   String?          @map("approval_reason")
+  rejectedById     String?          @map("rejected_by_id")
+  rejectedAt       DateTime?        @map("rejected_at")
+  rejectionReason  String?          @map("rejection_reason")
+  lastActionById   String?          @map("last_action_by_id")
+  reason           String
+  amountCnyCents   Int              @map("amount_cny_cents")
+  coinAmount       Int              @map("coin_amount")
+  status           String           @default("PROCESSING")
+  errorCode        String?          @map("error_code")
+  attemptedAt      DateTime         @default(now()) @map("attempted_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  completedAt      DateTime?        @map("completed_at")
+  paymentOrder     PaymentOrder     @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
+  debit            CoinTransaction? @relation("RefundDebit")
+  release          CoinTransaction? @relation("RefundRelease")
 
   @@index([status, createdAt])
   @@map("payment_refunds")
@@ -846,20 +857,20 @@ model PaymentRefund {
 
 /// Master table of available platform missions
 model Mission {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  rewardCoins Int      @map("reward_coins")
-  category    String   @default("DAILY") // DAILY, ONBOARDING, STARTER, SPECIAL, CREATOR
-  conditionType String @default("MANUAL") @map("condition_type")
-  conditionTarget Int @default(1) @map("condition_target")
-  period String @default("ONCE")
-  isActive Boolean @default(false) @map("is_active")
-  sortOrder Int @default(0) @map("sort_order")
-  version Int @default(0)
-  startsAt DateTime? @map("starts_at")
-  endsAt DateTime? @map("ends_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  rewardCoins     Int       @map("reward_coins")
+  category        String    @default("DAILY") // DAILY, ONBOARDING, STARTER, SPECIAL, CREATOR
+  conditionType   String    @default("MANUAL") @map("condition_type")
+  conditionTarget Int       @default(1) @map("condition_target")
+  period          String    @default("ONCE")
+  isActive        Boolean   @default(false) @map("is_active")
+  sortOrder       Int       @default(0) @map("sort_order")
+  version         Int       @default(0)
+  startsAt        DateTime? @map("starts_at")
+  endsAt          DateTime? @map("ends_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
   // Relationships
   userMissions UserMission[]
@@ -873,7 +884,7 @@ model UserMission {
   id          String    @id @default(cuid())
   userId      String    @map("user_id")
   missionId   String    @map("mission_id")
-  periodKey String @default("ONCE") @map("period_key")
+  periodKey   String    @default("ONCE") @map("period_key")
   isCompleted Boolean   @default(false) @map("is_completed")
   completedAt DateTime? @map("completed_at")
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -890,11 +901,11 @@ model UserMission {
 
 /// Editable daily streak rewards; rows 1–7 preserve the existing schedule.
 model CheckinRewardRule {
-  streakDay Int @id @map("streak_day")
-  rewardCoins Int @map("reward_coins")
-  version Int @default(0)
-  updatedBy String? @map("updated_by")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  streakDay   Int      @id @map("streak_day")
+  rewardCoins Int      @map("reward_coins")
+  version     Int      @default(0)
+  updatedBy   String?  @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("checkin_reward_rules")
 }
@@ -906,7 +917,7 @@ model CheckinRewardRule {
 /// Promo banners for the explore hero carousel and the sidebar carousel
 model Banner {
   id           String   @id @default(cuid())
-  placement    String   // HERO, SIDEBAR
+  placement    String // HERO, SIDEBAR
   title        String
   description  String
   href         String
@@ -923,12 +934,12 @@ model Banner {
 
 /// Master tag catalog used by the creator picker and the explore filter chips
 model Tag {
-  id        String   @id @default(cuid())
-  key       String   @unique
+  id        String  @id @default(cuid())
+  key       String  @unique
   label     String
-  group     String   // ประเภท, บทบาท, บุคลิก, แนวเรื่อง, ความสัมพันธ์
-  filterRow String?  @map("filter_row") // type | role -> shown as a filter chip row on the explore page
-  sortOrder Int      @default(0) @map("sort_order")
+  group     String // ประเภท, บทบาท, บุคลิก, แนวเรื่อง, ความสัมพันธ์
+  filterRow String? @map("filter_row") // type | role -> shown as a filter chip row on the explore page
+  sortOrder Int     @default(0) @map("sort_order")
   isActive  Boolean @default(true) @map("is_active")
 
   @@index([group])
@@ -938,10 +949,10 @@ model Tag {
 
 /// Feature emojis a creator can pin on a character card
 model Badge {
-  id        String @id @default(cuid())
-  emoji     String @unique
+  id        String  @id @default(cuid())
+  emoji     String  @unique
   label     String
-  sortOrder Int    @default(0) @map("sort_order")
+  sortOrder Int     @default(0) @map("sort_order")
   isActive  Boolean @default(true) @map("is_active")
 
   @@map("badges")
@@ -949,15 +960,15 @@ model Badge {
 
 /// A horizontal rail on the explore page and how it picks its characters
 model HomeSection {
-  id        String   @id @default(cuid())
-  key       String   @unique
+  id        String  @id @default(cuid())
+  key       String  @unique
   emoji     String
   title     String
   /// FOR_YOU | EXCLUSIVE | POPULAR | NEWEST | TAG
   source    String
-  tagKey    String?  @map("tag_key")
-  sortOrder Int      @default(0) @map("sort_order")
-  isActive  Boolean  @default(true) @map("is_active")
+  tagKey    String? @map("tag_key")
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
 
   @@map("home_sections")
 }
@@ -1039,28 +1050,28 @@ model SiteContentRevision {
 
 /// Coin bundles shown in the shop
 model CoinPackage {
-  id        String  @id @default(cuid())
-  coins     Int
-  priceThb  Int     @map("price_thb")
-  priceCnyCents Int? @map("price_cny_cents")
-  bonus     Int     @default(0)
+  id            String    @id @default(cuid())
+  coins         Int
+  priceThb      Int       @map("price_thb")
+  priceCnyCents Int?      @map("price_cny_cents")
+  bonus         Int       @default(0)
   bonusStartsAt DateTime? @map("bonus_starts_at")
-  bonusEndsAt DateTime? @map("bonus_ends_at")
-  version Int @default(0)
-  label     String
-  sortOrder Int     @default(0) @map("sort_order")
-  isActive  Boolean @default(true) @map("is_active")
+  bonusEndsAt   DateTime? @map("bonus_ends_at")
+  version       Int       @default(0)
+  label         String
+  sortOrder     Int       @default(0) @map("sort_order")
+  isActive      Boolean   @default(true) @map("is_active")
 
   @@map("coin_packages")
 }
 
 model CoinPackageChange {
-  id String @id @default(cuid())
-  packageId String @map("package_id")
-  actorId String @map("actor_id")
-  beforeJson String? @map("before_json")
-  afterJson String @map("after_json")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  packageId  String   @map("package_id")
+  actorId    String   @map("actor_id")
+  beforeJson String?  @map("before_json")
+  afterJson  String   @map("after_json")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([packageId, createdAt])
   @@map("coin_package_changes")
@@ -1083,7 +1094,7 @@ model Horoscope {
 
 /// A shared world (จักรวาล) that groups several characters into one setting
 model Universe {
-  circles Circle[]
+  circles        Circle[]
   id             String   @id @default(cuid())
   name           String
   /// Short hook shown under the name on cards
@@ -1111,22 +1122,22 @@ model Universe {
 /// unbounded thread needs its own moderation and pagination story, and a reply-to-a-reply
 /// reads the same as a reply in a list this short.
 model Comment {
-  id          String   @id @default(cuid())
-  characterId String   @map("character_id")
-  authorId    String   @map("author_id")
-  parentId    String?  @map("parent_id")
+  id          String    @id @default(cuid())
+  characterId String    @map("character_id")
+  authorId    String    @map("author_id")
+  parentId    String?   @map("parent_id")
   body        String
-  likeCount   Int      @default(0) @map("like_count")
+  likeCount   Int       @default(0) @map("like_count")
   /// Soft-hidden by moderation. The row stays so a reply keeps its parent and the
   /// reporter can still see what they filed against.
   hiddenAt    DateTime? @map("hidden_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  character Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parent    Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Comment[]      @relation("CommentReplies")
+  character Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
   likes     CommentLike[]
 
   @@index([characterId, createdAt])
@@ -1153,42 +1164,42 @@ model CommentLike {
 /// Accepted generation attempts; no prompt or response text is stored here.
 model AiDailyUsage {
   userId String @map("user_id")
-  day String
-  count Int @default(0)
-  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  day    String
+  count  Int    @default(0)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([userId,day])
+  @@id([userId, day])
   @@map("ai_daily_usage")
 }
 
 model AiCall {
-  id String @id @default(cuid())
+  id               String        @id @default(cuid())
   /// 匿名玩法（Mirror 公开生成）没有账号，成本仍必须计量，所以这两列可空。
-  userId String? @map("user_id")
-  conversationId String? @map("conversation_id")
+  userId           String?       @map("user_id")
+  conversationId   String?       @map("conversation_id")
   /// 业务任务类型：chat / story / mirror / dispute_verdict / memory_summary。
-  taskType String? @map("task_type")
+  taskType         String?       @map("task_type")
   /// 匿名主体的服务端归属标识（不信任客户端传入的用户 ID）。
-  anonymousSubject String? @map("anonymous_subject")
-  operation String
-  status String @default("STARTED")
-  model String?
-  attempts Int @default(0)
-  inputTokens Int? @map("input_tokens")
-  outputTokens Int? @map("output_tokens")
-  estimatedCost Float? @map("estimated_cost")
-  modelPriceId String? @map("model_price_id")
-  modelPrice AiModelPrice? @relation(fields:[modelPriceId],references:[id],onDelete:SetNull)
-  currency String
-  errorCode String? @map("error_code")
-  startedAt DateTime @default(now()) @map("started_at")
-  finishedAt DateTime? @map("finished_at")
-  durationMs Int? @map("duration_ms")
-  user User? @relation(fields:[userId],references:[id],onDelete:Cascade)
+  anonymousSubject String?       @map("anonymous_subject")
+  operation        String
+  status           String        @default("STARTED")
+  model            String?
+  attempts         Int           @default(0)
+  inputTokens      Int?          @map("input_tokens")
+  outputTokens     Int?          @map("output_tokens")
+  estimatedCost    Float?        @map("estimated_cost")
+  modelPriceId     String?       @map("model_price_id")
+  modelPrice       AiModelPrice? @relation(fields: [modelPriceId], references: [id], onDelete: SetNull)
+  currency         String
+  errorCode        String?       @map("error_code")
+  startedAt        DateTime      @default(now()) @map("started_at")
+  finishedAt       DateTime?     @map("finished_at")
+  durationMs       Int?          @map("duration_ms")
+  user             User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId,startedAt])
-  @@index([currency,startedAt])
-  @@index([taskType,startedAt])
+  @@index([userId, startedAt])
+  @@index([currency, startedAt])
+  @@index([taskType, startedAt])
   @@map("ai_calls")
 }
 
@@ -1237,25 +1248,25 @@ model AiProvider {
 }
 
 model AiModel {
-  id              String     @id @default(cuid())
-  key             String     @unique
-  displayName     String     @map("display_name")
-  modelCode       String     @map("model_code")
-  providerId      String     @map("provider_id")
-  provider        AiProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
-  isActive        Boolean    @default(false) @map("is_active")
-  isDefault       Boolean    @default(false) @map("is_default")
-  defaultSlot     String?    @unique @map("default_slot")
-  isFallback      Boolean    @default(false) @map("is_fallback")
-  sortOrder       Int        @default(0) @map("sort_order")
-  timeoutMs       Int        @default(60000) @map("timeout_ms")
-  maxRetries      Int        @default(1) @map("max_retries")
-  maxOutputTokens Int        @default(800) @map("max_output_tokens")
-  lastCheckAt     DateTime?  @map("last_check_at")
-  lastCheckStatus String?    @map("last_check_status")
-  version         Int        @default(0)
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
+  id              String             @id @default(cuid())
+  key             String             @unique
+  displayName     String             @map("display_name")
+  modelCode       String             @map("model_code")
+  providerId      String             @map("provider_id")
+  provider        AiProvider         @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  isActive        Boolean            @default(false) @map("is_active")
+  isDefault       Boolean            @default(false) @map("is_default")
+  defaultSlot     String?            @unique @map("default_slot")
+  isFallback      Boolean            @default(false) @map("is_fallback")
+  sortOrder       Int                @default(0) @map("sort_order")
+  timeoutMs       Int                @default(60000) @map("timeout_ms")
+  maxRetries      Int                @default(1) @map("max_retries")
+  maxOutputTokens Int                @default(800) @map("max_output_tokens")
+  lastCheckAt     DateTime?          @map("last_check_at")
+  lastCheckStatus String?            @map("last_check_status")
+  version         Int                @default(0)
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
   prices          AiModelPrice[]
   coinPrices      ModelCoinPrice[]
   characters      CharacterAiModel[]
@@ -1267,185 +1278,185 @@ model AiModel {
 
 /// Append-only provider price history. Rates are stored as millionths of a currency unit per million tokens.
 model AiModelPrice {
-  id                    String   @id @default(cuid())
-  modelId               String   @map("model_id")
-  model                 AiModel  @relation(fields:[modelId],references:[id],onDelete:Restrict)
-  currency              String
-  inputPerMillionMicros BigInt   @map("input_per_million_micros")
-  outputPerMillionMicros BigInt  @map("output_per_million_micros")
-  effectiveAt           DateTime @map("effective_at")
-  source                String
-  reason                String
-  createdBy             String   @map("created_by")
-  createdAt             DateTime @default(now()) @map("created_at")
-  calls                 AiCall[]
+  id                     String   @id @default(cuid())
+  modelId                String   @map("model_id")
+  model                  AiModel  @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  currency               String
+  inputPerMillionMicros  BigInt   @map("input_per_million_micros")
+  outputPerMillionMicros BigInt   @map("output_per_million_micros")
+  effectiveAt            DateTime @map("effective_at")
+  source                 String
+  reason                 String
+  createdBy              String   @map("created_by")
+  createdAt              DateTime @default(now()) @map("created_at")
+  calls                  AiCall[]
 
-  @@unique([modelId,effectiveAt])
+  @@unique([modelId, effectiveAt])
   @@map("ai_model_prices")
 }
 
 /// Creating a circle does not automatically subscribe its owner.
 model Circle {
- id String @id @default(cuid())
- name String
- description String
- tags String?
- ownerId String? @map("owner_id")
- universeId String? @map("universe_id")
- status String @default("ACTIVE")
- isFeatured Boolean @default(false) @map("is_featured")
- createdAt DateTime @default(now()) @map("created_at")
- updatedAt DateTime @updatedAt @map("updated_at")
- owner User? @relation(fields: [ownerId], references: [id], onDelete: Cascade)
- universe Universe? @relation(fields: [universeId], references: [id], onDelete: SetNull)
- members CircleMember[]
- restrictions CircleMembershipRestriction[]
- posts Post[]
+  id           String                        @id @default(cuid())
+  name         String
+  description  String
+  tags         String?
+  ownerId      String?                       @map("owner_id")
+  universeId   String?                       @map("universe_id")
+  status       String                        @default("ACTIVE")
+  isFeatured   Boolean                       @default(false) @map("is_featured")
+  createdAt    DateTime                      @default(now()) @map("created_at")
+  updatedAt    DateTime                      @updatedAt @map("updated_at")
+  owner        User?                         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  universe     Universe?                     @relation(fields: [universeId], references: [id], onDelete: SetNull)
+  members      CircleMember[]
+  restrictions CircleMembershipRestriction[]
+  posts        Post[]
 
- @@index([status, createdAt])
- @@index([status, isFeatured, createdAt, id])
- @@index([status, updatedAt, id])
- @@map("circles")
+  @@index([status, createdAt])
+  @@index([status, isFeatured, createdAt, id])
+  @@index([status, updatedAt, id])
+  @@map("circles")
 }
 
 model CircleMember {
- circleId String @map("circle_id")
- userId String @map("user_id")
- createdAt DateTime @default(now()) @map("created_at")
- circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
- user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  circleId  String   @map("circle_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
- @@id([circleId, userId])
- @@index([userId, createdAt])
- @@index([circleId, createdAt, userId])
- @@map("circle_members")
+  @@id([circleId, userId])
+  @@index([userId, createdAt])
+  @@index([circleId, createdAt, userId])
+  @@map("circle_members")
 }
 
 model CircleMembershipRestriction {
- circleId String @map("circle_id")
- userId String @map("user_id")
- actorId String @map("actor_id")
- reason String
- createdAt DateTime @default(now()) @map("created_at")
- updatedAt DateTime @updatedAt @map("updated_at")
- circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
- user User @relation("CircleRestrictedUser", fields: [userId], references: [id], onDelete: Cascade)
- actor User @relation("CircleRestrictionActor", fields: [actorId], references: [id], onDelete: Restrict)
+  circleId  String   @map("circle_id")
+  userId    String   @map("user_id")
+  actorId   String   @map("actor_id")
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User     @relation("CircleRestrictedUser", fields: [userId], references: [id], onDelete: Cascade)
+  actor     User     @relation("CircleRestrictionActor", fields: [actorId], references: [id], onDelete: Restrict)
 
- @@id([circleId, userId])
- @@index([userId])
- @@index([circleId, createdAt, userId])
- @@map("circle_membership_restrictions")
+  @@id([circleId, userId])
+  @@index([userId])
+  @@index([circleId, createdAt, userId])
+  @@map("circle_membership_restrictions")
 }
 
 model Post {
- id String @id @default(cuid())
- circleId String @map("circle_id")
- authorId String @map("author_id")
- characterId String? @map("character_id")
- content String
- status String @default("VISIBLE")
+  id          String        @id @default(cuid())
+  circleId    String        @map("circle_id")
+  authorId    String        @map("author_id")
+  characterId String?       @map("character_id")
+  content     String
+  status      String        @default("VISIBLE")
   isPinned    Boolean       @default(false) @map("is_pinned")
   isFeatured  Boolean       @default(false) @map("is_featured")
- createdAt DateTime @default(now()) @map("created_at")
- updatedAt DateTime @updatedAt @map("updated_at")
- circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
- author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
- character Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
- media PostMedia[]
- likes PostLike[]
- comments PostComment[]
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  circle      Circle        @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  character   Character?    @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  media       PostMedia[]
+  likes       PostLike[]
+  comments    PostComment[]
 
- @@index([circleId, status, createdAt])
+  @@index([circleId, status, createdAt])
   @@index([circleId, status, isPinned, isFeatured, createdAt, id])
   @@index([status, updatedAt, id])
   @@index([circleId, status, updatedAt, id])
- @@index([authorId, createdAt])
- @@map("posts")
+  @@index([authorId, createdAt])
+  @@map("posts")
 }
 
 model PostMedia {
- id String @id @default(cuid())
- postId String @map("post_id")
- url String
- position Int @default(0)
- post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  postId   String @map("post_id")
+  url      String
+  position Int    @default(0)
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
- @@unique([postId, position])
- @@map("post_media")
+  @@unique([postId, position])
+  @@map("post_media")
 }
 
 model PostLike {
- postId String @map("post_id")
- userId String @map("user_id")
- createdAt DateTime @default(now()) @map("created_at")
- post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
- user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
- @@id([postId, userId])
- @@map("post_likes")
+  @@id([postId, userId])
+  @@map("post_likes")
 }
 
 /// Independent from character comments; community visibility applies here.
 model PostComment {
- id String @id @default(cuid())
- postId String @map("post_id")
- authorId String @map("author_id")
- content String
- imageUrl String? @map("image_url")
- status String @default("VISIBLE")
- createdAt DateTime @default(now()) @map("created_at")
- updatedAt DateTime @updatedAt @map("updated_at")
- post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
- author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  authorId  String   @map("author_id")
+  content   String
+  imageUrl  String?  @map("image_url")
+  status    String   @default("VISIBLE")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
- @@index([postId, status, createdAt])
+  @@index([postId, status, createdAt])
   @@index([status, updatedAt, id])
- @@map("post_comments")
+  @@map("post_comments")
 }
 
 model Follow {
- followerId String @map("follower_id")
- followingId String @map("following_id")
- createdAt DateTime @default(now()) @map("created_at")
- follower User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
- following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
 
- @@id([followerId, followingId])
- @@index([followingId, createdAt])
- @@map("follows")
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt])
+  @@map("follows")
 }
 
 /// Target identifiers survive deletion for audit history.
 model ModerationAction {
- id String @id @default(cuid())
- actorId String @map("actor_id")
- targetType String @map("target_type")
- targetId String @map("target_id")
- action String
- reason String
- createdAt DateTime @default(now()) @map("created_at")
- actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  action     String
+  reason     String
+  createdAt  DateTime @default(now()) @map("created_at")
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
- @@index([targetType, targetId, createdAt])
- @@map("moderation_actions")
+  @@index([targetType, targetId, createdAt])
+  @@map("moderation_actions")
 }
 
 model CommunityAppeal {
- id String @id @default(cuid())
- userId String @map("user_id")
- reason String
- status String @default("OPEN")
- resolution String?
- reviewedBy String? @map("reviewed_by")
- reviewedAt DateTime? @map("reviewed_at")
- createdAt DateTime @default(now()) @map("created_at")
- updatedAt DateTime @updatedAt @map("updated_at")
- user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  reason     String
+  status     String    @default("OPEN")
+  resolution String?
+  reviewedBy String?   @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
- @@index([status, createdAt])
- @@index([userId, createdAt])
- @@map("community_appeals")
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("community_appeals")
 }
 
 /// 故事模板：一个可体验的故事起点。V1 才有；V0 用的是随版本发布的静态配置。
@@ -1621,8 +1632,8 @@ model StoryShare {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  run                StoryRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
-  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  run                StoryRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   storyTurnSelection StoryShareTurn[]
 
   @@index([runId])
@@ -1758,11 +1769,13 @@ model GenerationCharge {
 
 /// 每日免费次数。free_reserved 是并发预占，成功后并入 free_used。
 model UserDailyAllowance {
-  userId       String @map("user_id")
-  day          String
-  freeUsed     Int    @default(0) @map("free_used")
-  freeReserved Int    @default(0) @map("free_reserved")
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String @map("user_id")
+  day            String
+  freeUsed       Int    @default(0) @map("free_used")
+  freeReserved   Int    @default(0) @map("free_reserved")
+  /// 当日已用掉的「免费取消」次数；只在「已输出即收费」策略下消耗。
+  freeCancelUsed Int    @default(0) @map("free_cancel_used")
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, day])
   @@map("user_daily_allowances")
@@ -1795,21 +1808,21 @@ model MirrorResult {
 
 /// 评理案例。复用帖子承载评论点赞举报，这里只存案例、规则快照、票数与结案结果。
 model DisputeCase {
-  id               String    @id @default(cuid())
-  postId           String    @unique @map("post_id")
-  authorId         String    @map("author_id")
-  characterId      String?   @map("character_id")
-  excerptJson      String    @map("excerpt_json")
+  id               String        @id @default(cuid())
+  postId           String        @unique @map("post_id")
+  authorId         String        @map("author_id")
+  characterId      String?       @map("character_id")
+  excerptJson      String        @map("excerpt_json")
   claim            String
-  ruleSnapshotJson String    @map("rule_snapshot_json")
-  deadlineAt       DateTime  @map("deadline_at")
-  voteCount        Int       @default(0) @map("vote_count")
-  closeStatus      String    @default("OPEN") @map("close_status") // OPEN, CLOSING, CLOSED
-  verdictJson      String?   @map("verdict_json")
-  closedAt         DateTime? @map("closed_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-  author           User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  ruleSnapshotJson String        @map("rule_snapshot_json")
+  deadlineAt       DateTime      @map("deadline_at")
+  voteCount        Int           @default(0) @map("vote_count")
+  closeStatus      String        @default("OPEN") @map("close_status") // OPEN, CLOSING, CLOSED
+  verdictJson      String?       @map("verdict_json")
+  closedAt         DateTime?     @map("closed_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  author           User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   votes            DisputeVote[]
 
   @@index([closeStatus, deadlineAt])

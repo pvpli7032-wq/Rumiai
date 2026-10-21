@@ -1,11 +1,13 @@
 import {db, pragmasReady} from '@/lib/db';
 import {logWarning} from '@/lib/logger';
+import {recordProductEvent} from '@/lib/analytics/product-events';
 import {readSettingValue} from '@/lib/settings';
 import {readAiModelPlan} from '@/lib/ai/models/runtime-service';
 import {streamOpenAIResponse} from '@/lib/conversations/chat-stream';
 import {finishAiCall, reserveAiCall} from '@/lib/ai/ai-usage';
 import type {AiStreamMetrics} from '@/lib/ai/types';
 import {readCaseRecord, readTallies} from './case-service';
+import {awardHotRewards} from './reward-service';
 import type {DisputeCaseRecord, DisputeChoice, DisputeExcerptMessage, DisputeTally, DisputeVerdict} from './types';
 import {emptyTally, leadingChoice} from './types';
 
@@ -66,8 +68,8 @@ async function generateVerdict(input: CloseContext): Promise<string> {
     : null;
   const persona = character ?? {name: '评理主持', personality: '中立转述投票结果，不替任何一方下结论', background: null, scenario: null, roleTemplate: null, isAdult: false};
   // 结案回应不是聊天回合：走成本预算与调用台账，不消耗用户的聊天每日次数。
-  const call = await reserveAiCall(input.authorId, '', 'STATE_EXTRACT', plan?.map(model => model.key));
-  await db.aiCall.update({where: {id: call.id}, data: {operation: 'DISPUTE_VERDICT', taskType: 'dispute_verdict'}}).catch(() => null);
+  // 任务类型必须在 reserve 时给出，否则评理回应的每日预算闸门不会生效。
+  const call = await reserveAiCall(input.authorId, '', 'DISPUTE_VERDICT', plan?.map(model => model.key), 'disputeVerdict');
   const startedAt = call.startedAt;
   let metrics: AiStreamMetrics = {};
   try {
@@ -120,6 +122,8 @@ export async function closeDisputeCase(caseId: string, options: CloseOptions = {
   // 抢占就是条件更新：从 OPEN 改成 CLOSING 只会有一次成功，失败方直接返回不重复生成。
   const claimed = await db.disputeCase.updateMany({where: {id: caseId, closeStatus: 'OPEN'}, data: {closeStatus: 'CLOSING'}});
   if (claimed.count !== 1) return {caseId, status: 'ALREADY_CLOSED'};
+  // 漏斗埋点跟着这次抢占走：只有真正开始结案的那一次记一条。
+  await recordProductEvent({event: 'dispute_closed', subjectKey: caseId});
 
   const maxChars = Math.max(20, Number(rules.verdictMaxChars) || 120);
   const outcome = {main: leadingChoice(tally), tally};
@@ -147,10 +151,14 @@ export async function closeDisputeCase(caseId: string, options: CloseOptions = {
   return await finish(caseId, verdict) ? {caseId, status: 'CLOSED', source: 'FALLBACK', ...(lastError ? {error: lastError} : {})} : {caseId, status: 'ALREADY_CLOSED'};
 }
 
-/** 只有仍持有 CLOSING 的案例能落结果；落不下去说明已被别处结案或撤回。 */
+/**
+ * 只有仍持有 CLOSING 的案例能落结果；落不下去说明已被别处结案或撤回。
+ * 热门奖跟着这次落库走：只有真正写成 CLOSED 的那一次才发，重复结案不会重发。
+ */
 async function finish(caseId: string, verdict: DisputeVerdict) {
   const saved = await db.disputeCase.updateMany({where: {id: caseId, closeStatus: 'CLOSING'}, data: {closeStatus: 'CLOSED', verdictJson: JSON.stringify(verdict), closedAt: new Date()}});
   if (!saved.count) return false;
+  await awardHotRewards(caseId);
   return true;
 }
 

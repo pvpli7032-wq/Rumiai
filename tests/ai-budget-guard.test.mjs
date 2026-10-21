@@ -34,6 +34,10 @@ async function setSetting(key, group, value) {
 }
 await setSetting('billing.hardDailyMessages', 'chat', 3);
 await setSetting('limits.chat.perWindow', 'chat', 100);
+/** 任务预算默认未填写（null），每个用例自己覆盖需要的任务。 */
+const TASK_BUDGET_KEYS = ['budget.task.chat', 'budget.task.story', 'budget.task.mirror', 'budget.task.mirrorAnonymous', 'budget.task.disputeVerdict', 'budget.task.memorySummary'];
+for (const key of TASK_BUDGET_KEYS) await setSetting(key, 'billing', null);
+
 const { readCostBudgetBlock } = await import('../src/lib/ai/budget-guard.ts');
 const { signToken } = await import('../src/lib/auth.ts');
 const { POST: send } = await import('../src/app/api/conversations/[id]/messages/route.ts');
@@ -53,6 +57,7 @@ test.beforeEach(async () => {
   process.env.AI_BUDGET_CIRCUIT_BREAKER = 'true';
   process.env.AI_DAILY_COST_BUDGETS = '{"USD":{"site":10,"user":1}}';
   await db.aiCall.deleteMany(); await db.aiDailyUsage.deleteMany(); warnings.length = 0;
+  for (const key of TASK_BUDGET_KEYS) await setSetting(key, 'billing', null);
 });
 const addCall = (data = {}) => db.aiCall.create({ data: { userId: a.id, conversationId: conversation.id, operation: 'SEND', currency: 'USD', status: 'SUCCEEDED', attempts: 1, estimatedCost: 1, startedAt: new Date(Date.now() - 1000), ...data } });
 const blocked = async (operation = 'SEND', status = 429, code = 'AI_COST_BUDGET', userId = a.id) => {
@@ -225,4 +230,66 @@ test('monitor read failure does not undo the completed cost record', async () =>
     assert.equal((await db.aiCall.findUnique({ where: { id: call.id } })).status, 'SUCCEEDED');
     assert(warnings.some(row => row.message === 'ai_budget_monitor_failed' && row.callId === call.id));
   } finally { db.$transaction = originalTransaction; }
+});
+
+test('task budget pauses only that task and leaves chat admission intact', async () => {
+  process.env.AI_DAILY_COST_BUDGETS = '{"USD":{"site":10}}';
+  await setSetting('budget.task.story', 'billing', 0.5);
+  await addCall({ taskType: 'story', estimatedCost: 0.6 });
+  await assert.rejects(
+    reserveAiCall(a.id, conversation.id, 'SEND', undefined, 'story'),
+    error => error instanceof AiQuotaError && error.status === 429 && error.block?.code === 'AI_TASK_BUDGET' && error.block?.scope === 'task',
+  );
+  // 同一时刻聊天照常放行：任务预算不是全站熔断。
+  const chat = await reserveAiCall(a.id, conversation.id, 'SEND', undefined, 'chat');
+  assert.equal((await db.aiCall.findUnique({ where: { id: chat.id } })).taskType, 'chat');
+  assert.equal((await db.aiDailyUsage.findFirst({ where: { userId: a.id } })).count, 1);
+  assert.equal(await db.aiCall.count({ where: { taskType: 'story', status: 'STARTED' } }), 0);
+});
+
+test('task cost still counts toward the site budget it shares with every other task', async () => {
+  process.env.AI_DAILY_COST_BUDGETS = '{"USD":{"site":1}}';
+  await addCall({ taskType: 'story', estimatedCost: 0.7 });
+  await addCall({ taskType: 'memory_summary', userId: b.id, estimatedCost: 0.4 });
+  await assert.rejects(
+    reserveAiCall(a.id, conversation.id, 'SEND', undefined, 'chat'),
+    error => error instanceof AiQuotaError && error.block?.code === 'AI_COST_BUDGET' && error.block?.scope === 'site',
+  );
+});
+
+test('a zero task budget pauses the task before any usage; unset means unlimited', async () => {
+  process.env.AI_DAILY_COST_BUDGETS = '{"USD":{"site":10}}';
+  await setSetting('budget.task.disputeVerdict', 'billing', 0);
+  await assert.rejects(
+    reserveAiCall(a.id, '', 'DISPUTE_VERDICT', undefined, 'disputeVerdict'),
+    error => error instanceof AiQuotaError && error.block?.code === 'AI_TASK_BUDGET',
+  );
+  await setSetting('budget.task.disputeVerdict', 'billing', null);
+  const call = await reserveAiCall(a.id, '', 'DISPUTE_VERDICT', undefined, 'disputeVerdict');
+  const saved = await db.aiCall.findUnique({ where: { id: call.id } });
+  assert.equal(saved.taskType, 'dispute_verdict');
+  assert.equal(saved.operation, 'DISPUTE_VERDICT');
+  // 后台任务不消耗聊天每日次数。
+  assert.equal(await db.aiDailyUsage.count(), 0);
+});
+
+test('mirror anonymous entry closes while its budget is unset or zero, and pauses only itself', async () => {
+  const { readMirrorAccess } = await import('../src/lib/ai/task-budget.ts');
+  const closedUnset = await readMirrorAccess(true);
+  assert.equal(closedUnset.open, false);
+  assert.match(closedUnset.message, /待设置匿名预算/);
+  await setSetting('budget.task.mirrorAnonymous', 'billing', 0);
+  assert.match((await readMirrorAccess(true)).message, /匿名体验暂未开放/);
+  // 登录入口只看总量预算，匿名预算没填或为 0 都不影响。
+  assert.equal((await readMirrorAccess(false)).open, true);
+  await setSetting('budget.task.mirrorAnonymous', 'billing', 1);
+  assert.equal((await readMirrorAccess(true)).open, true);
+
+  // 匿名用量单独统计：用完只停匿名入口；总量预算另算，达标才停登录入口。
+  await setSetting('budget.task.mirror', 'billing', 5);
+  await addCall({ taskType: 'mirror', anonymousSubject: 'synthetic-subject', estimatedCost: 1 });
+  assert.match((await readMirrorAccess(true)).message, /今天的体验名额用完了/);
+  assert.equal((await readMirrorAccess(false)).open, true);
+  await setSetting('budget.task.mirror', 'billing', 1);
+  assert.equal((await readMirrorAccess(false)).open, false);
 });

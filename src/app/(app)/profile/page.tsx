@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { ReaderPreferences } from '@/components/reader-preferences';
 import { AccountClosure } from '@/components/account-closure';
 import { AdminEntry } from '@/components/admin-entry';
+import { InviteCard } from '@/components/growth';
 import { loginWithNext } from '@/lib/next-path';
 import { User, Flame, Coins, CheckCircle2, Circle, Gift, Loader2, LogOut, Download } from 'lucide-react';
 
@@ -146,6 +147,8 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        <InviteCard />
 
         {/* Daily Check-in */}
         {checkinStatus && (

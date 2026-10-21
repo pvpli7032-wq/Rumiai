@@ -16,6 +16,8 @@ export interface SettingDefinition {
   default: JsonValue;
   min?: number;
   max?: number;
+  /** number 类型是否允许小数。成本币这类量级很小的值必须开，否则最小粒度是 1 个币种单位。 */
+  decimal?: boolean;
   options?: {value: string; label: string}[];
   description: string;
   /** 只有额度、计费模式、折扣倍率与指定玩法次数允许按用户覆盖。 */

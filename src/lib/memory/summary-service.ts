@@ -133,8 +133,7 @@ async function summarizeWithModel(input: {conversationId: string; userId: string
     select: {name: true, personality: true, background: true, scenario: true, roleTemplate: true, isAdult: true},
   });
   const persona = character ?? {name: '记录者', personality: '客观整理已发生的对话，不添加评论', background: null, scenario: null, roleTemplate: null, isAdult: false};
-  const call = await reserveAiCall(input.userId, input.conversationId, 'STATE_EXTRACT', plan?.map(model => model.key));
-  await db.aiCall.update({where: {id: call.id}, data: {operation: 'MEMORY_SUMMARY', taskType: 'memory_summary'}}).catch(() => null);
+  const call = await reserveAiCall(input.userId, input.conversationId, 'MEMORY_SUMMARY', plan?.map(model => model.key), 'memorySummary');
   let metrics: AiStreamMetrics = {};
   try {
     const text = await streamOpenAIResponse({enqueue() {}} as unknown as ReadableStreamDefaultController, persona, [], input.prompt, null, {

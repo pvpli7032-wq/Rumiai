@@ -6,11 +6,14 @@ import {aiErrorCode, type PromptCharacter} from '@/lib/conversations/chat-stream
 import type {AiStreamMetrics} from '@/lib/ai/types';
 import {buildMirrorPrompt, buildRepairPrompt, generateMirrorResult, MIRROR_TASK_TYPE, normalizeAnswers} from './generation';
 import {createMirrorModelCaller, MirrorModelError} from './model-call';
-import {consumeMirrorLimit, effectiveMirrorUsed, mirrorDayKey, mirrorQuotaView, readMirrorUsage, releaseMirrorLimit, type MirrorIdentity} from './limits';
+import {consumeMirrorLimit, mirrorDayKey, mirrorQuotaView, readMirrorLimitState, readMirrorUsage, releaseMirrorLimit, type MirrorIdentity, type MirrorLimitPlan} from './limits';
 import {hashMirrorIp, mirrorAttributionCookieName, mirrorIpSalt, newMirrorSubject, readCookie, readMirrorQuotaCookie, signMirrorAttribution, toOwnerResult, toPublicResult, type MirrorRow} from './share';
 import {readConfigFor, type MirrorConfig} from './config';
 import {MirrorError} from './errors';
-import {beginMirrorPurchase, isPaidPurchase, purchaseBlockedReason, purchasePlanOf, readPurchasedToday, type BillingTurn} from './purchase';
+import type {BillingTurn} from '@/lib/billing/turn';
+import {readMirrorAccess} from '@/lib/ai/task-budget';
+import {recordProductEvent} from '@/lib/analytics/product-events';
+import {beginMirrorPurchase, isPaidPurchase, purchaseBlockedReason, purchasePlanOf, readPurchasedToday} from './purchase';
 import {MIRROR_QUOTA_COOKIE, MIRROR_SUBJECT_COOKIE, type MirrorCharacterOption, type MirrorOwnerResult, type MirrorQuota} from './types';
 
 /**
@@ -21,10 +24,12 @@ import {MIRROR_QUOTA_COOKIE, MIRROR_SUBJECT_COOKIE, type MirrorCharacterOption, 
  * 费用单，走 billing 的 hold → settle/release 唯一入口（见 purchase.ts）。
  */
 
-/** 首页「运营指定角色」数量：已审核公开且标了「本站原创」优先，不足用最热门公开角色补齐。 */
+/** 首页角色数量上限：后台指定名单按顺序取这么多个，自动选取也补齐到这个数。 */
 const MIRROR_CHARACTER_LIMIT = 6;
 /** 匿名主体与归属凭据 Cookie 保留一年。 */
 export const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+const CHARACTER_SELECT = {id: true, name: true, avatarUrl: true, tagline: true} as const;
 
 export type MirrorContext = {
   userId: string | null;
@@ -55,22 +60,43 @@ function clientIp(request: Request): string | null {
   return first || request.headers.get('x-real-ip')?.trim() || null;
 }
 
-export async function listMirrorCharacters(): Promise<MirrorCharacterOption[]> {
-  const select = {id: true, name: true, avatarUrl: true, tagline: true} as const;
+/** 自动选取：已审核公开且标了「本站原创」优先，不足用最热门公开角色补齐。 */
+async function autoFeaturedCharacters(): Promise<MirrorCharacterOption[]> {
   const featured = await db.character.findMany({
     where: {isPublic: true, reviewStatus: 'APPROVED', isExclusive: true},
     orderBy: [{chatCount: 'desc'}, {createdAt: 'asc'}],
     take: MIRROR_CHARACTER_LIMIT,
-    select,
+    select: CHARACTER_SELECT,
   });
-  if (featured.length >= MIRROR_CHARACTER_LIMIT) return featured;
+  const picked = featured.map(item => ({...item, source: 'AUTO' as const}));
+  if (picked.length >= MIRROR_CHARACTER_LIMIT) return picked;
   const fill = await db.character.findMany({
-    where: {isPublic: true, reviewStatus: 'APPROVED', id: {notIn: featured.map(item => item.id)}},
+    where: {isPublic: true, reviewStatus: 'APPROVED', id: {notIn: picked.map(item => item.id)}},
     orderBy: [{chatCount: 'desc'}, {createdAt: 'asc'}],
-    take: MIRROR_CHARACTER_LIMIT - featured.length,
-    select,
+    take: MIRROR_CHARACTER_LIMIT - picked.length,
+    select: CHARACTER_SELECT,
   });
-  return [...featured, ...fill];
+  return [...picked, ...fill.map(item => ({...item, source: 'AUTO' as const}))];
+}
+
+/**
+ * 首页角色名单（V3 表 19）：后台 mirror.featuredCharacterIds 指定优先，按数组顺序取
+ * 已审核公开的角色；名单里失效或已下架的 id 直接跳过，不报错。
+ * 名单为空、或一个都取不到时回退自动选取——那段代码是 fallback，不是死代码。
+ */
+export async function listMirrorCharacters(): Promise<MirrorCharacterOption[]> {
+  const config = await readConfigFor(null);
+  const ids = config.featuredCharacterIds.slice(0, MIRROR_CHARACTER_LIMIT);
+  if (ids.length) {
+    const rows = await db.character.findMany({where: {id: {in: ids}, isPublic: true, reviewStatus: 'APPROVED'}, select: CHARACTER_SELECT});
+    const byId = new Map(rows.map(row => [row.id, row]));
+    const picked = ids.flatMap(id => {
+      const row = byId.get(id);
+      return row ? [{...row, source: 'CONFIGURED' as const}] : [];
+    });
+    if (picked.length) return picked;
+  }
+  return autoFeaturedCharacters();
 }
 
 /** 计数用的身份：登录看用户，匿名看 Cookie 主体 + 回传用量 + IP 哈希。 */
@@ -84,19 +110,21 @@ export function identityOf(context: MirrorContext, subject: string | null, timez
   };
 }
 
-function quotaLimit(config: MirrorConfig, userId: string | null) {
-  return userId ? config.userDailyLimit : config.anonymousDailyLimit;
+/** 三条通道的上限：登录只看 userLimit，匿名看 Cookie 与 IP 各自的上限。 */
+export function limitPlanOf(config: MirrorConfig): MirrorLimitPlan {
+  return {userLimit: config.userDailyLimit, cookieLimit: config.anonymousDailyLimit, ipLimit: config.anonymousIpDailyLimit};
 }
 
 /** 额度视图：匿名取 Cookie 与 IP 两路中较严的一路，登录只看用户维度。 */
 export function quotaOf(context: MirrorContext, config: MirrorConfig, subject: string | null = context.subject): MirrorQuota {
   return mirrorQuotaView({
     identity: identityOf(context, subject, config.timezone),
-    limit: quotaLimit(config, context.userId),
+    plan: limitPlanOf(config),
     overLimitPolicy: config.overLimitPolicy,
     timezone: config.timezone,
     // 能买的前提：开关打开 + 已定价 + 已登录（匿名没有余额也没有长期身份）。
-    purchasable: config.purchaseEnabled && config.purchaseCoins > 0 && !!context.userId,
+    purchasable: purchasePlanOf(config, !context.userId).available,
+    purchase: purchasePlanOf(config, !context.userId),
   });
 }
 
@@ -149,6 +177,21 @@ export function newMirrorShareId(): string {
   return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
 }
 
+/** 超额分支：能买就开一张费用单，不能买就按设置给出明确文案。 */
+async function openPurchase(config: MirrorConfig, context: MirrorContext, requestId: unknown): Promise<BillingTurn> {
+  const plan = purchasePlanOf(config, false);
+  const capReached = config.purchaseDailyCap > 0
+    && context.userId !== null
+    && (await readPurchasedToday(context.userId, config.timezone)) >= config.purchaseDailyCap;
+  if (!plan.available || capReached || !context.userId) {
+    throw new MirrorError(purchaseBlockedReason(plan, config.overLimitPolicy, capReached), 429, 'MIRROR_OVER_LIMIT');
+  }
+  const turn = await beginMirrorPurchase({userId: context.userId, requestId: String(requestId ?? '')});
+  // 免费模式或未定价时 held=false：退回「额度用尽」，不白送一次。
+  if (!isPaidPurchase(turn)) throw new MirrorError(purchaseBlockedReason(plan, config.overLimitPolicy), 429, 'MIRROR_OVER_LIMIT');
+  return turn;
+}
+
 /** 生成：规则校验 → 双路额度 → 一次生成（含至多一次格式修复） → 保存 → 返回本人视图。 */
 export async function generateMirror(context: MirrorContext, input: {answers?: unknown; characterId?: unknown; requestId?: unknown}): Promise<MirrorGenerationResult> {
   const config = await readConfigFor(context.userId);
@@ -163,30 +206,32 @@ export async function generateMirror(context: MirrorContext, input: {answers?: u
     : null;
   if (!character) throw new MirrorError('请选择一个可用的角色。', 400, 'MIRROR_CHARACTER_INVALID');
   const answers = normalizeAnswers(input.answers, config);
+  // AI 成本预算闸门：只停本玩法，登录用户不受匿名预算影响。放在输入校验之后，
+  // 这样参数错误仍然是 400，不会因为预算关闭被误报成额度问题。
+  const access = await readMirrorAccess(!context.userId);
+  if (!access.open) throw new MirrorError(access.message, 429, 'MIRROR_BUDGET_PAUSED');
 
-  const limit = quotaLimit(config, context.userId);
-  if (limit <= 0) throw new MirrorError('他眼中的你今天暂停生成，明天再来。', 429, 'MIRROR_OVER_LIMIT');
-
+  const plan = limitPlanOf(config);
   const subject = context.userId ? null : context.subject ?? newMirrorSubject();
   const identity = identityOf(context, subject, config.timezone);
   const day = mirrorDayKey(new Date(), config.timezone);
 
   // 免费额度：先占位，失败再还回去。超额后走购买分支，两条路都只成功计一次。
-  let purchase: BillingTurn | null = null;
-  if (effectiveMirrorUsed(identity, day) >= limit) {
-    if (config.overLimitPolicy !== 'CHARGE' || !context.userId) {
-      throw new MirrorError(config.overLimitPolicy === 'CHARGE' ? '今天的次数已用完，购买次数尚未开放，请明天再来。' : '今天的次数已用完，明天再来。', 429, 'MIRROR_OVER_LIMIT');
+  let chargeTurn: BillingTurn | null = null;
+  const state = readMirrorLimitState(identity, plan, day);
+  if (state.remaining <= 0) {
+    // 上限为 0（运营暂停）不该提示「去买次数」；文案统一由额度视图给出。
+    const purchase = purchasePlanOf(config, !context.userId);
+    if (config.overLimitPolicy === 'CHARGE' && purchase.available) {
+      chargeTurn = await openPurchase(config, context, input.requestId);
+    } else {
+      throw new MirrorError(quotaOf(context, config, subject).blockedReason ?? '今天的次数已用完，明天再来。', 429, 'MIRROR_OVER_LIMIT');
     }
-    const usedToday = await readPurchasedToday(context.userId, config.timezone);
-    const plan = purchasePlanOf(config, false, usedToday);
-    if (!plan.available) throw new MirrorError(purchaseBlockedReason(plan, config.overLimitPolicy), 429, 'MIRROR_OVER_LIMIT');
-    const turn = await beginMirrorPurchase({userId: context.userId, requestId: String(input.requestId ?? '')});
-    // 免费模式或未定价时 held=false：退回「额度用尽」，不白送一次。
-    if (!isPaidPurchase(turn)) throw new MirrorError(purchaseBlockedReason(plan, config.overLimitPolicy), 429, 'MIRROR_OVER_LIMIT');
-    purchase = turn;
   } else {
-    const decision = consumeMirrorLimit(identity, limit, day);
-    if (!decision.allowed) throw new MirrorError(decision.channel === 'ip' ? '这个网络环境的匿名次数已用完，明天再来。' : '今天的次数已用完，明天再来。', 429, 'MIRROR_OVER_LIMIT');
+    const decision = consumeMirrorLimit(identity, plan, day);
+    if (!decision.allowed) {
+      throw new MirrorError(decision.channel === 'ip' ? '这个网络环境的匿名次数已用完，明天再来。' : '今天的次数已用完，明天再来。', 429, 'MIRROR_OVER_LIMIT');
+    }
   }
 
   const metrics: AiStreamMetrics = {attempts: 0};
@@ -202,12 +247,12 @@ export async function generateMirror(context: MirrorContext, input: {answers?: u
   } catch (error) {
     // 失败不占额度也不扣币：成功额度和用户费用只算一次。
     releaseMirrorLimit(identity, day);
-    await purchase?.release('mirror_generation_failed');
+    await chargeTurn?.release('mirror_generation_failed');
     await recordMirrorCall({...context, subject}, metrics, 'FAILED', aiErrorCode(error));
     throw toMirrorError(error);
   }
   await recordMirrorCall({...context, subject}, metrics, 'SUCCEEDED');
-  await purchase?.settle();
+  await chargeTurn?.settle();
 
   const shareId = newMirrorShareId();
   const expiresAt = context.userId ? null : new Date(Date.now() + config.resultRetentionDays * 24 * 60 * 60 * 1000);
@@ -229,6 +274,10 @@ export async function generateMirror(context: MirrorContext, input: {answers?: u
   });
   const publicResult = toPublicResult(saved as MirrorRow, character);
   if (!publicResult) throw new MirrorError('结果保存失败，请稍后重试。', 500, 'MIRROR_SAVE_FAILED');
+
+  // 漏斗「生成完成」由服务端在结果落库后写，不接受客户端自称完成（V3 表 22）。
+  // 匿名主体与配额计数、结果行用同一个 subject，不另算一个标识。
+  void recordProductEvent({event: 'mirror_completed', userId: context.userId ?? null, anonymousSubject: context.userId ? null : subject, subjectKey: shareId});
 
   const cookies: MirrorCookieWrite[] = [];
   if (!context.userId) {

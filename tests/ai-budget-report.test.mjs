@@ -1,13 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {openSync,closeSync,rmSync} from 'node:fs';
+import {rmSync} from 'node:fs';
 import path from 'node:path';
 
 // Imported configuration services initialize the shared SQLite client even though
 // report queries below use explicit fakes. Keep that initialization isolated too.
+// 任务预算要读设置中心，所以这个库和 guard 测试一样按迁移建表，而不是空文件。
 const file=`ai-budget-report-${process.pid}-${Date.now()}.db`,database=path.resolve('prisma',file);
-closeSync(openSync(database,'wx'));
 process.env.DATABASE_URL=`file:./${file}`;
+const {createIsolatedDatabase}=await import('../scripts/helpers/create-isolated-db.mjs');
+createIsolatedDatabase(database);
 const {parseDailyBudgets,evaluateDailyBudgets,readDailyBudgetReport}=await import('../src/lib/ai/budget-report.ts');
 const {db,pragmasReady}=await import('../src/lib/db.ts');await pragmasReady;
 test.after(async()=>{await db.$disconnect();for(const suffix of ['','-wal','-shm','-journal'])rmSync(database+suffix,{force:true});});
@@ -86,4 +88,46 @@ test('daily report combines attempt groups per account and excludes partial retr
   } finally {
     if (original === undefined) delete process.env.AI_DAILY_COST_BUDGETS; else process.env.AI_DAILY_COST_BUDGETS = original;
   }
+});
+
+test('task budget keeps unset unlimited and treats zero or a reached limit as paused', async () => {
+  const { taskBudgetBlock, TASK_LABELS } = await import('../src/lib/ai/task-budget.ts');
+  assert.equal(taskBudgetBlock('story', null, []), null);
+  assert.equal(taskBudgetBlock('chat', 2, [{ currency: 'USD', knownCost: 1, unknownCalls: 0 }]), null);
+  const zero = taskBudgetBlock('mirrorAnonymous', 0, []);
+  assert.equal(zero.code, 'AI_TASK_BUDGET');
+  assert.equal(zero.status, 429);
+  assert.equal(zero.scope, 'task');
+  const reached = taskBudgetBlock('chat', 1, [{ currency: 'USD', knownCost: 1, unknownCalls: 0 }]);
+  assert.equal(reached.code, 'AI_TASK_BUDGET');
+  assert(reached.message.includes(TASK_LABELS.chat));
+  // 未知成本不在任务层设卡：要不要拦住调用由全站预算那条链判断。
+  assert.equal(taskBudgetBlock('chat', 1, [{ currency: 'USD', knownCost: 0.4, unknownCalls: 1 }]), null);
+});
+
+test('task report reads today usage per task and keeps the anonymous slice separate', async () => {
+  const { readTaskBudgetReport } = await import('../src/lib/ai/task-budget.ts');
+  const now = new Date('2026-10-12T15:30:00Z');
+  const tx = { aiCall: { groupBy: async query => {
+    assert.equal(query.where.startedAt.gte.toISOString(), '2026-10-12T00:00:00.000Z');
+    assert.equal(query.where.startedAt.lte, now);
+    assert.deepEqual(query.where.status.notIn, ['MOCK', 'STARTED']);
+    if (query.by.includes('taskType')) {
+      return [
+        { taskType: 'mirror', currency: 'USD', attempts: 1, _count: { _all: 2, estimatedCost: 2 }, _sum: { estimatedCost: 0.5 } },
+        { taskType: 'chat', currency: 'USD', attempts: 1, _count: { _all: 1, estimatedCost: 1 }, _sum: { estimatedCost: 0.25 } },
+        { taskType: null, currency: 'USD', attempts: 1, _count: { _all: 1, estimatedCost: 0 }, _sum: { estimatedCost: null } },
+      ];
+    }
+    assert.deepEqual(query.where.anonymousSubject, { not: null });
+    return [{ currency: 'USD', attempts: 1, _count: { _all: 1, estimatedCost: 1 }, _sum: { estimatedCost: 0.2 } }];
+  } } };
+  const rows = await readTaskBudgetReport(tx, now);
+  const byTask = Object.fromEntries(rows.map(row => [row.taskType, row]));
+  assert.equal(rows.length, 6);
+  assert.equal(byTask.chat.limit, null);
+  assert.deepEqual(byTask.chat.usage, [{ currency: 'USD', knownCost: 0.25, unknownCalls: 0 }]);
+  assert.deepEqual(byTask.mirror.usage, [{ currency: 'USD', knownCost: 0.5, unknownCalls: 0 }]);
+  assert.deepEqual(byTask.mirrorAnonymous.usage, [{ currency: 'USD', knownCost: 0.2, unknownCalls: 0 }]);
+  assert.deepEqual(byTask.story.usage, []);
 });

@@ -18,6 +18,12 @@ export const API = {
   site: '/api/site',
   status: '/api/operations/status',
   uiConfig: '/api/ui-config',
+  /** 玩法埋点上报（V3 表 22 玩法漏斗）。匿名可调，事件名必须在白名单内。 */
+  events: '/api/events',
+  growth: {
+    onboarding: '/api/growth/onboarding',
+    invite: '/api/growth/invite',
+  },
   me: {
     quota: '/api/me/quota',
     notifications: '/api/me/notifications',
@@ -193,10 +199,15 @@ export const API = {
     compliance: '/api/admin/compliance',
     analytics: '/api/admin/analytics',
     analyticsFunnel: '/api/admin/analytics/scene-funnel',
+    analyticsProductFunnel: '/api/admin/analytics/product-funnel',
     audit: '/api/admin/audit',
     settings: '/api/admin/settings',
     settingsHistory: (query: string) => `/api/admin/settings/history?${query}`,
     settingsRestore: '/api/admin/settings/restore',
+    settingsExport: '/api/admin/settings/export',
+    settingsImport: '/api/admin/settings/import',
+    settingsImportConfirm: '/api/admin/settings/import/confirm',
+    settingsPromptPreview: '/api/admin/settings/prompts/preview',
     accountSettings: (id: string) => `/api/admin/accounts/${e(id)}/settings`,
     accountSetting: (id: string, key: string) => `/api/admin/accounts/${e(id)}/settings/${e(key)}`,
     coinPrices: '/api/admin/ai/coin-prices',

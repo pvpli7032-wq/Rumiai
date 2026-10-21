@@ -12,6 +12,7 @@ import {Select} from '@/components/ui/select';
 import {apiFetch} from '@/lib/api-client';
 import {API} from '@/lib/api-paths';
 import {BudgetPanel, type BudgetDraft} from './budget-panel';
+import {TaskBudgetPanel} from './task-budget-panel';
 import {ModelPriceDrawer, type PriceDraft} from './model-price-drawer';
 import {
   COST_AVERAGE_MIN_SAMPLE,
@@ -477,6 +478,8 @@ export function PriceCostAdmin() {
           <p className="text-sm text-muted-foreground">当前账号没有设置查看权限；免费额度与收费开关请在设置中心「计费额度」查看。</p>
         )}
       </AdminPanel>
+
+      {dashboard && dashboard.taskBudgets.length > 0 && <TaskBudgetPanel rows={dashboard.taskBudgets} />}
 
       {dashboard && dashboard.costs.length > 0 && (
         <AdminPanel

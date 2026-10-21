@@ -5,13 +5,14 @@ import Link from 'next/link';
 import type {ReactNode} from 'react';
 import {AdminNotice, AdminPanel, AdminPanelGroup} from '@/components/admin/admin-page';
 import {Badge} from '@/components/ui/badge';
-import type {MirrorConfigPayload} from './types';
+import {MIRROR_SOURCE_LABELS, type MirrorConfigPayload} from './types';
 
 /**
- * 配置标签：只读展示当前生效的角色、题目与版式，并给出去哪儿改。
+ * 配置标签：只读展示当前生效的推广角色、题目与版式，并给出去哪儿改。
  *
  * V3 §16 要求同一项只有一个编辑位置：题目数量、字数上限、保留天数都在设置中心，
- * 角色候选来自角色管理里的「专属 + 公开」。这里再放一套输入框就会两边打架。
+ * 推广角色名单在设置中心 mirror.featuredCharacterIds（留空则按热度自动选取）。
+ * 这里再放一套输入框就会两边打架，所以只展示 + 跳转。
  */
 export interface MirrorConfigPanelProps {
   config: MirrorConfigPayload | null;
@@ -51,25 +52,34 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
   return (
     <AdminPanelGroup>
       <AdminPanel
-        title="角色"
-        description="公开且标记为「专属」的角色优先进入候选，不足时按聊天数补齐；角色本身在角色管理里编辑。"
+        title="推广角色"
+        description="首页展示的角色。名单在设置中心指定（按顺序取公开且已审核的角色）；名单为空或全部失效时，回退为「本站原创 + 聊得最多」自动选取。"
         badge={<Badge variant={rules.enabled ? 'success' : 'warning'}>{rules.enabled ? '玩法已开启' : '玩法已关闭'}</Badge>}
-        actions={<JumpLink href="/admin/characters">去角色管理</JumpLink>}
+        actions={<JumpLink href="/admin/settings">修改相关设置</JumpLink>}
       >
         <div className="flex flex-col gap-3">
-          <p className="text-xs text-muted-foreground">当前候选 {characters.length} 个；候选为空时前台会提示暂不可用。</p>
+          <p className="text-xs text-muted-foreground">
+            当前生效 {characters.length} 个；改名单用 mirror.featuredCharacterIds，角色资料在角色管理里编辑。
+          </p>
           {characters.length === 0 ? (
-            <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">当前没有可用的公开角色。</p>
+            <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">当前没有可用的公开角色，前台会提示暂不可用。</p>
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {characters.map(character => (
                 <li key={character.id} className="min-w-0 rounded-lg border border-border p-3">
-                  <p className="break-words text-sm font-medium">{character.name}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="break-words text-sm font-medium">{character.name}</p>
+                    <Badge variant={character.source === 'CONFIGURED' ? 'brand' : 'neutral'}>{MIRROR_SOURCE_LABELS[character.source]}</Badge>
+                  </div>
                   <p className="mt-1 break-words text-xs text-muted-foreground">{character.tagline ?? '没有设定一句话简介'}</p>
                 </li>
               ))}
             </ul>
           )}
+          <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+            <Sparkles aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            标记为「自动选取」说明当前名单为空，或名单里的角色都已下架 / 未通过审核。
+          </p>
         </div>
       </AdminPanel>
 

@@ -3,6 +3,7 @@ import {hasAdminPermission} from '@/lib/admin/authorization';
 import {recordAdminAudit} from '@/lib/admin/management-service';
 import {readAiCostReport,readAiModelCostReport} from '@/lib/ai/cost-report';
 import {readDailyBudgetReport} from '@/lib/ai/budget-report';
+import {readTaskBudgetReport} from '@/lib/ai/task-budget';
 import {readAiModelPriceCoverage} from './model-price-service';
 import {readAiDailyBudgetConfiguration} from './budget-config-service';
 
@@ -70,11 +71,12 @@ export async function readAiCostDashboard(actor: string, days = 7) {
   const since = new Date(generatedAt.getTime() - days * 86400000);
   return db.$transaction(async tx => {
     await requirePermission(actor, 'ai.costs.read', tx);
-    const [costs, modelCosts, budget, settings] = await Promise.all([
+    const [costs, modelCosts, budget, settings, taskBudgets] = await Promise.all([
       readAiCostReport(tx, since, generatedAt),
       readAiModelCostReport(tx,since,generatedAt),
       readDailyBudgetReport(tx, generatedAt),
       readAiDailyBudgetConfiguration(tx),
+      readTaskBudgetReport(tx, generatedAt),
     ]);
     const visibleAlerts = 'alerts' in budget
       ? budget.alerts.map(({scope, currency, knownCost, budget}) => ({scope, currency, knownCost, budget}))
@@ -87,6 +89,7 @@ export async function readAiCostDashboard(actor: string, days = 7) {
       modelCosts,
       budget: {...budget, alerts: visibleAlerts},
       settings,
+      taskBudgets,
     };
   });
 }

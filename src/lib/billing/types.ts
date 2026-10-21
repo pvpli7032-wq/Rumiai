@@ -16,6 +16,11 @@ export type ChargeStatus = 'HELD' | 'SETTLED' | 'RELEASED' | 'UNKNOWN';
 /** 这次请求靠什么免扣：免费次数、付费余额，或关闭收费时的免费模式。 */
 export type AllowanceSource = 'FREE_QUOTA' | 'PAID' | 'FREE_MODE';
 
+/** 用户取消时怎么收费（V3 表 8 billing.cancelPolicy）。「已输出」指首个内容片段已送达用户。 */
+export type CancelPolicy = 'CHARGE_WHEN_OUTPUT' | 'RELEASE_ALWAYS';
+
+export const CANCEL_POLICIES: readonly CancelPolicy[] = ['CHARGE_WHEN_OUTPUT', 'RELEASE_ALWAYS'];
+
 /** 流水里 charge_action 的取值；每条费用单每种动作最多一行。 */
 export type ChargeAction = 'HOLD' | 'SETTLE' | 'RELEASE';
 
@@ -133,6 +138,10 @@ export interface DailyAllowanceView {
   freeReserved: number;
   /** 还能用几次免费额度（已扣除并发预占）。 */
   freeRemaining: number;
+  /** 当日免费取消次数上限（billing.freeCancelPerDay）与已用次数。 */
+  freeCancelDaily: number;
+  freeCancelUsed: number;
+  freeCancelRemaining: number;
   /** 业务日切换的绝对时刻。 */
   resetAt: string;
 }

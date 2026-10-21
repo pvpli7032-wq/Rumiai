@@ -223,14 +223,14 @@ export function SettingField({
             <Input
               id={inputId}
               type="number"
-              inputMode="numeric"
+              inputMode={definition.decimal ? 'decimal' : 'numeric'}
               aria-describedby={describedBy}
               invalid={invalid}
               className="max-w-40"
               value={value === null || value === undefined ? '' : String(value)}
               min={definition.min}
               max={definition.max}
-              step={1}
+              step={definition.decimal ? 'any' : 1}
               disabled={disabled}
               onChange={event => {
                 const text = event.target.value;

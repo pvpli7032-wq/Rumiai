@@ -4,6 +4,7 @@ import {api} from '@/lib/api-client';
 import {API} from '@/lib/api-paths';
 import {useAuth} from '@/lib/auth-context';
 import {MirrorResultView} from './mirror-result-view';
+import {trackProductEvent} from '@/lib/analytics/product-events-client';
 import type {MirrorView} from './client-types';
 
 /**
@@ -16,6 +17,11 @@ import type {MirrorView} from './client-types';
 export function MirrorResultLoader({shareId, locale, initialView}: {shareId: string; locale: string; initialView: MirrorView}) {
   const {token, isLoading} = useAuth();
   const [view, setView] = useState<MirrorView>(initialView);
+
+  // 分享访问埋点：只有「看别人的结果」才算分享访问，本人打开自己的结果不计。
+  useEffect(() => {
+    if (initialView.kind !== 'owner') trackProductEvent(token, 'mirror_share_viewed', {subjectKey: shareId});
+  }, [initialView.kind, shareId, token]);
 
   useEffect(() => {
     if (!token || isLoading) return;

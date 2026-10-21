@@ -1,6 +1,7 @@
 import type {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
 import {readSettingValue} from '@/lib/settings';
+import {recordProductEvent} from '@/lib/analytics/product-events';
 import {readConversationMessages} from '@/lib/conversations/message-service';
 import {readCommunityRestriction} from '@/lib/community/restriction-service';
 import type {DisputeCandidate, DisputeCaseRecord, DisputeCaseSummary, DisputeExcerptMessage, DisputeExcerptOptions, DisputeListResult, DisputeRuleSnapshot, DisputeSort, DisputeVerdict, DisputeVoteState} from './types';
@@ -189,7 +190,7 @@ export async function createDisputeCase(userId: string, input: unknown): Promise
   const deadlineAt = new Date(now.getTime() + rules.closeAfterHours * HOUR_MS);
   await pragmasReady;
 
-  return db.$transaction(async tx => {
+  const created = await db.$transaction(async tx => {
     const restriction = await readCommunityRestriction(userId, tx);
     if (restriction?.communityBannedAt) throw new DisputeError('你的社区发言权限暂时受限。', 403, 'FORBIDDEN');
     // 事务内再数一次：并发发起时以事务里的计数为准。
@@ -197,12 +198,15 @@ export async function createDisputeCase(userId: string, input: unknown): Promise
     if (used >= options.dailyLimit) throw new DisputeError(`每天最多发起 ${options.dailyLimit} 个案例，请明天再来。`, 429, 'LIMITED');
     await ensureTopic(tx);
     const post = await tx.post.create({data: {circleId: DISPUTE_TOPIC_ID, authorId: userId, characterId, content: claim}, select: {id: true}});
-    const created = await tx.disputeCase.create({
+    const row = await tx.disputeCase.create({
       data: {postId: post.id, authorId: userId, characterId, excerptJson: JSON.stringify(excerpt), claim, ruleSnapshotJson: JSON.stringify(rules), deadlineAt},
       select: {id: true},
     });
-    return {caseId: created.id, postId: post.id, snapshot: rules};
+    return {caseId: row.id, postId: post.id, snapshot: rules};
   });
+  // 漏斗埋点写在事务之外：统计写失败不影响已经创建的案例。
+  await recordProductEvent({event: 'dispute_started', userId, subjectKey: created.caseId});
+  return created;
 }
 
 /** 投票统计：dispute_votes 的唯一键保证一人一票，这里只负责逐票累计。 */

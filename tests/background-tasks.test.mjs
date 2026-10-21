@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
-import {rmSync} from 'node:fs';
+import {existsSync, readdirSync, rmSync} from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -29,21 +29,32 @@ const stranger = await db.user.create({data: {username: 'memory-stranger', email
 const character = await db.character.create({data: {creatorId: user.id, name: '记忆角色', personality: '安静', background: '', isPublic: true, reviewStatus: 'APPROVED'}});
 const conversation = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '记忆会话'}});
 
-/** 记忆默认关闭（opt-in）：测试里显式打开，验证开与关两种行为。 */
-async function setMemoryEnabled(enabled) {
+/** 每日备份会真的写出一个 .db 文件：测试结束把它删掉，别把备份留在仓库里。 */
+const backupPrefix = path.basename(file, '.db');
+const backupDirectory = path.resolve('prisma', 'backups');
+const backupFiles = () => existsSync(backupDirectory)
+  ? readdirSync(backupDirectory).filter(name => name.startsWith(backupPrefix))
+  : [];
+
+test.after(async () => {
+  await db.$disconnect();
+  for (const name of backupFiles()) rmSync(path.join(backupDirectory, name), {recursive: true, force: true});
+  for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), {force: true});
+});
+
+/** 后台设置写入：走设置中心同一条路径，清缓存后下一次读取立即生效。 */
+async function setGrowthSetting(key, value) {
   await db.operationSetting.upsert({
-    where: {key: 'memory.enabled'},
-    create: {key: 'memory.enabled', group: 'growth', value: JSON.stringify(enabled), version: 1, updatedBy: user.id},
-    update: {value: JSON.stringify(enabled), version: {increment: 1}},
+    where: {key},
+    create: {key, group: 'growth', value: JSON.stringify(value), version: 1, updatedBy: user.id},
+    update: {value: JSON.stringify(value), version: {increment: 1}},
   });
   const {clearCache} = await import('../src/lib/settings/cache.ts');
   clearCache();
 }
 
-test.after(async () => {
-  await db.$disconnect();
-  for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(path.resolve('prisma', file + suffix), {force: true});
-});
+/** 记忆默认关闭（opt-in）：测试里显式打开，验证开与关两种行为。 */
+const setMemoryEnabled = enabled => setGrowthSetting('memory.enabled', enabled);
 
 test('事实按会话与用户双重隔离，别人读不到也删不掉', async () => {
   const fact = await memory.createMemoryFact(user.id, conversation.id, {text: '用户养了一只叫团子的猫'});
@@ -141,3 +152,92 @@ test('关闭时摘要任务直接跳过，会话不存在也跳过；未注册�
   await setMemoryEnabled(false);
   assert.equal((await memory.runMemorySummaryTask(conversation.id)).outcome, 'SKIPPED_DISABLED');
 });
+test('每日备份与事件清理都是巡检任务，可被调度且每轮自动重排', async () => {
+  const before = Date.now();
+  await tasks.ensureSweepTasks();
+  for (const kind of ['daily-backup', 'event-cleanup']) {
+    const row = await db.backgroundTask.findUnique({where: {kind_subjectId: {kind, subjectId: tasks.SWEEP_SUBJECT}}});
+    assert.ok(row, kind + ' 没有排进巡检任务');
+    assert.equal(row.status, 'PENDING');
+    assert.equal(handlerFor(kind) !== null, true);
+  }
+  // 首次建行：daily-backup 排到 +24h（发布流程已做过一次备份，部署瞬间不再重复打一份），
+  // 其余巡检照旧从当下开始扫。
+  const daily = await db.backgroundTask.findUnique({where: {kind_subjectId: {kind: 'daily-backup', subjectId: tasks.SWEEP_SUBJECT}}});
+  const dailyHours = (daily.nextRunAt.getTime() - before) / 3_600_000;
+  assert.ok(dailyHours > 23 && dailyHours < 25, 'daily-backup 首次应排在约 24 小时后，实际 ' + dailyHours + ' 小时');
+  const sweep = await db.backgroundTask.findUnique({where: {kind_subjectId: {kind: 'event-cleanup', subjectId: tasks.SWEEP_SUBJECT}}});
+  assert.ok(sweep.nextRunAt.getTime() - before < 60_000, 'event-cleanup 首次应立刻到期');
+});
+
+test('每日备份执行一次后把下次运行排到约 24 小时后，当天不重复备份', async () => {
+  const before = Date.now();
+  // 首次建行在 +24h，手动「执行一次」会先把它排到当下再跑。
+  const report = await tasks.runKindNow('daily-backup');
+  assert.equal(report.failed, 0);
+  assert.match(report.results[0].outcome, /已备份到/);
+  // 备份文件真的写出来了，文件名带业务日期。
+  const written = backupFiles();
+  assert.equal(written.length, 1);
+  assert.match(written[0], /-\d{4}-\d{2}-\d{2}\.db$/);
+  const row = await db.backgroundTask.findUnique({where: {kind_subjectId: {kind: 'daily-backup', subjectId: tasks.SWEEP_SUBJECT}}});
+  assert.equal(row.status, 'PENDING');
+  assert.equal(row.attempts, 0);
+  const hours = (row.nextRunAt.getTime() - before) / 3_600_000;
+  assert.ok(hours > 23 && hours < 25, '下次运行应在约 24 小时后，实际 ' + hours + ' 小时');
+
+  // 后台「立即执行」走 runKindNow：同一天已有备份，跳过而不覆盖。
+  const again = await tasks.runKindNow('daily-backup');
+  assert.match(again.results[0].outcome, /今天已有备份/);
+  assert.equal(backupFiles().length, 1);
+});
+
+test('备份本身失败时抛出而不是当成功，重试用尽后置 FAILED 并在后台可见', async () => {
+  const originalUrl = process.env.DATABASE_URL;
+  await setGrowthSetting('tasks.maxAttempts', 1);
+  // 指向一个不存在的数据库文件：备份实现会抛错，任务必须失败而不是记成成功。
+  process.env.DATABASE_URL = 'file:./no-such-backup-source.db';
+  try {
+    const report = await tasks.runKindNow('daily-backup');
+    assert.equal(report.failed, 1);
+    assert.equal(report.done, 0);
+    assert.match(report.results[0].error, /ENOENT|数据库文件不存在/);
+  } finally {
+    process.env.DATABASE_URL = originalUrl;
+    await db.operationSetting.deleteMany({where: {key: 'tasks.maxAttempts'}});
+    const {clearCache} = await import('../src/lib/settings/cache.ts');
+    clearCache();
+  }
+  const row = await db.backgroundTask.findUnique({where: {kind_subjectId: {kind: 'daily-backup', subjectId: tasks.SWEEP_SUBJECT}}});
+  assert.equal(row.status, 'FAILED');
+  assert.match(row.lastError, /ENOENT|数据库文件不存在/);
+  assert.equal(row.attempts, 1);
+  // 备份没有成功：当天不该凭空多出一份文件。
+  assert.equal(backupFiles().length, 1);
+
+  // 人工「执行一次」把它从 FAILED 拉回正常排期，不会永久卡死。
+  await tasks.runKindNow('daily-backup');
+  const recovered = await db.backgroundTask.findUnique({where: {kind_subjectId: {kind: 'daily-backup', subjectId: tasks.SWEEP_SUBJECT}}});
+  assert.equal(recovered.status, 'PENDING');
+  assert.equal(recovered.lastError, null);
+});
+
+test('事件清理按保留天数删除，保留天数每次从数据库读，改设置后下次生效', async () => {
+  const daysAgo = days => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const make = (name, days) => db.productEvent.create({data: {name, subjectKey: name + '-' + randomUUID(), createdAt: daysAgo(days)}});
+  await make('mirror_visited', 200);
+  await make('dispute_visited', 100);
+  await make('invite_visited', 0);
+
+  await setGrowthSetting('growth.eventRetentionDays', 180);
+  const first = await tasks.runDueTasks({kinds: ['event-cleanup']});
+  assert.match(first.results[0].outcome, /按保留 180 天清理，删除 1 条/);
+  assert.equal(await db.productEvent.count(), 2);
+
+  // 改小保留天数：下一次任务按新值清理，不需要重启进程。
+  await setGrowthSetting('growth.eventRetentionDays', 30);
+  const second = await tasks.runKindNow('event-cleanup');
+  assert.match(second.results[0].outcome, /按保留 30 天清理，删除 1 条/);
+  assert.equal(await db.productEvent.count(), 1);
+});
+

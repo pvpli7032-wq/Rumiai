@@ -1,12 +1,16 @@
+import {existsSync} from 'node:fs';
 import {readdir, rm, stat} from 'node:fs/promises';
 import path from 'node:path';
 import {readSettingValue} from '@/lib/settings';
+import {readBillingTimezone, resolveBillingDay} from '@/lib/billing/allowance';
+import {pruneProductEvents} from '@/lib/analytics/product-events';
+import {backupSqliteDatabase, resolveSqliteSource} from '@/lib/operations/sqlite-backup.mjs';
 import {runMemorySummaryTask} from '@/lib/memory/summary-service';
 import {runDisputeCloseTask, scheduleDueDisputes} from '@/lib/disputes/close-service';
 import {expireMirrorResults} from '@/lib/mirror/repository';
 import {reconcileHeldCharges} from '@/lib/billing/recovery';
 import {processPendingStateWork} from '@/lib/stories/lifecycle/state-worker';
-import type {TaskHandler, TaskKind} from './types';
+import type {TaskHandler, TaskKind, TaskOutcome} from './types';
 
 /**
  * 各 kind 的具体执行体。
@@ -40,6 +44,34 @@ async function pruneBackups(): Promise<{outcome: string; detail?: string}> {
   return {outcome: stale.length ? `按保留 ${keep} 份清理，删除 ${stale.length} 份旧备份` : `备份共 ${dated.length} 份，未超过保留 ${keep} 份`};
 }
 
+const DAILY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 每日自动备份（V3 §4）。
+ *
+ * 复用 scripts/backup-db.mjs 同一个 sqlite 备份实现（VACUUM INTO + 完整性校验），
+ * 文件名带业务日期，同一天已有备份就跳过：手动执行一次不会覆盖当天那份，
+ * 「每天一次」由任务自己的 nextRunAt 承担，不新增「备份时间点」设置项。
+ * 保留份数仍由 backup-cleanup 按 tasks.backupRetention 处理。
+ */
+async function backupDaily(): Promise<TaskOutcome> {
+  const now = new Date();
+  const nextRunAt = new Date(now.getTime() + DAILY_MS);
+  const source = resolveSqliteSource(process.env.DATABASE_URL);
+  const day = resolveBillingDay(now, await readBillingTimezone());
+  const target = path.join(backupDirectory(), `${path.basename(source, path.extname(source))}-${day}.db`);
+  if (existsSync(target)) return {outcome: `今天已有备份（${path.basename(target)}），跳过`, nextRunAt};
+  const report = await backupSqliteDatabase(source, target);
+  return {outcome: `已备份到 ${path.basename(report.target)}`, nextRunAt};
+}
+
+/** 玩法事件保留清理（V3 表 9「事件默认 180 天」）：保留天数每次都从数据库读。 */
+async function pruneEvents(): Promise<TaskOutcome> {
+  const retentionDays = await readSettingValue<number>('growth.eventRetentionDays');
+  const removed = await pruneProductEvents(retentionDays);
+  return {outcome: `按保留 ${retentionDays} 天清理，删除 ${removed} 条玩法事件`};
+}
+
 const handlers: Record<TaskKind, TaskHandler> = {
   'memory-summary': async conversationId => {
     const result = await runMemorySummaryTask(conversationId);
@@ -66,6 +98,8 @@ const handlers: Record<TaskKind, TaskHandler> = {
     return {outcome: `核对 ${result.scanned} 张冻结费用单，结算 ${result.settled}，释放 ${result.released}，保留 ${result.kept}，转待人工核对 ${result.unknown}`};
   },
   'backup-cleanup': pruneBackups,
+  'daily-backup': backupDaily,
+  'event-cleanup': pruneEvents,
 };
 
 export function handlerFor(kind: string): TaskHandler | null {

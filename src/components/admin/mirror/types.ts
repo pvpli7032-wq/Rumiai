@@ -39,12 +39,21 @@ export interface MirrorRulesView {
   timezone: string;
 }
 
+export type MirrorFeaturedSource = 'CONFIGURED' | 'AUTO';
+
 export interface MirrorCharacterOption {
   id: string;
   name: string;
   avatarUrl: string | null;
   tagline: string | null;
+  /** 后台指定（CONFIGURED）还是名单为空时自动选取（AUTO）。 */
+  source: MirrorFeaturedSource;
 }
+
+export const MIRROR_SOURCE_LABELS: Record<MirrorFeaturedSource, string> = {
+  CONFIGURED: '后台指定',
+  AUTO: '自动选取',
+};
 
 export interface MirrorConfigPayload {
   characters: MirrorCharacterOption[];

@@ -3,7 +3,7 @@ import {db} from '@/lib/db';
 import {logWarning} from '@/lib/logger';
 import {readSettingValue} from '@/lib/settings';
 import {handlerFor} from './handlers';
-import {SWEEP_SUBJECT, SWEEP_TASK_KINDS, type TaskRunReport, type TaskRowView} from './types';
+import {FAIL_ON_EXHAUSTED_KINDS, SWEEP_SUBJECT, SWEEP_TASK_KINDS, type TaskRunReport, type TaskRowView} from './types';
 
 /**
  * 统一后台任务入口（V3 第 24 章）。
@@ -23,13 +23,19 @@ function ownerTag(): string {
   return `task-runner-${process.pid}-${randomUUID()}`;
 }
 
-/** 巡检任务：没有就建，到点就把 nextRunAt 提前到当下。 */
+/**
+ * 巡检任务：没有就建，到点就把 nextRunAt 提前到当下。
+ *
+ * daily-backup 首次建行排在 +24h：发布流程本身已经做过一次联合备份，部署瞬间再打一份
+ * 只是重复占用；从第二天起每天一份，语义也更接近「每天一次」。
+ */
 export async function ensureSweepTasks(now = new Date()): Promise<number> {
   let created = 0;
   for (const kind of SWEEP_TASK_KINDS) {
     const existing = await db.backgroundTask.findUnique({where: {kind_subjectId: {kind, subjectId: SWEEP_SUBJECT}}, select: {id: true}});
     if (existing) continue;
-    await db.backgroundTask.create({data: {kind, subjectId: SWEEP_SUBJECT, status: 'PENDING', attempts: 0, nextRunAt: now}});
+    const nextRunAt = kind === 'daily-backup' ? new Date(now.getTime() + 24 * 60 * 60 * 1000) : now;
+    await db.backgroundTask.create({data: {kind, subjectId: SWEEP_SUBJECT, status: 'PENDING', attempts: 0, nextRunAt}});
     created += 1;
   }
   return created;
@@ -92,7 +98,8 @@ export async function runDueTasks(options: {limit?: number; now?: Date; kinds?: 
     }
     try {
       const outcome = await handler(row.subjectId);
-      const nextRunAt = isSweep ? new Date(now.getTime() + intervalMs) : now;
+      // 巡检任务默认按轮询间隔重排；处理器自己给出 nextRunAt 的（每日备份 +24h）以它为准。
+      const nextRunAt = isSweep ? outcome.nextRunAt ?? new Date(now.getTime() + intervalMs) : now;
       await db.backgroundTask.updateMany({
         where: {id: row.id},
         data: {status: isSweep ? 'PENDING' : 'DONE', leaseOwner: null, leaseUntil: null, lastError: null, nextRunAt, attempts: isSweep ? 0 : attempt},
@@ -102,16 +109,18 @@ export async function runDueTasks(options: {limit?: number; now?: Date; kinds?: 
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (attempt >= maxAttempts) {
-        // 超过上限：巡检任务留在 PENDING 等下一轮（它本来就会重复），单次任务置 FAILED 等人工处理。
+        // 超过上限：普通巡检留在 PENDING 等下一轮（它本来就会重复），单次任务与
+        // daily-backup 这类「一天一次」的巡检置 FAILED 等人工处理，失败在后台可见。
+        const staysSweep = isSweep && !(FAIL_ON_EXHAUSTED_KINDS as readonly string[]).includes(row.kind);
         await db.backgroundTask.updateMany({
           where: {id: row.id},
           data: {
-            status: isSweep ? 'PENDING' : 'FAILED',
+            status: staysSweep ? 'PENDING' : 'FAILED',
             leaseOwner: null,
             leaseUntil: null,
             lastError: message.slice(0, 500),
-            nextRunAt: isSweep ? new Date(now.getTime() + intervalMs) : now,
-            attempts: isSweep ? 0 : attempt,
+            nextRunAt: staysSweep ? new Date(now.getTime() + intervalMs) : now,
+            attempts: staysSweep ? 0 : attempt,
           },
         });
         report.failed += 1;

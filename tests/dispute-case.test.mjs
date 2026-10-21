@@ -63,20 +63,40 @@ async function makeConversation(userId) {
 async function publish(user, conversation, messages, claim = '这样安排是不是太强势？') {
   return createDisputeCase(user.id, {conversationId: conversation.id, messageIds: messages.map(message => message.id), claim});
 }
+/** 某人的评理奖励流水：只看带业务键的发放，按业务键索引便于断言。 */
+async function rewardRows(userId) {
+  const rows = await db.coinTransaction.findMany({where: {userId, type: 'EARNED', rewardKey: {not: null}}, orderBy: {createdAt: 'asc'}, select: {amount: true, rewardKey: true, sourceKey: true}});
+  return new Map(rows.map(row => [row.rewardKey, row]));
+}
+/** 玩法事件：写侧只记事实，读侧按 DISTINCT 去重。 */
+async function productEvents(subjectKey) {
+  const rows = await db.productEvent.findMany({where: {subjectKey}, select: {name: true, userId: true}});
+  return rows;
+}
+async function coinsOf(userId) {
+  return (await db.user.findUniqueOrThrow({where: {id: userId}, select: {coins: true}})).coins;
+}
 async function adminOperator() {
   const user = await makeUser();
   const operator = await db.adminOperator.create({data: {userId: user.id}});
   return {user, operator};
 }
-/** AdminOperator 的主键是 userId，不是 id。 */
+/** AdminOperator 的主键是 userId，不是 id。saveGroup 一次只收一组，按 key 前缀分组提交。 */
 async function updateSettings(operatorUserId, changes) {
-  await saveGroup({group: 'growth', changes: Object.entries(changes).map(([key, value]) => ({key, value})), expectedVersions: {}, operatorId: operatorUserId});
+  const groups = {growth: {}, billing: {}};
+  for (const [key, value] of Object.entries(changes)) groups[key.startsWith('billing.') ? 'billing' : 'growth'][key] = value;
+  for (const [group, values] of Object.entries(groups)) {
+    const entries = Object.entries(values);
+    if (!entries.length) continue;
+    await saveGroup({group, changes: entries.map(([key, value]) => ({key, value})), expectedVersions: {}, operatorId: operatorUserId});
+  }
 }
 
 /** V3 默认值。设置中心是进程内共享状态，每个用例开头都显式归位，避免互相影响。 */
 const DEFAULTS = {
   'dispute.dailyLimit': 3, 'dispute.minAccountAgeHours': 24, 'dispute.maxExcerptMessages': 6, 'dispute.claimMaxChars': 60,
   'dispute.maxVoteChanges': 1, 'dispute.closeAfterHours': 48, 'dispute.closeAtVotes': 200, 'dispute.verdictMaxChars': 120,
+  'dispute.participateRewardCoins': 0, 'dispute.hotRewardCoins': 0, 'dispute.hotRewardTopN': 3, 'dispute.rewardDailyCapCoins': 0,
 };
 let settingsOperator;
 async function resetSettings(changes = {}) {
@@ -334,6 +354,126 @@ test('撤回停止公开访问，但发起人仍能看到自己的状态', async
   assert.equal(own.withdrawn, true);
   const closed = await closeDisputeCase(caseId, {force: true});
   assert.equal(closed.status, 'SKIPPED');
+});
+
+test('参与奖：投票成功发一次，改票不重发，金额为 0 不发也不写流水', async () => {
+  await resetSettings({'dispute.participateRewardCoins': 8});
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const {caseId} = await publish(author, conversation, messages);
+  const voter = await makeUser();
+  const before = await coinsOf(voter.id);
+
+  await voteDispute(caseId, voter.id, {choice: 'AUTHOR'});
+  assert.equal(await coinsOf(voter.id), before + 8, '投票成功立刻到账');
+  const key = `dispute-vote:${caseId}:${voter.id}`;
+  let rows = await rewardRows(voter.id);
+  assert.equal(rows.size, 1);
+  assert.equal(rows.get(key).amount, 8);
+  assert.equal(rows.get(key).sourceKey, 'DISPUTE_VOTE_REWARD');
+
+  // 改票：同一业务键，不重发。
+  await voteDispute(caseId, voter.id, {choice: 'SPLIT'});
+  assert.equal(await coinsOf(voter.id), before + 8, '改票不重复发参与奖');
+  assert.equal((await rewardRows(voter.id)).size, 1);
+
+  // 同一选择再提交：不是 VOTED，同样不发。
+  await voteDispute(caseId, voter.id, {choice: 'SPLIT'});
+  assert.equal(await coinsOf(voter.id), before + 8);
+  assert.equal((await rewardRows(voter.id)).size, 1);
+
+  // 作者给自己投票会被拒，自然也没有奖励。
+  await assert.rejects(() => voteDispute(caseId, author.id, {choice: 'AUTHOR'}), error => error.status === 403);
+  assert.equal((await rewardRows(author.id)).size, 0);
+
+  // 金额归零后新案例不发奖，也不写流水。
+  await resetSettings({'dispute.participateRewardCoins': 0});
+  const second = await publish(author, conversation, messages);
+  const quiet = await makeUser();
+  const quietBefore = await coinsOf(quiet.id);
+  await voteDispute(second.caseId, quiet.id, {choice: 'OTHER'});
+  assert.equal(await coinsOf(quiet.id), quietBefore);
+  assert.equal((await rewardRows(quiet.id)).size, 0, '金额 0 时连流水都不写');
+  rows = null;
+});
+
+test('热门奖：结案按案例内投票先后取前 N 名，重复结案不重发', async () => {
+  await resetSettings({'dispute.hotRewardCoins': 20, 'dispute.hotRewardTopN': 2});
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const {caseId} = await publish(author, conversation, messages);
+  const first = await makeUser();
+  const second = await makeUser();
+  const third = await makeUser();
+  const thirdBefore = await coinsOf(third.id);
+  await voteDispute(caseId, first.id, {choice: 'AUTHOR'});
+  await voteDispute(caseId, second.id, {choice: 'AUTHOR'});
+  await voteDispute(caseId, third.id, {choice: 'SPLIT'});
+
+  const closed = await closeDisputeCase(caseId, {force: true, generate: async () => '结案回应。'});
+  assert.equal(closed.status, 'CLOSED');
+
+  const firstRows = await rewardRows(first.id);
+  const secondRows = await rewardRows(second.id);
+  const thirdRows = await rewardRows(third.id);
+  assert.equal(firstRows.get(`dispute-hot:${caseId}:${first.id}`).amount, 20, '先投票的人拿到热门奖');
+  assert.equal(secondRows.get(`dispute-hot:${caseId}:${second.id}`).amount, 20);
+  assert.equal(thirdRows.has(`dispute-hot:${caseId}:${third.id}`), false, '第 3 名不在前 2 名内，不发');
+  assert.equal(await coinsOf(third.id), thirdBefore, '第 3 名余额不变');
+
+  // 重复结案：已结案直接返回，热门奖不会重发。
+  const again = await closeDisputeCase(caseId, {force: true, generate: async () => '不该再生成。'});
+  assert.equal(again.status, 'ALREADY_CLOSED');
+  assert.equal((await rewardRows(first.id)).get(`dispute-hot:${caseId}:${first.id}`).amount, 20);
+  assert.equal((await rewardRows(first.id)).size, 1, '重复结案不重发热门奖');
+});
+
+test('每日上限：按业务日截断，只发剩余额度，跨日重新计算', async () => {
+  // 用例要开 4 个案例，先放开每日发起次数（与奖励无关）。
+  await resetSettings({'dispute.participateRewardCoins': 10, 'dispute.rewardDailyCapCoins': 15, 'dispute.dailyLimit': 10});
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const voter = await makeUser();
+  const start = await coinsOf(voter.id);
+  const firstCase = await publish(author, conversation, messages);
+  const secondCase = await publish(author, conversation, messages);
+  const thirdCase = await publish(author, conversation, messages);
+
+  await voteDispute(firstCase.caseId, voter.id, {choice: 'AUTHOR'});
+  assert.equal(await coinsOf(voter.id), start + 10, '第一笔完整发放');
+  // 第二笔只剩 5 币额度：按剩余额度截断，不是全不发。
+  await voteDispute(secondCase.caseId, voter.id, {choice: 'AUTHOR'});
+  assert.equal(await coinsOf(voter.id), start + 15, '第二笔截断到剩余额度');
+  const rows = await rewardRows(voter.id);
+  assert.equal(rows.get(`dispute-vote:${secondCase.caseId}:${voter.id}`).amount, 5);
+  // 第三笔额度已用尽：不发，也不写流水。
+  await voteDispute(thirdCase.caseId, voter.id, {choice: 'AUTHOR'});
+  assert.equal(await coinsOf(voter.id), start + 15, '额度用尽后不再发');
+  assert.equal((await rewardRows(voter.id)).size, 2, '截断到 0 的奖励不写流水');
+
+  // 把昨天的流水挪到「昨天」，今天重新有满额；上限按业务日重置。
+  const yesterday = new Date(Date.now() - 86_400_000);
+  await db.coinTransaction.updateMany({where: {userId: voter.id}, data: {createdAt: yesterday}});
+  const fourthCase = await publish(author, conversation, messages);
+  await voteDispute(fourthCase.caseId, voter.id, {choice: 'OTHER'});
+  assert.equal(await coinsOf(voter.id), start + 25, '跨业务日重新计算额度');
+});
+
+test('玩法漏斗：发起、投票、结案各记一条事实，重复结案不多记', async () => {
+  await resetSettings();
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const {caseId} = await publish(author, conversation, messages);
+  const voter = await makeUser();
+  await voteDispute(caseId, voter.id, {choice: 'AUTHOR'});
+  await voteDispute(caseId, voter.id, {choice: 'SPLIT'});
+  await closeDisputeCase(caseId, {force: true, generate: async () => '结案回应。'});
+  await closeDisputeCase(caseId, {force: true, generate: async () => '不该再生成。'});
+
+  const events = await productEvents(caseId);
+  assert.deepEqual(events.map(row => row.name).sort(), ['dispute_closed', 'dispute_started', 'dispute_voted', 'dispute_voted'], '改票不额外记投票事件');
+  assert.equal(events.find(row => row.name === 'dispute_started').userId, author.id, '发起事件记在发起人身上');
+  assert.equal(events.find(row => row.name === 'dispute_closed').userId, null, '结案事件不记到某个用户');
 });
 
 test('发起资格：每日上限与注册时长按设置执行，HTTP 路由保留鉴权与错误码', async () => {

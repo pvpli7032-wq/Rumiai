@@ -42,9 +42,10 @@ Thumbs.db
 # claude code — 仅本地覆盖；团队共享配置正常提交
 .claude/settings.local.json
 
-# sqlite WAL sidecars
+# sqlite WAL sidecars（含 .local 子目录，本地开发库的 sidecar 同样不入库）
 prisma/*.db-wal
 prisma/*.db-shm
+prisma/.local/
 
 prisma/backups/
 prisma/restores/

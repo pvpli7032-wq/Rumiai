@@ -123,7 +123,7 @@ export function TasksAdmin() {
       <AdminPageHeader
         eyebrow="系统设置"
         title="后台任务"
-        description="剧情状态、记忆摘要、评理结案、Mirror 过期、计费核对与备份清理共用一个入口；到期由轮询执行，也可以手动跑一次。"
+        description="剧情状态、记忆摘要、评理结案、Mirror 过期、计费核对、备份清理、每日备份与事件清理共用一个入口；到期由轮询执行，也可以手动跑一次。"
         actions={<Button variant="outline" leadingIcon={<RefreshCw className="h-4 w-4" />} disabled={loading} onClick={() => setRefreshKey(value => value + 1)}>刷新</Button>}
       />
 
