@@ -29,7 +29,9 @@ try {
   const file = path.join(output, 'account-data.json');
   await download.saveAs(file);
   const raw = await readFile(file, 'utf8'), archive = JSON.parse(raw);
-  assert.equal(archive.version, 2);
+  // v3 added the story section (runs / events / chapter summaries) — see src/lib/accounts/data-export.ts.
+  assert.equal(archive.version, 3);
+  assert(Array.isArray(archive.stories), '导出应包含故事区块');
   assert.equal(archive.account.id, user.id);
   assert(Array.isArray(archive.reports) && Array.isArray(archive.aiCalls) && Array.isArray(archive.following));
   assert(!raw.includes('passwordHash') && !raw.includes('tokenVersion'));

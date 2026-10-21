@@ -49,6 +49,7 @@ const DEFAULT_MATRIX = [
   'test:m4:finance:browser',
   'test:m5:closure:browser',
   'test:m5:export:browser',
+  'test:story:browser',
   // 经济并发：签到/任务/打赏的「只能成功一次」不变量，必须打已经在跑的实例，
   // 所以它挂在矩阵里而不是自己起服务；所需任务夹具由 seedHttpFixtures 准备。
   'stress:economy',
@@ -124,6 +125,11 @@ try {
   for (const seed of ['prisma/seed.ts', 'prisma/seed-site.ts']) {
     runNode(['node_modules/tsx/dist/cli.mjs', seed], environment);
   }
+
+  // 2.5) 故事模板：与生产同一条落库路径（scripts/publish-story-template.mjs），
+  //      故事入口页与 /chat?storyRun 的浏览器验收都依赖已发布的模板。
+  console.log('[matrix] 发布故事模板…');
+  runNode(['node_modules/tsx/dist/cli.mjs', 'scripts/publish-story-template.mjs'], environment);
 
   // 3) 矩阵专用夹具。HTTP 主套件的任务与礼物必须由 `seedHttpFixtures` 显式准备：
   //    产品种子故意不激活任务（`Mission.isActive` 默认 false），CI 也是这么做的。

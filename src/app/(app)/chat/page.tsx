@@ -1,5 +1,6 @@
 'use client';
 import { ChatInbox } from '@/components/chat-inbox';
+import { StoryMode } from '@/components/chat/story-mode';
 import { ConversationTools } from '@/components/conversation-tools';
 import { zhError } from '@/lib/copy/zh';
 
@@ -81,6 +82,13 @@ function CharacterAvatar({
       {getCharEmoji(character.id)}
     </div>
   );
+}
+
+function ChatRouteContent() {
+  const searchParams = useSearchParams();
+  const storyRunId = searchParams.get('storyRun');
+  if (storyRunId) return <StoryMode runId={storyRunId} />;
+  return <ChatContent />;
 }
 
 function ChatContent() {
@@ -572,7 +580,7 @@ function ChatContent() {
 export default function ChatPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-zinc-950 flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-400 animate-spin" /></div>}>
-      <ChatContent />
+      <ChatRouteContent />
     </Suspense>
   );
 }

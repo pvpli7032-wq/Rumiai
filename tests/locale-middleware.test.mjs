@@ -18,6 +18,16 @@ test('locale redirects preserve the configured public origin behind a local reve
   assert.equal(alias.headers.get('location'), 'https://lh.y-98.cn/zh/explore?tag=romance');
 });
 
+test('locale redirect follows the request origin when no public origin is configured', async () => {
+  // NEXT_PUBLIC_* is inlined at build time, so an instance built without it must still
+  // redirect to its own origin instead of a hard-coded localhost:3000.
+  const root = await middleware(new NextRequest('http://127.0.0.1:41234/', {headers: {host: '127.0.0.1:41234'}}));
+  assert.equal(root.status, 307);
+  assert.equal(root.headers.get('location'), 'http://127.0.0.1:41234/zh');
+  const alias = await middleware(new NextRequest('http://127.0.0.1:41234/explore?tag=romance', {headers: {host: '127.0.0.1:41234'}}));
+  assert.equal(alias.headers.get('location'), 'http://127.0.0.1:41234/zh/explore?tag=romance');
+});
+
 test('middleware does not redirect API paths to localized HTML pages', async () => {
   const response = await middleware(new NextRequest('http://localhost:3000/api/site', {
     headers: {'host': 'localhost:3000', 'x-forwarded-host': 'lh.y-98.cn', 'x-forwarded-proto': 'https'},
