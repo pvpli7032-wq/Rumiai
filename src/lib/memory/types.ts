@@ -8,8 +8,18 @@
 /** 记忆摘要任务在 background_tasks 里的 kind。 */
 export const MEMORY_SUMMARY_TASK = 'memory-summary';
 
-/** 事实状态：ACTIVE 参与注入；INVALID 表示来源消息已被删除/编辑；DELETED 是用户删除。 */
-export type MemoryFactStatus = 'ACTIVE' | 'INVALID' | 'DELETED';
+/**
+ * 事实状态（V3 §25「需要用户确认的事实展示为待确认，不把猜测写成确定记忆」）。
+ *
+ * - PENDING：摘要任务提出、还没被用户确认的候选事实；不参与注入。
+ * - ACTIVE：用户确认过（或用户自己写的）事实；参与注入。
+ * - INVALID：来源消息已被删除/编辑。
+ * - DELETED：用户删除（软删除，保留行便于后台核对）。
+ */
+export type MemoryFactStatus = 'PENDING' | 'ACTIVE' | 'INVALID' | 'DELETED';
+
+/** 聊天页记忆面板里列出的事实：只有 ACTIVE 与 PENDING 两种值得给用户看。 */
+export const PANEL_FACT_STATUSES = ['ACTIVE', 'PENDING'] as const;
 
 export interface MemorySettings {
   /** 关闭后既不生成也不注入。 */

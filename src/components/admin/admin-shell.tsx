@@ -3,41 +3,14 @@ import {useCallback, useEffect, useState, type ReactNode} from 'react';
 import Link from 'next/link';
 import {usePathname} from 'next/navigation';
 import {
-  Activity, ArrowLeft, BarChart3, Bot, ChevronDown, ChevronRight, ClipboardList, Coins, Cpu,
-  ExternalLink, FileText, Gift, KeyRound, Landmark, LayoutDashboard, LayoutTemplate, LogOut, Menu,
-  MessageSquare, PanelLeftClose, PanelLeftOpen, RefreshCw, Scale, ScrollText, Settings, ShieldCheck, Sparkles, UserCog, Users, Wallet, X,
-  type LucideIcon,
+  ArrowLeft, ChevronDown, ChevronRight, ExternalLink, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserCog, X,
 } from 'lucide-react';
 import {useAuth} from '@/lib/auth-context';
 import {useAdminAccess} from './use-admin-access';
-import {findEntry, visibleGroups, type AdminNavIcon} from '@/lib/admin/nav';
+import {findEntry, visibleGroups} from '@/lib/admin/nav';
 import {cn} from '@/components/ui/cn';
-
-const ICONS: Record<AdminNavIcon, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  characters: Users,
-  moderation: ShieldCheck,
-  circles: UserCog,
-  posts: FileText,
-  comments: MessageSquare,
-  accounts: UserCog,
-  analytics: BarChart3,
-  growth: Gift,
-  'site-content': LayoutTemplate,
-  finance: Wallet,
-  merchants: Landmark,
-  'ai-providers': Bot,
-  'ai-models': Cpu,
-  'ai-costs': Coins,
-  operations: Activity,
-  compliance: ScrollText,
-  operators: KeyRound,
-  audit: ClipboardList,
-  mirror: Sparkles,
-  disputes: Scale,
-  tasks: RefreshCw,
-  settings: Settings,
-};
+import {AdminNav} from './layout/admin-nav';
+import {useNavPins} from './nav-pins';
 
 const SIDEBAR_STATE_KEY = 'admin.sidebar.collapsed';
 
@@ -47,7 +20,7 @@ export function AdminShell({children}: {children: ReactNode}) {
   const {permissions, session} = useAdminAccess();
   const groups = visibleGroups(permissions);
   const current = findEntry(pathname, permissions);
-  const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const {pins, notice: pinNotice, toggle: togglePin} = useNavPins(user?.id ?? null);
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -60,13 +33,6 @@ export function AdminShell({children}: {children: ReactNode}) {
       /* 隐私模式下读不到就算了，按展开处理。 */
     }
   }, []);
-
-  // The group holding the current page is expanded by default; the operator's own
-  // toggles are layered on top of that.
-  useEffect(() => {
-    if (!current) return;
-    setOpenGroups(list => (list.includes(current.group.id) ? list : [...list, current.group.id]));
-  }, [current?.group.id]);
 
   useEffect(() => { setDrawer(false); setMenu(false); }, [pathname]);
 
@@ -83,92 +49,6 @@ export function AdminShell({children}: {children: ReactNode}) {
       try { window.localStorage.setItem(SIDEBAR_STATE_KEY, value ? '0' : '1'); } catch { /* 忽略写入失败 */ }
       return !value;
     });
-  }
-
-  function isOpen(id: string) {
-    // 侧栏收起时不展开分组，图标栏另有扁平渲染分支。
-    return !collapsed && (openGroups.includes(id) || current?.group.id === id);
-  }
-  function toggle(id: string) {
-    if (collapsed) { setCollapsed(false); return; }
-    setOpenGroups(list => (list.includes(id) ? list.filter(item => item !== id) : [...list, id]));
-  }
-
-  function navigation(onNavigate?: () => void, compact = false) {
-    // 收起成图标栏时不再分组：组名无处可写，图标本身已经足够表达入口。
-    if (collapsed && compact) {
-      return (
-        <nav aria-label="后台导航" className="space-y-0.5">
-          {groups.flatMap(group => group.entries).map(({href, label, icon}) => {
-            const Icon = ICONS[icon];
-            const active = pathname === href || pathname.startsWith(href + '/');
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={onNavigate}
-                title={label}
-                aria-label={label}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'flex min-h-11 items-center justify-center rounded-lg transition-colors',
-                  active ? 'bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                )}
-              >
-                <Icon className="h-4 w-4" />
-              </Link>
-            );
-          })}
-        </nav>
-      );
-    }
-
-    return (
-      <nav aria-label="后台导航" className="space-y-1">
-        {groups.map(group => {
-          const open = isOpen(group.id);
-          return (
-            <div key={group.id}>
-              <button
-                type="button"
-                onClick={() => toggle(group.id)}
-                aria-expanded={open}
-                className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <span className="truncate">{group.label}</span>
-                {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-              </button>
-              {open && (
-                <div className="mt-1 space-y-0.5">
-                  {group.entries.map(({href, label, icon}) => {
-                    const Icon = ICONS[icon];
-                    const active = pathname === href || pathname.startsWith(href + '/');
-                    return (
-                      <Link
-                        key={href}
-                        href={href}
-                        onClick={onNavigate}
-                        aria-current={active ? 'page' : undefined}
-                        className={cn(
-                          'relative flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
-                          active ? 'bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                        )}
-                      >
-                        {active && (
-                          <span aria-hidden className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand" />
-                        )}
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </nav>
-    );
   }
 
   const initial = (user?.username ?? '管').trim().charAt(0).toUpperCase();
@@ -198,7 +78,17 @@ export function AdminShell({children}: {children: ReactNode}) {
     <div style={{height: 'var(--app-height, 100dvh)'}} className="flex min-h-0 w-full overflow-hidden bg-background text-foreground">
       <aside className={cn('hidden shrink-0 flex-col border-r border-border bg-card transition-[width] duration-200 lg:flex', collapsed ? 'w-[76px]' : 'w-64')}>
         {brand}
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">{navigation(undefined, true)}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+          <AdminNav
+            pathname={pathname}
+            groups={groups}
+            permissions={permissions}
+            pins={pins}
+            onTogglePin={togglePin}
+            pinNotice={pinNotice}
+            rail={collapsed}
+          />
+        </div>
         <div className="shrink-0 border-t border-border p-3">
           <Link
             href="/profile"
@@ -317,7 +207,17 @@ export function AdminShell({children}: {children: ReactNode}) {
               </Link>
               <button type="button" onClick={() => setDrawer(false)} aria-label="关闭后台菜单" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-accent"><X className="h-4 w-4" /></button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">{navigation(() => setDrawer(false))}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+              <AdminNav
+                pathname={pathname}
+                groups={groups}
+                permissions={permissions}
+                pins={pins}
+                onTogglePin={togglePin}
+                pinNotice={pinNotice}
+                onNavigate={() => setDrawer(false)}
+              />
+            </div>
             <div className="shrink-0 border-t border-border p-3">
               <Link href="/profile" className="mb-1 flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm"><ArrowLeft className="h-4 w-4" />返回站点</Link>
               <button type="button" onClick={() => { setDrawer(false); logout(); }} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-destructive"><LogOut className="h-4 w-4" />退出登录</button>

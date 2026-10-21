@@ -207,11 +207,12 @@ test('send and regenerate return budget refusal without upstream calls or changi
   globalThis.fetch = async () => { upstreamCalls++; throw Error('Unexpected upstream request'); };
   try {
     const request = data => new Request('http://localhost/api/conversations/fixture', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-    const deniedSend = await send(request({ content: 'Must not persist' }), { params: Promise.resolve({ id: conversation.id }) });
-    const deniedRegenerate = await regenerate(request({}), { params: Promise.resolve({ id: conversation.id, messageId: reply.id }) });
+    // V3 §20：一次点击一个 requestId，SEND 与 REGENERATE 都必须带；缺了会在进预算闸门之前就被 400 挡掉。
+    const deniedSend = await send(request({ content: 'Must not persist', requestId: randomUUID() }), { params: Promise.resolve({ id: conversation.id }) });
+    const deniedRegenerate = await regenerate(request({ requestId: randomUUID() }), { params: Promise.resolve({ id: conversation.id, messageId: reply.id }) });
     for (const response of [deniedSend, deniedRegenerate]) { assert.equal(response.status, 429); assert(Number(response.headers.get('Retry-After')) > 0); }
     process.env.AI_DAILY_COST_BUDGETS = '{';
-    const invalidConfig = await send(request({ content: 'Must not persist either' }), { params: Promise.resolve({ id: conversation.id }) });
+    const invalidConfig = await send(request({ content: 'Must not persist either', requestId: randomUUID() }), { params: Promise.resolve({ id: conversation.id }) });
     assert.equal(invalidConfig.status, 503); assert.equal(invalidConfig.headers.get('Retry-After'), null);
     assert.equal(upstreamCalls, 0); assert.equal(await db.message.count(), 2);
     assert.equal((await db.message.findUnique({ where: { id: reply.id } })).content, 'SYNTHETIC_PRIVATE_REPLY');

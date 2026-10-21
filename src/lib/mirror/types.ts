@@ -34,6 +34,24 @@ export type MirrorOwnerResult = MirrorPublicResult & {
   canDelete: boolean;
 };
 
+/**
+ * 示例结果（V3 §23「上线内容先准备 6 个角色和每个角色的示例结果」）。
+ * 运营在设置中心 mirror.exampleResults 里准备，不是真实用户结果，前台一律标「示例」。
+ */
+export type MirrorExampleResult = {
+  characterId: string;
+  title: string;
+  observations: [string, string, string];
+  quote: string;
+  /** 氛围感，0–100。 */
+  indexA: number;
+  /** 默契度，0–100。 */
+  indexB: number;
+};
+
+/** 前台看到的示例：与真实结果同形，但没有 shareId、没有回答，也永远不会当成真实结果。 */
+export type MirrorExampleView = MirrorResultFields & {characterId: string};
+
 /** 推广角色的来源：后台指定，或名单为空时按热度自动选取。 */
 export type MirrorFeaturedSource = 'CONFIGURED' | 'AUTO';
 
@@ -115,6 +133,8 @@ export const MIRROR_SETTINGS = {
   anonymousDailyLimit: 'mirror.anonymousDailyLimit',
   anonymousIpDailyLimit: 'mirror.anonymousIpDailyLimit',
   featuredCharacterIds: 'mirror.featuredCharacterIds',
+  questions: 'mirror.questions',
+  exampleResults: 'mirror.exampleResults',
   userDailyLimit: 'mirror.userDailyLimit',
   compareLimit: 'mirror.compareLimit',
   overLimitPolicy: 'mirror.overLimitPolicy',

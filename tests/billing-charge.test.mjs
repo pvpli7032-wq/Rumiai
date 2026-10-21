@@ -24,6 +24,7 @@ const {reconcileHeldCharges, readPendingChargeSummary} = await import('../src/li
 const {settleCancellation, readCancelPolicy} = await import('../src/lib/billing/cancel.ts');
 const {signToken} = await import('../src/lib/auth.ts');
 const {GET: readQuota} = await import('../src/app/api/me/quota/route.ts');
+const {GET: readTurn} = await import('../src/app/api/conversations/[id]/turns/route.ts');
 const {encryptProviderSecret} = await import('../src/lib/ai/providers/secret.ts');
 const {executeChatTurn} = await import('../src/lib/conversations/chat-application-service.ts');
 const {executeStoryTurn} = await import('../src/lib/stories/turn-service.ts');
@@ -572,4 +573,48 @@ test('GET /api/me/quota 暴露取消策略与免费取消额度（前端契约�
 
   // 未登录一律 401。
   assert.equal((await readQuota(new Request('http://local/api/me/quota'))).status, 401);
+});
+
+test('断线查询：按请求号查回执与已保存的助手消息，越权与跨会话一律 404', async () => {
+  const {user, conversation} = await billingFixture({coins: 100});
+  await enableCharging(await pricedModel(20));
+  const other = await billingFixture({coins: 100});
+  const token = await signToken({userId: user.id, email: user.email});
+  const otherToken = await signToken({userId: other.user.id, email: other.user.email});
+  const requestId = randomUUID();
+  const query = async (id, authToken) => {
+    const response = await readTurn(
+      new Request('http://local/api/conversations/' + id + '/turns?requestId=' + requestId, {headers: authToken ? {Authorization: 'Bearer ' + authToken} : {}}),
+      {params: Promise.resolve({id})},
+    );
+    return {status: response.status, body: await response.json()};
+  };
+
+  // 还没发出去：查得到「没有这笔」，前台据此才允许手动重试。
+  assert.deepEqual((await query(conversation.id, token)).body, {requestId, chargeStatus: null, coins: 0, allowanceSource: 'PAID', messageId: null, status: 'NONE'});
+
+  // 生成中：费用单还 HELD，没有消息 id，前台应继续等而不是重发。
+  await holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: conversation.id});
+  const pending = await query(conversation.id, token);
+  assert.equal(pending.status, 200);
+  assert.equal(pending.body.status, 'PENDING');
+  assert.equal(pending.body.chargeStatus, 'HELD');
+  assert.equal(pending.body.messageId, null);
+
+  // 已保存：返回消息 id 与结算信息，前台据此把消息补进列表并停止。
+  const message = await db.message.create({data: {conversationId: conversation.id, role: 'ASSISTANT', content: '半路断线的回复'}});
+  await settleCharge({userId: user.id, requestId, operation: 'CHAT_SEND', messageId: message.id});
+  const done = await query(conversation.id, token);
+  assert.equal(done.body.status, 'DONE');
+  assert.equal(done.body.chargeStatus, 'SETTLED');
+  assert.equal(done.body.messageId, message.id);
+  assert.equal(done.body.coins, 20);
+
+  // 别人的对话、别人的令牌：都是 404，不泄露对话是否存在。
+  assert.equal((await query(conversation.id, otherToken)).status, 404);
+  assert.equal((await query('conv-does-not-exist', token)).status, 404);
+  // 缺请求号与未登录分别 400 / 401。
+  const noId = await readTurn(new Request('http://local/api/conversations/' + conversation.id + '/turns', {headers: {Authorization: 'Bearer ' + token}}), {params: Promise.resolve({id: conversation.id})});
+  assert.equal(noId.status, 400);
+  assert.equal((await query(conversation.id, null)).status, 401);
 });

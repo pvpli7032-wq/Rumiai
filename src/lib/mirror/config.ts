@@ -1,6 +1,7 @@
 import {readSettings} from '@/lib/settings/service';
 import {normalizeTimezone} from './limits';
-import {MIRROR_SETTINGS, type MirrorOverLimitPolicy, type MirrorRules} from './types';
+import {parseMirrorExamples, parseMirrorQuestions} from './examples';
+import {MIRROR_SETTINGS, type MirrorExampleResult, type MirrorOverLimitPolicy, type MirrorRules} from './types';
 
 /** 一次请求需要的全部设置；同一次生成里只读一次列表，不反复查库。 */
 export type MirrorConfig = MirrorRulesView & {
@@ -11,6 +12,10 @@ export type MirrorConfig = MirrorRulesView & {
   userDailyLimit: number;
   /** 后台指定的推广角色 id 列表；空表示按热度自动选取。 */
   featuredCharacterIds: string[];
+  /** 提问文本，按顺序取前 questionCount 条；不足时前台明确提示待配置。 */
+  questions: string[];
+  /** 每个角色的示例结果，只在前台标注「示例」展示，不进统计。 */
+  exampleResults: MirrorExampleResult[];
   overLimitPolicy: MirrorOverLimitPolicy;
   /** 购买次数：开关、每次币价、每日购买上限。 */
   purchaseEnabled: boolean;
@@ -45,19 +50,26 @@ export async function readConfigFor(userId: string | null): Promise<MirrorConfig
   };
   /** json 型设置：只认字符串数组，非字符串项直接丢掉，不让坏数据把名单整体废掉。 */
   const stringList = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map(item => item.trim()) : []);
-  return {
-    enabled: byKey.get(MIRROR_SETTINGS.enabled) !== false,
-    questionCount: number(MIRROR_SETTINGS.questionCount, 3),
-    answerMaxChars: number(MIRROR_SETTINGS.answerMaxChars, 60),
+  const questionCount = number(MIRROR_SETTINGS.questionCount, 3);
+  // 示例结果与真实结果共用同一套字数上限，所以先算出上限再解析，避免两处各写一遍。
+  const lengthLimits = {
     titleMaxChars: number(MIRROR_SETTINGS.titleMaxChars, 8),
     observationMaxChars: number(MIRROR_SETTINGS.observationMaxChars, 40),
     quoteMaxChars: number(MIRROR_SETTINGS.quoteMaxChars, 30),
+  };
+  return {
+    enabled: byKey.get(MIRROR_SETTINGS.enabled) !== false,
+    questionCount,
+    answerMaxChars: number(MIRROR_SETTINGS.answerMaxChars, 60),
+    ...lengthLimits,
     compareLimit: number(MIRROR_SETTINGS.compareLimit, 3),
     resultRetentionDays: number(MIRROR_SETTINGS.resultRetentionDays, 30),
     anonymousDailyLimit: number(MIRROR_SETTINGS.anonymousDailyLimit, 1),
     anonymousIpDailyLimit: number(MIRROR_SETTINGS.anonymousIpDailyLimit, 10),
     userDailyLimit: number(MIRROR_SETTINGS.userDailyLimit, 3),
     featuredCharacterIds: stringList(byKey.get(MIRROR_SETTINGS.featuredCharacterIds)),
+    questions: parseMirrorQuestions(byKey.get(MIRROR_SETTINGS.questions), questionCount),
+    exampleResults: parseMirrorExamples(byKey.get(MIRROR_SETTINGS.exampleResults), lengthLimits),
     overLimitPolicy: byKey.get(MIRROR_SETTINGS.overLimitPolicy) === 'CHARGE' ? 'CHARGE' : 'PAUSE',
     purchaseEnabled: byKey.get(MIRROR_SETTINGS.purchaseEnabled) === true,
     purchaseCoins: number(MIRROR_SETTINGS.purchaseCoins, 0),

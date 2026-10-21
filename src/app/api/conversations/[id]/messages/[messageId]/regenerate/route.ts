@@ -8,7 +8,9 @@ export async function POST(request: Request, { params: paramsPromise }: { params
   try {
     const authUser = await getAuthUser(request);
     if (!authUser) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
-    const result = await executeChatTurn({userId: authUser.userId, conversationId: params.id, mode: 'REGENERATE', input: {targetMessageId: params.messageId}, signal: request.signal});
+    // 重新生成同样要带请求号（V3 §20）：一次点击一个编号，重试沿用同一个。
+    const body = await request.clone().json().catch(() => null) as {requestId?: unknown} | null;
+    const result = await executeChatTurn({userId: authUser.userId, conversationId: params.id, mode: 'REGENERATE', input: {targetMessageId: params.messageId, requestId: body?.requestId}, signal: request.signal});
     return new Response(result.stream, {headers: {'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive'}});
   } catch (error) {
     if (error instanceof ChatTurnHttpError) return NextResponse.json({error: error.message}, {status: error.status, headers: error.headers});

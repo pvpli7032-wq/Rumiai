@@ -62,11 +62,8 @@ export const TASK_STATUS_VARIANTS: Record<string, 'success' | 'danger' | 'warnin
   FAILED: 'danger',
 };
 
-export function formatDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', {hour12: false});
-}
+/** 日期时间展示统一走 src/lib/format/date-time.ts，此处只做转发，不重复实现。 */
+export {formatDateTime} from '@/lib/format/date-time';
 
 /** 「距下次运行」：把 next_run_at 读成人能直接判断的相对时间。 */
 export function describeNextRun(nextRunAt: string | null, now = Date.now()): string {

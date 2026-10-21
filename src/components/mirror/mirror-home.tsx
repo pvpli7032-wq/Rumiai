@@ -2,7 +2,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
-import {Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, SkeletonText} from '@/components/ui';
+import {Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, SkeletonText} from '@/components/ui';
 import {api, ApiError} from '@/lib/api-client';
 import {API} from '@/lib/api-paths';
 import {useAuth} from '@/lib/auth-context';
@@ -17,7 +17,8 @@ import type {MirrorGenerateResponse, MirrorPageResponse} from './client-types';
 
 /**
  * 他眼中的你：选角色 → 答题 → 一次生成 → 结果。
- * 额度、题数、字数上限全部来自服务端设置；前端只负责流程，不复制规则。
+ * 额度、题数、字数上限、题目文本全部来自服务端设置；前端只负责流程，不复制规则，
+ * 也不内置任何一道题——题目没配够时明确提示待配置，不拿默认题顶上。
  */
 export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageResponse | null; locale: string}) {
   const router = useRouter();
@@ -52,7 +53,16 @@ export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageRespon
   useEffect(() => { trackProductEvent(token, 'mirror_visited'); }, [token]);
 
   const rules = page?.rules ?? null;
+  const questions = page?.questions ?? [];
   const selected = useMemo(() => page?.characters.find(item => item.id === characterId) ?? null, [page, characterId]);
+  // 题目条数不够就是待配置：不渲染答题表单，也不提交，避免用默认题把运营的缺漏盖过去。
+  const missingQuestions = rules ? Math.max(0, rules.questionCount - questions.length) : 0;
+  // 这个角色已经有真实结果时不再展示示例，示例只在「还没生成过」时当预览用。
+  const hasOwnResult = Boolean(characterId && page?.mine.some(item => item.characterId === characterId));
+  const example = useMemo(() => {
+    if (hasOwnResult || !characterId) return null;
+    return page?.examples.find(item => item.characterId === characterId) ?? null;
+  }, [hasOwnResult, characterId, page]);
 
   async function generate() {
     if (!rules || !characterId || !page) return;
@@ -62,7 +72,11 @@ export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageRespon
     try {
       const data = await api.post<MirrorGenerateResponse>(API.mirror.generate, {characterId, answers}, {token});
       setResult(data.result);
-      setPage({...page, quota: data.quota, mine: [{shareId: data.result.shareId, title: data.result.title, characterName: data.result.characterName, characterAvatarUrl: data.result.characterAvatarUrl, createdAt: data.result.createdAt}, ...page.mine]});
+      setPage({
+        ...page,
+        quota: data.quota,
+        mine: [{shareId: data.result.shareId, title: data.result.title, characterId: data.result.characterId, characterName: data.result.characterName, characterAvatarUrl: data.result.characterAvatarUrl, createdAt: data.result.createdAt}, ...page.mine],
+      });
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : '生成失败，请稍后重试。');
       void load();
@@ -115,20 +129,40 @@ export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageRespon
             </CardContent>
           </Card>
 
+          {example && (
+            <section className="space-y-3" aria-label="示例结果">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="warning">示例</Badge>
+                <span className="text-xs text-muted-foreground">
+                  这是运营为{selected?.name ?? '这个角色'}准备的示例，不是你生成的结果；答题后看到的是你自己的。
+                </span>
+              </div>
+              <MirrorResultCard fields={example} aiNote={false} />
+            </section>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>{selected ? `回答${selected.name}的问题` : '回答问题'}</CardTitle>
-              <CardDescription>每题不超过 {rules.answerMaxChars} 字；回答只会用于这次生成。</CardDescription>
+              <CardDescription>每题不超过 {rules.answerMaxChars} 字；回答只会用于这次生成，分享页不展示。</CardDescription>
             </CardHeader>
             <CardContent>
-              <MirrorAnswerForm
-                rules={rules}
-                answers={answers}
-                submitting={submitting}
-                disabled={!page.quota.canGenerate || !characterId}
-                onChange={(index, value) => setAnswers(current => current.map((item, i) => (i === index ? value : item)))}
-                onSubmit={generate}
-              />
+              {missingQuestions > 0 ? (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-600">
+                  题目还没配够：当前需要 {rules.questionCount} 道，只配了 {questions.length} 道。
+                  请在设置中心补齐「三道问题」后再开始，这里不会用默认题代替。
+                </div>
+              ) : (
+                <MirrorAnswerForm
+                  rules={rules}
+                  questions={questions}
+                  answers={answers}
+                  submitting={submitting}
+                  disabled={!page.quota.canGenerate || !characterId}
+                  onChange={(index, value) => setAnswers(current => current.map((item, i) => (i === index ? value : item)))}
+                  onSubmit={generate}
+                />
+              )}
             </CardContent>
           </Card>
         </>

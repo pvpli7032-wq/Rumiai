@@ -337,22 +337,6 @@ export async function readDisputeCase(caseId: string, userId?: string | null): P
   return {...toSummary(row, factsForPost, tallyMap.get(row.id) ?? emptyTally(), voteState(mine, maxVoteChanges), character), authorId: row.authorId};
 }
 
-/** 撤回：停止公开访问，评论与举报记录保留（已公开的截图无法远程收回）。 */
-export async function withdrawDisputeCase(userId: string, caseId: string) {
-  await pragmasReady;
-  return db.$transaction(async tx => {
-    const row = await tx.disputeCase.findUnique({where: {id: caseId}, select: {authorId: true, closeStatus: true, postId: true}});
-    if (!row) throw new DisputeError('评理案例不存在。', 404, 'NOT_FOUND');
-    if (row.authorId !== userId) throw new DisputeError('只能撤回自己发起的案例。', 403, 'FORBIDDEN');
-    if (row.closeStatus === 'WITHDRAWN') return {withdrawn: true};
-    if (row.closeStatus === 'CLOSED') throw new DisputeError('案例已结案，无法撤回。', 409, 'CONFLICT');
-    if (row.closeStatus === 'CLOSING') throw new DisputeError('案例正在结案，暂时无法撤回。', 409, 'CONFLICT');
-    await tx.disputeCase.update({where: {id: caseId}, data: {closeStatus: 'WITHDRAWN'}});
-    await tx.post.update({where: {id: row.postId}, data: {status: 'HIDDEN'}});
-    return {withdrawn: true};
-  });
-}
-
 /** 结案任务/后台读取的轻量记录；postStatus 用来判断帖子是否已被社区隐藏。 */
 export async function readCaseRecord(caseId: string): Promise<DisputeCaseRecord & {postStatus: string}> {
   const row = await db.disputeCase.findUnique({

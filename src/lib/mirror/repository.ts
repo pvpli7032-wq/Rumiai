@@ -8,7 +8,8 @@ import type {MirrorOwnerResult, MirrorPublicResult} from './types';
  * 所有读路径都是 404，分享链接不会残留内容。
  */
 
-export type MirrorOwnerView = {shareId: string; title: string; characterName: string; characterAvatarUrl: string | null; createdAt: string};
+/** 「我最近的结果」条目：带 characterId，前台据此判断某个角色是否已经有真实结果。 */
+export type MirrorOwnerView = {shareId: string; title: string; characterId: string; characterName: string; characterAvatarUrl: string | null; createdAt: string};
 
 export type MirrorReadResult =
   | {kind: 'public'; result: MirrorPublicResult}
@@ -28,6 +29,7 @@ export async function readMyMirrorResults(userId: string | null, subject: string
   return rows.map(row => ({
     shareId: row.shareId,
     title: row.title,
+    characterId: row.characterId,
     characterName: byId.get(row.characterId)?.name ?? '角色',
     characterAvatarUrl: byId.get(row.characterId)?.avatarUrl ?? null,
     createdAt: row.createdAt.toISOString(),

@@ -55,11 +55,8 @@ export const DISPUTE_STATUS_FILTERS: {value: DisputeStatus | 'ALL'; label: strin
   {value: 'WITHDRAWN', label: '已撤回'},
 ];
 
-export function formatDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', {hour12: false});
-}
+/** 日期时间展示统一走 src/lib/format/date-time.ts，此处只做转发，不重复实现。 */
+export {formatDateTime} from '@/lib/format/date-time';
 
 /** 距离截止还剩多久；已过期返回负数的可读描述，交给调用方决定样式。 */
 export function describeDeadline(deadlineAt: string, now = Date.now()): string {

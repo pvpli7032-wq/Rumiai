@@ -7,6 +7,7 @@ import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
 import {reserveAiCall, finishAiCall, AiQuotaError} from '@/lib/ai/ai-usage';
 import type {AiStreamMetrics} from '@/lib/ai/types';
 import {streamOpenAIResponse} from '@/lib/conversations/chat-stream';
+import {proposeMemoryFact} from './fact-service';
 import {MEMORY_SUMMARY_TASK, type MemorySettings, type MemorySummaryView} from './types';
 
 /**
@@ -119,6 +120,43 @@ function buildSummaryPrompt(template: string, previous: string | null, transcrip
   ].filter((part): part is string => Boolean(part)).join('\n\n');
 }
 
+/**
+ * 从用户发言里挑出「可能在说自己的事」的候选事实（V3 §25）。
+ *
+ * 这是保守的规则抽取，不是理解：只认「我…」开头或含自我指向的短句，命中就交给用户确认，
+ * 落 PENDING 不注入。宁可少提几条，也不把猜测写成确定记忆 —— 所以宁可漏，也不猜。
+ */
+const SELF_PATTERNS = ['我喜欢', '我不喜欢', '我讨厌', '我爱', '我住在', '我在', '我是', '我叫', '我养', '我有', '我怕', '我想', '我会', '我习惯', '我的'];
+const MAX_CANDIDATES_PER_RUN = 3;
+const MIN_FACT_CHARS = 6;
+const MAX_FACT_CHARS = 60;
+/** 扫描上限：只看最近这些消息、每条最多看这么多句、全程最多看这么多句，超了直接收工。 */
+const SCAN_MAX_MESSAGES = MAX_TRANSCRIPT_MESSAGES;
+const SCAN_MAX_SENTENCES_PER_MESSAGE = 40;
+const SCAN_MAX_SENTENCES = 200;
+
+function extractCandidateFacts(transcript: Array<{id: string; role: string; content: string}>): Array<{text: string; sourceMessageId: string}> {
+  const found: Array<{text: string; sourceMessageId: string}> = [];
+  const recent = transcript.slice(-SCAN_MAX_MESSAGES);
+  let scanned = 0;
+  for (const message of recent) {
+    if (message.role !== 'USER') continue;
+    // 先截断再切句：一条超长发言不会先被 split 成一堆碎片。
+    const sentences = message.content.slice(0, MAX_MESSAGE_CHARS).split(/[。！？!?\n；;]/).slice(0, SCAN_MAX_SENTENCES_PER_MESSAGE);
+    for (const raw of sentences) {
+      scanned += 1;
+      if (scanned > SCAN_MAX_SENTENCES) return found;
+      const sentence = raw.replace(/\s+/g, ' ').trim();
+      if (sentence.length < MIN_FACT_CHARS || sentence.length > MAX_FACT_CHARS) continue;
+      if (!SELF_PATTERNS.some(pattern => sentence.startsWith(pattern) || sentence.includes(pattern))) continue;
+      if (found.some(item => item.text === sentence)) continue;
+      found.push({text: sentence, sourceMessageId: message.id});
+      if (found.length >= MAX_CANDIDATES_PER_RUN) return found;
+    }
+  }
+  return found;
+}
+
 /** 模拟环境：明确标注是模拟摘要，避免把占位文本当成真实记忆。 */
 function mockSummary(count: number, maxChars: number): string {
   return `【模拟摘要】已根据最近 ${count} 条对话生成摘要（模拟环境，非真实模型摘要）。`.slice(0, maxChars);
@@ -203,5 +241,12 @@ export async function runMemorySummaryTask(conversationId: string): Promise<Summ
     create: {conversationId, summary, coveredMessageId: lastMessageId, version: 1},
     update: {summary, coveredMessageId: lastMessageId, version: {increment: 1}},
   });
-  return {outcome: 'SUMMARIZED', detail: `${TASK_LEASE_HINT}:${pending.length}`};
+
+  // 摘要顺带提出候选事实：一律 PENDING，等用户在聊天页确认，确认前不注入。
+  let proposed = 0;
+  for (const candidate of extractCandidateFacts(pending)) {
+    const created = await proposeMemoryFact(conversationId, conversation.userId, candidate.text, candidate.sourceMessageId);
+    if (created) proposed += 1;
+  }
+  return {outcome: 'SUMMARIZED', detail: `${TASK_LEASE_HINT}:${pending.length}:待确认${proposed}`};
 }

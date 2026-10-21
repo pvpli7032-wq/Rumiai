@@ -2,9 +2,14 @@
 import {Button, Textarea} from '@/components/ui';
 import type {MirrorRules} from '@/lib/mirror/types';
 
-/** 答题：题数与每题字数上限都来自设置中心，前端不写死。 */
-export function MirrorAnswerForm({rules, answers, onChange, onSubmit, submitting, disabled, submitLabel = '看看 TA 眼中的我'}: {
+/**
+ * 答题：题数、每题字数上限与题目文本全部来自设置中心，前端不写死任何一道题。
+ * questions 必须够 questionCount 条——条数不足时上层直接提示待配置，不渲染这个表单，
+ * 所以这里不会出现「用默认题顶上」的情况。
+ */
+export function MirrorAnswerForm({rules, questions, answers, onChange, onSubmit, submitting, disabled, submitLabel = '看看 TA 眼中的我'}: {
   rules: Pick<MirrorRules, 'questionCount' | 'answerMaxChars'>;
+  questions: string[];
   answers: string[];
   onChange: (index: number, value: string) => void;
   onSubmit: () => void;
@@ -21,10 +26,10 @@ export function MirrorAnswerForm({rules, answers, onChange, onSubmit, submitting
         const tooLong = length > rules.answerMaxChars;
         return (
           <label key={index} className="block">
-            <span className="flex items-baseline justify-between text-sm text-foreground">
-              <span>第 {index + 1} 题</span>
-              <span className={tooLong ? 'text-destructive' : 'text-muted-foreground'}>
-                {length}/{rules.answerMaxChars}
+            <span className="flex items-baseline justify-between gap-3 text-sm text-foreground">
+              <span className="min-w-0 break-words font-medium">{questions[index]}</span>
+              <span className={tooLong ? 'shrink-0 text-xs text-destructive' : 'shrink-0 text-xs text-muted-foreground'}>
+                第 {index + 1} 题 · {length}/{rules.answerMaxChars}
               </span>
             </span>
             <Textarea

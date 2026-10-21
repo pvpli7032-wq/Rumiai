@@ -24,7 +24,8 @@ const {db, pragmasReady} = await import('../src/lib/db.ts');
 await pragmasReady;
 const {signToken} = await import('../src/lib/auth.ts');
 const {saveGroup} = await import('../src/lib/settings/service.ts');
-const {createDisputeCase, readDisputeCase, listDisputeCases, snapshotOf, withdrawDisputeCase} = await import('../src/lib/disputes/case-service.ts');
+const {createDisputeCase, readDisputeCase, listDisputeCases, snapshotOf} = await import('../src/lib/disputes/case-service.ts');
+const {withdrawDisputeCase} = await import('../src/lib/disputes/withdraw-service.ts');
 const {voteDispute} = await import('../src/lib/disputes/vote-service.ts');
 const {closeDisputeCase, buildFallbackVerdict, enqueueCloseIfReached, runDisputeCloseTask} = await import('../src/lib/disputes/close-service.ts');
 const {GET: listRoute, POST: createRoute} = await import('../src/app/api/disputes/route.ts');
@@ -474,6 +475,96 @@ test('玩法漏斗：发起、投票、结案各记一条事实，重复结案�
   assert.deepEqual(events.map(row => row.name).sort(), ['dispute_closed', 'dispute_started', 'dispute_voted', 'dispute_voted'], '改票不额外记投票事件');
   assert.equal(events.find(row => row.name === 'dispute_started').userId, author.id, '发起事件记在发起人身上');
   assert.equal(events.find(row => row.name === 'dispute_closed').userId, null, '结案事件不记到某个用户');
+});
+
+test('撤回：只有发起人、只有 OPEN 状态能撤回，其余给中文原因', async () => {
+  await resetSettings();
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const {caseId} = await publish(author, conversation, messages);
+  const other = await makeUser();
+
+  // 非发起人：不能撤回，且案例仍然公开。
+  await assert.rejects(() => withdrawDisputeCase(other.id, caseId), error => error.status === 403 && /只能撤回自己发起的案例/.test(error.message));
+  assert.notEqual((await readDisputeCase(caseId, other.id)).withdrawn, true, '撤回被拒后案例仍然公开');
+
+  // 结案中：不能撤回，文案说清原因。
+  await db.disputeCase.update({where: {id: caseId}, data: {closeStatus: 'CLOSING'}});
+  await assert.rejects(() => withdrawDisputeCase(author.id, caseId), error => error.status === 409 && /正在结案/.test(error.message));
+  await db.disputeCase.update({where: {id: caseId}, data: {closeStatus: 'OPEN'}});
+
+  // 已结案：不能撤回，结案结果不能被撤回掉。
+  await closeDisputeCase(caseId, {force: true, generate: async () => '结案回应。'});
+  await assert.rejects(() => withdrawDisputeCase(author.id, caseId), error => error.status === 409 && /已经结案/.test(error.message));
+
+  // OPEN 状态撤回成功，且重复撤回幂等。
+  const second = await publish(author, conversation, messages);
+  assert.deepEqual(await withdrawDisputeCase(author.id, second.caseId), {withdrawn: true});
+  assert.deepEqual(await withdrawDisputeCase(author.id, second.caseId), {withdrawn: true}, '重复撤回不报错');
+  await assert.rejects(() => readDisputeCase(second.caseId, other.id), error => error.status === 404, '非发起人访问返回 404');
+  assert.equal((await readDisputeCase(second.caseId, author.id)).withdrawn, true, '发起人仍能看到自己撤回的案例');
+  const post = await db.post.findUniqueOrThrow({where: {id: second.postId}, select: {status: true}});
+  assert.equal(post.status, 'HIDDEN', '撤回后帖子停止公开访问');
+  // 撤回后结案任务不再生成回应。
+  const closed = await closeDisputeCase(second.caseId, {force: true, generate: async () => { throw new Error('撤回后不该生成'); }});
+  assert.equal(closed.status, 'SKIPPED');
+  assert.equal((await db.disputeCase.findUniqueOrThrow({where: {id: second.caseId}, select: {closeStatus: true}})).closeStatus, 'WITHDRAWN');
+});
+
+test('并发投票：同一用户同时投多次只落一张票，票数只加一次', async () => {
+  await resetSettings();
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const {caseId} = await publish(author, conversation, messages);
+  const voter = await makeUser();
+
+  // 六个并发请求，选择还各不相同：唯一键 (caseId,userId) 兜住，改票次数也只按一次算。
+  const choices = ['AUTHOR', 'OTHER', 'SPLIT', 'AUTHOR', 'OTHER', 'SPLIT'];
+  const results = await Promise.allSettled(choices.map(choice => voteDispute(caseId, voter.id, {choice})));
+  const accepted = results.filter(result => result.status === 'fulfilled');
+  assert.equal(accepted.length >= 1, true, '至少一次请求成功');
+  assert.equal(await db.disputeVote.count({where: {caseId, userId: voter.id}}), 1, '只落一张票');
+  const stored = await db.disputeCase.findUniqueOrThrow({where: {id: caseId}, select: {voteCount: true}});
+  assert.equal(stored.voteCount, 1, '票数只加一次');
+  const vote = await db.disputeVote.findUniqueOrThrow({where: {caseId_userId: {caseId, userId: voter.id}}});
+  assert.equal(vote.reviseCount <= 1, true, '改票次数不会被并发多算');
+  // 失败的那些必须是明确的业务冲突，不是 500。
+  for (const result of results) {
+    if (result.status === 'rejected') assert.equal(result.reason.status, 409, '并发冲突返回 409 而不是 500');
+  }
+});
+
+test('并发结案：两个 worker 同时处理同一案例只生成一次回应', async () => {
+  await resetSettings();
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const {caseId} = await publish(author, conversation, messages);
+  await voteDispute(caseId, (await makeUser()).id, {choice: 'AUTHOR'});
+  await voteDispute(caseId, (await makeUser()).id, {choice: 'OTHER'});
+  await db.disputeCase.update({where: {id: caseId}, data: {deadlineAt: new Date(Date.now() - 1000)}});
+
+  let generated = 0;
+  const generate = async () => {
+    generated += 1;
+    await new Promise(resolve => setTimeout(resolve, 30));
+    return '两个 worker 里只有一个该写结果。';
+  };
+  // 任务处理器是两个独立 worker 的入口：都认为该结案，但只有抢占成功的一方生成。
+  const workers = await Promise.all([runDisputeCloseTask(caseId), runDisputeCloseTask(caseId)]);
+  assert.equal(generated, 0, 'worker 入口走真实模型链路，这里只校验结案结果唯一');
+  assert.equal(workers.filter(worker => worker.outcome === 'CLOSED').length, 1, '两个 worker 里只有一个结案');
+  assert.equal(workers.filter(worker => worker.outcome === 'ALREADY_CLOSED').length, 1, '另一个看到已经结案');
+  assert.equal(await db.disputeCase.count({where: {id: caseId, closeStatus: 'CLOSED'}}), 1, '只结一次案');
+  const verdict = JSON.parse((await db.disputeCase.findUniqueOrThrow({where: {id: caseId}, select: {verdictJson: true}})).verdictJson);
+  assert.equal(typeof verdict.text, 'string');
+
+  // 再用注入生成器压一次：同样的抢占，只生成一次。
+  const fresh = await publish(author, conversation, messages);
+  await db.disputeCase.update({where: {id: fresh.caseId}, data: {deadlineAt: new Date(Date.now() - 1000)}});
+  const both = await Promise.all([closeDisputeCase(fresh.caseId, {generate}), closeDisputeCase(fresh.caseId, {generate})]);
+  assert.equal(generated, 1, '两个 worker 只生成一次回应');
+  assert.equal(both.filter(result => result.status === 'CLOSED').length, 1);
+  assert.equal(both.filter(result => result.status === 'ALREADY_CLOSED').length, 1);
 });
 
 test('发起资格：每日上限与注册时长按设置执行，HTTP 路由保留鉴权与错误码', async () => {

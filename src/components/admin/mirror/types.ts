@@ -55,9 +55,33 @@ export const MIRROR_SOURCE_LABELS: Record<MirrorFeaturedSource, string> = {
   AUTO: '自动选取',
 };
 
+/** 前台展示用的示例结果；后台只关心「配了几条、覆盖哪些角色」。 */
+export interface MirrorExampleView {
+  characterId: string;
+  title: string;
+  observations: string[];
+  quote: string;
+  indices: {atmosphere: number; rapport: number};
+}
+
 export interface MirrorConfigPayload {
   characters: MirrorCharacterOption[];
   rules: MirrorRulesView;
+  questions: string[];
+  examples: MirrorExampleView[];
+  exampleCount: number;
+}
+
+/**
+ * 题目与示例的配置状态：后台只读展示「配够了没有」，不在这里编辑。
+ * 题目条数少于 questionCount 就是待配置——前台会明确提示，不会用默认题顶上。
+ */
+export function mirrorQuestionState(questions: string[], questionCount: number): {ok: boolean; label: string; detail: string} {
+  const missing = Math.max(0, questionCount - questions.length);
+  if (missing > 0) {
+    return {ok: false, label: '待配置', detail: `需要 ${questionCount} 道，当前只有 ${questions.length} 道，缺 ${missing} 道；前台会提示待配置并暂停答题。`};
+  }
+  return {ok: true, label: '已配置', detail: `当前 ${questions.length} 道，按顺序取前 ${questionCount} 道提问。`};
 }
 
 export const MIRROR_STATUS_LABELS: Record<MirrorStatus, string> = {
@@ -85,11 +109,8 @@ export const MIRROR_STATUS_FILTERS: {value: MirrorStatus | 'ALL'; label: string}
 /** 生成成功率的最小样本：低于这个数只显示「样本不足」，不拿两三条凑百分比。 */
 export const MIRROR_RATE_MIN_SAMPLE = 10;
 
-export function formatDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', {hour12: false});
-}
+/** 日期时间展示统一走 src/lib/format/date-time.ts，此处只做转发，不重复实现。 */
+export {formatDateTime} from '@/lib/format/date-time';
 
 /** 公开分享页固定走默认语言前缀，与 middleware 的 /mirror 重定向一致。 */
 export function mirrorSharePath(shareId: string): string {

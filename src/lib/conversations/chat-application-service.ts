@@ -10,12 +10,12 @@ import {readChatRules} from '@/lib/settings';
 import {buildMemoryContext, enqueueSummaryIfDue} from '@/lib/memory';
 import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
 import {readAiModelPlan} from '@/lib/ai/models/runtime-service';
-import {beginBillingTurn, parseJsonBody, readBalance, readTurnReceipt, resolveRequestId, toChargeError, type BillingTurn} from '@/lib/billing/turn';
+import {beginBillingTurn, parseJsonBody, readBalance, readRequestId, readTurnReceipt, toChargeError, type BillingTurn} from '@/lib/billing/turn';
 import {db} from '@/lib/db';
 import {grantInviteRewardIfDue} from '@/lib/growth/invite-service';
 
 export type ChatTurnMode = 'SEND' | 'REGENERATE';
-export type ChatTurnInput = {request: Request} | {targetMessageId: string; requestId?: string};
+export type ChatTurnInput = {request: Request} | {targetMessageId: string; requestId?: unknown};
 
 /** 与费用单的 operation 一一对应：SEND → CHAT_SEND，REGENERATE → CHAT_REGENERATE。 */
 const CHARGE_OPERATION: Record<ChatTurnMode, 'CHAT_SEND' | 'CHAT_REGENERATE'> = {SEND: 'CHAT_SEND', REGENERATE: 'CHAT_REGENERATE'};
@@ -54,7 +54,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   // 规则每次请求现读（带 15 秒缓存）：后台改完设置，下一个请求就按新值校验。
   const rules = await readChatRules();
   const body = input.mode === 'SEND' ? await parseJsonBody('request' in input.input ? input.input.request : undefined) : null;
-  const requestId = resolveRequestId(input.mode === 'SEND' ? body?.requestId : ('requestId' in input.input ? input.input.requestId : null));
+  const requestId = readRequestId(input.mode === 'SEND' ? body?.requestId : ('requestId' in input.input ? input.input.requestId : null));
   let content: string; let history: Awaited<ReturnType<typeof readRecentMessageHistory>> | undefined; let replaceAt: Date | undefined;
   if (input.mode === 'SEND') {
     // 请求体缺失或不是合法 JSON 对象：直接按格式错误拒绝，不要落到「须为文本」。
@@ -68,6 +68,8 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
     const prepared = await prepareMessageRegeneration(input.userId, input.conversationId, input.input.targetMessageId, rules.historyMessages);
     content = prepared.prompt.content; history = prepared.history; replaceAt = prepared.prompt.createdAt;
   }
+  // V3 §20：请求号由客户端给。缺了就没法重放、也没法断线查询，直接 400 而不是自造一个。
+  if (!requestId) throw new ChatTurnHttpError('缺少请求编号，请刷新页面重试。', 400);
   const modelPlan = await readAiModelPlan(conversation.aiModel, conversation.characterId);
   if (modelPlan?.length === 0) throw new ChatTurnHttpError('当前角色暂无可用模型，请重新选择模型或联系管理员。', 503);
   const configuredProviders = modelPlan === null ? await readActiveAiProviders() : [];

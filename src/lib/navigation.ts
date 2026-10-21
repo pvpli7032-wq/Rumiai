@@ -1,4 +1,4 @@
-import { Compass, MessageSquare, PenLine, User, Users, type LucideIcon } from 'lucide-react';
+import { Compass, LayoutGrid, MessageSquare, PenLine, User, type LucideIcon } from 'lucide-react';
 
 export interface PrimaryNavItem {
   href: string;
@@ -11,7 +11,7 @@ export const PRIMARY_NAV: readonly PrimaryNavItem[] = [
   { href: '/discover', label: '发现', icon: Compass },
   { href: '/chat', label: '聊天', icon: MessageSquare },
   { href: '/creator', label: '创作', icon: PenLine },
-  { href: '/circles', label: '圈子', icon: Users },
+  { href: '/square', label: '广场', icon: LayoutGrid },
   { href: '/profile', label: '我的', icon: User },
 ];
 

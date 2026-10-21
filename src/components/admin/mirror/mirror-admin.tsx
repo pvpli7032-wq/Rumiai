@@ -93,14 +93,23 @@ export function MirrorAdmin() {
     return () => controller.abort();
   }, [token, canRead, refreshKey]);
 
-  // 配置标签只读：角色候选与规则都来自公开初始化接口，编辑入口在设置中心与角色管理。
+  // 配置标签只读：角色候选、题目文本、示例结果与规则都来自公开初始化接口，编辑入口在设置中心与角色管理。
   useEffect(() => {
     if (!token || !canRead) return;
     const controller = new AbortController();
     setConfig(null);
     setConfigError('');
     void apiFetch<MirrorConfigPayload>(API.mirror.generate, {cache: 'no-store', signal: controller.signal})
-      .then(data => { if (!controller.signal.aborted) setConfig({characters: data.characters ?? [], rules: data.rules}); })
+      .then(data => {
+        if (controller.signal.aborted) return;
+        setConfig({
+          characters: data.characters ?? [],
+          rules: data.rules,
+          questions: data.questions ?? [],
+          examples: data.examples ?? [],
+          exampleCount: data.exampleCount ?? 0,
+        });
+      })
       .catch(cause => { if (!controller.signal.aborted) setConfigError(cause instanceof Error ? cause.message : '配置读取失败。'); });
     return () => controller.abort();
   }, [token, canRead, refreshKey]);

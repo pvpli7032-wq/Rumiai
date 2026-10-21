@@ -5,6 +5,8 @@
  * 单位「每百万 Token 的币种金额」）来自两个不同接口，字段必须分列，不能合成一个价格。
  */
 
+import type {PricingBasis} from '@/lib/ai/costs/price-suggestion';
+
 export interface CoinPriceItem {
   id: string;
   modelId: string;
@@ -20,6 +22,8 @@ export interface CoinPriceItem {
 export interface CoinPriceView {
   models: {id: string; key: string; displayName: string}[];
   items: CoinPriceItem[];
+  /** 成本换算与建议价的口径（V3 §28）：样本阈值、汇率、目标毛利、每币单价。 */
+  pricing: PricingBasis;
 }
 
 export interface CostPrice {
@@ -145,9 +149,6 @@ export interface ModelPriceRow {
   usage: ModelCostRow[];
 }
 
-/** 样本少于这个条数时平均成本显示「样本不足」，不拿两三次调用算平均。 */
-export const COST_AVERAGE_MIN_SAMPLE = 5;
-
 export const NOT_CONFIGURED = '待配置';
 export const NOT_ENOUGH_SAMPLE = '样本不足';
 
@@ -163,11 +164,8 @@ export function formatCoins(coins: number): string {
   return `${coins.toLocaleString('zh-CN')} 币`;
 }
 
-export function formatDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', {hour12: false});
-}
+/** 日期时间展示统一走 src/lib/format/date-time.ts，此处只做转发，不重复实现。 */
+export {formatDateTime} from '@/lib/format/date-time';
 
 /** 抽屉默认生效时间：至少晚于当前时间，且晚于该模型已有成本价的最新版本。 */
 export function defaultEffectiveInput(latest: CostPrice | null): string {

@@ -21,9 +21,12 @@ export {
 export {compareMirrorResults, deleteMirrorResult, expireMirrorResults, readMirrorResult, readMyMirrorResults, type MirrorOwnerView, type MirrorReadResult} from './repository';
 export {MirrorModelError} from './model-call';
 export {mirrorDayKey, readMirrorUsage, type MirrorIdentity} from './limits';
+export {exampleForCharacter, missingQuestionCount, parseMirrorExamples, parseMirrorQuestions, toExampleView} from './examples';
 export {mirrorAttributionCookieName, newMirrorSubject, readCookie, signMirrorAttribution, verifyMirrorAttribution} from './share';
 export type {
   MirrorCharacterOption,
+  MirrorExampleResult,
+  MirrorExampleView,
   MirrorIndices,
   MirrorOverLimitPolicy,
   MirrorOwnerResult,

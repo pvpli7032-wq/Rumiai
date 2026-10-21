@@ -110,7 +110,16 @@ export function isMirrorReadable(row: Pick<MirrorRow, 'status' | 'expiresAt'>, n
   return row.status === 'READY' && (!row.expiresAt || row.expiresAt > now);
 }
 
-/** 公开视图：只有结果字段，没有回答，也没有归属标识。 */
+/**
+ * 公开视图：只有结果字段，没有回答，也没有归属标识。
+ *
+ * V3 §23「公开分享只带用户确认的结果，不自动展示三题原回答」的依据就在这里：
+ * 1) 返回类型是 MirrorPublicResult，结构里没有 answers 字段，构造时也只逐字段挑值；
+ * 2) 三题原回答只由下面的 toOwnerResult 附加，而它唯一的调用点是 repository 里
+ *    canReadMirrorAnswers（口径与删除权一致：登录本人，或持创建时归属凭据的匿名浏览器）；
+ * 3) 分享页/分享接口走的都是 readMirrorResult 的 public 分支，拿到的就是这个函数的返回值。
+ * 因此陌生人打开分享链接永远读不到回答，不需要额外的过滤步骤。
+ */
 export function toPublicResult(row: MirrorRow, character: MirrorCharacterView): MirrorPublicResult | null {
   const observations = parseJson<string[]>(row.observationsJson);
   const indices = parseJson<{atmosphere?: unknown; rapport?: unknown}>(row.indicesJson);

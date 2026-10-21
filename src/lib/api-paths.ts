@@ -67,6 +67,13 @@ export const API = {
     like: (id: string, mid: string) => `/api/conversations/${e(id)}/messages/${e(mid)}/like`,
     regenerate: (id: string, mid: string) => `/api/conversations/${e(id)}/messages/${e(mid)}/regenerate`,
     export: (id: string, format: 'json' | 'txt' = 'json') => `/api/conversations/${e(id)}/export?format=${format}`,
+    /** 一次点击一个 requestId，断线后按编号查回执（V3 §20）。 */
+    turns: (id: string, requestId: string) => `/api/conversations/${e(id)}/turns?requestId=${e(requestId)}`,
+    /** 聊天记忆：列表、确认、忽略、删除（V3 §25）。 */
+    memory: (id: string) => `/api/conversations/${e(id)}/memory`,
+    memoryConfirm: (id: string, factId: string) => `/api/conversations/${e(id)}/memory/${e(factId)}/confirm`,
+    memoryIgnore: (id: string, factId: string) => `/api/conversations/${e(id)}/memory/${e(factId)}/ignore`,
+    memoryFact: (id: string, factId: string) => `/api/conversations/${e(id)}/memory/${e(factId)}`,
   },
 
   stories: {
@@ -200,6 +207,7 @@ export const API = {
     analytics: '/api/admin/analytics',
     analyticsFunnel: '/api/admin/analytics/scene-funnel',
     analyticsProductFunnel: '/api/admin/analytics/product-funnel',
+    analyticsOpsMetrics: '/api/admin/analytics/ops-metrics',
     audit: '/api/admin/audit',
     settings: '/api/admin/settings',
     settingsHistory: (query: string) => `/api/admin/settings/history?${query}`,

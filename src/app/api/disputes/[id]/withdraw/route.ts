@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server';
 import {getAuthUser} from '@/lib/auth';
-import {withdrawDisputeCase} from '@/lib/disputes/case-service';
+import {withdrawDisputeCase} from '@/lib/disputes/withdraw-service';
 import {disputeError} from '../../_response';
 
 export const dynamic = 'force-dynamic';

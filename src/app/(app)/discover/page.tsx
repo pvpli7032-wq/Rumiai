@@ -12,6 +12,7 @@ import { RankingsTab } from '@/components/rankings-tab';
 import { CreatorTab } from '@/components/creator-tab';
 import { UniverseTab } from '@/components/universe-tab';
 import { useSiteContent } from '@/lib/use-site-content';
+import { useUiConfig } from '@/lib/settings/use-ui-config';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api-client';
 import { API } from '@/lib/api-paths';
@@ -67,6 +68,9 @@ function SectionHeader({
 export default function DiscoverPage() {
   const { banners, tags, sections } = useSiteContent();
   const { token } = useAuth();
+  // 「他眼中的你」是独立玩法，开关（mirror.enabled）关掉时这里整块不渲染，
+  // 免得留一个点进去是空页的入口。配置未加载按关闭处理，不先闪出一个死链。
+  const mirrorEnabled = useUiConfig()['mirror.enabled'] === true;
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -363,6 +367,29 @@ export default function DiscoverPage() {
                   <StoryCatalogCard key={story.slug} story={story} />
                 ))}
               </div>
+            </section>
+          )}
+
+          {/* 他眼中的你（V3 §23）：独立玩法入口，开关关掉时不渲染 */}
+          {!filtering && mirrorEnabled && (
+            <section className="mt-6 space-y-3 px-4 md:px-12">
+              <SectionHeader emoji="🪞" title="他眼中的你" hint="选一个角色，回答几道短问题，看看 TA 眼中的你是什么样子" />
+              <Link
+                href="/mirror"
+                className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:border-brand/60"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-gradient">
+                  <Sparkles className="h-5 w-5 text-white" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">进入「他眼中的你」</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">结果由 AI 生成，可以分享给朋友</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-brand">
+                  去看看
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </span>
+              </Link>
             </section>
           )}
 

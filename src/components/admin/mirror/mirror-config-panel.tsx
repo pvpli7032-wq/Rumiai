@@ -5,14 +5,14 @@ import Link from 'next/link';
 import type {ReactNode} from 'react';
 import {AdminNotice, AdminPanel, AdminPanelGroup} from '@/components/admin/admin-page';
 import {Badge} from '@/components/ui/badge';
-import {MIRROR_SOURCE_LABELS, type MirrorConfigPayload} from './types';
+import {MIRROR_SOURCE_LABELS, mirrorQuestionState, type MirrorConfigPayload} from './types';
 
 /**
- * 配置标签：只读展示当前生效的推广角色、题目与版式，并给出去哪儿改。
+ * 配置标签：只读展示当前生效的推广角色、题目、示例结果与版式，并给出去哪儿改。
  *
- * V3 §16 要求同一项只有一个编辑位置：题目数量、字数上限、保留天数都在设置中心，
- * 推广角色名单在设置中心 mirror.featuredCharacterIds（留空则按热度自动选取）。
- * 这里再放一套输入框就会两边打架，所以只展示 + 跳转。
+ * V3 §16 要求同一项只有一个编辑位置：题目数量、字数上限、保留天数、题目文本与示例结果
+ * 都在设置中心（mirror.questionCount / mirror.questions / mirror.exampleResults …），
+ * 推广角色名单在 mirror.featuredCharacterIds。这里再放一套输入框就会两边打架，所以只展示 + 跳转。
  */
 export interface MirrorConfigPanelProps {
   config: MirrorConfigPayload | null;
@@ -47,7 +47,11 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
   if (error) return <AdminNotice tone="error" title={error} description="配置来自公开初始化接口，读取失败时不影响结果列表。" />;
   if (loading || !config) return <AdminNotice tone="loading" title="正在读取当前配置…" />;
 
-  const {characters, rules} = config;
+  const {characters, rules, questions, examples, exampleCount} = config;
+  const questionState = mirrorQuestionState(questions, rules.questionCount);
+  // 示例按当前展示的角色统计覆盖率：配了但角色不在名单里的，前台不会展示。
+  const covered = examples.length;
+  const uncovered = Math.max(0, characters.length - covered);
 
   return (
     <AdminPanelGroup>
@@ -84,13 +88,57 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
       </AdminPanel>
 
       <AdminPanel
-        title="题目"
-        description="题目数量与每题字数上限决定前台要回答几道题；修改在设置中心「增长玩法」。"
+        title="三道问题"
+        description="题目文本本身也在这里只读展示：前台按「题目数量」顺序取前几条提问，不内置任何默认题。"
+        badge={<Badge variant={questionState.ok ? 'success' : 'warning'}>{questionState.label}</Badge>}
         actions={<JumpLink href="/admin/settings">去设置中心</JumpLink>}
       >
-        <div className="divide-y divide-border">
-          <RuleRow label="题目数量" value={`${rules.questionCount} 题`} hint="mirror.questionCount" />
-          <RuleRow label="每题字数上限" value={`${rules.answerMaxChars} 字`} hint="mirror.answerMaxChars" />
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-muted-foreground">{questionState.detail}（mirror.questions / mirror.questionCount）</p>
+          {questions.length === 0 ? (
+            <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">还没有配置题目文本，前台会提示待配置并暂停答题。</p>
+          ) : (
+            <ol className="list-decimal space-y-1.5 pl-5 text-sm text-foreground">
+              {questions.map((question, index) => (
+                <li key={index} className="break-words">{question}</li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </AdminPanel>
+
+      <AdminPanel
+        title="示例结果"
+        description="运营为每个角色准备的示例，前台在角色还没有真实结果时展示，并明确标注「示例」。示例不落结果表，也不进任何统计。"
+        badge={<Badge variant={exampleCount > 0 ? 'success' : 'warning'}>{exampleCount > 0 ? `已配 ${exampleCount} 条` : '待配置'}</Badge>}
+        actions={<JumpLink href="/admin/settings">去设置中心</JumpLink>}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-xs leading-5 text-muted-foreground">
+            配置项 mirror.exampleResults，形如
+            {' '}
+            <code className="break-all rounded bg-muted px-1 py-0.5 text-[11px]">[{'{'}characterId, title, observations: [三条], quote, indexA, indexB{'}'}]</code>
+            ；字数上限与真实结果共用 mirror.titleMaxChars / observationMaxChars / quoteMaxChars，超长会截断，缺字段的那条直接忽略。
+          </p>
+          <div className="divide-y divide-border">
+            <RuleRow label="已配置示例" value={`${exampleCount} 条`} hint="同一个角色配多条时只取第一条" />
+            <RuleRow label="当前角色覆盖" value={`${covered}/${characters.length} 个`} hint={uncovered > 0 ? `还有 ${uncovered} 个角色没有示例，前台对它们不展示示例区` : '当前展示的角色都有示例'} />
+          </div>
+          {examples.length > 0 && (
+            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {examples.map(example => (
+                <li key={example.characterId} className="min-w-0 rounded-lg border border-border p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="break-words text-sm font-medium">{example.title}</p>
+                    <Badge variant="warning">示例</Badge>
+                  </div>
+                  <p className="mt-1 break-words text-xs text-muted-foreground">
+                    {characters.find(item => item.id === example.characterId)?.name ?? example.characterId} · 氛围 {example.indices.atmosphere} / 默契 {example.indices.rapport}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </AdminPanel>
 
@@ -100,6 +148,8 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
         actions={<JumpLink href="/admin/settings">去设置中心</JumpLink>}
       >
         <div className="divide-y divide-border">
+          <RuleRow label="题目数量" value={`${rules.questionCount} 题`} hint="mirror.questionCount" />
+          <RuleRow label="每题字数上限" value={`${rules.answerMaxChars} 字`} hint="mirror.answerMaxChars" />
           <RuleRow label="称号字数" value={`${rules.titleMaxChars} 字`} hint="mirror.titleMaxChars" />
           <RuleRow label="每条观察字数" value={`${rules.observationMaxChars} 字`} hint="mirror.observationMaxChars" />
           <RuleRow label="金句字数" value={`${rules.quoteMaxChars} 字`} hint="mirror.quoteMaxChars" />

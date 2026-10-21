@@ -36,6 +36,8 @@ test('M0: chat turn orchestration applies guards, and the regenerate transaction
   const turn = fs.readFileSync('src/lib/conversations/chat-application-service.ts','utf8');
   const messageService = fs.readFileSync('src/lib/conversations/message-service.ts','utf8');
   const ui = fs.readFileSync('src/app/(app)/chat/page.tsx','utf8');
+  // SSE 读取与请求号已抽到 chat/turn-request.ts（V3 §20），守卫断言跟着实现走。
+  const uiStream = ui + fs.readFileSync('src/app/(app)/chat/turn-request.ts','utf8');
   assert.match(coin,/simulateCoinPurchase\(authUser\.userId/);
   assert.doesNotMatch(coin,/maySimulatePurchase|coinTransaction\.create|coinPackage\.find/);
   assert.match(turn,/const modelPlan = await readAiModelPlan\(conversation\.aiModel, conversation\.characterId\)/);
@@ -47,7 +49,7 @@ test('M0: chat turn orchestration applies guards, and the regenerate transaction
   assert.match(chat,/executeChatTurn\(\{userId: authUser\.userId, conversationId: params\.id, mode: 'SEND'/);
   assert.match(regen,/executeChatTurn\(\{userId: authUser\.userId, conversationId: params\.id, mode: 'REGENERATE'/);
   assert.ok(messageService.indexOf('if (!content.trim()) return null') < messageService.indexOf('return db.$transaction(async tx => {\n    await tx.message.deleteMany'));
-  assert.match(ui,/if \(event\.error\) throw new Error\(event\.error\)/);
+  assert.match(uiStream,/if \(event\.error\) throw new Error\(event\.error\)/);
   assert.match(ui,/role="alert"/);
 });
 

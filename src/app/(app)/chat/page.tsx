@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { readNumber, useUiConfig } from '@/lib/settings/use-ui-config';
 import { loginWithNext } from '@/lib/next-path';
 import { RelationshipPanel } from '@/components/chat/relationship-panel';
+import { MemoryPanel } from '@/components/chat/memory-panel';
 import { ReportDialog } from '@/components/report-dialog';
 import { RoleplayText } from '@/components/chat/roleplay-text';
 import { MessageActions } from '@/components/chat/message-actions';
@@ -32,6 +33,7 @@ import { Send, Loader2, ArrowLeft, Flag } from 'lucide-react';
 import type {ChatMessage as Message} from '@/lib/api-types/conversations';
 import {fetchEarlierMessagePage, fetchLatestMessagePage, refetchPageSize} from '@/lib/conversations/message-history-client';
 import Link from 'next/link';
+import {consumeChatStream, newRequestId, queryTurn} from './turn-request';
 
 
 interface Character { id: string; name: string; personality: string; background: string; greeting?: string | null; avatarUrl?: string | null; }
@@ -111,6 +113,10 @@ function ChatContent() {
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const activeRequest=useRef<AbortController|null>(null);
+  // 一次点击一个请求号（V3 §20）：同一条草稿重试沿用同一个编号，成功后清空。
+  const pendingSend = useRef<{requestId: string; content: string} | null>(null);
+  // 重新生成同理：同一个消息被连点重试时沿用同一个编号。
+  const pendingRegen = useRef<{messageId: string; requestId: string} | null>(null);
   function startRequest(){activeRequest.current?.abort();const controller=new AbortController();activeRequest.current=controller;return controller.signal;}
   const [chatError, setChatError] = useState<string | null>(null);
   const [mockNotice, setMockNotice] = useState(false);
@@ -228,6 +234,10 @@ function ChatContent() {
     e.preventDefault();
     if (!input.trim() || !conversationId || streaming) return;
     const content = input.trim();
+    // 一次点击一个请求号（V3 §20）。同一条草稿再发一次就沿用同一个编号，
+    // 否则服务端会当成另一笔请求，断线后也无从查询。
+    const requestId = pendingSend.current?.content === content ? pendingSend.current.requestId : newRequestId();
+    pendingSend.current = {requestId, content};
     // 场景漏斗第二级：只有本会话第一条用户消息才算“首条消息发出”。
     const firstSceneMessage = activeScene !== undefined && !messages.some(m => m.role === 'USER');
     setInput('');
@@ -245,12 +255,11 @@ function ChatContent() {
         method: 'POST',
         signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, requestId }),
       });
-      // Same reader as regenerate: stream-aware decoding plus a partial-line buffer, or a
-      // Thai character split across two chunks arrives corrupted.
       if(!res.ok)setInput(content);
       const full = await consumeStream(res);
+      pendingSend.current = null;
       if (full) {
         if (activeScene && firstSceneMessage) trackSceneFunnelEvent(token, 'scene_first_message_sent', { conversationId, sceneId: activeScene.id });
         // Re-read the thread so both messages carry their real database ids; the optimistic
@@ -269,11 +278,21 @@ function ChatContent() {
       if (failure.code === 'INSUFFICIENT_COINS' || failure.status === 402) {
         // 余额不足：草稿已在上面恢复，撤掉这条还没落库的乐观消息，并刷新额度给充值入口。
         setMessages(prev => prev.filter(item => item.id !== userMsg.id));
+        pendingSend.current = null;
         setInsufficientNotice(err instanceof Error ? err.message : '金币余额不足。');
         void reloadQuota();
         return;
       }
       console.error(err);
+      // 断线不换号重发：先按同一个请求号问服务端成了没有，成了就把回复补进列表。
+      const settled = await queryTurn(token!, conversationId, requestId);
+      if (settled?.messageId) {
+        pendingSend.current = null;
+        setChatError(null);
+        await reloadMessages();
+        void reloadQuota();
+        return;
+      }
       setChatError(err instanceof Error ? zhError(err.message) : '发送失败，请稍后重试。');
       // 失败会释放预扣（含免费次数的预占），余额与免费剩余可能已经变了。
       void reloadQuota();
@@ -322,51 +341,9 @@ function ChatContent() {
     if (!signal?.aborted && fresh) applyLatestPage(fresh);
   }
 
-  /** Shared by send and regenerate: both read the same SSE wire format. */
-  async function consumeStream(res: Response) {
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      // 402 余额不足要单独处理：保留草稿、给充值入口，不当成普通发送失败。
-      // 服务端目前只透传文案不带 code，所以状态码也一起记下来，两条路都能认。
-      const failure = new Error(zhError(data.error || '') || `请求失败 (${res.status})`) as Error & {code?: string; status: number};
-      failure.code = typeof data.code === 'string' ? data.code : undefined;
-      failure.status = res.status;
-      throw failure;
-    }
-    if (!res.body) throw new Error('服务器没有返回聊天数据。');
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-    let full = '';
-    let finished = false;
-    try {
-    while (!finished) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') { finished = true; break; }
-        let event: {
-          content?: string; error?: string; demo?: boolean;
-          cost?: {requestId: string; charged: boolean; coins: number; allowanceSource: string; balance: number};
-          costResult?: {requestId: string; chargeId: string; status: string; coins: number; allowanceSource: string; balance: number};
-        };
-        try { event = JSON.parse(data); } catch { continue; }
-        if (event.error) throw new Error(event.error);
-        // 计费事件就地更新余额与免费剩余，不整页刷新（V3 表 15）。
-        if (event.cost || event.costResult) { applyCost(event); continue; }
-        if (event.demo) setMockNotice(true);
-        full += event.content || '';
-        setStreamingText(full);
-      }
-    }
-    if (!finished) throw new Error('连接中断，回复尚未确认保存，请重试。');
-    return full;
-    } finally {await reader.cancel().catch(()=>{});}
+  /** 发送与重生成共用同一条 SSE 线格式；读流实现在 ./turn-request 里。 */
+  function consumeStream(res: Response) {
+    return consumeChatStream(res, {onText: setStreamingText, onCost: applyCost, onMock: () => setMockNotice(true)});
   }
 
   async function regenerate(messageId: string) {
@@ -374,6 +351,9 @@ function ChatContent() {
     stopSpeaking();
     setSpeakingId(null);
     setBusyId(messageId);
+    // 重新生成也是「一次点击一个请求号」，同一个消息重试沿用同一个编号（V3 §20）。
+    const requestId = pendingRegen.current?.messageId === messageId ? pendingRegen.current.requestId : newRequestId();
+    pendingRegen.current = {messageId, requestId};
     // Keep the saved reply visible until a replacement is confirmed.
     // A failed request or history refresh must not hide previously saved content.
     setStreaming(true);
@@ -385,13 +365,18 @@ function ChatContent() {
       const res = await fetch(`/api/conversations/${conversationId}/messages/${messageId}/regenerate`, {
         method: 'POST',
         signal,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ requestId }),
       });
       await consumeStream(res);
+      pendingRegen.current = null;
     } catch (err) {
       if(signal.aborted)return;
       console.error(err);
-      setChatError(err instanceof Error ? zhError(err.message) : '重新生成失败。');
+      // 断线先查后重试：查到新回复就收尾，查不到才把错误留给用户。
+      const settled = await queryTurn(token!, conversationId, requestId);
+      if (settled?.messageId) { pendingRegen.current = null; setChatError(null); }
+      else setChatError(err instanceof Error ? zhError(err.message) : '重新生成失败。');
     } finally {
       if(!signal.aborted){
       setStreaming(false);
@@ -406,6 +391,8 @@ function ChatContent() {
     const content = editDraft.trim();
     if (!conversationId || !content) return;
     const signal=startRequest();
+    // 保存后自动生成回复同样要带请求号（V3 §20）。
+    const requestId = newRequestId();
     setBusyId(messageId);
     setChatError(null);
     try {
@@ -423,7 +410,8 @@ function ChatContent() {
       setStreaming(true);setStreamingText('');setMockNotice(false);
       const stream = await fetch(`/api/conversations/${conversationId}/messages/${messageId}/regenerate`, {
         method: 'POST',signal,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ requestId }),
       });
       await consumeStream(stream);
     } catch (err) {
@@ -667,6 +655,8 @@ function ChatContent() {
           onArchived={() => router.push('/discover')}
         />
       )}
+
+      {conversationId && token && <MemoryPanel conversationId={conversationId} token={token} />}
 
       {reportingMessage&&<ReportDialog targetType="MESSAGE" targetId={reportingMessage} targetName="这条 AI 回复" onClose={()=>setReportingMessage(null)}/>}
       {reporting && character && (

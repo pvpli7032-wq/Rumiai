@@ -67,8 +67,8 @@ function fakeDeps(env,{throwAI=false,persistGate=null,throwPersist=false,reviewS
     '@/lib/settings':{readChatRules:async()=>chatRules},
     // 记忆注入与计费粘合层不属于路由行为用例：按「无记忆、不收费」返回。
     '@/lib/memory':{buildMemoryContext:async()=>({text:null}),enqueueSummaryIfDue:async()=>{}},
-    '@/lib/billing/turn':{beginBillingTurn:async party=>({requestId:party.requestId,hold:{held:false},sawOutput(){},deliveredOutput(){return false},notice(){return null},release:async()=>{},settle:async()=>{}}),parseJsonBody:async request=>request?request.clone().json().then(body=>body&&typeof body==='object'?body:null).catch(()=>null):null,readBalance:async()=>0,readTurnReceipt:async()=>null,resolveRequestId:raw=>typeof raw==='string'&&/^[A-Za-z0-9_-]{8,64}$/.test(raw)?raw:'srv-test-request',toChargeError:()=>null},
-    '@/lib/conversations/chat-stream':service,'@/lib/ai/providers/management-service':{readActiveAiProviders:async()=>providers},'@/lib/ai/models/runtime-service':{readAiModelPlan:async()=>modelPlan,readAiModelCatalog:async()=>modelCatalog},'@/lib/ai/ai-usage':{AiQuotaError:class AiQuotaError extends Error{},reserveAiCall:async()=>({id:'usage1',startedAt:new Date()}),finishAiCall:async()=>{}},'@/lib/launch-guards':policy,
+    '@/lib/billing/turn':{beginBillingTurn:async party=>({requestId:party.requestId,hold:{held:false},sawOutput(){},deliveredOutput(){return false},notice(){return null},release:async()=>{},settle:async()=>{}}),parseJsonBody:async request=>request?request.clone().json().then(body=>body&&typeof body==='object'?body:null).catch(()=>null):null,readBalance:async()=>0,readTurnReceipt:async()=>null,readRequestId:raw=>typeof raw==='string'&&/^[A-Za-z0-9_-]{8,64}$/.test(raw)?raw:null,toChargeError:()=>null},
+    '@/lib/conversations/chat-stream':service,'@/lib/ai/providers/management-service':{readActiveAiProviders:async()=>providers},'@/lib/ai/models/runtime-service':{readAiModelPlan:async()=>modelPlan,readAiModelCatalog:async()=>modelCatalog},'@/lib/growth/invite-service':{grantInviteRewardIfDue:async()=>false},'@/lib/ai/ai-usage':{AiQuotaError:class AiQuotaError extends Error{},reserveAiCall:async()=>({id:'usage1',startedAt:new Date()}),finishAiCall:async()=>{}},'@/lib/launch-guards':policy,
     '@/lib/conversations/conversation-service':{
       ConversationError,
       readConversationForChat: async(userId,id)=>{
@@ -121,7 +121,8 @@ function fakeDeps(env,{throwAI=false,persistGate=null,throwPersist=false,reviewS
   };
   return {state,loadRoute:file=>load(file,requireStub,env)};
 }
-const req=(body)=>new Request('http://local.test/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+// V3 §20：请求号由客户端给，缺了服务端会 400；夹具统一补一个合法编号。
+const req=(body)=>new Request('http://local.test/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:'fixture-request-01',...body})});
 
 // These assert route behavior, not merely that the policy helper returns a Boolean.
 test('Production: no AI key returns HTTP 503 and writes no messages', async()=>{

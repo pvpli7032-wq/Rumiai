@@ -144,6 +144,117 @@ test('巡检任务按间隔重新排期，未知类型直接置 FAILED', async (
   assert.equal((await db.backgroundTask.findUnique({where: {kind_subjectId: {kind: 'no-such-kind', subjectId: 'x'}}})).status, 'FAILED');
 });
 
+test('待确认事实不注入上下文，确认后才注入；忽略等同删除', async () => {
+  await setMemoryEnabled(true);
+  const conv = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '待确认会话'}});
+  const candidate = await memory.proposeMemoryFact(conv.id, user.id, '用户喜欢在周末爬山');
+  assert.equal(candidate.status, 'PENDING');
+  // 同一条会话里重复提出同一条事实不重复登记。
+  assert.equal(await memory.proposeMemoryFact(conv.id, user.id, '用户喜欢在周末爬山'), null);
+
+  // 待确认不注入。
+  const before = await memory.buildMemoryContext(conv.id);
+  assert.equal(before.injected, false);
+
+  // 面板能同时看到 ACTIVE 与 PENDING。
+  const panel = await memory.listPanelFacts(user.id, conv.id);
+  assert.equal(panel.length, 1);
+  assert.equal(panel[0].status, 'PENDING');
+
+  // 确认后变成 ACTIVE 并开始注入。
+  const confirmed = await memory.confirmMemoryFact(user.id, candidate.id, conv.id);
+  assert.equal(confirmed.status, 'ACTIVE');
+  const after = await memory.buildMemoryContext(conv.id);
+  assert.equal(after.injected, true);
+  assert.match(after.text, /用户喜欢在周末爬山/);
+
+  // 忽略：只有待确认的能忽略，忽略后从面板消失、不再注入。
+  const other = await memory.proposeMemoryFact(conv.id, user.id, '用户养了一只叫团子的猫');
+  assert.equal((await memory.ignoreMemoryFact(user.id, other.id, conv.id)).status, 'DELETED');
+  assert.equal((await memory.listPanelFacts(user.id, conv.id)).length, 1);
+  await assert.rejects(() => memory.ignoreMemoryFact(user.id, candidate.id, conv.id), /只有待确认的事实可以忽略/);
+
+  // ACTIVE 可删除，删除后不再注入。
+  await memory.deleteMemoryFact(user.id, confirmed.id, conv.id);
+  assert.equal((await memory.buildMemoryContext(conv.id)).injected, false);
+  assert.equal((await memory.listPanelFacts(user.id, conv.id)).length, 0);
+});
+
+test('记忆面板越权：别人的会话与事实都碰不到，跨会话的 factId 当不存在', async () => {
+  await setMemoryEnabled(true);
+  const mine = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '我的会话'}});
+  const theirs = await db.conversation.create({data: {userId: stranger.id, characterId: character.id, title: '别人的会话'}});
+  const pending = await memory.proposeMemoryFact(mine.id, user.id, '用户怕水');
+
+  // 别人的会话：列不出来。
+  await assert.rejects(() => memory.listPanelFacts(stranger.id, mine.id), /没有权限/);
+  // 别人的事实：确认/忽略/删除都拒绝。
+  for (const call of [
+    () => memory.confirmMemoryFact(stranger.id, pending.id),
+    () => memory.ignoreMemoryFact(stranger.id, pending.id),
+    () => memory.deleteMemoryFact(stranger.id, pending.id),
+  ]) await assert.rejects(call, /没有权限/);
+  // 会话不属于本人时，listPanelFacts 直接 404 语义由 MemoryError.status 表达。
+  const error = await memory.listPanelFacts(stranger.id, mine.id).catch(caught => caught);
+  assert.equal(error.status, 403);
+
+  // 拿自己的 factId 去拼别人的会话：当不存在（404），不泄露这条事实属于谁。
+  const cross = await memory.confirmMemoryFact(user.id, pending.id, theirs.id).catch(caught => caught);
+  assert.equal(cross.status, 404);
+  assert.equal(cross.message, '事实不存在。');
+});
+
+test('候选抽取有扫描上限：超长发言不会线性扫爆，条数也不超上限', async () => {
+  await setMemoryEnabled(true);
+  await setGrowthSetting('memory.summaryTriggerMessages', 4);
+  const conv = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '超长发言'}});
+  // 一条超长 USER 发言：塞满上百句自我指向的短句。
+  const long = Array.from({length: 300}, (_, i) => `我喜欢第 ${i} 种零食`).join('。');
+  await db.message.create({data: {conversationId: conv.id, role: 'USER', content: long}});
+  for (let i = 0; i < 3; i += 1) await db.message.create({data: {conversationId: conv.id, role: 'ASSISTANT', content: '记住了。' + i}});
+
+  const started = Date.now();
+  const result = await memory.runMemorySummaryTask(conv.id);
+  const elapsed = Date.now() - started;
+  assert.equal(result.outcome, 'SUMMARIZED');
+  // 一次最多 3 条候选，不因为发言长就多提。
+  const facts = await db.memoryFact.findMany({where: {conversationId: conv.id}, select: {text: true, status: true}});
+  assert.equal(facts.length, 3);
+  assert.equal(facts.every(fact => fact.status === 'PENDING'), true);
+  // 扫描是常量级工作量，不该随发言长度膨胀。
+  assert.ok(elapsed < 5000, '候选抽取耗时应在常量级，实际 ' + elapsed + 'ms');
+});
+
+test('记忆关闭时不生成待确认事实', async () => {
+  await setMemoryEnabled(false);
+  const conv = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '关闭记忆的会话'}});
+  for (let i = 0; i < 6; i += 1) {
+    await db.message.create({data: {conversationId: conv.id, role: 'USER', content: '我喜欢在周末爬山' + i}});
+  }
+  assert.equal((await memory.runMemorySummaryTask(conv.id)).outcome, 'SKIPPED_DISABLED');
+  assert.equal(await db.memoryFact.count({where: {conversationId: conv.id}}), 0);
+  assert.equal((await memory.listPanelFacts(user.id, conv.id)).length, 0);
+});
+
+test('打开记忆后摘要任务从用户发言里提出待确认事实，不直接写成确定记忆', async () => {
+  await setMemoryEnabled(true);
+  await setGrowthSetting('memory.summaryTriggerMessages', 4);
+  const conv = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '提出候选事实'}});
+  for (const text of ['我喜欢下雨天', '我养了一只猫叫团子', '我住在杭州', '今天天气不错']) {
+    await db.message.create({data: {conversationId: conv.id, role: 'USER', content: text}});
+  }
+  const result = await memory.runMemorySummaryTask(conv.id);
+  assert.equal(result.outcome, 'SUMMARIZED');
+  const facts = await db.memoryFact.findMany({where: {conversationId: conv.id}, select: {text: true, status: true}});
+  assert.equal(facts.length >= 1, true);
+  // 全部是 PENDING：机器推出来的不算「用户说过」。
+  assert.equal(facts.every(fact => fact.status === 'PENDING'), true);
+  // 摘要本身照旧生效，候选事实一条都不注入。
+  const context = await memory.buildMemoryContext(conv.id);
+  assert.equal(context.facts.length, 0);
+  assert.match(context.text, /摘要/);
+});
+
 test('关闭时摘要任务直接跳过，会话不存在也跳过；未注册的 kind 没有处理器', async () => {
   assert.equal(handlerFor('memory-summary') !== null, true);
   assert.equal(handlerFor('nope'), null);

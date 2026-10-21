@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto';
 import {db} from '@/lib/db';
 import {holdCharge, InsufficientCoinsError, ChargeRequestConflictError, readCharge, releaseCharge, settleCharge} from './charge-service';
 import {settleCancellation} from './cancel';
@@ -58,9 +57,13 @@ export function toChargeError(error: unknown): ChargeErrorLike | null {
   return null;
 }
 
-/** 请求号：客户端给了且格式合法就沿用（重放同一个编号），否则由服务端生成。 */
-export function resolveRequestId(raw: unknown): string {
-  return typeof raw === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(raw) ? raw : 'srv-' + randomUUID();
+/**
+ * 请求号必须由客户端给（V3 §20）：一次点击一个编号，断线后只能拿同一个编号回来查。
+ * 缺失或格式非法一律返回 null，由调用方按 400 拒绝——服务端不再自造编号，
+ * 否则「重发」和「查询」永远对不上同一笔。
+ */
+export function readRequestId(raw: unknown): string | null {
+  return typeof raw === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(raw) ? raw : null;
 }
 
 interface JsonBody {requestId?: unknown}

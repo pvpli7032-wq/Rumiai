@@ -30,6 +30,8 @@ const {readMirrorResult, deleteMirrorResult} = await import('../src/lib/mirror/r
 const {clearCache} = await import('../src/lib/settings/cache.ts');
 const {purchasePlanOf, purchaseBlockedReason, readPurchasedToday} = await import('../src/lib/mirror/purchase.ts');
 const {listMirrorCharacters} = await import('../src/lib/mirror/service.ts');
+const {parseMirrorExamples, parseMirrorQuestions, exampleForCharacter, toExampleView} = await import('../src/lib/mirror/examples.ts');
+const {mirrorQuestionState} = await import('../src/components/admin/mirror/types.ts');
 
 const identity = ({userId, cookieSubject, ipHash, cookieReportedCount = 0}) => ({userId, cookieSubject, ipHash, cookieReportedCount});
 /** V3 表 9 的默认额度：登录 3 次、Cookie 1 次、同一 IP 10 次。 */
@@ -271,6 +273,63 @@ test('名单里的角色全部失效时回退自动选取，而不是给空名�
   assert(list.every(item => item.source === 'AUTO'));
 });
 
+test('题目文本按 questionCount 取前 N 条，条数不足就有几条给几条', () => {
+  const configured = ['第一问', '第二问', '第三问', '第四问'];
+  assert.deepEqual(parseMirrorQuestions(configured, 3), ['第一问', '第二问', '第三问']);
+  // 条数不足时返回实际有的条数：调用方据此提示待配置，绝不自动补默认题。
+  assert.deepEqual(parseMirrorQuestions(['只有一问'], 3), ['只有一问']);
+  assert.deepEqual(parseMirrorQuestions([], 3), []);
+  assert.deepEqual(parseMirrorQuestions(null, 3), []);
+  // 空白与非字符串项丢掉，不留空题干。
+  assert.deepEqual(parseMirrorQuestions([' 第一问 ', '', 42, '第二问'], 3), ['第一问', '第二问']);
+});
+
+test('题目状态：配够显示已配置，配不够显示待配置并说明缺几道', () => {
+  assert.equal(mirrorQuestionState(['一', '二', '三'], 3).ok, true);
+  const short = mirrorQuestionState(['一', '二'], 3);
+  assert.equal(short.ok, false);
+  assert.equal(short.label, '待配置');
+  assert.match(short.detail, /缺 1 道/);
+  assert.equal(mirrorQuestionState([], 3).ok, false);
+});
+
+test('示例结果解析：缺字段或类型不对的条目直接忽略，不影响其他角色', () => {
+  const limits = {titleMaxChars: 8, observationMaxChars: 40, quoteMaxChars: 30};
+  const raw = [
+    {characterId: 'char-a', title: '安静的观察者', observations: ['观察一', '观察二', '观察三'], quote: '金句', indexA: 72, indexB: 88},
+    {characterId: 'char-b', title: '缺观察', observations: ['只有一条'], quote: '金句', indexA: 1, indexB: 2},
+    {characterId: 'char-c', title: '指数不是数字', observations: ['一', '二', '三'], quote: '金句', indexA: '高', indexB: 2},
+    {title: '没有角色 id', observations: ['一', '二', '三'], quote: '金句', indexA: 1, indexB: 2},
+    {characterId: 'char-a', title: '重复角色取第一条', observations: ['一', '二', '三'], quote: '金句', indexA: 1, indexB: 2},
+  ];
+  const parsed = parseMirrorExamples(raw, limits);
+  assert.deepEqual(parsed.map(item => item.characterId), ['char-a']);
+  assert.equal(parsed[0].title, '安静的观察者');
+  assert.deepEqual(parseMirrorExamples('not-an-array', limits), []);
+});
+
+test('示例结果与真实结果共用同一套字数上限：超长截断，指数夹到 0–100', () => {
+  const limits = {titleMaxChars: 4, observationMaxChars: 5, quoteMaxChars: 6};
+  const parsed = parseMirrorExamples([{characterId: 'c1', title: '一二三四五六', observations: ['一二三四五六七', '短', '也短'], quote: '一二三四五六七八', indexA: 130, indexB: -5}], limits);
+  assert.equal([...parsed[0].title].length, 4);
+  assert.equal([...parsed[0].observations[0]].length, 5);
+  assert.equal([...parsed[0].quote].length, 6);
+  assert.deepEqual({a: parsed[0].indexA, b: parsed[0].indexB}, {a: 100, b: 0});
+});
+
+test('示例视图与真实结果同形，但没有 shareId、没有回答', () => {
+  const parsed = parseMirrorExamples([{characterId: 'c1', title: '称号', observations: ['一', '二', '三'], quote: '金句', indexA: 60, indexB: 70}], {titleMaxChars: 8, observationMaxChars: 40, quoteMaxChars: 30});
+  const view = toExampleView(parsed[0]);
+  assert.deepEqual(Object.keys(view).sort(), ['characterId', 'indices', 'observations', 'quote', 'title']);
+  assert.equal(JSON.stringify(view).includes('answers'), false);
+  assert.equal(JSON.stringify(view).includes('shareId'), false);
+  assert.deepEqual(view.indices, {atmosphere: 60, rapport: 70});
+  // 只取配了示例的角色；没配返回 null，前台据此不展示示例区。
+  assert.equal(exampleForCharacter(parsed, 'c2'), null);
+  assert.equal(exampleForCharacter(parsed, null), null);
+  assert.equal(exampleForCharacter(parsed, 'c1')?.title, '称号');
+});
+
 test('购买次数：开关与定价共同决定有没有购买这个选项', () => {
   const config = {purchaseEnabled: true, purchaseCoins: 30, purchaseDailyCap: 2};
   const buyable = purchasePlanOf(config, false);
@@ -319,6 +378,52 @@ test('接口层：初始化签发匿名主体 Cookie，且不把 Cookie 内容�
   assert.match(issued, /HttpOnly/i);
   // IP 只以哈希进入计数，响应里不出现来源地址。
   assert.equal(JSON.stringify(body).includes('198.51.100.77'), false);
+});
+
+test('接口层：题目与示例来自设置中心，示例只带当前展示角色的', async () => {
+  const {GET} = await import('../src/app/api/mirror/route.ts');
+  resetMirrorLimits();
+  await setSetting('budget.task.mirrorAnonymous', 100, 'billing');
+  const inList = await db.character.create({data: {name: '示例角色甲', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
+  const notInList = await db.character.create({data: {name: '示例角色乙', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
+  await setSetting('mirror.featuredCharacterIds', [inList.id]);
+  await setSetting('mirror.questions', ['你最近在忙什么', '你怎么看独处', '什么会让你放松']);
+  await setSetting('mirror.exampleResults', [
+    {characterId: inList.id, title: '示例称号', observations: ['观察一', '观察二', '观察三'], quote: '示例金句', indexA: 61, indexB: 73},
+    {characterId: notInList.id, title: '不在名单里的', observations: ['一', '二', '三'], quote: '金句', indexA: 1, indexB: 2},
+  ]);
+  try {
+    const response = await GET(new Request('http://localhost/api/mirror', {headers: {'x-forwarded-for': '198.51.100.90'}}));
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.questions, ['你最近在忙什么', '你怎么看独处', '什么会让你放松']);
+    assert.deepEqual(body.characters.map(item => item.name), ['示例角色甲']);
+    // 示例只带当前展示的角色；配置总数仍如实报告给后台。
+    assert.deepEqual(body.examples.map(item => item.characterId), [inList.id]);
+    assert.equal(body.exampleCount, 2);
+    // 示例不含 shareId / 回答，前端靠 Badge 标「示例」而不是靠猜。
+    assert.equal(JSON.stringify(body.examples).includes('shareId'), false);
+    assert.equal(JSON.stringify(body.examples).includes('answers'), false);
+  } finally {
+    await db.operationSetting.deleteMany({where: {key: {in: ['mirror.questions', 'mirror.exampleResults', 'mirror.featuredCharacterIds']}}});
+    clearCache();
+  }
+});
+
+test('接口层：题目没配够时接口只给已有的条数，不补默认题', async () => {
+  const {GET} = await import('../src/app/api/mirror/route.ts');
+  resetMirrorLimits();
+  await setSetting('mirror.questions', ['只有一道题']);
+  try {
+    const body = await (await GET(new Request('http://localhost/api/mirror', {headers: {'x-forwarded-for': '198.51.100.91'}}))).json();
+    assert.equal(body.rules.questionCount, 3);
+    assert.deepEqual(body.questions, ['只有一道题']);
+    // 差额由前端算出来提示待配置；接口不替它编造另外两道。
+    assert.equal(body.questions.length, 1);
+  } finally {
+    await db.operationSetting.deleteMany({where: {key: 'mirror.questions'}});
+    clearCache();
+  }
 });
 
 test('接口层：同一 IP 的匿名额度用完后生成返回 429，且不发起模型调用', async () => {
