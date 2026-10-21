@@ -26,8 +26,11 @@ export async function readConversationMessages(userId: string, conversationId: s
   const conversation = await db.conversation.findUnique({where: {id: conversationId}, select: {userId: true}});
   if (!conversation) throw new ConversationMessageError('Not found', 404);
   if (conversation.userId !== userId) throw new ConversationMessageError('Forbidden', 403);
+  // id is the tiebreaker: two rows written in the same millisecond (a turn's user message
+  // and its reply can commit together) would otherwise come back in an arbitrary order,
+  // and "delete this and everything after it" would then delete the wrong rows.
   return db.message.findMany({
-    where: {conversationId}, orderBy: {createdAt: 'asc'},
+    where: {conversationId}, orderBy: [{createdAt: 'asc'}, {id: 'asc'}],
     select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true},
   });
 }
@@ -149,7 +152,13 @@ export async function deleteMessageAndFollowing(userId: string, conversationId: 
     // onDelete: SetNull, so a lookup after the delete would find nothing.
     const storyRunId = message.conversation.storyRun?.id ?? null;
     await invalidateStoryHistory(tx, storyRunId, messageId);
-    const removed = await tx.message.deleteMany({where: {conversationId, createdAt: {gte: message.createdAt}}});
+    // Same total order as readConversationMessages: (createdAt, id). A plain
+    // `createdAt >= target.createdAt` also deletes earlier rows that share the target's
+    // millisecond, which is reachable whenever a turn's messages are written together.
+    const removed = await tx.message.deleteMany({where: {conversationId, OR: [
+      {createdAt: {gt: message.createdAt}},
+      {createdAt: message.createdAt, id: {gte: message.id}},
+    ]}});
     return {success: true, removed: removed.count};
   });
 }

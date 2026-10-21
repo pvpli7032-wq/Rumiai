@@ -74,6 +74,22 @@ test('message likes are owner-scoped, idempotent and atomically timestamped; del
   assert.equal(await db.message.findUnique({where: {id: message.id}}), null);
 });
 
+test('deleting from a message keeps an earlier message written in the same millisecond', async () => {
+  const owner = await user('same_ms_owner');
+  const character = await db.character.create({data: {creatorId: owner.id, name: '同毫秒角色', personality: 'synthetic', background: ''}});
+  const conversation = await db.conversation.create({data: {userId: owner.id, characterId: character.id}});
+  // cuid() sorts by creation time, so a lower id means "written first" — the ordering the
+  // list and the delete now share. Both rows are pinned to one timestamp on purpose.
+  const shared = new Date('2026-10-21T09:00:00.000Z');
+  const earlier = await db.message.create({data: {conversationId: conversation.id, role: 'USER', content: '早一条', createdAt: shared}});
+  const later = await db.message.create({data: {conversationId: conversation.id, role: 'ASSISTANT', content: '晚一条', createdAt: shared}});
+
+  assert.deepEqual((await readConversationMessages(owner.id, conversation.id)).map(row => row.id), [earlier.id, later.id]);
+  assert.deepEqual(await deleteMessageAndFollowing(owner.id, conversation.id, later.id), {success: true, removed: 1});
+  assert.equal(await db.message.count({where: {conversationId: conversation.id}}), 1);
+  assert.equal((await db.message.findUniqueOrThrow({where: {id: earlier.id}})).content, '早一条');
+});
+
 test('chat persistence writes replies and counters atomically while history stays scoped and ordered', async () => {
   const owner = await user('persistence_owner');
   const stranger = await user('persistence_stranger');

@@ -121,7 +121,9 @@ export async function listStoryRuns(userId: string, options: {limit?: string | n
     const rows = await tx.storyRun.findMany({
       where: {...visibleWhere(userId), ...(cursor ? {OR: [{updatedAt: {lt: cursor.updatedAt}}, {updatedAt: cursor.updatedAt, id: {lt: cursor.id}}]} : {})},
       orderBy: [{updatedAt: 'desc'}, {id: 'desc'}], take: limit + 1,
-      select: {id: true, conversationId: true, chapterKey: true, status: true, revision: true, updatedAt: true, templateVersion: {select: {template: {select: {title: true}}}}},
+      // templateVersionId lets a story entry page tell "start" from "continue" without a
+      // second round trip per template; it is the immutable published version, not private data.
+      select: {id: true, conversationId: true, templateVersionId: true, chapterKey: true, status: true, revision: true, updatedAt: true, templateVersion: {select: {template: {select: {title: true}}}}},
     });
     const items = rows.slice(0, limit).map(({templateVersion, ...run}) => ({...run, templateTitle: templateVersion.template.title}));
     return {items, nextCursor: rows.length > limit ? items[items.length - 1].id : null};
