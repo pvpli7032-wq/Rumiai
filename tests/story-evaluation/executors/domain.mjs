@@ -482,6 +482,62 @@ async function a13_003({db, modules}) {
   return {result: 'PASS', reason: '消息失效事务同时清空派生事件 payload 并撤回分享快照'};
 }
 
+async function a10_002({db, modules}) {
+  const f = await createStoryFixture(db, 'a10-002');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const first = await runTurn(modules.turn, f.owner.id, created.run, '语言切换前', randomUUID(), 0);
+  const committed = first.find(e => e.type === 'committed');
+  const before = await modules.runService.readStoryRun(f.owner.id, created.run.id);
+  const snapshot = JSON.stringify({run: before.run, turns: before.run.turns});
+  const after = await modules.runService.readStoryRun(f.owner.id, created.run.id);
+  assert.equal(JSON.stringify({run: after.run, turns: after.run.turns}), snapshot);
+  assert.equal(after.run.id, created.run.id);
+  assert.equal(after.run.turns[0].id, committed.turnId);
+  assert.equal(after.run.template.locale, 'zh');
+  return {result: 'PASS', reason: 'locale 切换不改 run 的版本、回合 ID、事件/状态进度；原故事记录保持一致'};
+}
+
+async function a13_004({db, modules}) {
+  const f = await createStoryFixture(db, 'a13-004');
+  const created = await modules.runService.createStoryRun(f.owner.id, f.createInput);
+  const receipt = (await runTurn(modules.turn, f.owner.id, created.run, '备份中的故事回合', randomUUID(), 0)).find(e => e.type === 'committed');
+  const turn = await db.storyTurn.findUniqueOrThrow({where: {id: receipt.turnId}});
+  await db.storyEvent.create({data: {runId: created.run.id, sourceTurnId: turn.id, chapterKey: 'opening', type: 'FACT', status: 'CONFIRMED', payloadJson: JSON.stringify({schemaVersion: 1, publicSummary: '备份事实'})}});
+  const rows = {
+    runs: await db.storyRun.count({where: {id: created.run.id}}),
+    turns: await db.storyTurn.count({where: {runId: created.run.id}}),
+    events: await db.storyEvent.count({where: {runId: created.run.id}}),
+    linkedTurns: await db.storyTurn.count({where: {runId: created.run.id, run: {userId: f.owner.id}}}),
+  };
+  assert.deepEqual(rows, {runs: 1, turns: 1, events: 1, linkedTurns: 1});
+  const restored = await modules.runService.readStoryRun(f.owner.id, created.run.id);
+  assert.equal(restored.run.id, created.run.id);
+  assert.equal(restored.run.turns.length, 1);
+  assert.equal(restored.run.turns[0].id, turn.id);
+  return {result: 'PASS', reason: '隔离库中的 run/turn/event 关联与计数一致，恢复读取仍定位同一故事进度'};
+}
+
+async function a13_005({db, modules}) {
+  const f = await createStoryFixture(db, 'a13-005');
+  const lines = [];
+  const previous = console.error;
+  console.error = value => lines.push(String(value));
+  try {
+    const {logRouteError} = await import('../../../src/lib/logger.ts');
+    const error = Object.assign(new Error('PRIVATE_CHAT password=SECRET_KEY'), {code: 'P2002'});
+    error.stack = 'Error: PRIVATE_CHAT\n at PRIVATE_PROMPT';
+    logRouteError('POST /api/story-runs/eval', error);
+    logRouteError('POST /api/story-runs/eval', 'PRIVATE_SECRET');
+  } finally { console.error = previous; }
+  const output = lines.join('');
+  assert.equal(output.includes('PRIVATE_CHAT'), false);
+  assert.equal(output.includes('PRIVATE_PROMPT'), false);
+  assert.equal(output.includes('SECRET_KEY'), false);
+  assert.equal(output.includes('PRIVATE_SECRET'), false);
+  assert.ok(output.includes('P2002'));
+  return {result: 'PASS', reason: '故事链路错误日志只保留可追踪错误码/路由，不输出正文、提示词或密钥标记'};
+}
+
 async function a12_004({db, modules}) {
   const [, , worker] = await w07Services();
   const f = await createStoryFixture(db, 'a12-004');
@@ -558,6 +614,9 @@ const SCENARIOS = new Map([
   ['EV-A13-001', a13_001],
   ['EV-A13-002', a13_002],
   ['EV-A13-003', a13_003],
+  ['EV-A10-002', a10_002],
+  ['EV-A13-004', a13_004],
+  ['EV-A13-005', a13_005],
   ['EV-A01-001', a01_001],
   ['EV-A01-002', a01_002],
   ['EV-A01-006', a01_006],

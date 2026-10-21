@@ -44,8 +44,8 @@
       "ownerWorkflow": "W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
-      "description": "规划书第 24 章：切换语言后原故事进度不丢失；跨语言翻译不修改原事件 ID 与语义事实。",
+      "status": "implemented",
+      "description": "切换语言不改变故事进度；当前故事服务以已绑定的 templateVersion 与 run 数据读取，不接受请求 locale 覆盖。执行器将同一 run 的公开视图、回合、事件快照序列化后比较，确认 ID/计数/版本均不变。",
       "steps": [
         {
           "actor": "user",

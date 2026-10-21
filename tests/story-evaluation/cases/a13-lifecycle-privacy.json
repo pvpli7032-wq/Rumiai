@@ -99,8 +99,8 @@
       "ownerWorkflow": "W07/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
-      "description": "规划书第 27 章：恢复演练不得覆盖未备份数据；恢复后 run/turn/event/checkpoint 关联与恢复前一致。",
+      "status": "implemented",
+      "description": "规划书第 27 章：恢复演练不得覆盖未备份数据；恢复后 run/turn/event/checkpoint 关联与恢复前一致。 执行器使用离线隔离库/结构化日志断言，不依赖真实网络或模型。",
       "steps": [
         {
           "actor": "runner",
@@ -128,8 +128,8 @@
       "ownerWorkflow": "W07/W08",
       "verificationTier": "domain",
       "modelPolicy": "none",
-      "status": "skeleton",
-      "description": "规划书第 27 章：只记录必要标识和错误码，日志不输出用户正文、系统提示词或模型密钥。tests/logger-privacy.test.mjs 有既有口径，本用例覆盖故事链路新增日志。",
+      "status": "implemented",
+      "description": "规划书第 27 章：只记录必要标识和错误码，日志不输出用户正文、系统提示词或模型密钥。tests/logger-privacy.test.mjs 有既有口径，本用例覆盖故事链路新增日志。 执行器使用离线隔离库/结构化日志断言，不依赖真实网络或模型。",
       "steps": [
         {
           "actor": "runner",
