@@ -44,6 +44,10 @@ export const API = {
     export: (id: string, format: 'json' | 'txt' = 'json') => `/api/conversations/${e(id)}/export?format=${format}`,
   },
 
+  stories: {
+    list: (query?: string) => `/api/stories${query ? `?${query}` : ''}`,
+    detail: (slug: string) => `/api/stories/${e(slug)}`,
+  },
   characters: {
     list: (query?: string) => `/api/characters${query ? `?${query}` : ''}`,
     detail: (id: string) => `/api/characters/${e(id)}`,

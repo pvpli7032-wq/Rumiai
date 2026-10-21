@@ -33,6 +33,16 @@ try {
   assert.equal((await context.request.get(base + '/api/stories/does-not-exist-' + stamp)).status(), 404);
   check('目录接口返回已发布故事且不泄漏私有字段，未知 slug 404');
 
+  // 1.5) 发现页的「故事体验」分区能到达入口页——否则入口页只能靠手输 URL 打开。
+  await page.goto(base + '/discover');
+  await page.waitForLoadState('networkidle');
+  const storySection = page.locator('section', {has: page.getByRole('heading', {name: '故事体验'})});
+  await storySection.waitFor({timeout: 15000});
+  const storyLinks = storySection.locator('a[href^="/stories/"]');
+  assert.ok((await storyLinks.count()) >= 1, '发现页故事分区应有入口链接');
+  await storySection.getByRole('heading', {name: '故事体验'}).waitFor();
+  check('发现页故事分区列出已发布故事并链到入口页');
+
   // 2) 入口页：标题、冲突、角色、章节、开始按钮。
   await page.goto(base + '/stories/' + slug);
   await page.waitForLoadState('networkidle');

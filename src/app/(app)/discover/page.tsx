@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ChevronRight, Search, Sparkles, Tag, Users, Play } from 'lucide-react';
 import { CharacterCard, type CharacterCardData } from '@/components/character-card';
 import { StoryCard } from '@/components/stories/story-card';
+import { StoryCatalogCard, type StoryCatalogEntry } from '@/components/stories/story-catalog-card';
 import { getPublishedSceneConfigs } from '@/lib/stories/scene-service';
 import { getSceneConfigByCharacterId } from '@/lib/stories/scene-config';
 import { RankingsTab } from '@/components/rankings-tab';
@@ -76,6 +77,7 @@ export default function DiscoverPage() {
   const [banner, setBanner] = useState(0);
   const [types, setTypes] = useState<string[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
+  const [stories, setStories] = useState<StoryCatalogEntry[]>([]);
 
   // 三个分区各自取数：热门按对话数、新角色按创建时间、关注的创作者按关注关系。
   useEffect(() => {
@@ -98,6 +100,18 @@ export default function DiscoverPage() {
         if (!controller.signal.aborted) setLoading(false);
       }
     })();
+    return () => controller.abort();
+  }, []);
+
+  // 已发布的故事模板。公开目录，匿名也取；失败就不显示该分区，不影响发现页其它内容。
+  useEffect(() => {
+    const controller = new AbortController();
+    void api
+      .get<{items: StoryCatalogEntry[]}>(API.stories.list(), { signal: controller.signal })
+      .then((data) => {
+        if (!controller.signal.aborted && Array.isArray(data?.items)) setStories(data.items);
+      })
+      .catch(() => {});
     return () => controller.abort();
   }, []);
 
@@ -333,6 +347,20 @@ export default function DiscoverPage() {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 desktop:grid-cols-3">
                 {sceneCharacters.map(({scene, character}) => (
                   <StoryCard key={scene.id} scene={scene} character={{id: character.id, name: character.name, tagline: character.tagline, avatarUrl: character.avatarUrl}} href={'/chat?character=' + encodeURIComponent(character.id) + '&scene=1'} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {!filtering && stories.length > 0 && (
+            <section className="mt-6 space-y-3 px-4 md:px-12">
+              <div>
+                <h2 className="text-base font-bold md:text-lg">故事体验</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">有固定章节与持续记忆的长故事</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 desktop:grid-cols-3">
+                {stories.map((story) => (
+                  <StoryCatalogCard key={story.slug} story={story} />
                 ))}
               </div>
             </section>
