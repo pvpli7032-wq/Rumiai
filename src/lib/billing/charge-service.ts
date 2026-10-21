@@ -149,7 +149,9 @@ export async function holdCharge(input: HoldInput): Promise<ChargeHoldResult> {
 
       const resId = reservationId(input.requestId, boundary.day);
       let allowanceSource: AllowanceSource = 'PAID';
-      if (freeLimit > 0) {
+      // MIRROR 是「购买次数」，已经有自己的每日次数（mirror.userDailyLimit），
+      // 不能再吃掉聊天的免费回复条数，所以这里只走 PAID。
+      if (freeLimit > 0 && input.operation !== 'MIRROR') {
         // 一条语句完成「检查 + 预占」：已占用达到上限时 UPDATE 不生效，影响行数为 0。
         const reserved = await tx.$executeRaw`INSERT INTO user_daily_allowances (user_id, day, free_used, free_reserved)
           VALUES (${input.userId}, ${boundary.day}, 0, 1)

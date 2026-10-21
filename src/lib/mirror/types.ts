@@ -43,6 +43,25 @@ export type MirrorCharacterOption = {
 
 export type MirrorOverLimitPolicy = 'PAUSE' | 'CHARGE';
 
+/**
+ * 购买次数：超额后按设置里的币价再买一次生成。
+ * 只对登录用户开放（匿名没有余额也没有稳定身份）。
+ */
+export type MirrorPurchase = {
+  /** 后台「开放购买次数」开关。 */
+  enabled: boolean;
+  /** 每次超额生成的币价；0 表示未定价。 */
+  coins: number;
+  /** 真的能买：开关打开 + 已定价 + 已登录 + 没超过每日购买上限。 */
+  available: boolean;
+  /** 今天已经买了多少次。 */
+  usedToday: number;
+  /** 每日购买上限；0 表示不额外限制。 */
+  dailyCap: number;
+  /** 今天还能买几次；null 表示不额外限制（只受余额约束）。 */
+  remaining: number | null;
+};
+
 /** 额度状态：匿名按 Cookie 与 IP 哈希两路计数，counted 为较严者。 */
 export type MirrorQuota = {
   anonymous: boolean;
@@ -50,12 +69,13 @@ export type MirrorQuota = {
   used: number;
   remaining: number;
   overLimitPolicy: MirrorOverLimitPolicy;
-  /** PAUSE 时生成按钮是否可用；CHARGE 且未配价格时同样是 false。 */
+  /** 免费次数用完后能不能继续生成：要么还有免费次数，要么可以购买。 */
   canGenerate: boolean;
-  /** 额度用尽时给用户的说明，直接展示。 */
+  /** 额度用尽且不能购买时给用户的说明，直接展示。 */
   blockedReason: string | null;
   /** 额度按这个时区的自然日重置。 */
   timezone: string;
+  purchase: MirrorPurchase;
 };
 
 export type MirrorRules = {
@@ -80,6 +100,9 @@ export const MIRROR_SETTINGS = {
   userDailyLimit: 'mirror.userDailyLimit',
   compareLimit: 'mirror.compareLimit',
   overLimitPolicy: 'mirror.overLimitPolicy',
+  purchaseEnabled: 'mirror.purchaseEnabled',
+  purchaseCoins: 'mirror.purchaseCoins',
+  purchaseDailyCap: 'mirror.purchaseDailyCap',
   resultRetentionDays: 'mirror.resultRetentionDays',
   titleMaxChars: 'mirror.titleMaxChars',
   observationMaxChars: 'mirror.observationMaxChars',

@@ -98,7 +98,8 @@ runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 list
 
 | 发布 | 迁移 | 说明 |
 |---|---|---|
-| `commercial-20261021-c11` | 第 49 条 `20261021180000_commercial_platform` | 当前线上版本：设置中心、计费、Mirror、评理、记忆、后台任务、站内通知、六个后台分组。 |
+| `commercial-20261021-c12` | 第 49 条（无 schema 变更） | 当前线上版本：在 c11 基础上收口 Mirror 与评理的 6 处实战缺陷，测试 59 → 64 条。 |
+| `commercial-20261021-c11` | 第 49 条 `20261021180000_commercial_platform` | 首个商业版：设置中心、计费、Mirror、评理、记忆、后台任务、站内通知、六个后台分组。 |
 | `commercial-20261021-c9` | 第 48 条 | 上一版本，保留用于回退。 |
 
 切换时的顺序与实测要点：
@@ -108,6 +109,7 @@ runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 list
 3. 正式库：`pm2 stop khui-ai` → `npm run state:backup -- <标签>` → `npx prisma migrate deploy` → `npm run release:check -- <生产库>`（要求 `compatible:true`）。
 4. 新目录 `npm ci`（**不要加 `--omit=dev`**：构建与 `release:check` 需要 `tsx`、`typescript`）→ `npm run build`。
 5. `pm2 delete khui-ai` 再 `pm2 start deploy/baota/ecosystem.config.js`：跨发布目录时 `startOrReload` 可能仍指向旧目录，必须核对 `pm_cwd`。
+5.1 `chown -R www:www <发布目录>`：发布包以 root 解开、构建也以 root 跑，而 PM2 以 `www` 运行。不改属主时进程仍能启动、页面也正常，但 Next 写不了 `.next-build/server/route-cache`，日志里持续出现 `EACCES: permission denied, mkdir .../route-cache`，预渲染缓存全程失效。判据：`ls -ld <发布目录>/.next-build` 应为 `www www`，且启动后 `route-cache/` 由 `www` 创建。
 6. 断言：`/api/admin/session` 权限码数量、`/api/admin/{settings,tasks,mirror/results,disputes/cases,billing/charges,ai/coin-prices}` 全部 200、设置 PATCH 写入后读回一致且历史留痕。
 
 ## 8. 验收与回归

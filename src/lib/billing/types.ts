@@ -35,7 +35,7 @@ export interface ChargePriceSnapshot {
   multiplier: number;
   /** ceil(baseCoins × multiplier / 1000)。 */
   coins: number;
-  priceSource: 'MODEL_PRICE' | 'STORY_PRICE' | 'NONE';
+  priceSource: 'MODEL_PRICE' | 'STORY_PRICE' | 'MIRROR_PRICE' | 'NONE';
   /** 预扣时所在业务日；未建费用单时为 ''。 */
   day: string;
   pricing: 'CHARGED' | 'FREE_MODE' | 'FREE_MULTIPLIER' | 'NO_PRICE';
