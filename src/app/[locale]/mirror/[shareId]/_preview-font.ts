@@ -20,8 +20,10 @@ const FONT_CANDIDATES = [
   'C:\\Windows\\Fonts\\Deng.ttf',
   // macOS
   '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
-  // Linux
+  // Linux：Noto Sans CJK 的 OTF 单字重文件（Rocky/Debian 上由 google-noto-sans-cjk-*-fonts 提供）。
+  // 注意别用同包的 .ttc 集合，satori 对字体集合支持不稳；也不要装可变字体版本。
   '/usr/share/fonts/opentype/noto/NotoSansSC-Regular.otf',
+  '/usr/share/fonts/google-noto-cjk/NotoSansCJKjp-Regular.otf',
   '/usr/share/fonts/truetype/arphic/uming.ttf',
 ];
 
