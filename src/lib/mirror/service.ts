@@ -4,7 +4,7 @@ import {logWarning} from '@/lib/logger';
 import {finishAiCall} from '@/lib/ai/ai-usage';
 import {aiErrorCode, type PromptCharacter} from '@/lib/conversations/chat-stream';
 import type {AiStreamMetrics} from '@/lib/ai/types';
-import {buildMirrorPrompt, buildRepairPrompt, generateMirrorResult, MIRROR_TASK_TYPE, MirrorGenerationError, normalizeAnswers} from './generation';
+import {buildMirrorPrompt, buildRepairPrompt, generateMirrorResult, MIRROR_TASK_TYPE, normalizeAnswers} from './generation';
 import {createMirrorModelCaller, MirrorModelError} from './model-call';
 import {consumeMirrorLimit, effectiveMirrorUsed, mirrorDayKey, mirrorQuotaView, readMirrorUsage, releaseMirrorLimit, type MirrorIdentity} from './limits';
 import {hashMirrorIp, mirrorAttributionCookieName, mirrorIpSalt, newMirrorSubject, readCookie, readMirrorQuotaCookie, signMirrorAttribution, toOwnerResult, toPublicResult, type MirrorRow} from './share';
@@ -110,10 +110,10 @@ export type MirrorGenerationResult = {
   quota: MirrorQuota;
 };
 
+/** 统一映射：MirrorGenerationError 已继承 MirrorError，这里只额外收编模型层错误。 */
 function toMirrorError(error: unknown): MirrorError {
   if (error instanceof MirrorError) return error;
   if (error instanceof MirrorModelError) return new MirrorError(error.message, 503, error.code);
-  if (error instanceof MirrorGenerationError) return new MirrorError(error.message, error.status, error.code);
   return new MirrorError('生成失败，请稍后重试。', 500, 'MIRROR_GENERATION_FAILED');
 }
 

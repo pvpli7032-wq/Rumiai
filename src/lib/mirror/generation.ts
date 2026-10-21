@@ -1,5 +1,6 @@
 import type {AiStreamMetrics} from '@/lib/ai/types';
 import {aiErrorCode, aiUserError, type PromptCharacter} from '@/lib/conversations/chat-stream';
+import {MirrorError} from './errors';
 import type {MirrorCharacterOption, MirrorResultFields, MirrorRules} from './types';
 
 /**
@@ -12,10 +13,13 @@ import type {MirrorCharacterOption, MirrorResultFields, MirrorRules} from './typ
 
 export const MIRROR_TASK_TYPE = 'mirror';
 
-/** 结构不合格时统一抛这个，路由据此决定失败文案与是否退回额度。 */
-export class MirrorGenerationError extends Error {
-  constructor(message: string, readonly code: string, readonly status = 502) {
-    super(message);
+/**
+ * 结构不合格或输入不合法时统一抛这个。继承 MirrorError，
+ * 路由的同一套错误映射就能给出正确的状态码（400 输入、502 结构）。
+ */
+export class MirrorGenerationError extends MirrorError {
+  constructor(message: string, code: string, status = 502) {
+    super(message, status, code);
     this.name = 'MirrorGenerationError';
   }
 }
@@ -73,7 +77,7 @@ export function buildRepairPrompt(input: {raw: string; answers: string[]; rules:
 }
 
 /** 去掉模型偶尔套上的 ```json 包裹，再截取最外层对象。 */
-export function extractJsonText(raw: string): string {
+function extractJsonText(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const text = (fenced?.[1] ?? raw).trim();
   const start = text.indexOf('{');
@@ -203,9 +207,4 @@ async function runModel(call: MirrorModelCall, prompt: string) {
     if (error instanceof MirrorGenerationError) throw error;
     throw new MirrorGenerationError(aiUserError(error), aiErrorCode(error) === 'UPSTREAM_ERROR' ? 'UPSTREAM_ERROR' : aiErrorCode(error));
   }
-}
-
-/** 分享文案：只含结果字段，不含回答。 */
-export function mirrorShareText(result: Pick<MirrorResultFields, 'title' | 'quote'>, characterName: string): string {
-  return `${characterName}眼中的我：${result.title}——${result.quote}`;
 }

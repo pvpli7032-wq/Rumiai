@@ -4,7 +4,7 @@ import {readSettingValue} from '@/lib/settings';
 import {readConversationMessages} from '@/lib/conversations/message-service';
 import {readCommunityRestriction} from '@/lib/community/restriction-service';
 import type {DisputeCandidate, DisputeCaseRecord, DisputeCaseSummary, DisputeExcerptMessage, DisputeExcerptOptions, DisputeListResult, DisputeRuleSnapshot, DisputeSort, DisputeVerdict, DisputeVoteState} from './types';
-import {emptyTally, leadingChoice} from './types';
+import {emptyTally, isDisputeRules, leadingChoice} from './types';
 
 /**
  * 评理广场：发起与读取（V3 第 24 章）。
@@ -92,8 +92,8 @@ export function buildRuleSnapshot(options: DisputeExcerptOptions, now = new Date
 
 export function snapshotOf(raw: string): DisputeRuleSnapshot {
   try {
-    const parsed = JSON.parse(raw) as DisputeRuleSnapshot;
-    return parsed.version === 1 ? parsed : fallbackRules();
+    const parsed: unknown = JSON.parse(raw);
+    return isDisputeRules(parsed) ? parsed : fallbackRules();
   } catch {
     return fallbackRules();
   }

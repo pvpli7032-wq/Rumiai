@@ -160,6 +160,97 @@ test('分享视图只有结果字段，绝不包含三题原回答', () => {
   assert.deepEqual(owner.answers, ['原回答秘密']);
 });
 
+test('接口层：初始化签发匿名主体 Cookie，且不把 Cookie 内容回给浏览器', async () => {
+  const {GET} = await import('../src/app/api/mirror/route.ts');
+  const {resetMirrorLimits} = await import('../src/lib/mirror/limits.ts');
+  resetMirrorLimits();
+  const response = await GET(new Request('http://localhost/api/mirror', {headers: {'x-forwarded-for': '198.51.100.77'}}));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal('cookies' in body, false);
+  assert.equal(Array.isArray(body.characters), true);
+  assert.equal(body.rules.questionCount, 3);
+  assert.equal(body.rules.answerMaxChars, 60);
+  assert.equal(body.quota.anonymous, true);
+  assert.equal(body.quota.limit, 1);
+  const issued = response.headers.get('set-cookie') ?? '';
+  assert.match(issued, /xb_mirror_subject=/);
+  assert.match(issued, /HttpOnly/i);
+  // IP 只以哈希进入计数，响应里不出现来源地址。
+  assert.equal(JSON.stringify(body).includes('198.51.100.77'), false);
+});
+
+test('接口层：同一 IP 的匿名额度用完后生成返回 429，且不发起模型调用', async () => {
+  const {POST} = await import('../src/app/api/mirror/route.ts');
+  const {readConfigFor} = await import('../src/lib/mirror/config.ts');
+  const {consumeMirrorLimit, mirrorDayKey, resetMirrorLimits} = await import('../src/lib/mirror/limits.ts');
+  const {hashMirrorIp} = await import('../src/lib/mirror/share.ts');
+  resetMirrorLimits();
+  const character = await db.character.create({data: {name: '额度角色', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
+  const config = await readConfigFor(null);
+  const day = mirrorDayKey(new Date(), config.timezone);
+  const ipHash = hashMirrorIp('203.0.113.55', process.env.MIRROR_IP_SALT);
+  // 另一个浏览器（不同 Cookie 主体）已经用掉这个 IP 的匿名次数。
+  assert.equal(consumeMirrorLimit({userId: null, cookieSubject: 'subject-elsewhere-000001', cookieReportedCount: 0, ipHash}, 1, day).allowed, true);
+
+  const response = await POST(new Request('http://localhost/api/mirror', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'x-forwarded-for': '203.0.113.55'},
+    body: JSON.stringify({characterId: character.id, answers: ['一', '二', '三']}),
+  }));
+  assert.equal(response.status, 429);
+  const body = await response.json();
+  assert.equal(body.code, 'MIRROR_OVER_LIMIT');
+  // 额度检查在模型调用之前：没有新增任何 AiCall 记录。
+  assert.equal(await db.aiCall.count({where: {taskType: 'mirror'}}), 0);
+});
+
+test('接口层：回答题数不对时返回 400，且不消耗额度', async () => {
+  const {POST} = await import('../src/app/api/mirror/route.ts');
+  const {readConfigFor} = await import('../src/lib/mirror/config.ts');
+  const {mirrorDayKey, readMirrorUsage, resetMirrorLimits} = await import('../src/lib/mirror/limits.ts');
+  const {hashMirrorIp} = await import('../src/lib/mirror/share.ts');
+  resetMirrorLimits();
+  const character = await db.character.create({data: {name: '参数角色', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
+  const config = await readConfigFor(null);
+  const day = mirrorDayKey(new Date(), config.timezone);
+  const response = await POST(new Request('http://localhost/api/mirror', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'x-forwarded-for': '203.0.113.56'},
+    body: JSON.stringify({characterId: character.id, answers: ['只有一题']}),
+  }));
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).code, 'MIRROR_ANSWERS_INVALID');
+  const ipHash = hashMirrorIp('203.0.113.56', process.env.MIRROR_IP_SALT);
+  assert.equal(readMirrorUsage({userId: null, cookieSubject: null, cookieReportedCount: 0, ipHash}, day).ipUsed, 0);
+});
+
+test('接口层：分享接口返回公开视图，mine 只列自己的，compare 未登录 401', async () => {
+  const {GET: readOne, DELETE: removeOne} = await import('../src/app/api/mirror/[shareId]/route.ts');
+  const {GET: readMine} = await import('../src/app/api/mirror/mine/route.ts');
+  const {GET: compare} = await import('../src/app/api/mirror/compare/route.ts');
+  const character = await db.character.create({data: {name: '接口角色', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
+  const shareId = 'share' + randomUUID().replace(/-/g, '').slice(0, 12);
+  await db.mirrorResult.create({data: {shareId, userId: null, anonymousSubject: 'subject-api-0000000001', characterId: character.id, answersJson: JSON.stringify(['原回答一', '原回答二', '原回答三']), title: '称号', observationsJson: JSON.stringify(['a', 'b', 'c']), quote: 'q', indicesJson: JSON.stringify({atmosphere: 50, rapport: 60}), status: 'READY'}});
+
+  const params = {params: Promise.resolve({shareId})};
+  const response = await readOne(new Request('http://localhost/api/mirror/' + shareId), params);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.kind, 'public');
+  // 陌生人拿到的响应体里没有任何原回答。
+  assert.equal(JSON.stringify(body).includes('原回答'), false);
+
+  const mine = await readMine(new Request('http://localhost/api/mirror/mine'));
+  assert.equal(mine.status, 200);
+  assert.deepEqual((await mine.json()).results, []);
+
+  assert.equal((await compare(new Request('http://localhost/api/mirror/compare?shareId=' + shareId))).status, 401);
+
+  assert.equal((await removeOne(new Request('http://localhost/api/mirror/' + shareId, {method: 'DELETE'}), params)).status, 403);
+  assert.equal((await readOne(new Request('http://localhost/api/mirror/' + shareId), params)).status, 200);
+});
+
 test('删除后读不到：本人可删，别人 403，删除后一律 404', async () => {
   const user = await db.user.create({data: {username: 'mirror-owner', email: 'mirror-owner@example.invalid', passwordHash: 'synthetic-only'}});
   const other = await db.user.create({data: {username: 'mirror-other', email: 'mirror-other@example.invalid', passwordHash: 'synthetic-only'}});

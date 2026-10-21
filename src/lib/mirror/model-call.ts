@@ -2,7 +2,6 @@ import {readAiModelPlan, type RuntimeAiModel} from '@/lib/ai/models/runtime-serv
 import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
 import {AiStreamError, modelChain, openUpstream, type RuntimeProvider} from '@/lib/conversations/chat-stream';
 import type {AiStreamMetrics} from '@/lib/ai/types';
-import {MIRROR_TASK_TYPE} from './generation';
 
 /**
  * Mirror 的模型调用适配：复用 runtime-service 的模型计划与聊天同一条候选链，
@@ -92,5 +91,3 @@ export async function createMirrorModelCaller(characterId: string, metrics: AiSt
   const plan = await readMirrorModelPlan(characterId);
   return async prompt => ({text: await completeWithModel(plan, prompt, metrics), metrics});
 }
-
-export {MIRROR_TASK_TYPE};

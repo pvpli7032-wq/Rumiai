@@ -32,7 +32,8 @@ export async function applyVote(tx: Prisma.TransactionClient, caseId: string, us
   if (!row || post?.status !== 'VISIBLE' || row.closeStatus === 'WITHDRAWN') throw new DisputeError('评理案例不存在或已撤回。', 404, 'NOT_FOUND');
   if (row.authorId === userId) throw new DisputeError('不能给自己发起的案例投票。', 403, 'FORBIDDEN');
   if (row.closeStatus === 'CLOSED') throw new DisputeError('这个案例已经结案，不能再投票。', 409, 'CONFLICT');
-  if (row.closeStatus !== 'OPEN' || row.deadlineAt.getTime() <= Date.now()) throw new DisputeError('这个案例正在结案，暂时不能投票。', 409, 'CONFLICT');
+  if (row.closeStatus !== 'OPEN') throw new DisputeError('这个案例正在结案，暂时不能投票。', 409, 'CONFLICT');
+  if (row.deadlineAt.getTime() <= Date.now()) throw new DisputeError('这个案例已到截止时间，正在结案。', 409, 'CONFLICT');
 
   const rules = snapshotOf(row.ruleSnapshotJson);
   const existing = await tx.disputeVote.findUnique({where: {caseId_userId: {caseId, userId}}, select: {id: true, choice: true, reviseCount: true}});

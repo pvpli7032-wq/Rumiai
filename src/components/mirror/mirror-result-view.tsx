@@ -38,7 +38,6 @@ export function MirrorResultView({view, locale}: {view: MirrorView; locale: stri
     try {
       await api.del(API.mirror.result(result.shareId), {token});
       setDeleted(true);
-      router.refresh();
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 404) { setDeleted(true); return; }
       setMessage(cause instanceof ApiError ? cause.message : '删除失败，请稍后重试。');

@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
   try {
-    const page = await readPageView(await readRequestState(request));
-    return applyMirrorCookies(NextResponse.json(page), page.cookies);
+    const {cookies, ...payload} = await readPageView(await readRequestState(request));
+    return applyMirrorCookies(NextResponse.json(payload), cookies);
   } catch (error) {
     return mirrorErrorResponse('GET /api/mirror', error);
   }

@@ -3,7 +3,7 @@ import {notFound} from 'next/navigation';
 import {headers} from 'next/headers';
 import {DEFAULT_LOCALE, SITE_URL, alternateLanguages, getDictionary, isLocale, type Locale} from '@/lib/i18n';
 import {PublicHeader} from '@/components/public-header';
-import {MirrorResultView} from '@/components/mirror/mirror-result-view';
+import {MirrorResultLoader} from '@/components/mirror/mirror-result-loader';
 import {MirrorError, mirrorAttributionCookieName, readCookie, readMirrorContext, readMirrorResult} from '@/lib/mirror';
 
 /**
@@ -41,7 +41,7 @@ export default async function MirrorResultPage({params: paramsPromise}: {params:
     <main className="mx-auto flex min-h-[100svh] max-w-3xl flex-col px-4 pb-16 desktop:px-8">
       <PublicHeader locale={locale} signInLabel={dict.signIn} />
       <section className="py-6">
-        <MirrorResultView view={view} locale={locale} />
+        <MirrorResultLoader shareId={params.shareId} locale={locale} initialView={view} />
         <p className="mt-6 text-xs text-muted-foreground">结果由 AI 生成，仅供娱乐。</p>
       </section>
     </main>

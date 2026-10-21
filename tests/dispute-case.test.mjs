@@ -28,6 +28,11 @@ const {createDisputeCase, readDisputeCase, listDisputeCases, snapshotOf, withdra
 const {voteDispute} = await import('../src/lib/disputes/vote-service.ts');
 const {closeDisputeCase, buildFallbackVerdict, enqueueCloseIfReached, runDisputeCloseTask} = await import('../src/lib/disputes/close-service.ts');
 const {GET: listRoute, POST: createRoute} = await import('../src/app/api/disputes/route.ts');
+const {GET: detailRoute} = await import('../src/app/api/disputes/[id]/route.ts');
+const {POST: voteRoute} = await import('../src/app/api/disputes/[id]/vote/route.ts');
+const {POST: withdrawRoute} = await import('../src/app/api/disputes/[id]/withdraw/route.ts');
+const {GET: optionsRoute} = await import('../src/app/api/disputes/options/route.ts');
+const {GET: excerptRoute} = await import('../src/app/api/disputes/excerpt/route.ts');
 
 test.after(async () => {
   await db.$disconnect();
@@ -257,6 +262,65 @@ test('立即结案未到时间不生成；任务处理器不会重复生成', as
   const task = await runDisputeCloseTask(caseId);
   assert.equal(task.outcome, 'ALREADY_CLOSED');
   assert.equal(generated, 1);
+});
+
+test('HTTP 路由串起来能走完 发起 → 详情 → 投票 → 撤回', async () => {
+  await resetSettings();
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const authorToken = await signToken({userId: author.id, email: author.email, tokenVersion: author.tokenVersion});
+  const voter = await makeUser();
+  const voterToken = await signToken({userId: voter.id, email: voter.email, tokenVersion: voter.tokenVersion});
+  const call = (handler, path, init = {}) => handler(new Request(`http://localhost${path}`, init), {params: Promise.resolve({id: init.caseId ?? ''})});
+
+  const created = await createRoute(new Request('http://localhost/api/disputes', {
+    method: 'POST',
+    headers: {Authorization: `Bearer ${authorToken}`, 'Content-Type': 'application/json'},
+    body: JSON.stringify({conversationId: conversation.id, messageIds: messages.slice(0, 2).map(message => message.id), claim: '煮饭还是吃面，谁更强势？'}),
+  }));
+  assert.equal(created.status, 201);
+  const {caseId} = await created.json();
+
+  const anonymousDetail = await detailRoute(new Request(`http://localhost/api/disputes/${caseId}`), {params: Promise.resolve({id: caseId})});
+  assert.equal(anonymousDetail.status, 200, '未登录也能看详情');
+  const anonymousBody = await anonymousDetail.json();
+  assert.equal(anonymousBody.case.canVote, false);
+  assert.equal(anonymousBody.case.myVote, null);
+  assert.equal(anonymousBody.case.excerptCount, 2);
+
+  const selfVote = await voteRoute(new Request(`http://localhost/api/disputes/${caseId}/vote`, {
+    method: 'POST', headers: {Authorization: `Bearer ${authorToken}`, 'Content-Type': 'application/json'}, body: JSON.stringify({choice: 'AUTHOR'}),
+  }), {params: Promise.resolve({id: caseId})});
+  assert.equal(selfVote.status, 403);
+
+  const voted = await voteRoute(new Request(`http://localhost/api/disputes/${caseId}/vote`, {
+    method: 'POST', headers: {Authorization: `Bearer ${voterToken}`, 'Content-Type': 'application/json'}, body: JSON.stringify({choice: 'OTHER'}),
+  }), {params: Promise.resolve({id: caseId})});
+  assert.equal(voted.status, 200);
+  const votedBody = await voted.json();
+  assert.equal(votedBody.vote.choice, 'OTHER');
+  assert.equal(votedBody.voteCount, 1);
+  assert.equal(votedBody.closing, false);
+
+  const detail = await detailRoute(new Request(`http://localhost/api/disputes/${caseId}`, {headers: {Authorization: `Bearer ${voterToken}`}}), {params: Promise.resolve({id: caseId})});
+  const detailBody = await detail.json();
+  assert.equal(detailBody.case.myVote.choice, 'OTHER');
+  assert.equal(detailBody.case.canVote, true);
+  assert.equal(detailBody.case.canWithdraw, false);
+
+  const options = await optionsRoute(new Request('http://localhost/api/disputes/options', {headers: {Authorization: `Bearer ${authorToken}`}}));
+  assert.equal(options.status, 200);
+  assert.equal((await options.json()).options.maxExcerptMessages, 6);
+
+  const excerpt = await excerptRoute(new Request(`http://localhost/api/disputes/excerpt?conversationId=${conversation.id}`, {headers: {Authorization: `Bearer ${authorToken}`}}));
+  assert.equal(excerpt.status, 200);
+  assert.equal((await excerpt.json()).messages.length, messages.length);
+
+  const withdrawn = await withdrawRoute(new Request(`http://localhost/api/disputes/${caseId}/withdraw`, {method: 'POST', headers: {Authorization: `Bearer ${authorToken}`}}), {params: Promise.resolve({id: caseId})});
+  assert.equal(withdrawn.status, 200);
+  const gone = await detailRoute(new Request(`http://localhost/api/disputes/${caseId}`, {headers: {Authorization: `Bearer ${voterToken}`}}), {params: Promise.resolve({id: caseId})});
+  assert.equal(gone.status, 404);
+  void call;
 });
 
 test('撤回停止公开访问，但发起人仍能看到自己的状态', async () => {

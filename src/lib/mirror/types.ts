@@ -90,6 +90,3 @@ export const MIRROR_SETTINGS = {
 /** 匿名额度 Cookie 名。主体标识与当日用量分开两个 Cookie，互不覆盖。 */
 export const MIRROR_SUBJECT_COOKIE = 'xb_mirror_subject';
 export const MIRROR_QUOTA_COOKIE = 'xb_mirror_quota';
-
-/** 这些键一旦变动，前台的额度与规则提示会随之刷新。 */
-export const MIRROR_PUBLIC_KEYS: string[] = Object.values(MIRROR_SETTINGS);

@@ -14,9 +14,13 @@ import {MIRROR_QUOTA_COOKIE, type MirrorOwnerResult, type MirrorPublicResult} fr
 
 const DEV_IP_SALT = 'xingban-dev-mirror-ip-salt';
 
-/** IP 盐：生产必须单独配置；开发环境用固定占位值，保证本地行为可复现。 */
+/**
+ * IP 盐。优先用专门的 MIRROR_IP_SALT；没配就复用 JWT_SECRET（生产环境强制存在且足够随机），
+ * 这样即使运维漏配，加盐哈希也不会退化成「用公开常量算 IPv4」，彩虹表反推不成立。
+ * 开发环境最后才落到固定占位值，保证本地行为可复现。
+ */
 export function mirrorIpSalt(env: Record<string, string | undefined> = process.env): string {
-  return env.MIRROR_IP_SALT?.trim() || DEV_IP_SALT;
+  return env.MIRROR_IP_SALT?.trim() || env.JWT_SECRET?.trim() || DEV_IP_SALT;
 }
 
 /** 只留前 32 位十六进制，足够区分且不必保存整段摘要。 */
@@ -91,7 +95,7 @@ export type MirrorRow = {
   expiresAt: Date | null;
 };
 
-export type MirrorCharacterView = {id: string; name: string; avatarUrl: string | null};
+type MirrorCharacterView = {id: string; name: string; avatarUrl: string | null};
 
 function parseJson<T>(raw: string): T | null {
   try {
