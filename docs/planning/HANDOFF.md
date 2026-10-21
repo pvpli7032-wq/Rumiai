@@ -1,11 +1,11 @@
-# 交接说明（2026-10-21 c5 已上线生产）
+# 交接说明（2026-10-21 c6 已上线生产）
 
 > 目的：让接手的人（人或 AI）不必回溯对话就能继续。所有数字与路径均为本机核对结果，不是叙述推测。
 > 交接对象注意：本文件是唯一权威入口。规划书全文在 `docs/planning/角色关系连续剧产品与实施规划书_完整详细版_V1.0.docx`，可 grep 纯文本版 `.temp/plan-final.txt`；回归基线与终验记录在 `.workbuddy/memory/baseline-2026-10-20.md`。
 
 ## 1. 一句话现状
 
-V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）全部完成并已提交**：M0 抽取、M3 数据模型+回合编排、M4 记忆与章节闭环、W08 评测框架+执行器、W07 生命周期（导出/分享/下架/级联）、灰度旗标 F1–F4，全部终验通过（记录见 `.workbuddy/memory/baseline-2026-10-20.md` 第四/五/六节）。生产当前已切到 `commercial-20261021-c5`；BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准；生产 48 条迁移，PM2 online/restarts 0、exec cwd 指向 c5，`pm2 save` 已完成，60 秒 soak 12/12 返回 200。回滚位 `c2`/`c3`/`c4-rc2` 保留。发布文档全部就绪并已同步计数：`docs/planning/releases/m5-pilot-runbook.md`（主流程）、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。**当前剩余是用户决策与灰度观察**：管理员密码轮换、试点名单与告警责任人。
+V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）全部完成并已提交**：M0 抽取、M3 数据模型+回合编排、M4 记忆与章节闭环、W08 评测框架+执行器、W07 生命周期（导出/分享/下架/级联）、灰度旗标 F1–F4，全部终验通过（记录见 `.workbuddy/memory/baseline-2026-10-20.md` 第四/五/六节）。生产当前已切到 `commercial-20261021-c6`；BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准；生产 48 条迁移（c6 无新迁移），PM2 online、exec cwd 指向 c6，`pm2 save` 已完成，20/20 soak 返回 200，端到端 11/11。回滚位 `c2`/`c3`/`c4-rc2`/`c5` 保留。发布文档全部就绪并已同步计数：`docs/planning/releases/m5-pilot-runbook.md`（主流程）、`story-rollout-flags.md`、`m3-m4-release-checklist.md`。**当前剩余是用户决策与灰度观察**：管理员密码轮换、试点名单与告警责任人。
 
 ## 2. 代码位置与状态
 
@@ -33,21 +33,23 @@ V0 已上线生产并验收通过；**M0–M5 开发线（W01–W09 工程侧）
 | 项 | 值 |
 |---|---|
 | 域名 | `https://lh.y-98.cn`，`/` 307 → `/zh` |
-| 当前发布 | `commercial-20261021-c5`（BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准） |
-| 部署路径 | `/www/wwwroot/khui-ai/releases/commercial-20261021-c5` |
-| PM2 | 单实例 `khui-ai`，online，重启 0；3000 端口仅此一个 next-server |
+| 当前发布 | `commercial-20261021-c6`（BUILD_ID 以服务器 `.next-build/BUILD_ID` 为准） |
+| 部署路径 | `/www/wwwroot/khui-ai/releases/commercial-20261021-c6` |
+| PM2 | 单实例 `khui-ai`，online，exec cwd=c6；3000 端口仅此一个 next-server |
 | 数据库 | `/www/wwwroot/khui-ai/shared/database.db`，48 条迁移全部 applied |
-| 备份 | `shared/backups/database-release-c4rc2-20261020`、`database-release-c3-20261020` |
-| 回滚位 | `c2`、`c3`、`c4-rc2` 目录均保留 |
+| 备份 | `shared/backups/pre-c6-20261021-084806`、`database-m4-final-20261021`、`database-release-c4rc2-20261020`、`database-release-c3-20261020` |
+| 回滚位 | `c2`、`c3`、`c4-rc2`、`c5` 目录均保留 |
 | SSH | `ssh -i ~/.ssh/khui_deploy_ed25519 root@43.242.194.115` |
 
 认证（2026-10-20 02:0x + 03:0x 两次核对）：`/zh`、`/discover`、`/shop`、`/api/site`、`/admin`、`/login` 全 200；匿名 `/api/admin/access` 401；旧前缀 `/api/v1/site` 404。
 
 **注意：生产库已含全部 48 条迁移**（c5 切流时应用了 `20261020120000_story_run_contract`、`20261020150000_scene_funnel_events`、`20261020160000_story_shares`）。8 张 story 表与 `scene_funnel_events` 均已在生产库中，实测计数见 `docs/planning/releases/cutover-record-20261021.md`。
 
-生产端到端实测（2026-10-21 04:1x）：注册 → `POST /api/story-runs` 201 建实例 → 同 requestId 幂等重放返回同一实例 → 不存在章节 422 → 详情 200 → 匿名详情/回合/导出/分享/列表全 401；全程 `pageerror` 0。测试账号事后经 `POST /api/users/me/close` 走产品自身的注销路径清理，`story_runs` 归 0、`conversations` 回到 3、`messages` 回到 6。
+生产端到端实测（2026-10-21 04:1x，c5）：注册 → `POST /api/story-runs` 201 建实例 → 同 requestId 幂等重放返回同一实例 → 不存在章节 422 → 详情 200 → 匿名详情/回合/导出/分享/列表全 401；全程 `pageerror` 0。测试账号事后经 `POST /api/users/me/close` 走产品自身的注销路径清理，`story_runs` 归 0、`conversations` 回到 3、`messages` 回到 6。
 
-### 3.2 M4 记忆闭环（已提交，未上线）
+生产端到端实测（2026-10-21 09:4x，c6）：注册 → 登录拿 token → `/api/auth/me` 200 → 匿名 `/api/story-runs` 401 → `POST /api/story-runs` 201 建实例 → 同 requestId 幂等重放返回同一 id → 详情 200 且无 `hiddenFacts`/`stateJson`/`leaseOwner`/`requestHash` 等私有键 → 缺 requestId 422 → 列表 200 → `POST /api/users/me/close` 200，**11/11 PASS**。切流前后 `users live` 均为 5，探针账号全部走产品注销接口关闭（未用 SQL 直改生产库）。worker 启动日志 `{"event":"story_state_worker_started","intervalMs":15000}` 已在 PM2 out 日志出现。
+
+### 3.2 M4 记忆闭环（已随 c6 上线）
 
 worker 把每回合抽出的确认事实写进 `run.stateJson`，但 `turn-service` 生成时只用近期消息 + 当前输入 —— 规划书第 19 章要求的「模板版本 + 已确认事实 + 近期消息 + 当前输入」此前只做了后半段。现已补上：
 
@@ -148,8 +150,8 @@ DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PAS
 | ~~模板~~ | ~~生产无已发布故事模板~~ | **已发布林澈试点模板 v1**（`story:publish`） |
 | 前置 | 管理员密码轮换（`admin-password-rotation-plan.md` 就绪） | **等用户** |
 | 灰度 | F1–F4 开关已实现（`b5f12db`）；观察指标与扩量/暂停门槛见 `story-rollout-flags.md` §3/§4 | 需先定试点名单与告警责任人 |
-| 待发 | 下列 4 项已提交但**不在生产 c5 里**，下次发布一起带上：worker 启动日志（`51b4747`）、`story:publish` 工具（`35366e2`）、M4 记忆闭环 buildContext（`ab2f64b`）、失效钩子注释修正（`a443a7e`） | 攒批 |
-| 已修 | M4 记忆闭环缺口：worker 抽出的确认事实此前从不进入生成提示词（只喂了近期消息），现已由 `context-service.ts` 接上 | 已提交 |
+| ~~待发~~ | ~~4 项攒批~~ | **已随 c6 上线**（worker 日志、`story:publish`、buildContext、注释修正） |
+| 已修 | M4 记忆闭环缺口：worker 抽出的确认事实此前从不进入生成提示词（只喂了近期消息），现已由 `context-service.ts` 接上 | **已上线 c6** |
 
 已清项：灰度旗标 F1–F3（原待办）已实现；导出/分享/下架/级联（W07）已完成并终验。
 
