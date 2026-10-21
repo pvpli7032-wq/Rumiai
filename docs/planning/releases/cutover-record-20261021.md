@@ -87,3 +87,57 @@ c5 已上线生产。48 条迁移、PM2 online/restarts 0/cwd=c5、`pm2 save` �
 ## 结论
 
 c6 已上线生产（服务器 `.next-build/BUILD_ID` = `dAyjVHVYk17AzkwYF52Ca`）。48 条迁移、PM2 online/cwd=c6、`pm2 save`、11/11 端到端、20/20 soak 均已核实；`users live=5` 与切流前一致，探针账号 6 个全部走产品注销接口关闭（未用 SQL 直改生产库）。回滚位 `c2`/`c3`/`c4-rc2`/`c5` 保留。
+
+---
+
+# 生产切流记录：commercial-20261021-c7（2026-10-21）
+
+> 第三次切流：把故事体验闭环带上生产——公开故事目录、故事入口页、/chat 故事模式，外加两个被浏览器矩阵暴露的真问题修复。
+
+## 结果摘要
+
+| 项 | 实测结果 |
+|---|---|
+| 发布目录 | `commercial-20261021-c7` |
+| 生产迁移 | 48 条（本批无 schema 变更） |
+| PM2 | online；exec cwd=c7；restarts=0；`pm2 save` 已执行 |
+| BUILD_ID | `jlFSSfsXPxlXR1bXDknjp` |
+| 预切备份 | `shared/backups/pre-c7-20261021-123614`（`sqlite3 .backup` + `integrity_check`） |
+| 端到端 | 19/19 PASS（见下） |
+| Soak | 20/20 返回 200 |
+| 数据 | `users=16 / deleted=11 / live=5`、`story_runs=0`、`story_templates=1`、`conversations=3`、`messages=6` |
+| 回滚位 | `c2`、`c3`、`c4-rc2`、`c5`、`c6` 全部保留 |
+
+## 本批内容（19 个文件，增量包 SHA256 `5b991bff…73a8`，本地与服务器一致）
+
+新增：`catalog-service.ts`、`api/stories/route.ts`、`api/stories/[slug]/route.ts`、`(app)/stories/[slug]/page.tsx`、`components/stories/story-entry-page.tsx`、`components/chat/story-mode.tsx`、`scripts/verify-story-browser.mjs`、`tests/story-catalog.test.mjs`。
+修改：`chat/page.tsx`（+9/−1，仅分支挂载）、`middleware.ts`、`message-service.ts`、`run-service.ts`、`package.json`、矩阵与导出脚本、locale-middleware 与 conversation-message 用例、两份交接文档。
+
+## 端到端实测（19 项全过）
+
+匿名目录 200 → 目录/详情 JSON 均无 `hiddenFacts`/`definitionJson`/`characterSnapshotJson`/`stateJson` → 未知 slug 404 → 入口页 200 → 注册 201 拿 token → 匿名建 run 401 → 建 run 201 → 同 requestId 幂等返回同 id → 详情 200 且无私有字段、不投影消息正文 → 缺 requestId 422 → 注销 200。
+
+页面：`/zh`、`/zh/explore`、`/zh/about`、`/admin`、`/stories/xingban-original-0-ch1` 全 200。`/zh/stories/…` 404 符合预期——故事入口按规划书 TABLE 5 挂在 `/stories/[slug]`，不在 locale 段下。
+
+## 本批修掉的两个真问题
+
+### middleware 把 `/` 重定向到 localhost:3000
+
+- 现象：隔离实例上 Chromium 打开 `/` 报 `ERR_CONNECTION_REFUSED`，而 Node 的 fetch 拿到 307 且 `location: http://localhost:3000/zh`。
+- 根因：`src/middleware.ts` 用 `SITE_URL`（来自 `NEXT_PUBLIC_SITE_URL`）拼 `location`，而 Next 在**构建期**内联 `NEXT_PUBLIC_*`，运行期设置的值被忽略。
+- 处置：改为按请求推导来源——`x-forwarded-host`/`x-forwarded-proto`，回退 `host`，再回退 `request.nextUrl.origin`。补了两条回归用例（带 forwarded 头需保持公网源；无配置时须用请求自身源）。
+- 生产侧影响为零：nginx 一直传 `x-forwarded-host`，线上 `/` 仍是 307 → `https://lh.y-98.cn/zh`（切流前后各测一次，一致）。
+
+### 账号导出断言停在 v2
+
+- 现象：`test:m5:export:browser` 报 `3 !== 2`。
+- 根因：M4 给导出加了 stories 区块，版本升到 v3，浏览器脚本的断言没跟着改；`tests/account-data-export.test.mjs` 早已是 3。
+- 处置：断言改到 3 并补故事区块存在性检查。
+
+## 本批的传输处置
+
+`scp` 在本机对 50 KB 以上的文件持续超时（同一文件 `ssh 'cat > file'` 走 stdin 一次成功）。整批改为：`ssh … 'cat > /tmp/x'` 上传增量包 → 远端校验 sha256 → `cp -a c6 c7` → 解包 → 构建 → `chown -R www:www` → PM2 重建。远端脚本用 `setsid nohup` 脱离会话运行，避免 ssh 断开时被带走。
+
+## 结论
+
+c7 已上线生产。故事目录、入口页、故事会话三处对匿名/注册用户均可用；19/19 端到端与 20/20 soak 通过；`users live=5` 与切流前一致，探针账号全部走产品注销接口关闭。回滚位 `c2`/`c3`/`c4-rc2`/`c5`/`c6` 保留。
