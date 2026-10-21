@@ -8,6 +8,7 @@ import {reserveAiCall, finishAiCall, AiQuotaError} from '@/lib/ai/ai-usage';
 import type {AiStreamMetrics} from '@/lib/ai/types';
 import {streamOpenAIResponse} from '@/lib/conversations/chat-stream';
 import {proposeMemoryFact} from './fact-service';
+import {invalidateSummaryInTransaction} from './invalidation';
 import {MEMORY_SUMMARY_TASK, type MemorySettings, type MemorySummaryView} from './types';
 
 /**
@@ -55,9 +56,7 @@ export async function readMemorySummary(conversationId: string): Promise<MemoryS
 
 /** 摘要失效：整行删除，下次任务从剩余消息重新摘要，旧摘要不会被再次注入。 */
 export async function invalidateMemorySummary(conversationId: string, reason: string): Promise<boolean> {
-  const removed = await db.conversationMemory.deleteMany({where: {conversationId}});
-  if (removed.count) logWarning('memory_summary_invalidated', {conversationId, reason});
-  return removed.count > 0;
+  return invalidateSummaryInTransaction(db, conversationId, reason);
 }
 
 /** 覆盖点之后的新消息；覆盖点本身已被删除时返回 null，调用方据此判定摘要失效。 */

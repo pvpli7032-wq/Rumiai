@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
+import { invalidateMemoryForMessages } from '@/lib/memory/invalidation';
 
 /**
  * Dependency inversion for story history（V3 第 16 章）：the single
@@ -204,6 +205,13 @@ export async function editUserMessage(userId: string, conversationId: string, me
       data: {content},
       select: {id: true, role: true, content: true, likedAt: true, createdAt: true},
     });
+    // 记忆（V3 §25 表 21）：改过的这条连同其后被丢弃的回复，派生事实一律失效、
+    // 摘要整行删掉，全部与消息变更同一个事务。范围必须先取出来——下面就把行删了。
+    const affected = await tx.message.findMany({
+      where: {conversationId, OR: [{id: messageId}, {createdAt: {gt: message.createdAt}}]},
+      select: {id: true},
+    });
+    await invalidateMemoryForMessages(tx, conversationId, affected.map(row => row.id), 'MESSAGE_EDITED');
     const dropped = await tx.message.deleteMany({where: {conversationId, createdAt: {gt: message.createdAt}}});
     await invalidateStoryHistory(tx, storyRunId, messageId);
     return {message: updated, droppedReplies: dropped.count};
@@ -221,10 +229,15 @@ export async function deleteMessageAndFollowing(userId: string, conversationId: 
     // Same total order as readConversationMessages: (createdAt, id). A plain
     // `createdAt >= target.createdAt` also deletes earlier rows that share the target's
     // millisecond, which is reachable whenever a turn's messages are written together.
-    const removed = await tx.message.deleteMany({where: {conversationId, OR: [
+    const doomed = {conversationId, OR: [
       {createdAt: {gt: message.createdAt}},
       {createdAt: message.createdAt, id: {gte: message.id}},
-    ]}});
+    ]};
+    // 记忆（V3 §25 表 21）：被删的这批消息派生的事实全部失效、摘要整行删掉，
+    // 与删除同一个事务。id 必须先查——deleteMany 不回传删掉了哪些行。
+    const affected = await tx.message.findMany({where: doomed, select: {id: true}});
+    await invalidateMemoryForMessages(tx, conversationId, affected.map(row => row.id), 'MESSAGE_DELETED');
+    const removed = await tx.message.deleteMany({where: doomed});
     return {success: true, removed: removed.count};
   });
 }

@@ -57,8 +57,10 @@ npm run db:backup -- <标签>       # 数据库备份
 npm run account:password -- <邮箱> <新密码>  # 设置指定账号密码（运维一次性动作）
 npm run state:backup -- <标签>    # 数据库 + 上传的联合备份（切换前必做）
 npx prisma migrate deploy         # 只追加结构，不清空既有订单与消息
-npm run state:restore -- <标签>   # 恢复到全新目录，不覆盖源库
+node scripts/restore-state.mjs <备份目录> <全新恢复目录>   # 恢复到全新目录，不覆盖源库
 ```
+
+`state:restore` 的第二个参数是**必填**的恢复目标目录；只给标签会提示用法并退出，不会覆盖源库。备份目录形如 `prisma/backups/database-<标签>`，内含 `database.db`、`uploads/`、`manifest.json`。
 
 规则：
 
@@ -66,6 +68,16 @@ npm run state:restore -- <标签>   # 恢复到全新目录，不覆盖源库
 2. 正式库升级前，先在数据库副本上演练同一个 `migrate deploy`。
 3. 备份与上传目录必须同时备份、同时恢复；只恢复数据库会让图片与附件对不上。
 4. 发布包排除：运行数据库及其 `-wal`/`-shm`、上传文件、`.env`、构建缓存、日志、Windows 依赖。
+
+### 恢复演练（c14 实测通过）
+
+每次大版本切换前做一次，全程不碰生产库：
+
+1. `pm2 stop khui-ai` 停写 → `npm run state:backup -- drill-<标签>`，脚本自己输出 `integrity`、`foreignKeys` 与逐表行数。
+2. `node scripts/restore-state.mjs prisma/backups/database-drill-<标签> /tmp/drill-restore-<标签>` 恢复到全新目录。
+3. 对恢复出来的 `database.db` 跑 `pragma integrity_check`，行数要与第 1 步一致（本次：50 条迁移、18 用户、6 消息、16 订单）。
+4. 用 `PORT=3101 DATABASE_URL=file:/tmp/drill-restore-<标签>/database.db` 起一个隔离实例，`/login`、`/chat`、`/shop`、`/square` 都要 200；确认无误后杀掉隔离实例、删掉临时目录与演练备份。
+5. 最后 `pm2 start deploy/baota/ecosystem.config.js` 恢复生产，核对 `pm_cwd` 指向当前发布目录、`restarts` 为 0。
 
 ## 6. 发布流程（单机 Next + PM2 + Nginx）
 

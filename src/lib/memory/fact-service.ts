@@ -1,4 +1,5 @@
 import {db} from '@/lib/db';
+import {invalidateFactsOfMessages} from './invalidation';
 import {MemoryError, PANEL_FACT_STATUSES, type MemoryFactInput, type MemoryFactStatus, type MemoryFactView} from './types';
 
 /**
@@ -148,11 +149,7 @@ export async function deleteMemoryFact(userId: string, factId: string, conversat
 
 /** 来源消息被删除或编辑：对应事实立即失效，不再注入（待确认的也一并失效，别留着一条错的候选）。 */
 export async function invalidateFactsForMessage(conversationId: string, messageId: string): Promise<number> {
-  const changed = await db.memoryFact.updateMany({
-    where: {conversationId, sourceMessageId: messageId, status: {in: ['ACTIVE', 'PENDING']}},
-    data: {status: 'INVALID'},
-  });
-  return changed.count;
+  return invalidateFactsOfMessages(db, conversationId, [messageId]);
 }
 
 /** 注入用：固定事实优先，其次最新，最多 maxFacts 条。 */
