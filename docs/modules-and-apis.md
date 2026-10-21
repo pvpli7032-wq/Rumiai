@@ -116,19 +116,20 @@ src/components/notifications/    顶栏通知铃铛与抽屉
 
 ## 6. 运营设置键
 
-全部键在 `src/lib/settings/registry.ts` 登记（当前 86 个），分五组；下表只列分组与代表键，默认值与范围以后台界面为准（后台是唯一编辑入口）。每个键都有真实读取方，没有只登记不生效的键。
+全部键在 `src/lib/settings/registry.ts` 登记（当前 91 个），分五组；下表只列分组与代表键，默认值与范围以后台界面为准（后台是唯一编辑入口）。每个键都有真实读取方，没有只登记不生效的键。
 
 | 分组 | 键 |
 |---|---|
 | `chat` 聊天与内容 | `chat.maxMessageChars`、`chat.historyMessages`、`limits.chat.*`、`billing.hardDailyMessages`、`content.post.*`、`content.comment.maxChars`、`content.character.*`、`upload.maxMB`、`limits.post.*`、`limits.comment.*` |
-| `billing` 计费额度 | `billing.chargingEnabled`、`billing.freeDailyMessages`、`billing.priceMultiplier`、`billing.holdTimeoutMinutes`、`billing.targetMarginPercent`、`billing.marginAlertPercent`、`billing.dayTimezone`、`billing.cancelPolicy`、`billing.freeCancelPerDay`、`budget.task.*`（六类任务每日成本上限）、`story.chargingEnabled`、`story.coinPrice` |
-| `growth` 增长玩法 | `grant.*`、`mirror.*`（含 `mirror.anonymousIpDailyLimit`、`mirror.featuredCharacterIds`、`mirror.purchase*`）、`dispute.*`（含四个奖励键）、`growth.*`（引导开关、兴趣标签、邀请开关与奖励、事件保留天数）、`memory.*`、`tasks.*` |
+| `billing` 计费额度 | `billing.chargingEnabled`、`billing.freeDailyMessages`、`billing.priceMultiplier`、`billing.holdTimeoutMinutes`、`billing.targetMarginPercent`、`billing.marginAlertPercent`、`billing.dayTimezone`、`billing.cancelPolicy`、`billing.freeCancelPerDay`、`budget.task.*`（六类任务每日成本上限，可填小数）、`cost.exchangeRate`、`cost.exchangeRateEffectiveAt`、`cost.suggestedPriceMinSample`、`story.chargingEnabled`、`story.coinPrice` |
+| `growth` 增长玩法 | `grant.*`、`mirror.*`（含 `mirror.anonymousIpDailyLimit`、`mirror.featuredCharacterIds`、`mirror.questions`、`mirror.exampleResults`、`mirror.purchase*`）、`dispute.*`（含四个奖励键）、`growth.*`（引导开关、兴趣标签、邀请开关与奖励、事件保留天数）、`memory.*`、`tasks.*` |
 | `accounts` 账号运行 | `accounts.passwordMinLength`、`accounts.sessionDays` |
 | `prompts` 提示词 | `prompt.mirror`、`prompt.disputeVerdict`、`prompt.memorySummary` |
 
 ## 7. 后台导航与权限
 
 - 侧栏只有六组：工作台 / 用户 / 内容与社区 / 增长与玩法 / AI 与商业 / 系统设置，数据源是 `src/lib/admin/nav.ts`；旧 URL 全部保留可达。
+- 每组默认只展开当前所在组；「常用」区最多置顶 4 项，按管理员 id 存在 localStorage，超出给中文提示拒绝，置顶项仍按权限过滤（`src/components/admin/nav-pins.ts`）。
 - 权限码在 `src/lib/admin/permissions.ts` 登记，按「读 / 写 / 敏感操作」拆分；退款审批与申请分离，申请人不能自批。
 - 商业改造新增：`settings.read`、`settings.write`、`accounts.settings.manage`、`billing.read`、`billing.manage`、`mirror.read`、`mirror.manage`、`disputes.read`、`disputes.manage`、`tasks.read`、`tasks.manage`、`notifications.read`。
 - 所有者（OWNER 角色）在代码层始终拥有全部权限（`src/lib/admin/authorization.ts`）：新增权限码不需要回库补授权，也不会出现「所有者看不到新页面」。其他角色仍按库里登记的权限码判定。
@@ -147,7 +148,7 @@ src/components/notifications/    顶栏通知铃铛与抽屉
 
 | 页面 | 说明 |
 |---|---|
-| `/discover`、`/chat`、`/circles`、`/creator`、`/profile` | 主导航（`src/lib/navigation.ts`） |
+| `/discover`、`/chat`、`/creator`、`/square`、`/profile` | 主导航（`src/lib/navigation.ts`）。`/square` 是广场，聚合圈子与评理；`/circles` 保留可达 |
 | `/shop`、`/shop/ledger` | 金币充值套餐与流水 |
 | `/my-reports`、`/community-appeal` | 我的举报与申诉 |
 | `/my-characters` | 我的角色：作品、收藏、审核状态与重新提交 |

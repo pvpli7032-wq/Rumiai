@@ -99,7 +99,8 @@ runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 list
 
 | 发布 | 迁移 | 说明 |
 |---|---|---|
-| `commercial-20261022-c13` | 第 50 条 `20261022020000_growth_billing_gaps` | 当前线上版本：补齐 V3 剩余 12 项缺口（取消计费策略、聊天页费用展示、Mirror IP 通道与推广名单、AI 任务预算、玩法埋点与漏斗、邀请与新手引导、设置导出导入与提示词试生成、评理奖励、每日自动备份），测试 64 → 140 条。 |
+| `commercial-20261022-c14` | 第 50 条（无 schema 变更） | 当前线上版本：补齐 V3 剩余 8 项缺口（/square 广场入口、运营统计五项指标、成本换算与建议币价、后台导航置顶、一次点击一个 requestId、记忆待确认事实、评理撤回写侧、Mirror 题目与示例结果），测试 140 → 162 条；同时把四处重复的 `formatDateTime` 收敛到一处、`price-cost-admin.tsx` 542 → 280 行。 |
+| `commercial-20261022-c13` | 第 50 条 `20261022020000_growth_billing_gaps` | 补齐 V3 剩余 12 项缺口（取消计费策略、聊天页费用展示、Mirror IP 通道与推广名单、AI 任务预算、玩法埋点与漏斗、邀请与新手引导、设置导出导入与提示词试生成、评理奖励、每日自动备份），测试 64 → 140 条。 |
 | `commercial-20261021-c12` | 第 49 条（无 schema 变更） | 在 c11 基础上收口 Mirror 与评理的 6 处实战缺陷，测试 59 → 64 条。 |
 | `commercial-20261021-c11` | 第 49 条 `20261021180000_commercial_platform` | 首个商业版：设置中心、计费、Mirror、评理、记忆、后台任务、站内通知、六个后台分组。 |
 | `commercial-20261021-c9` | 第 48 条 | 上一版本，保留用于回退。 |
@@ -111,6 +112,7 @@ runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 list
 2. 副本上 `npx prisma migrate deploy`，核对行数与 `pragma integrity_check`，再用 3100 端口接副本启动一次。
 3. 正式库：`pm2 stop khui-ai` → `npm run state:backup -- <标签>` → `npx prisma migrate deploy` → `npm run release:check -- <生产库>`（要求 `compatible:true`）。
 4. 新目录 `npm ci`（**不要加 `--omit=dev`**：构建与 `release:check` 需要 `tsx`、`typescript`）→ 建 `.env` 软链到 `shared/app.env`（缺了构建期查库会 P1008）→ `npm run build`。
+   构建产物要落在 `NEXT_DIST_DIR=.next-build`；`npm run verify:build` 写的是 `.next-validation-build`，两者不是同一个目录，别拿校验产物当发布产物。
 5. `pm2 delete khui-ai` 再 `pm2 start deploy/baota/ecosystem.config.js`：跨发布目录时 `startOrReload` 可能仍指向旧目录，必须核对 `pm_cwd`。
 5.1 `chown -R www:www <发布目录>`：发布包以 root 解开、构建也以 root 跑，而 PM2 以 `www` 运行。不改属主时进程仍能启动、页面也正常，但 Next 写不了 `.next-build/server/route-cache`，日志里持续出现 `EACCES: permission denied, mkdir .../route-cache`，预渲染缓存全程失效。判据：`ls -ld <发布目录>/.next-build` 应为 `www www`，且启动后 `route-cache/` 由 `www` 创建。
 6. 断言：`/api/admin/session` 权限码数量、`/api/admin/{settings,tasks,mirror/results,disputes/cases,billing/charges,ai/coin-prices}` 全部 200、设置 PATCH 写入后读回一致且历史留痕。
