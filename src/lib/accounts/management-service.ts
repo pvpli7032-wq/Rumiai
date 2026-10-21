@@ -1,7 +1,7 @@
 import type {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
-import {assertAccountSuspensionAllowed, assertAdministrativeAccountManagementAllowed, recordAdminAudit, AdminManagementError} from '@/lib/admin/management-service';
+import {assertAccountSuspensionAllowed, assertAdministrativeAccountManagementAllowed, parseUtcDayRange, recordAdminAudit, AdminManagementError} from '@/lib/admin/management-service';
 import {setCommunityRestriction} from '@/lib/community/restriction-service';
 import type {AdminPermission} from '@/lib/admin/permissions';
 
@@ -14,11 +14,13 @@ async function requirePermission(actorId: string, permission: AdminPermission, t
 }
 function id(value: string) {if (!/^[A-Za-z0-9_-]{1,100}$/.test(value)) throw new AccountManagementError('用户编号无效。'); return value;}
 
-export async function listManagedAccounts(actorId: string, params: {q?: string; status?: string; community?: string; page?: number; sort?: string}) {
+/** from / until 按注册日期（createdAt）筛，UTC 日边界，含结束日期当天。 */
+export async function listManagedAccounts(actorId: string, params: {q?: string; status?: string; community?: string; page?: number; sort?: string; from?: string; until?: string}) {
   await requirePermission(actorId, 'accounts.read');
   const {q = '', status = 'ALL', community = 'ALL', page = 1, sort = 'NEWEST'} = params;
+  const registered = parseUtcDayRange(params.from, params.until, '用户注册日期', message => new AccountManagementError(message));
   if (q.length > 100 || !['ALL', 'ACTIVE', 'SUSPENDED', 'CLOSED'].includes(status) || !['ALL', 'BANNED', 'CLEAR'].includes(community) || !['NEWEST', 'OLDEST', 'ACTIVE'].includes(sort) || !Number.isSafeInteger(page) || page < 1 || page > 10000) throw new AccountManagementError('用户查询条件无效。');
-  const where: Prisma.UserWhereInput = {...(q.trim() ? {OR: [{id: q.trim()}, {username: {contains: q.trim()}}, {email: {contains: q.trim()}}, {displayName: {contains: q.trim()}}]} : {}), ...(status === 'ACTIVE' ? {deletedAt: null, suspendedAt: null} : status === 'SUSPENDED' ? {deletedAt: null, suspendedAt: {not: null}} : status === 'CLOSED' ? {deletedAt: {not: null}} : {}), ...(community === 'BANNED' ? {communityBannedAt: {not: null}} : community === 'CLEAR' ? {communityBannedAt: null} : {})};
+  const where: Prisma.UserWhereInput = {...(q.trim() ? {OR: [{id: q.trim()}, {username: {contains: q.trim()}}, {email: {contains: q.trim()}}, {displayName: {contains: q.trim()}}]} : {}), ...(status === 'ACTIVE' ? {deletedAt: null, suspendedAt: null} : status === 'SUSPENDED' ? {deletedAt: null, suspendedAt: {not: null}} : status === 'CLOSED' ? {deletedAt: {not: null}} : {}), ...(community === 'BANNED' ? {communityBannedAt: {not: null}} : community === 'CLEAR' ? {communityBannedAt: null} : {}), ...(registered.gte || registered.lt ? {createdAt: registered} : {})};
   return db.$transaction(async tx => {
     await requirePermission(actorId, 'accounts.read', tx);
     const [items, total] = await Promise.all([tx.user.findMany({where, select: accountSelection, orderBy: [{[sort === 'ACTIVE' ? 'lastActiveAt' : 'createdAt']: sort === 'OLDEST' ? 'asc' : 'desc'}, {id: 'asc'}], take: 25, skip: (page - 1) * 25}), tx.user.count({where})]);

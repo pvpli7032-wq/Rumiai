@@ -23,6 +23,7 @@ const memory = await import('../src/lib/memory/index.ts');
 const tasks = await import('../src/lib/tasks/index.ts');
 const {handlerFor} = await import('../src/lib/tasks/handlers.ts');
 const {readMemorySummary} = await import('../src/lib/memory/summary-service.ts');
+const conversations = await import('../src/lib/conversations/message-service.ts');
 
 const user = await db.user.create({data: {username: 'memory-owner', email: 'memory@example.invalid', passwordHash: 'synthetic-only'}});
 const stranger = await db.user.create({data: {username: 'memory-stranger', email: 'stranger-memory@example.invalid', passwordHash: 'synthetic-only'}});
@@ -73,6 +74,97 @@ test('来源消息失效后事实不再注入', async () => {
   assert.equal(await memory.invalidateFactsForMessage(conversation.id, message.id), 1);
   assert.equal((await memory.readInjectableFacts(conversation.id, 10)).some(item => item.id === fact.id), false);
   assert.equal((await memory.listMemoryFacts(user.id, conversation.id)).length, 0);
+});
+
+/** 测试里给消息写确定的 createdAt：删除/编辑按 (createdAt, id) 排序，同毫秒会互相影响。 */
+const at = secondsFromNow => new Date(Date.now() + secondsFromNow * 1000);
+
+test('删除消息：该消息派生的事实与摘要同一事务内失效，之后不再注入', async () => {
+  await setMemoryEnabled(true);
+  const conv = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '删除失效'}});
+  const keep = await db.message.create({data: {conversationId: conv.id, role: 'USER', content: '我住在杭州', createdAt: at(-30)}});
+  const doomed = await db.message.create({data: {conversationId: conv.id, role: 'ASSISTANT', content: '杭州很好', createdAt: at(-20)}});
+  const keptFact = await memory.createMemoryFact(user.id, conv.id, {text: '用户住在杭州', sourceMessageId: keep.id});
+  const doomedFact = await memory.createMemoryFact(user.id, conv.id, {text: '角色夸了杭州', sourceMessageId: doomed.id});
+  await db.conversationMemory.create({data: {conversationId: conv.id, summary: '聊过杭州的天气', coveredMessageId: doomed.id, version: 1}});
+
+  // 失效前：事实注入、摘要在。
+  const before = await memory.buildMemoryContext(conv.id);
+  assert.equal(before.injected, true);
+  assert.match(before.text, /用户住在杭州/);
+  assert.match(before.text, /聊过杭州的天气/);
+
+  await conversations.deleteMessageAndFollowing(user.id, conv.id, doomed.id);
+
+  // 失效后：被删消息派生的事实 INVALID，摘要整行没了，注入里只剩还活着的那条。
+  const after = await db.memoryFact.findUnique({where: {id: doomedFact.id}, select: {status: true}});
+  assert.equal(after.status, 'INVALID');
+  assert.equal((await db.memoryFact.findUnique({where: {id: keptFact.id}, select: {status: true}})).status, 'ACTIVE');
+  assert.equal(await db.conversationMemory.count({where: {conversationId: conv.id}}), 0);
+  const context = await memory.buildMemoryContext(conv.id);
+  assert.match(context.text, /用户住在杭州/);
+  assert.doesNotMatch(context.text, /角色夸了杭州/);
+  assert.doesNotMatch(context.text, /聊过杭州的天气/);
+});
+
+test('编辑消息：该消息及其之后派生的事实全部失效，之前的不受影响', async () => {
+  await setMemoryEnabled(true);
+  const conv = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '编辑失效'}});
+  const earlier = await db.message.create({data: {conversationId: conv.id, role: 'USER', content: '我叫小林', createdAt: at(-40)}});
+  const edited = await db.message.create({data: {conversationId: conv.id, role: 'USER', content: '我喜欢跑步', createdAt: at(-30)}});
+  const reply = await db.message.create({data: {conversationId: conv.id, role: 'ASSISTANT', content: '跑步很好', createdAt: at(-20)}});
+  const facts = {
+    earlier: await memory.createMemoryFact(user.id, conv.id, {text: '用户叫小林', sourceMessageId: earlier.id}),
+    edited: await memory.createMemoryFact(user.id, conv.id, {text: '用户喜欢跑步', sourceMessageId: edited.id}),
+    reply: await memory.createMemoryFact(user.id, conv.id, {text: '角色赞同跑步', sourceMessageId: reply.id}),
+  };
+  await db.conversationMemory.create({data: {conversationId: conv.id, summary: '聊过跑步', coveredMessageId: reply.id, version: 1}});
+
+  const result = await conversations.editUserMessage(user.id, conv.id, edited.id, {content: '我喜欢游泳'});
+  assert.equal(result.droppedReplies, 1);
+
+  const statuses = await db.memoryFact.findMany({where: {conversationId: conv.id}, select: {id: true, status: true}});
+  const byId = new Map(statuses.map(row => [row.id, row.status]));
+  // 编辑的那条与它之后的回复都失效；更早的那条不动。
+  assert.equal(byId.get(facts.edited.id), 'INVALID');
+  assert.equal(byId.get(facts.reply.id), 'INVALID');
+  assert.equal(byId.get(facts.earlier.id), 'ACTIVE');
+  // 摘要也失效了，因为它覆盖到了被丢弃的回复。
+  assert.equal(await db.conversationMemory.count({where: {conversationId: conv.id}}), 0);
+
+  const context = await memory.buildMemoryContext(conv.id);
+  assert.match(context.text, /用户叫小林/);
+  assert.doesNotMatch(context.text, /用户喜欢跑步/);
+  assert.doesNotMatch(context.text, /角色赞同跑步/);
+});
+
+test('历史变更后下一轮摘要自动重建，不需要人工干预', async () => {
+  await setMemoryEnabled(true);
+  await setGrowthSetting('memory.summaryTriggerMessages', 4);
+  const conv = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: '重建摘要'}});
+  for (let i = 0; i < 4; i += 1) {
+    await db.message.create({data: {conversationId: conv.id, role: i % 2 ? 'ASSISTANT' : 'USER', content: '第 ' + i + ' 句', createdAt: at(i * 10)}});
+  }
+  assert.equal((await memory.runMemorySummaryTask(conv.id)).outcome, 'SUMMARIZED');
+  assert.equal(await db.conversationMemory.count({where: {conversationId: conv.id}}), 1);
+
+  // 删掉最早的一条：摘要失效。
+  const first = await db.message.findFirst({where: {conversationId: conv.id}, orderBy: {createdAt: 'asc'}, select: {id: true}});
+  await conversations.deleteMessageAndFollowing(user.id, conv.id, first.id);
+  assert.equal(await db.conversationMemory.count({where: {conversationId: conv.id}}), 0);
+
+  // 继续聊天：阈值再次满足就自动登记任务，跑完摘要重建，注入恢复。
+  for (let i = 0; i < 4; i += 1) {
+    await db.message.create({data: {conversationId: conv.id, role: i % 2 ? 'ASSISTANT' : 'USER', content: '新的第 ' + i + ' 句', createdAt: at(100 + i * 10)}});
+  }
+  assert.equal(await memory.enqueueSummaryIfDue(conv.id), true);
+  const report = await tasks.runDueTasks({kinds: ['memory-summary']});
+  assert.equal(report.failed, 0);
+  assert.equal(await db.conversationMemory.count({where: {conversationId: conv.id}}), 1);
+  assert.equal((await memory.buildMemoryContext(conv.id)).injected, true);
+  // 后面的用例按「默认关闭 + 默认阈值」断言，把设置还回去。
+  await setGrowthSetting('memory.summaryTriggerMessages', 20);
+  await setMemoryEnabled(false);
 });
 
 test('记忆默认关闭时不登记任务；打开后不到阈值也不登记，到了才登记且只有一行', async () => {

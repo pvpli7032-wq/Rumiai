@@ -16,6 +16,7 @@ import {CostCurrencyPanel, UnpricedModelsPanel} from './cost-breakdown';
 import {ModelPriceDrawer, type PriceDraft} from './model-price-drawer';
 import {PriceTable, PricingBasisNote} from './price-table';
 import {TaskBudgetPanel} from './task-budget-panel';
+import {TaskModelPanel} from './task-model-panel';
 import {NOT_ENOUGH_SAMPLE, formatAmount, formatCoins, type ModelPriceRow} from './types';
 import {usePriceCostData} from './use-price-cost-data';
 
@@ -32,6 +33,7 @@ export function PriceCostAdmin() {
   const canManage = permissions.includes('ai.costs.manage');
   const canReadBilling = permissions.includes('billing.read');
   const canReadSettings = permissions.includes('settings.read');
+  const canWriteSettings = permissions.includes('settings.write');
 
   const data = usePriceCostData({token, canRead, canReadBilling, canReadSettings});
   const {days, setDays, coinView, costView, dashboard, billingValues, loading, error, setError, refresh, rows, summary} = data;
@@ -244,6 +246,8 @@ export function PriceCostAdmin() {
           <AdminNotice tone="loading" title="正在读取价格与成本…" />
         )}
       </AdminPanel>
+
+      {coinView && <TaskModelPanel view={coinView} token={token} canWrite={canWriteSettings} onSaved={refresh} />}
 
       <BillingSummaryPanel values={billingValues} />
 

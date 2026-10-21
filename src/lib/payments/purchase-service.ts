@@ -1,5 +1,7 @@
 import { db } from '@/lib/db';
 import { maySimulatePurchase } from '@/lib/launch-guards';
+import { notifyCoinsReceived } from '@/lib/notifications/write';
+import { notifySafely } from '@/lib/notifications/emit';
 
 const LEGACY_PACKAGE_ORDER: Record<string, number> = {
   '1': 0,
@@ -44,7 +46,7 @@ export async function simulateCoinPurchase(userId: string, packageId: unknown) {
   if (!pkg) throw new SimulatedPurchaseError('Invalid package ID', 400);
 
   const totalCoins = pkg.coins + pkg.bonus;
-  const [user] = await db.$transaction([
+  const [user, ledger] = await db.$transaction([
     db.user.update({ where: { id: userId }, data: { coins: { increment: totalCoins } } }),
     db.coinTransaction.create({
       data: {
@@ -54,8 +56,14 @@ export async function simulateCoinPurchase(userId: string, packageId: unknown) {
         type: 'PURCHASE',
         description: `购买 ${pkg.coins} + ${pkg.bonus} 赠送金币`,
       },
+      select: { id: true },
     }),
   ]);
+  // 到账通知：加币与流水已经提交，通知写在事务外，失败不影响这次充值（V3 §26）。
+  await notifySafely(() => notifyCoinsReceived({
+    userId, transactionId: ledger.id, amount: totalCoins,
+    reason: `充值 ${pkg.coins} + 赠送 ${pkg.bonus} 金币已到账`,
+  }), 'coin_purchase');
 
   return { success: true, newBalance: user.coins, coinsAdded: totalCoins };
 }

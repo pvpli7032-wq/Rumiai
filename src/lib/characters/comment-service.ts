@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { readCommunityRules } from '@/lib/settings';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { formatUser } from '@/lib/user-identity';
+import { notifyReply } from '@/lib/notifications/write';
+import { notifySafely } from '@/lib/notifications/emit';
 
 const PAGE_SIZE = 30;
 const AUTHOR_SELECT = {id: true, username: true, displayName: true, avatarUrl: true} as const;
@@ -84,10 +86,13 @@ export async function createCharacterComment(authorId: string, characterId: stri
 
   const rawParent = body.parentId ?? body.parent_id;
   let parentId: string | null = null;
+  // 被回复那条评论的作者：只有它需要收到提醒（线程根作者未必是它）。
+  let repliedToAuthorId: string | null = null;
   if (typeof rawParent === 'string' && rawParent) {
-    const parent = await db.comment.findUnique({where: {id: rawParent}, select: {id: true, characterId: true, parentId: true}});
+    const parent = await db.comment.findUnique({where: {id: rawParent}, select: {id: true, characterId: true, parentId: true, authorId: true}});
     if (!parent || parent.characterId !== characterId) throw new CharacterCommentError('Parent comment not found', 404);
     parentId = parent.parentId ?? parent.id;
+    repliedToAuthorId = parent.authorId;
   }
 
   // 频率窗口读设置中心（limits.comment.*），与帖子评论共用同一项运营参数。
@@ -99,6 +104,15 @@ export async function createCharacterComment(authorId: string, characterId: stri
     data: {characterId, authorId, parentId, body: text},
     select: {id: true, body: true, parentId: true, likeCount: true, createdAt: true, updatedAt: true, author: {select: AUTHOR_SELECT}},
   });
+  // 回复提醒：只通知被回复的人，自己回复自己不通知（V3 §26）。
+  // 通知写在评论落库之后并吞掉异常：评论本身已经成功，通知失败不回滚它。
+  if (repliedToAuthorId && repliedToAuthorId !== authorId) {
+    const replierName = comment.author.displayName || comment.author.username;
+    await notifySafely(() => notifyReply({
+      userId: repliedToAuthorId!, replyId: comment.id, replierName, excerpt: text,
+      targetType: 'CHARACTER', targetId: characterId,
+    }), 'character_comment_reply');
+  }
   return {
     comment: {
       ...shapeComment(comment, authorId, new Set()),

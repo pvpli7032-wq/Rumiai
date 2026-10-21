@@ -3,6 +3,8 @@ import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@/lib/db';
 import {requestEzfpRefund,verifyEzfpFullRefund,RefundProviderUncertain} from './ezfp-refund';
 import {resolveOrderPaymentConfiguration} from './merchant-config-service';
+import {notifyCoinsReceived} from '@/lib/notifications/write';
+import {notifySafely} from '@/lib/notifications/emit';
 
 export class PaymentRefundError extends Error{
   constructor(message:string,readonly status:number){super(message);this.name='PaymentRefundError';}
@@ -47,14 +49,23 @@ async function completeRefund(refundId:string,providerRefundNo:string|null){
 async function failAndRelease(refundId:string){
   return db.$transaction(async tx=>{
     const refund=await tx.paymentRefund.findUnique({where:{id:refundId},include:{paymentOrder:true}});if(!refund)throw new PaymentRefundError('退款记录不存在。',404);
-    if(refund.status==='FAILED')return refund;
+    if(refund.status==='FAILED')return {refund,release:null};
     if(refund.status!=='PROCESSING')throw new PaymentRefundError('退款结果仍待核实，金币继续冻结。',409);
     await tx.paymentRefund.update({where:{id:refund.id},data:{status:'FAILED',errorCode:'provider_rejected',completedAt:new Date()}});
     const changed=await tx.paymentOrder.updateMany({where:{id:refund.paymentOrderId,status:'REFUND_PENDING'},data:{status:'PAID'}});
     if(!changed.count)throw new PaymentRefundError('订单状态与退款记录不一致，请核对账目。',409);
     await tx.user.update({where:{id:refund.paymentOrder.userId},data:{coins:{increment:refund.coinAmount}}});
-    await tx.coinTransaction.create({data:{userId:refund.paymentOrder.userId,refundReleaseId:refund.id,amount:refund.coinAmount,type:'REFUND_RELEASE',sourceKey:'REFUND_RELEASE',description:`退款未成功，返还预留金币 ${refund.paymentOrder.orderNo}`}});
-    return refund;
+    const ledger=await tx.coinTransaction.create({data:{userId:refund.paymentOrder.userId,refundReleaseId:refund.id,amount:refund.coinAmount,type:'REFUND_RELEASE',sourceKey:'REFUND_RELEASE',description:`退款未成功，返还预留金币 ${refund.paymentOrder.orderNo}`},select:{id:true}});
+    return {refund,release:{userId:refund.paymentOrder.userId,ledgerId:ledger.id,coins:refund.coinAmount,orderNo:refund.paymentOrder.orderNo}};
+  }).then(async result=>{
+    // 到账通知在回冲事务提交之后才写：退回来的金币已经到账，通知失败不影响这笔回冲。
+    // release 为 null 说明这次是幂等命中（此前已返还），不重复通知。
+    const release=result.release;
+    if(release)await notifySafely(()=>notifyCoinsReceived({
+      userId:release.userId,transactionId:release.ledgerId,amount:release.coins,
+      reason:`退款未成功，${release.coins} 金币已退回`,
+    }),'coin_refund_release');
+    return result.refund;
   });
 }
 
@@ -67,8 +78,9 @@ async function releaseUnapproved(tx:Prisma.TransactionClient,refundId:string,act
   const order=await tx.paymentOrder.updateMany({where:{id:refund.paymentOrderId,status:'REFUND_PENDING'},data:{status:'PAID'}});
   if(!order.count)throw new PaymentRefundError('订单状态与退款申请不一致，请核对账目。',409);
   await tx.user.update({where:{id:refund.paymentOrder.userId},data:{coins:{increment:refund.coinAmount}}});
-  await tx.coinTransaction.create({data:{userId:refund.paymentOrder.userId,refundReleaseId:refund.id,amount:refund.coinAmount,type:'REFUND_RELEASE',sourceKey:'REFUND_RELEASE',description:`退款申请被驳回，返还预留金币 ${refund.paymentOrder.orderNo}`}});
-  return tx.paymentRefund.findUniqueOrThrow({where:{id:refund.id}});
+  const ledger=await tx.coinTransaction.create({data:{userId:refund.paymentOrder.userId,refundReleaseId:refund.id,amount:refund.coinAmount,type:'REFUND_RELEASE',sourceKey:'REFUND_RELEASE',description:`退款申请被驳回，返还预留金币 ${refund.paymentOrder.orderNo}`},select:{id:true}});
+  const saved=await tx.paymentRefund.findUniqueOrThrow({where:{id:refund.id}});
+  return {refund:saved,release:{userId:refund.paymentOrder.userId,ledgerId:ledger.id,coins:refund.coinAmount,orderNo:refund.paymentOrder.orderNo}};
 }
 
 async function requestReservation(orderNo:string,actorId:string,reason:string){
@@ -99,7 +111,13 @@ export async function rejectFullPaymentRefund(orderNo:string,actorId:string,reas
   const reason=operationReason(reasonInput);await pragmasReady;
   const order=await db.paymentOrder.findUnique({where:{orderNo},include:{refund:true}});
   if(!order?.refund)throw new PaymentRefundError('找不到该订单的退款申请。',404);
-  return db.$transaction(tx=>releaseUnapproved(tx,order.refund!.id,actorId,reason),{maxWait:10_000,timeout:15_000}).then(publicState);
+  const released=await db.$transaction(tx=>releaseUnapproved(tx,order.refund!.id,actorId,reason),{maxWait:10_000,timeout:15_000});
+  // 驳回退款意味着预留金币退回：事务提交后再通知，通知失败不影响驳回本身（V3 §26）。
+  await notifySafely(()=>notifyCoinsReceived({
+    userId:released.release.userId,transactionId:released.release.ledgerId,amount:released.release.coins,
+    reason:`退款申请被驳回，${released.release.coins} 金币已退回`,
+  }),'coin_refund_rejected');
+  return publicState(released.refund);
 }
 
 async function claimForProcessing(refundId:string,actorId:string,allowedStatuses:string[],approvalReason?:string){

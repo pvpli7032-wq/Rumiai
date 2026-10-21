@@ -1,6 +1,6 @@
 'use client';
 
-import {AlertTriangle, Gavel} from 'lucide-react';
+import {AlertTriangle, EyeOff, Gavel} from 'lucide-react';
 import Link from 'next/link';
 import {DetailDrawer, DetailRow, DetailSection} from '@/components/admin/layout/detail-drawer';
 import {Badge} from '@/components/ui/badge';
@@ -24,20 +24,25 @@ export interface DisputeCaseDrawerProps {
   busy: boolean;
   onClose: () => void;
   onCloseCase: (item: DisputeCaseItem) => void;
+  onHide: (item: DisputeCaseItem) => void;
 }
 
-export function DisputeCaseDrawer({item, canManage, busy, onClose, onCloseCase}: DisputeCaseDrawerProps) {
+export function DisputeCaseDrawer({item, canManage, busy, onClose, onCloseCase, onHide}: DisputeCaseDrawerProps) {
   const closable = Boolean(item && (item.status === 'OPEN' || item.status === 'CLOSING'));
+  const hideable = Boolean(item && !item.hidden && item.status !== 'CLOSED' && item.status !== 'CLOSING');
   return (
     <DetailDrawer
       open={Boolean(item)}
       onClose={onClose}
       title={item ? `案例 ${item.id}` : '案例详情'}
       description="结案走与自动结案相同的路径：仍会生成一次角色回应，失败时使用明确的非 AI 兜底。"
-      footer={item && canManage && closable ? (
+      footer={item && canManage ? (
         <>
           <Button variant="outline" onClick={onClose}>关闭</Button>
-          <Button loading={busy} leadingIcon={<Gavel className="h-4 w-4" />} onClick={() => onCloseCase(item)}>立即结案</Button>
+          <Button variant="outline" disabled={!hideable || busy} leadingIcon={<EyeOff className="h-4 w-4" />} onClick={() => onHide(item)}>
+            {item.hidden ? '已隐藏' : '隐藏案例'}
+          </Button>
+          {closable && <Button loading={busy} leadingIcon={<Gavel className="h-4 w-4" />} onClick={() => onCloseCase(item)}>立即结案</Button>}
         </>
       ) : undefined}
     >
@@ -47,6 +52,7 @@ export function DisputeCaseDrawer({item, canManage, busy, onClose, onCloseCase}:
             <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
               <p className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant={DISPUTE_STATUS_VARIANTS[item.status]}>{DISPUTE_STATUS_LABELS[item.status]}</Badge>
+                {item.hidden && <Badge variant="neutral">后台已隐藏</Badge>}
                 {item.overdue && <Badge variant="danger">已到截止时间</Badge>}
               </p>
               <p className="break-words text-sm text-foreground">{item.claim}</p>
@@ -75,6 +81,19 @@ export function DisputeCaseDrawer({item, canManage, busy, onClose, onCloseCase}:
                 </Link>
               </DetailRow>
             </div>
+          </DetailSection>
+
+          <DetailSection title="隐藏记录" description="来自管理操作日志；隐藏后停止公开访问，也不再进入结案任务。">
+            {item.hidden ? (
+              <div className="space-y-1 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                <p className="break-words text-foreground">{item.hidden.reason}</p>
+                <p className="text-xs text-muted-foreground">
+                  {item.hidden.actor ? `操作人 ${item.hidden.actor.name}（${item.hidden.actor.id}）` : '操作人账号已注销'} · {formatDateTime(item.hidden.at)}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">这个案例没有被后台隐藏{item.status === 'WITHDRAWN' ? '（状态为已撤回，可能是发起人自己撤回的）' : ''}。</p>
+            )}
           </DetailSection>
 
           <DetailSection title="最近一次失败" description="来自后台任务的失败记录；重试次数与上限在设置中心「增长玩法」。">

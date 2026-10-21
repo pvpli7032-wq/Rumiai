@@ -3,6 +3,8 @@ import {db, pragmasReady} from '@/lib/db';
 import {readCommunityRestriction} from '@/lib/community/restriction-service';
 import {claimCircleManager, readManagementCommand, requireCircleManagement} from '@/lib/circles/management-access';
 import {recordAdminAudit} from '@/lib/admin/management-service';
+import {notifyReply} from '@/lib/notifications/write';
+import {notifySafely} from '@/lib/notifications/emit';
 import {PostManagementError} from './errors';
 import {claimPostRateLimit, validatePostComment, validatePostContent, validatePostImages} from './validation';
 
@@ -94,10 +96,21 @@ export async function createPostComment(userId: string, postId: string, input: u
   await claimPostRateLimit(userId, 'comment'); await pragmasReady;
   return db.$transaction(async tx => {
     await claimWriter(tx, userId);
-    const post = await tx.post.findFirst({where: {id: postId, status: 'VISIBLE', circle: {status: 'ACTIVE'}}, select: {id: true, circleId: true}});
+    const post = await tx.post.findFirst({where: {id: postId, status: 'VISIBLE', circle: {status: 'ACTIVE'}}, select: {id: true, circleId: true, authorId: true}});
     if (!post) postError('帖子不存在或已隐藏。', 404); await requireMembership(tx, post.circleId, userId);
     if (imageUrl) await validatePostImages([imageUrl], userId, tx);
-    return tx.postComment.create({data: {postId, authorId: userId, content, imageUrl}, select: {id: true, content: true, imageUrl: true, createdAt: true, updatedAt: true, authorId: true, author: {select: authorSelect}}});
+    const comment = await tx.postComment.create({data: {postId, authorId: userId, content, imageUrl}, select: {id: true, content: true, imageUrl: true, createdAt: true, updatedAt: true, authorId: true, author: {select: authorSelect}}});
+    return {comment, post};
+  }).then(async ({comment, post}) => {
+    // 回复提醒：评论落库（事务提交）之后才写，自己评论自己的帖子不通知（V3 §26）。
+    if (post.authorId !== userId) {
+      const replierName = comment.author.displayName || comment.author.username;
+      await notifySafely(() => notifyReply({
+        userId: post.authorId, replyId: comment.id, replierName, excerpt: content,
+        targetType: 'POST', targetId: post.circleId + ':' + post.id,
+      }), 'post_comment_reply');
+    }
+    return comment;
   });
 }
 export async function editPostComment(userId: string, commentId: string, input: unknown) {

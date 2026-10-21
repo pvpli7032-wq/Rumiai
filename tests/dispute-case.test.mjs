@@ -26,6 +26,7 @@ const {signToken} = await import('../src/lib/auth.ts');
 const {saveGroup} = await import('../src/lib/settings/service.ts');
 const {createDisputeCase, readDisputeCase, listDisputeCases, snapshotOf} = await import('../src/lib/disputes/case-service.ts');
 const {withdrawDisputeCase} = await import('../src/lib/disputes/withdraw-service.ts');
+const {hideAdminDisputeCase} = await import('../src/lib/admin/dispute-cases-admin.ts');
 const {voteDispute} = await import('../src/lib/disputes/vote-service.ts');
 const {closeDisputeCase, buildFallbackVerdict, enqueueCloseIfReached, runDisputeCloseTask} = await import('../src/lib/disputes/close-service.ts');
 const {GET: listRoute, POST: createRoute} = await import('../src/app/api/disputes/route.ts');
@@ -509,6 +510,45 @@ test('撤回：只有发起人、只有 OPEN 状态能撤回，其余给中文�
   const closed = await closeDisputeCase(second.caseId, {force: true, generate: async () => { throw new Error('撤回后不该生成'); }});
   assert.equal(closed.status, 'SKIPPED');
   assert.equal((await db.disputeCase.findUniqueOrThrow({where: {id: second.caseId}, select: {closeStatus: true}})).closeStatus, 'WITHDRAWN');
+});
+
+test('后台隐藏：非发起人 404、投票停止、结案任务不再生成回应，原因与操作人留痕', async () => {
+  await resetSettings();
+  const author = await makeUser();
+  const {conversation, messages} = await makeConversation(author.id);
+  const {caseId, postId} = await publish(author, conversation, messages);
+  const voter = await makeUser();
+  const operator = await makeUser();
+  // 截止时间拨到过去：这条案例本来该结案，被隐藏后必须不再生成回应。
+  await db.disputeCase.update({where: {id: caseId}, data: {deadlineAt: new Date(Date.now() - 1000)}});
+
+  const hidden = await hideAdminDisputeCase(operator.id, caseId, '含未授权联系方式');
+  assert.deepEqual(hidden, {caseId, hidden: true, alreadyHidden: false});
+  assert.equal((await db.disputeCase.findUniqueOrThrow({where: {id: caseId}, select: {closeStatus: true}})).closeStatus, 'WITHDRAWN');
+  assert.equal((await db.post.findUniqueOrThrow({where: {id: postId}, select: {status: true}})).status, 'HIDDEN', '帖子停止公开访问');
+  // 原因与操作人只在 admin_audit_logs，不新增字段。
+  const audit = await db.adminAuditLog.findFirstOrThrow({where: {action: 'DISPUTE_CASE_HIDDEN', targetId: caseId}});
+  assert.equal(audit.actorId, operator.id);
+  assert.equal(audit.reason, '含未授权联系方式');
+
+  // 非发起人 404、投票停止、结案任务不再生成回应。
+  await assert.rejects(() => readDisputeCase(caseId, voter.id), error => error.status === 404);
+  await assert.rejects(() => voteDispute(caseId, voter.id, {choice: 'AUTHOR'}), error => error.status === 404);
+  let generated = 0;
+  const closed = await closeDisputeCase(caseId, {generate: async () => { generated += 1; return '被隐藏的案例不该生成回应'; }});
+  assert.equal(closed.status, 'SKIPPED');
+  assert.equal(generated, 0, '隐藏后不再生成角色回应');
+  assert.equal((await runDisputeCloseTask(caseId)).outcome, 'SKIPPED', '结案任务直接跳过');
+  assert.equal((await db.disputeCase.findUniqueOrThrow({where: {id: caseId}, select: {closeStatus: true}})).closeStatus, 'WITHDRAWN');
+  // 发起人自己仍能看到状态（「我参与的」不受影响）。
+  assert.equal((await readDisputeCase(caseId, author.id)).withdrawn, true);
+
+  // 重复隐藏幂等，但每次后台操作本身都留痕；缺原因直接拒绝且不写日志。
+  const again = await hideAdminDisputeCase(operator.id, caseId, '再次确认');
+  assert.equal(again.alreadyHidden, true);
+  assert.equal(await db.adminAuditLog.count({where: {action: 'DISPUTE_CASE_HIDDEN', targetId: caseId}}), 2);
+  await assert.rejects(() => hideAdminDisputeCase(operator.id, caseId, '   '), error => /1–300 字/.test(error.message));
+  assert.equal(await db.adminAuditLog.count({where: {action: 'DISPUTE_CASE_HIDDEN', targetId: caseId}}), 2);
 });
 
 test('并发投票：同一用户同时投多次只落一张票，票数只加一次', async () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import {ArrowUpRight, RefreshCw} from 'lucide-react';
+import {ArrowUpRight, EyeOff, RefreshCw} from 'lucide-react';
 import Link from 'next/link';
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel, AdminStat, AdminStatGrid} from '@/components/admin/admin-page';
@@ -18,13 +18,11 @@ import {
   DISPUTE_STATUS_FILTERS,
   DISPUTE_STATUS_LABELS,
   DISPUTE_STATUS_VARIANTS,
-  REWARD_SETTING_KEYS,
   describeDeadline,
   formatDateTime,
   type DisputeCaseItem,
   type DisputeCasePage,
   type DisputeStatus,
-  type RewardSettingKey,
 } from './types';
 
 const PAGE_LIMIT = 20;
@@ -49,9 +47,6 @@ export function DisputeAdmin() {
   const [selected, setSelected] = useState<DisputeCaseItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [rewardValues, setRewardValues] = useState<Partial<Record<RewardSettingKey, unknown>> | null>(null);
-  const [rewardError, setRewardError] = useState('');
-  const [rewardLoading, setRewardLoading] = useState(false);
 
   const loadList = useCallback(async (cursor: string | null, append: boolean) => {
     if (!token) return;
@@ -77,27 +72,6 @@ export function DisputeAdmin() {
     if (token && canRead) void loadList(null, false);
   }, [token, canRead, status, refreshKey, loadList]);
 
-  // 奖励四个键只读展示：编辑位置在设置中心，这里不重复放输入框。
-  useEffect(() => {
-    if (!token || !canReadSettings) { setRewardValues(null); return; }
-    const controller = new AbortController();
-    setRewardLoading(true);
-    setRewardError('');
-    void apiFetch<{values: {key: string; value: unknown}[]}>(API.admin.settings + '?group=growth', {token, cache: 'no-store', signal: controller.signal})
-      .then(data => {
-        if (controller.signal.aborted) return;
-        const picked: Partial<Record<RewardSettingKey, unknown>> = {};
-        for (const key of REWARD_SETTING_KEYS) {
-          const row = data.values.find(item => item.key === key);
-          if (row) picked[key] = row.value;
-        }
-        setRewardValues(picked);
-      })
-      .catch(cause => { if (!controller.signal.aborted) setRewardError(cause instanceof Error ? cause.message : '奖励参数读取失败。'); })
-      .finally(() => { if (!controller.signal.aborted) setRewardLoading(false); });
-    return () => controller.abort();
-  }, [token, canReadSettings, refreshKey]);
-
   const stats = useMemo(() => {
     const items = page?.items ?? [];
     return {
@@ -108,6 +82,30 @@ export function DisputeAdmin() {
     };
   }, [page]);
 
+  async function hideCase(item: DisputeCaseItem) {
+    if (!token || busy) return;
+    // 一次对话框同时确认动作与原因：隐藏必须留下原因，二次确认也在这里完成。
+    const reason = window.prompt(`隐藏案例 ${item.id}？\n隐藏后停止公开访问、停止投票，也不再进入结案任务。请填写原因（1–300 字）：`, '');
+    if (reason === null) return;
+    if (!reason.trim()) { setError('隐藏需要填写原因。'); return; }
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const result = await apiFetch<{caseId: string; hidden: boolean; alreadyHidden: boolean}>(
+        API.admin.disputeCaseHide(item.id),
+        {token, method: 'POST', body: {reason: reason.trim()}},
+      );
+      setNotice(result.alreadyHidden ? `案例 ${result.caseId} 之前已停止公开，这次隐藏已记录。` : `案例 ${result.caseId} 已隐藏。`);
+      setSelected(null);
+      setRefreshKey(value => value + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '隐藏失败，请稍后重试。');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function closeCase(item: DisputeCaseItem) {
     if (!token || busy) return;
     if (!window.confirm(`立即结案案例 ${item.id}？不等截止时间与票数，仍会生成一次角色回应。`)) return;
@@ -115,9 +113,8 @@ export function DisputeAdmin() {
     setError('');
     setNotice('');
     try {
-      // 结案接口是 POST /api/admin/disputes/cases/{id}/close，路径表只登记了列表与详情地址。
       const result = await apiFetch<{caseId: string; status: string; alreadyClosed: boolean}>(
-        `/api/admin/disputes/cases/${encodeURIComponent(item.id)}/close`,
+        API.admin.disputeCaseClose(item.id),
         {token, method: 'POST'},
       );
       setNotice(result.alreadyClosed ? `案例 ${result.caseId} 已经结案，未重复生成回应。` : `案例 ${result.caseId} 已结案。`);
@@ -204,6 +201,7 @@ export function DisputeAdmin() {
               cell: item => (
                 <span className="flex flex-wrap items-center gap-1.5">
                   <Badge variant={DISPUTE_STATUS_VARIANTS[item.status]}>{DISPUTE_STATUS_LABELS[item.status]}</Badge>
+                  {item.hidden && <Badge variant="neutral">已隐藏</Badge>}
                   {item.overdue && <Badge variant="danger">逾期</Badge>}
                 </span>
               ),
@@ -235,13 +233,37 @@ export function DisputeAdmin() {
             },
             {id: 'author', header: '发起人', width: '130px', cell: item => <span className="break-words">{item.author?.name ?? '已注销'}</span>},
             {
+              id: 'hiddenBy',
+              header: '隐藏记录',
+              width: '200px',
+              cell: item => item.hidden
+                ? (
+                  <span className="block max-w-48">
+                    <span className="block break-words text-xs text-foreground">{item.hidden.reason}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{item.hidden.actor?.name ?? '账号已注销'} · {formatDateTime(item.hidden.at)}</span>
+                  </span>
+                )
+                : <span className="text-xs text-muted-foreground">无</span>,
+            },
+            {
               id: 'actions',
               header: '操作',
-              width: '110px',
+              width: '170px',
               cell: item => (
-                <Button size="sm" variant="outline" aria-label={`查看案例 ${item.id}`} onClick={() => { setSelected(item); setError(''); setNotice(''); }}>
-                  查看详情
-                </Button>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <Button size="sm" variant="outline" aria-label={`查看案例 ${item.id}`} onClick={() => { setSelected(item); setError(''); setNotice(''); }}>
+                    查看详情
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`隐藏案例 ${item.id}`}
+                    disabled={Boolean(item.hidden) || item.status === 'CLOSED' || item.status === 'CLOSING' || busy}
+                    onClick={() => void hideCase(item)}
+                  >
+                    {item.hidden ? '已隐藏' : '隐藏'}
+                  </Button>
+                </span>
               ),
             },
           ]}
@@ -252,9 +274,9 @@ export function DisputeAdmin() {
         </div>
       </AdminPanel>
 
-      <DisputeRewardPanel values={rewardValues} canReadSettings={canReadSettings} error={rewardError} loading={rewardLoading} />
+      <DisputeRewardPanel token={token} canReadSettings={canReadSettings} refreshKey={refreshKey} />
 
-      <DisputeCaseDrawer item={selected} canManage={canManage} busy={busy} onClose={() => setSelected(null)} onCloseCase={item => void closeCase(item)} />
+      <DisputeCaseDrawer item={selected} canManage={canManage} busy={busy} onClose={() => setSelected(null)} onCloseCase={item => void closeCase(item)} onHide={item => void hideCase(item)} />
     </AdminPage>
   );
 }

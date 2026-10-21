@@ -5,6 +5,7 @@ import {DEFAULT_LOCALE, SITE_URL, alternateLanguages, getDictionary, isLocale, t
 import {PublicHeader} from '@/components/public-header';
 import {MirrorResultLoader} from '@/components/mirror/mirror-result-loader';
 import {MirrorError, mirrorAttributionCookieName, readCookie, readMirrorContext, readMirrorResult} from '@/lib/mirror';
+import {MIRROR_PREVIEW_SIZE} from './_preview-card';
 
 /**
  * 结果页（公开只读）：只读结果字段，不展示三题原回答。
@@ -16,10 +17,26 @@ export async function generateMetadata({params: paramsPromise}: {params: Promise
   const params = await paramsPromise;
   if (!isLocale(params.locale)) return {};
   const dict = getDictionary(params.locale);
+  const url = `${SITE_URL}/${params.locale}/mirror/${params.shareId}`;
   return {
     title: `他眼中的我 | ${dict.siteTitle}`,
     description: 'TA 眼中的我是什么样的。结果由 AI 生成。',
-    alternates: {canonical: `${SITE_URL}/${params.locale}/mirror/${params.shareId}`, languages: alternateLanguages(`/mirror/${params.shareId}`)},
+    alternates: {canonical: url, languages: alternateLanguages(`/mirror/${params.shareId}`)},
+    openGraph: {
+      title: '他眼中的我 | 星伴',
+      description: 'TA 眼中的我是什么样的。结果由 AI 生成。',
+      url,
+      type: 'website',
+      // 预览图由同目录的 opengraph-image.tsx 用 next/og 生成，只含公开结果字段。
+      // 这里写绝对地址：相对地址会按当前来源解析，开发环境会把 localhost 带进预览。
+      images: [{
+        url: `${SITE_URL}/${params.locale}/mirror/${params.shareId}/opengraph-image`,
+        width: MIRROR_PREVIEW_SIZE.width,
+        height: MIRROR_PREVIEW_SIZE.height,
+        alt: '他眼中的你 · 分享预览',
+      }],
+    },
+    twitter: {card: 'summary_large_image'},
   };
 }
 

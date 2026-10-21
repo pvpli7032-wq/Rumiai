@@ -26,6 +26,7 @@ const {GET: mirrorList} = await import('../src/app/api/admin/mirror/results/rout
 const {DELETE: mirrorHide} = await import('../src/app/api/admin/mirror/results/[id]/route.ts');
 const {GET: disputeList} = await import('../src/app/api/admin/disputes/cases/route.ts');
 const {POST: disputeClose} = await import('../src/app/api/admin/disputes/cases/[id]/close/route.ts');
+const {POST: disputeHide} = await import('../src/app/api/admin/disputes/cases/[id]/hide/route.ts');
 const {GET: taskList} = await import('../src/app/api/admin/tasks/route.ts');
 const {POST: taskRun} = await import('../src/app/api/admin/tasks/[id]/run/route.ts');
 const {GET: coinPriceList, POST: coinPriceCreate} = await import('../src/app/api/admin/ai/coin-prices/route.ts');
@@ -64,6 +65,7 @@ test('匿名与无权限调用一律被拒绝', async () => {
   const routes = [
     ['/api/admin/mirror/results', () => mirrorList(req(null, '/api/admin/mirror/results'))],
     ['/api/admin/disputes/cases', () => disputeList(req(null, '/api/admin/disputes/cases'))],
+    ['/api/admin/disputes/cases/x/hide', () => disputeHide(req(null, '/api/admin/disputes/cases/x/hide', {method: 'POST', body: JSON.stringify({reason: '合成原因'})}), ctx('x'))],
     ['/api/admin/tasks', () => taskList(req(null, '/api/admin/tasks'))],
     ['/api/admin/ai/coin-prices', () => coinPriceList(req(null, '/api/admin/ai/coin-prices'))],
     ['/api/admin/billing/charges?status=HELD', () => chargeList(req(null, '/api/admin/billing/charges?status=HELD'))],
@@ -78,6 +80,7 @@ test('匿名与无权限调用一律被拒绝', async () => {
   const signedIn = [
     () => mirrorList(req(nobody, '/api/admin/mirror/results')),
     () => disputeList(req(nobody, '/api/admin/disputes/cases')),
+    () => disputeHide(req(nobody, '/api/admin/disputes/cases/x/hide', {method: 'POST', body: JSON.stringify({reason: '合成原因'})}), ctx('x')),
     () => taskList(req(nobody, '/api/admin/tasks')),
     () => coinPriceList(req(nobody, '/api/admin/ai/coin-prices')),
     () => chargeList(req(nobody, '/api/admin/billing/charges')),
@@ -101,6 +104,7 @@ test('只读角色能看列表但不能执行写操作', async () => {
   const denied = [
     () => mirrorHide(req(reader, '/api/admin/mirror/results/x', {method: 'DELETE'}), ctx('x')),
     () => disputeClose(req(reader, '/api/admin/disputes/cases/x/close', {method: 'POST'}), ctx('x')),
+    () => disputeHide(req(reader, '/api/admin/disputes/cases/x/hide', {method: 'POST', body: JSON.stringify({reason: '合成原因'})}), ctx('x')),
     () => taskRun(req(reader, '/api/admin/tasks/memory-summary/run', {method: 'POST'}), ctx('memory-summary')),
     () => coinPriceCreate(req(reader, '/api/admin/ai/coin-prices', {method: 'POST', body: JSON.stringify({modelId: 'x', coinsPerReply: 1})})),
   ];
@@ -166,6 +170,48 @@ test('评理案例列表带出最近失败原因，立即结案写兜底判词',
   // 再结一次：409，不重复生成。
   assert.equal((await disputeClose(req(owner, `/api/admin/disputes/cases/${open.id}/close`, {method: 'POST'}), ctx(open.id))).status, 409);
   assert.equal((await disputeClose(req(owner, '/api/admin/disputes/cases/missing/close', {method: 'POST'}), ctx('missing'))).status, 404);
+});
+
+test('后台隐藏案例：停止公开访问、不再结案，原因与操作人进操作日志', async () => {
+  const circle = await db.circle.create({data: {name: '评理广场', description: '合成圈子'}});
+  const post = await db.post.create({data: {circleId: circle.id, authorId: author.id, content: '合成案例帖'}});
+  const open = await db.disputeCase.create({data: {
+    postId: post.id, authorId: author.id, characterId: character.id, excerptJson: '[]', claim: '要隐藏的案例',
+    ruleSnapshotJson: JSON.stringify({maxVoteChanges: 1, verdictMaxChars: 120, closeAtVotes: 200, closeAfterHours: 48}),
+    deadlineAt: new Date(Date.now() - 60_000),
+  }});
+  const hide = reason => disputeHide(req(owner, `/api/admin/disputes/cases/${open.id}/hide`, {method: 'POST', body: JSON.stringify({reason})}), ctx(open.id));
+
+  // 缺原因：400，什么都没写。
+  assert.equal((await hide('   ')).status, 400);
+  assert.equal((await db.disputeCase.findUniqueOrThrow({where: {id: open.id}, select: {closeStatus: true}})).closeStatus, 'OPEN');
+
+  const hidden = await (await hide('含未授权联系方式')).json();
+  assert.deepEqual(hidden, {caseId: open.id, hidden: true, alreadyHidden: false});
+  assert.equal((await db.disputeCase.findUniqueOrThrow({where: {id: open.id}, select: {closeStatus: true}})).closeStatus, 'WITHDRAWN');
+  assert.equal((await db.post.findUniqueOrThrow({where: {id: post.id}, select: {status: true}})).status, 'HIDDEN');
+  const audit = await db.adminAuditLog.findFirstOrThrow({where: {action: 'DISPUTE_CASE_HIDDEN', targetId: open.id}});
+  assert.equal(audit.actorId, owner.id);
+  assert.equal(audit.reason, '含未授权联系方式');
+
+  // 列表把隐藏原因与操作人带出来（后台列表与详情共用同一份数据）。
+  const page = await (await disputeList(req(owner, '/api/admin/disputes/cases?status=WITHDRAWN'))).json();
+  const item = page.items.find(row => row.id === open.id);
+  assert.equal(item.hidden.reason, '含未授权联系方式');
+  assert.equal(item.hidden.actor.name, 'ops_owner');
+
+  // 重复隐藏幂等，但这次后台操作本身也留痕。
+  assert.equal((await (await hide('再次确认')).json()).alreadyHidden, true);
+  assert.equal(await db.adminAuditLog.count({where: {action: 'DISPUTE_CASE_HIDDEN', targetId: open.id}}), 2);
+
+  // 已结案的不能隐藏；不存在的 404。
+  const closedPost = await db.post.create({data: {circleId: circle.id, authorId: author.id, content: '已结案案例帖'}});
+  const closed = await db.disputeCase.create({data: {
+    postId: closedPost.id, authorId: author.id, excerptJson: '[]', claim: '已经结束', ruleSnapshotJson: '{}',
+    closeStatus: 'CLOSED', deadlineAt: new Date(), closedAt: new Date(),
+  }});
+  assert.equal((await disputeHide(req(owner, `/api/admin/disputes/cases/${closed.id}/hide`, {method: 'POST', body: JSON.stringify({reason: '合成原因'})}), ctx(closed.id))).status, 409);
+  assert.equal((await disputeHide(req(owner, '/api/admin/disputes/cases/missing/hide', {method: 'POST', body: JSON.stringify({reason: '合成原因'})}), ctx('missing'))).status, 404);
 });
 
 test('后台任务列表给出开关与计数，手动执行只处理到期任务', async () => {

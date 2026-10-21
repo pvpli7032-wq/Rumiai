@@ -13,9 +13,9 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {apiFetch} from '@/lib/api-client';
 import {API} from '@/lib/api-paths';
 import {MirrorConfigPanel} from './mirror-config-panel';
+import {MirrorStatsPanel} from './mirror-stats-panel';
 import {MirrorResultDrawer} from './mirror-result-drawer';
 import {
-  MIRROR_RATE_MIN_SAMPLE,
   MIRROR_STATUS_FILTERS,
   MIRROR_STATUS_LABELS,
   MIRROR_STATUS_VARIANTS,
@@ -26,12 +26,14 @@ import {
   type MirrorStatus,
 } from './types';
 
-/** 统计卡用最近这么多条结果算成功率；后台接口按游标分页，没有单独的聚合端点。 */
-const SAMPLE_LIMIT = 50;
 const PAGE_LIMIT = 20;
 
 /**
- * 「他眼中的你」后台：结果列表 + 生成成功率，配置只读并指向唯一编辑位置。
+ * 「他眼中的你」后台三个标签（V3 §23 表 19）：结果 / 配置 / 统计。
+ *
+ * 生成成功率只由「统计」标签给出，口径来自运营分析的 ops-metrics（生成完成人数 /
+ * 开始答题人数）。这里不再按最近若干条结果另算一份比例——两处各算各的，数字迟早对不上。
+ * 本页只保留两个与「已加载列表」直接相关的计数：已加载条数与其中失败条数。
  *
  * 隐藏是把状态置 HIDDEN（分享码失效、记录保留对账），因此动作只出现在结果详情里，
  * 列表每行只保留「查看详情」。
@@ -41,10 +43,9 @@ export function MirrorAdmin() {
   const canRead = permissions.includes('mirror.read');
   const canManage = permissions.includes('mirror.manage');
 
-  const [tab, setTab] = useState<'results' | 'config'>('results');
+  const [tab, setTab] = useState<'results' | 'config' | 'stats'>('results');
   const [status, setStatus] = useState<MirrorStatus | 'ALL'>('ALL');
   const [page, setPage] = useState<MirrorResultPage | null>(null);
-  const [sample, setSample] = useState<MirrorResultItem[] | null>(null);
   const [config, setConfig] = useState<MirrorConfigPayload | null>(null);
   const [configError, setConfigError] = useState('');
   const [loadingList, setLoadingList] = useState(false);
@@ -78,21 +79,6 @@ export function MirrorAdmin() {
     if (token && canRead) void loadList(null, false);
   }, [token, canRead, status, refreshKey, loadList]);
 
-  // 成功率样本：不带状态筛选，取最近一批结果，标签上写清样本量。
-  useEffect(() => {
-    if (!token || !canRead) return;
-    const controller = new AbortController();
-    setSample(null);
-    void apiFetch<MirrorResultPage>(API.admin.mirrorResults(new URLSearchParams({limit: String(SAMPLE_LIMIT)}).toString()), {
-      token,
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-      .then(data => { if (!controller.signal.aborted) setSample(data.items); })
-      .catch(() => { if (!controller.signal.aborted) setSample([]); });
-    return () => controller.abort();
-  }, [token, canRead, refreshKey]);
-
   // 配置标签只读：角色候选、题目文本、示例结果与规则都来自公开初始化接口，编辑入口在设置中心与角色管理。
   useEffect(() => {
     if (!token || !canRead) return;
@@ -114,12 +100,11 @@ export function MirrorAdmin() {
     return () => controller.abort();
   }, [token, canRead, refreshKey]);
 
-  const stats = useMemo(() => {
-    if (!sample) return null;
-    const total = sample.length;
-    const failed = sample.filter(item => item.status === 'FAILED').length;
-    return {total, failed, success: total - failed, rate: total > 0 ? (total - failed) / total : null, enough: total >= MIRROR_RATE_MIN_SAMPLE};
-  }, [sample]);
+  // 只统计「当前已加载的这一页」，与分页游标一致；比例类指标不在这里算。
+  const loaded = useMemo(() => {
+    if (!page) return null;
+    return {total: page.items.length, failed: page.items.filter(item => item.status === 'FAILED').length};
+  }, [page]);
 
   async function hideResult(item: MirrorResultItem) {
     if (!token || busy) return;
@@ -128,8 +113,7 @@ export function MirrorAdmin() {
     setError('');
     setNotice('');
     try {
-      // 隐藏接口是 DELETE /api/admin/mirror/results/{id}，路径表目前只登记了列表地址。
-      await apiFetch(`/api/admin/mirror/results/${encodeURIComponent(item.id)}`, {token, method: 'DELETE'});
+      await apiFetch(API.admin.mirrorResult(item.id), {token, method: 'DELETE'});
       setNotice(`结果 ${item.shareId} 已隐藏，分享页不再可访问。`);
       setSelected(null);
       setRefreshKey(value => value + 1);
@@ -148,32 +132,35 @@ export function MirrorAdmin() {
       <AdminPageHeader
         eyebrow="增长与玩法"
         title="他眼中的你"
-        description="看结果与生成成功率；角色、题目与版式只在设置中心和角色管理里改，同一项不设第二个编辑位置。"
+        description="看结果、配置与统计；角色、题目、示例与版式只在设置中心和角色管理里改，同一项不设第二个编辑位置。"
         actions={<Button variant="outline" leadingIcon={<RefreshCw className="h-4 w-4" />} disabled={loadingList} onClick={() => setRefreshKey(value => value + 1)}>刷新</Button>}
-        meta={<Badge variant="outline">最近 {SAMPLE_LIMIT} 条结果统计</Badge>}
+        meta={<Badge variant="outline">成功率见「统计」标签</Badge>}
       />
 
       {error && <AdminNotice tone="error" title={error} className="py-6" />}
       {notice && <AdminNotice tone="success" title={notice} className="py-6" />}
 
-      <Tabs value={tab} onValueChange={value => setTab(value === 'config' ? 'config' : 'results')}>
+      <Tabs value={tab} onValueChange={value => setTab(value === 'config' ? 'config' : value === 'stats' ? 'stats' : 'results')}>
         <TabsList aria-label="他眼中的你视图">
           <TabsTrigger value="results">结果列表</TabsTrigger>
           <TabsTrigger value="config">配置</TabsTrigger>
+          <TabsTrigger value="stats">统计</TabsTrigger>
         </TabsList>
 
         <TabsContent value="results">
           <div className="flex flex-col gap-5">
             <AdminStatGrid className="xl:grid-cols-3">
-              <AdminStat
-                label="生成成功率"
-                value={stats ? (stats.enough ? `${Math.round((stats.rate ?? 0) * 100)}%` : '样本不足') : '—'}
-                hint={stats ? (stats.enough ? `最近 ${stats.total} 条结果，成功 ${stats.success} 条` : `最近样本只有 ${stats.total} 条，少于 ${MIRROR_RATE_MIN_SAMPLE} 条不显示比例`) : '正在读取结果样本'}
-                tone={stats && stats.enough && (stats.rate ?? 1) < 0.9 ? 'warning' : 'success'}
-              />
-              <AdminStat label="样本内失败" value={stats ? String(stats.failed) : '—'} hint="状态为生成失败的结果，按条计数" tone={stats && stats.failed > 0 ? 'warning' : 'default'} />
-              <AdminStat label="结果总量（样本）" value={stats ? String(stats.total) : '—'} hint="后台接口按游标分页，这里只统计已加载的样本" />
+              <AdminStat label="已加载结果" value={loaded ? String(loaded.total) : '—'} hint="后台接口按游标分页，这里只数已加载的这一页" />
+              <AdminStat label="其中生成失败" value={loaded ? String(loaded.failed) : '—'} hint="状态为生成失败的结果，按条计数" tone={loaded && loaded.failed > 0 ? 'warning' : 'default'} />
+              <AdminStat label="生成成功率" value="见统计标签" hint="口径：生成完成人数 / 开始答题人数，来自运营分析的 ops-metrics" />
             </AdminStatGrid>
+
+            <AdminNotice
+              tone="info"
+              title="成功率只在「统计」标签给出"
+              description="统计标签复用运营分析口径，与结果列表的条数不是一回事；这里不再按样本另算一份比例，避免两个数字对不上。"
+              action={<Button variant="outline" size="sm" onClick={() => setTab('stats')}>去看统计</Button>}
+            />
 
             <AdminPanel
               title="结果列表"
@@ -258,6 +245,10 @@ export function MirrorAdmin() {
 
         <TabsContent value="config">
           <MirrorConfigPanel config={config} error={configError} loading={!config && !configError} />
+        </TabsContent>
+
+        <TabsContent value="stats">
+          <MirrorStatsPanel token={token} />
         </TabsContent>
       </Tabs>
 

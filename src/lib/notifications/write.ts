@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {db} from '@/lib/db';
-import type {NotificationEventInput, NotificationType} from './types';
+import type {NotificationEventInput, NotificationTargetType, NotificationType} from './types';
 import {replyExcerpt} from './reply-excerpt';
 
 /**
@@ -78,23 +78,26 @@ export function notifyReviewResult(event: ReviewResultEvent) {
 
 export interface ReplyEvent {
   userId: string;
-  /** 回复消息 id：同一条回复只提醒一次。 */
-  messageId: string;
-  conversationId: string;
-  characterName: string;
+  /** 回复本身 id：同一条回复只提醒一次。 */
+  replyId: string;
+  /** 谁回复的，写进标题；缺省用「有人」。 */
+  replierName: string;
   excerpt: string;
+  /** 点进去看什么：回复出现在哪个业务对象上。 */
+  targetType: NotificationTargetType;
+  targetId: string;
 }
 
-/** 回复提醒：点进去直接回到那段对话。 */
+/** 回复提醒：别人的回复只提醒一次，点进去是回复所在的业务对象。 */
 export function notifyReply(event: ReplyEvent) {
   return createNotification({
     userId: event.userId,
     type: 'REPLY',
-    eventKey: 'chat-reply:' + event.messageId,
-    title: (event.characterName || '角色') + ' 回复了你',
+    eventKey: 'reply:' + event.replyId,
+    title: (event.replierName || '有人') + ' 回复了你',
     body: replyExcerpt(event.excerpt),
-    targetType: 'CONVERSATION',
-    targetId: event.conversationId,
+    targetType: event.targetType,
+    targetId: event.targetId,
   });
 }
 
@@ -125,9 +128,12 @@ export interface ActivityResultEvent {
   activityId: string;
   activityName: string;
   summary: string;
+  /** 结果在哪里看：榜单、评理案例或角色任务页；缺省是活动榜单。 */
+  targetType?: NotificationTargetType;
+  targetId?: string;
 }
 
-/** 活动结果：点进去是活动榜单。 */
+/** 活动结果：点进去是结果公布的地方。 */
 export function notifyActivityResult(event: ActivityResultEvent) {
   return createNotification({
     userId: event.userId,
@@ -135,7 +141,7 @@ export function notifyActivityResult(event: ActivityResultEvent) {
     eventKey: 'activity:' + event.activityId,
     title: (event.activityName || '活动') + '结果公布',
     body: event.summary.trim() || '结果已经公布，去看看。',
-    targetType: 'ACTIVITY',
-    targetId: event.activityId,
+    targetType: event.targetType ?? 'ACTIVITY',
+    targetId: event.targetId ?? event.activityId,
   });
 }

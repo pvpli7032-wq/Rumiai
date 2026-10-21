@@ -9,7 +9,7 @@ import type { AiStreamMetrics } from '@/lib/ai/types';
 import {readChatRules} from '@/lib/settings';
 import {buildMemoryContext, enqueueSummaryIfDue} from '@/lib/memory';
 import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
-import {readAiModelPlan} from '@/lib/ai/models/runtime-service';
+import {readTaskModelPlan} from '@/lib/ai/models/task-models';
 import {beginBillingTurn, parseJsonBody, readBalance, readRequestId, readTurnReceipt, toChargeError, type BillingTurn} from '@/lib/billing/turn';
 import {db} from '@/lib/db';
 import {grantInviteRewardIfDue} from '@/lib/growth/invite-service';
@@ -70,7 +70,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   }
   // V3 §20：请求号由客户端给。缺了就没法重放、也没法断线查询，直接 400 而不是自造一个。
   if (!requestId) throw new ChatTurnHttpError('缺少请求编号，请刷新页面重试。', 400);
-  const modelPlan = await readAiModelPlan(conversation.aiModel, conversation.characterId);
+  const modelPlan = await readTaskModelPlan('chat', {preferred: conversation.aiModel, characterId: conversation.characterId});
   if (modelPlan?.length === 0) throw new ChatTurnHttpError('当前角色暂无可用模型，请重新选择模型或联系管理员。', 503);
   const configuredProviders = modelPlan === null ? await readActiveAiProviders() : [];
   usingRealAi = usingRealAi || configuredProviders.length > 0 || Boolean(modelPlan?.length);

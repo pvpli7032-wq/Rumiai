@@ -1,4 +1,5 @@
-import {readAiModelPlan, type RuntimeAiModel} from '@/lib/ai/models/runtime-service';
+import {readTaskModelPlan} from '@/lib/ai/models/task-models';
+import type {RuntimeAiModel} from '@/lib/ai/models/runtime-service';
 import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
 import {AiStreamError, modelChain, openUpstream, type RuntimeProvider} from '@/lib/conversations/chat-stream';
 import type {AiStreamMetrics} from '@/lib/ai/types';
@@ -19,7 +20,7 @@ type ModelPlan = {providers: RuntimeProvider[]; models: RuntimeAiModel[] | null}
 
 /** 与聊天共用模型计划：数据库计划优先，否则走环境变量路由。 */
 async function readMirrorModelPlan(characterId: string): Promise<ModelPlan> {
-  const plan = await readAiModelPlan(null, characterId);
+  const plan = await readTaskModelPlan('mirror', {characterId});
   if (plan?.length === 0) throw new MirrorModelError('当前角色暂无可用模型，请更换角色后再试。', 'MIRROR_NO_MODEL');
   const configured = plan === null ? await readActiveAiProviders() : [];
   const environment = process.env.OPENAI_API_KEY?.trim()

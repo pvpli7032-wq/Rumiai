@@ -2,7 +2,10 @@
 
 import {ArrowUpRight} from 'lucide-react';
 import Link from 'next/link';
+import {useEffect, useState} from 'react';
 import {AdminNotice, AdminPanel} from '@/components/admin/admin-page';
+import {apiFetch} from '@/lib/api-client';
+import {API} from '@/lib/api-paths';
 import {REWARD_SETTING_KEYS, REWARD_SETTING_LABELS, type RewardSettingKey} from './types';
 
 /**
@@ -12,10 +15,10 @@ import {REWARD_SETTING_KEYS, REWARD_SETTING_LABELS, type RewardSettingKey} from 
  * 这里不出现第二套输入框，只给数值与跳转。金额为 0 就是不发奖。
  */
 export interface DisputeRewardPanelProps {
-  values: Partial<Record<RewardSettingKey, unknown>> | null;
+  token: string | null;
   canReadSettings: boolean;
-  error: string;
-  loading: boolean;
+  /** 案例列表刷新时一起重读，避免和列表数据不同步。 */
+  refreshKey: number;
 }
 
 function readValue(values: Partial<Record<RewardSettingKey, unknown>>, key: RewardSettingKey): string {
@@ -28,7 +31,32 @@ function isNoPayout(key: RewardSettingKey, text: string): boolean {
   return text === '0' && (key === 'dispute.participateRewardCoins' || key === 'dispute.hotRewardCoins' || key === 'dispute.rewardDailyCapCoins');
 }
 
-export function DisputeRewardPanel({values, canReadSettings, error, loading}: DisputeRewardPanelProps) {
+export function DisputeRewardPanel({token, canReadSettings, refreshKey}: DisputeRewardPanelProps) {
+  const [values, setValues] = useState<Partial<Record<RewardSettingKey, unknown>> | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // 只读读取：没有设置查看权限就完全不发请求，也不显示猜测值。
+  useEffect(() => {
+    if (!token || !canReadSettings) { setValues(null); return; }
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    void apiFetch<{values: {key: string; value: unknown}[]}>(API.admin.settings + '?group=growth', {token, cache: 'no-store', signal: controller.signal})
+      .then(data => {
+        if (controller.signal.aborted) return;
+        const picked: Partial<Record<RewardSettingKey, unknown>> = {};
+        for (const key of REWARD_SETTING_KEYS) {
+          const row = data.values.find(item => item.key === key);
+          if (row) picked[key] = row.value;
+        }
+        setValues(picked);
+      })
+      .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '奖励参数读取失败。'); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [token, canReadSettings, refreshKey]);
+
   return (
     <AdminPanel
       title="奖励"

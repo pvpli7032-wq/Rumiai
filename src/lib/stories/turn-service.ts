@@ -22,7 +22,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { reserveAiCall, finishAiCall, AiQuotaError } from '@/lib/ai/ai-usage';
 import { isAiChatAvailable } from '@/lib/launch-guards';
 import { readActiveAiProviders } from '@/lib/ai/providers/management-service';
-import { readAiModelPlan } from '@/lib/ai/models/runtime-service';
+import { readTaskModelPlan } from '@/lib/ai/models/task-models';
 import { aiErrorCode, aiUserError, streamMockResponse, streamOpenAIResponse } from '@/lib/conversations/chat-stream';
 import { readRecentMessageHistory } from '@/lib/conversations/message-service';
 import { buildStoryContext } from './lifecycle/context-service';
@@ -155,7 +155,7 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
   requirePublishedTemplate(run);
 
   let usingRealAi = Boolean(process.env.OPENAI_API_KEY?.trim());
-  const modelPlan = await readAiModelPlan(run.conversation.aiModel, run.conversation.characterId);
+  const modelPlan = await readTaskModelPlan('story', {preferred: run.conversation.aiModel, characterId: run.conversation.characterId});
   if (modelPlan?.length === 0) throw new StoryError('NO_MODEL', '当前角色暂无可用模型，请重新选择模型或联系管理员。', 503);
   const configuredProviders = modelPlan === null ? await readActiveAiProviders() : [];
   usingRealAi = usingRealAi || configuredProviders.length > 0 || Boolean(modelPlan?.length);

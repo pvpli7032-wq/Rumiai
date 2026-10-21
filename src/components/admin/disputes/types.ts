@@ -13,6 +13,13 @@ export interface DisputeFailure {
   attempts: number;
 }
 
+/** 后台隐藏记录：来自 admin_audit_logs，不是案例表上的字段。 */
+export interface DisputeHideRecord {
+  reason: string;
+  at: string;
+  actor: {id: string; name: string} | null;
+}
+
 export interface DisputeCaseItem {
   id: string;
   postId: string;
@@ -26,6 +33,7 @@ export interface DisputeCaseItem {
   author: {id: string; name: string} | null;
   character: {id: string; name: string} | null;
   lastFailure: DisputeFailure | null;
+  hidden: DisputeHideRecord | null;
 }
 
 export interface DisputeCasePage {

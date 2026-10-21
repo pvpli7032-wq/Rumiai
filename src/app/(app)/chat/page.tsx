@@ -21,6 +21,7 @@ import { HiddenReply } from '@/components/chat/hidden-reply';
 import { ActionSuggestions } from '@/components/chat/action-suggestions';
 import { QuotaBar } from '@/components/chat/quota-bar';
 import { StreamCancelRow } from '@/components/chat/stream-cancel';
+import {ScrollToLatest, useChatScroll, useCompositionGuard} from '@/components/chat/chat-interaction';
 import { useQuota } from '@/lib/hooks/use-quota';
 import { ChapterClose } from '@/components/stories/chapter-close';
 import { EndChapterDialog } from '@/components/stories/end-chapter-dialog';
@@ -131,7 +132,6 @@ function ChatContent() {
   const [earlierCursor, setEarlierCursor] = useState<string | null>(null);
   const [hasEarlier, setHasEarlier] = useState(false);
   const [loadingEarlier, setLoadingEarlier] = useState(false);
-  const skipAutoScrollRef = useRef(false);
   const [reporting, setReporting] = useState(false);
   const [reportingMessage,setReportingMessage]=useState<string|null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -155,11 +155,11 @@ function ChatContent() {
   // "新建聊天" on the detail dialog asks for a fresh room instead of reopening the last one.
   const wantsNewChat = searchParams.get('new') === '1';
 
-  useEffect(() => {
-    // 加载更早的历史时不能滚到底部，否则用户刚翻上去就被弹回来。
-    if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return; }
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingText]);
+  // 流式输出只在贴底时跟随；用户上翻回看时不被打断（V3 §19）。
+  const chatScroll = useChatScroll(messageListRef, messagesEndRef);
+  const composer = useCompositionGuard(chatScroll.revealComposer);
+  const chatHandlers = {onText: setStreamingText, onCost: applyCost, onMock: () => setMockNotice(true)};
+  useEffect(() => { chatScroll.followTail(); }, [messages, streamingText, chatScroll.followTail]);
 
   useEffect(() => {
     if (!charId) { setLoading(false); return; }
@@ -217,7 +217,7 @@ function ChatContent() {
     try {
       const page = await fetchEarlierMessagePage(token!, conversationId, earlierCursor);
       if (!page) return;
-      skipAutoScrollRef.current = true;
+      chatScroll.skipNextFollow();
       setMessages(prev => [...page.messages, ...prev]);
       setHasEarlier(page.hasMore);
       setEarlierCursor(page.nextCursor);
@@ -232,6 +232,8 @@ function ChatContent() {
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
+    // 组合输入未结束：回车是在确认候选词，不是发送（V3 §19）。
+    if (composer.isComposing()) return;
     if (!input.trim() || !conversationId || streaming) return;
     const content = input.trim();
     // 一次点击一个请求号（V3 §20）。同一条草稿再发一次就沿用同一个编号，
@@ -258,7 +260,7 @@ function ChatContent() {
         body: JSON.stringify({ content, requestId }),
       });
       if(!res.ok)setInput(content);
-      const full = await consumeStream(res);
+      const full = await consumeChatStream(res, chatHandlers);
       pendingSend.current = null;
       if (full) {
         if (activeScene && firstSceneMessage) trackSceneFunnelEvent(token, 'scene_first_message_sent', { conversationId, sceneId: activeScene.id });
@@ -341,11 +343,6 @@ function ChatContent() {
     if (!signal?.aborted && fresh) applyLatestPage(fresh);
   }
 
-  /** 发送与重生成共用同一条 SSE 线格式；读流实现在 ./turn-request 里。 */
-  function consumeStream(res: Response) {
-    return consumeChatStream(res, {onText: setStreamingText, onCost: applyCost, onMock: () => setMockNotice(true)});
-  }
-
   async function regenerate(messageId: string) {
     if (!conversationId || streaming) return;
     stopSpeaking();
@@ -368,7 +365,7 @@ function ChatContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ requestId }),
       });
-      await consumeStream(res);
+      await consumeChatStream(res, chatHandlers);
       pendingRegen.current = null;
     } catch (err) {
       if(signal.aborted)return;
@@ -413,7 +410,7 @@ function ChatContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ requestId }),
       });
-      await consumeStream(stream);
+      await consumeChatStream(stream, chatHandlers);
     } catch (err) {
       if(signal.aborted)return;
       setChatError(err instanceof Error ? zhError(err.message) : '生成回复失败。');
@@ -473,7 +470,7 @@ function ChatContent() {
       ) : (
       <>
       {/* Messages */}
-      <div ref={messageListRef} className={`flex-1 overflow-y-auto px-4 py-6 w-full mx-auto ${readingMode ? 'max-w-2xl space-y-6 text-[15px] leading-loose' : 'max-w-3xl space-y-4'}`}>
+      <div ref={messageListRef} {...chatScroll.listProps} className={`flex-1 overflow-y-auto px-4 py-6 w-full mx-auto ${readingMode ? 'max-w-2xl space-y-6 text-[15px] leading-loose' : 'max-w-3xl space-y-4'}`}>
         {hasEarlier && (
           <div className="flex justify-center pb-2">
             <button
@@ -572,6 +569,7 @@ function ChatContent() {
             </div>
           </div>
         )}
+        {!chatScroll.atBottom && <ScrollToLatest onJump={chatScroll.jumpToLatest} />}
         <div ref={messagesEndRef} />
       </div>
 
@@ -627,6 +625,7 @@ function ChatContent() {
         {activeScene && <div className="mx-auto mb-2 max-w-3xl"><ActionSuggestions suggestions={activeScene.suggestions} onPick={text => setInput(prev => prev ? prev + ' ' + text : text)} disabled={streaming} /></div>}
         <form onSubmit={sendMessage} className="max-w-3xl mx-auto flex gap-3">
           <input
+            {...composer.inputProps}
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}

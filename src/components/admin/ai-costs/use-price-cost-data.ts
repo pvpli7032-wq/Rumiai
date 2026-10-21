@@ -26,7 +26,12 @@ type BillingSettingRow = {key: string; value: unknown};
  */
 export function usePriceCostData(options: {token: string | null; canRead: boolean; canReadBilling: boolean; canReadSettings: boolean}) {
   const {token, canRead, canReadBilling, canReadSettings} = options;
-  const [days, setDays] = useState(7);
+  // 工作台指标卡会带 ?days= 进来，初值从 URL 读；非法值退回 7 天。
+  const [days, setDays] = useState(() => {
+    if (typeof window === 'undefined') return 7;
+    const value = Number(new URLSearchParams(window.location.search).get('days'));
+    return [1, 7, 30, 90].includes(value) ? value : 7;
+  });
   const [coinView, setCoinView] = useState<CoinPriceView | null>(null);
   const [costView, setCostView] = useState<CostPriceView | null>(null);
   const [dashboard, setDashboard] = useState<CostDashboard | null>(null);

@@ -119,11 +119,12 @@ export async function listPanelFacts(userId: string, conversationId: string): Pr
   return rows.map(toView);
 }
 
-/** 编辑 / 固定都只影响这一条事实；不重建摘要，也不触发模型调用。 */
-export async function updateMemoryFact(userId: string, factId: string, input: MemoryFactInput): Promise<MemoryFactView> {
-  const existing = await db.memoryFact.findUnique({where: {id: factId}, select: {userId: true, status: true}});
-  if (!existing) throw new MemoryError('事实不存在。', 404, 'MEMORY_FACT_NOT_FOUND');
-  if (existing.userId !== userId) throw new MemoryError('没有权限修改这条事实。', 403, 'MEMORY_FORBIDDEN');
+/**
+ * 编辑 / 固定都只影响这一条事实；不重建摘要，也不触发模型调用。
+ * 归属校验与删除、确认、忽略同一套：别人的事实 403，跨会话或不存在 404。
+ */
+export async function updateMemoryFact(userId: string, factId: string, input: MemoryFactInput, conversationId?: string): Promise<MemoryFactView> {
+  const existing = await requireFactOwnership(userId, factId, conversationId);
   if (existing.status === 'DELETED') throw new MemoryError('这条事实已删除。', 409, 'MEMORY_FACT_DELETED');
   const data: {text?: string; pinned?: boolean; status?: string} = {};
   if (input.text !== undefined) {

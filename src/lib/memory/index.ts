@@ -1,6 +1,7 @@
 export type {MemoryContext, MemoryFactView, MemorySettings, MemorySummaryView, MemoryFactStatus} from './types';
 export {EMPTY_MEMORY_CONTEXT, MEMORY_SUMMARY_TASK, MemoryError, PANEL_FACT_STATUSES} from './types';
 export {buildMemoryContext} from './context';
+export {invalidateFactsOfMessages, invalidateMemoryForMessages, invalidateSummaryInTransaction} from './invalidation';
 export {
   confirmMemoryFact,
   createMemoryFact,

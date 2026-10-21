@@ -106,11 +106,32 @@ export const MIRROR_STATUS_FILTERS: {value: MirrorStatus | 'ALL'; label: string}
   {value: 'EXPIRED', label: '已过期'},
 ];
 
-/** 生成成功率的最小样本：低于这个数只显示「样本不足」，不拿两三条凑百分比。 */
-export const MIRROR_RATE_MIN_SAMPLE = 10;
-
 /** 日期时间展示统一走 src/lib/format/date-time.ts，此处只做转发，不重复实现。 */
 export {formatDateTime} from '@/lib/format/date-time';
+
+/** 统计标签要看的三项指标，顺序固定；key 与运营分析 ops-metrics 的 ratio key 一一对应。 */
+export const MIRROR_STATS_RATIOS: {key: string; label: string; missingReason: string}[] = [
+  {key: 'mirrorSuccess', label: '生成成功率', missingReason: '运营统计没有返回这一项。'},
+  {key: 'shareAfterComplete', label: '分享后的访问', missingReason: '运营统计没有返回这一项。'},
+  {key: 'mirrorToChat', label: '转去聊天', missingReason: '转去聊天已在客户端埋点（mirror_to_chat），但运营统计口径里还没有这项比例；补进 ops-metrics 后这里会自动显示，本页不另写聚合。'},
+];
+
+/**
+ * 把 ops-metrics 返回的指标对到固定槽位上：三项必看指标按固定顺序排，
+ * 取不到的那一项保留槽位并带上「还没进口径」的说明——不能因为接口少给一项
+ * 就让统计页悄悄少一格，也不能在这里补算一个数字。
+ * 接口里新增的其他 mirror 指标排在后面，补指标不用改代码。
+ */
+export function mirrorStatsCards<T extends {key: string; label: string}>(
+  ratios: T[],
+  slots = MIRROR_STATS_RATIOS,
+): Array<{slot: {key: string; label: string; missingReason: string}; metric: T | null}> {
+  const fixed = slots.map(slot => ({slot, metric: ratios.find(item => item.key === slot.key) ?? null}));
+  const extra = ratios
+    .filter(item => item.key.startsWith('mirror') && !slots.some(slot => slot.key === item.key))
+    .map(metric => ({slot: {key: metric.key, label: metric.label, missingReason: ''}, metric}));
+  return fixed.concat(extra);
+}
 
 /** 公开分享页固定走默认语言前缀，与 middleware 的 /mirror 重定向一致。 */
 export function mirrorSharePath(shareId: string): string {

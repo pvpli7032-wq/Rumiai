@@ -31,7 +31,8 @@ const {clearCache} = await import('../src/lib/settings/cache.ts');
 const {purchasePlanOf, purchaseBlockedReason, readPurchasedToday} = await import('../src/lib/mirror/purchase.ts');
 const {listMirrorCharacters} = await import('../src/lib/mirror/service.ts');
 const {parseMirrorExamples, parseMirrorQuestions, exampleForCharacter, toExampleView} = await import('../src/lib/mirror/examples.ts');
-const {mirrorQuestionState} = await import('../src/components/admin/mirror/types.ts');
+const {mirrorQuestionState, mirrorStatsCards, MIRROR_STATS_RATIOS} = await import('../src/components/admin/mirror/types.ts');
+const {readPreviewCard, MIRROR_PREVIEW_SIZE} = await import('../src/app/[locale]/mirror/[shareId]/_preview-card.ts');
 
 const identity = ({userId, cookieSubject, ipHash, cookieReportedCount = 0}) => ({userId, cookieSubject, ipHash, cookieReportedCount});
 /** V3 表 9 的默认额度：登录 3 次、Cookie 1 次、同一 IP 10 次。 */
@@ -596,6 +597,67 @@ test('匿名结果凭创建时签发的归属凭据删除，伪造凭据无效',
   assert.equal(owner.kind, 'owner');
   await deleteMirrorResult(shareId, {userId: null, subject}, token);
   await assert.rejects(readMirrorResult(shareId, {userId: null, subject}, token), error => error.status === 404);
+});
+
+test('统计标签的三项指标按固定顺序占位，缺项写明未纳入口径', () => {
+  // 接口只给了两项：第三项「转去聊天」保留槽位并给出说明，不会悄悄少一格。
+  const partial = mirrorStatsCards([
+    {key: 'mirrorSuccess', label: '生成成功率'},
+    {key: 'shareAfterComplete', label: '分享后的访问'},
+    {key: 'inviteFirstChat', label: '注册到首次聊天'},
+  ]);
+  assert.deepEqual(partial.map(card => card.slot.key), ['mirrorSuccess', 'shareAfterComplete', 'mirrorToChat']);
+  assert.equal(partial[2].metric, null);
+  assert.match(partial[2].slot.missingReason, /还没有这项比例/);
+  // 非 mirror 指标不会混进统计标签。
+  assert.equal(partial.some(card => card.slot.key === 'inviteFirstChat'), false);
+  // ops-metrics 补上 mirrorToChat 后自动落到第三个槽位，不用改代码。
+  const full = mirrorStatsCards(MIRROR_STATS_RATIOS.map(slot => ({key: slot.key, label: slot.label})));
+  assert.equal(full[2].metric?.key, 'mirrorToChat');
+  assert.equal(full.every(card => card.metric !== null), true);
+  // 接口新增的其他 mirror 指标排在固定三项之后。
+  const extra = mirrorStatsCards([{key: 'mirrorSuccess', label: '生成成功率'}, {key: 'mirrorNewMetric', label: '新指标'}]);
+  assert.deepEqual(extra.map(card => card.slot.key), ['mirrorSuccess', 'shareAfterComplete', 'mirrorToChat', 'mirrorNewMetric']);
+});
+
+test('分享预览图只含公开字段，不含三题原回答', async () => {
+  const character = await db.character.create({data: {name: '预览角色', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
+  const shareId = 'share' + randomUUID().replace(/-/g, '').slice(0, 12);
+  await db.mirrorResult.create({data: {
+    shareId, userId: null, anonymousSubject: 'subject-preview-0000001', characterId: character.id,
+    answersJson: JSON.stringify(['原回答秘密甲', '原回答秘密乙', '原回答秘密丙']),
+    title: '预览称号', observationsJson: JSON.stringify(['第一条观察', '第二条观察', '第三条观察']),
+    quote: '金句', indicesJson: JSON.stringify({atmosphere: 50, rapport: 60}), status: 'READY',
+  }});
+  const card = await readPreviewCard(shareId);
+  assert.deepEqual(card, {title: '预览称号', observation: '第一条观察', characterName: '预览角色'});
+  // 卡片里只有这三个字段，序列化后不可能夹带回答或分享码。
+  const serialized = JSON.stringify(card);
+  assert.equal(serialized.includes('原回答'), false);
+  assert.equal(serialized.includes('shareId'), false);
+  assert.equal(serialized.includes('金句'), false);
+  // 尺寸是固定的分享卡尺寸，路由用它同时声明 openGraph 的 width/height。
+  assert.deepEqual({w: MIRROR_PREVIEW_SIZE.width, h: MIRROR_PREVIEW_SIZE.height}, {w: 1200, h: 630});
+});
+
+test('结果隐藏、过期、删除后预览图拿不到内容（与分享页同样 404）', async () => {
+  const character = await db.character.create({data: {name: '隐藏角色', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
+  const make = (status, expiresAt = null) => db.mirrorResult.create({data: {
+    shareId: 'share' + randomUUID().replace(/-/g, '').slice(0, 12),
+    userId: null, anonymousSubject: 'subject-hidden-0000001', characterId: character.id,
+    answersJson: JSON.stringify(['一', '二', '三']), title: '称号', observationsJson: JSON.stringify(['甲', '乙', '丙']),
+    quote: '金句', indicesJson: JSON.stringify({atmosphere: 1, rapport: 2}), status, expiresAt,
+  }});
+  const hidden = await make('HIDDEN');
+  assert.equal(await readPreviewCard(hidden.shareId), null);
+  const expired = await make('READY', new Date(Date.now() - 1000));
+  assert.equal(await readPreviewCard(expired.shareId), null);
+  // 删除走 status=HIDDEN，所以和隐藏同一条路径；再验证一次读不到。
+  const removable = await make('READY');
+  await deleteMirrorResult(removable.shareId, {userId: null, subject: 'subject-hidden-0000001'}, signMirrorAttribution('subject-hidden-0000001', removable.shareId));
+  assert.equal(await readPreviewCard(removable.shareId), null);
+  // 从未存在的分享码同样是 null（路由据此返回 404，不渲染空白图）。
+  assert.equal(await readPreviewCard('share-does-not-exist'), null);
 });
 
 test('过期的结果同样读不到', async () => {

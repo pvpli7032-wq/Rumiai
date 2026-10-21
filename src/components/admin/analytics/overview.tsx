@@ -22,7 +22,14 @@ const number=(value:number)=>new Intl.NumberFormat('zh-CN').format(value);
 const yuan=(cents:number)=>'¥'+(cents/100).toFixed(2);
 
 export function AnalyticsOverview({token}:{token:string}){
-  const [days,setDays]=useState(7),[report,setReport]=useState<Report|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+  // 工作台指标卡会带 ?days= 进来（V3 §14「点击指标进入对应列表并保留筛选日期」），
+  // 初值就从 URL 读，否则跳过来看到的还是默认 7 天。
+  const [days,setDays]=useState(()=>{
+    if(typeof window==='undefined')return 7;
+    const value=Number(new URLSearchParams(window.location.search).get('days'));
+    return [1,7,30,90].includes(value)?value:7;
+  });
+  const [report,setReport]=useState<Report|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true);
   useEffect(()=>{
     const controller=new AbortController();setLoading(true);setError('');setReport(null);
     void fetch('/api/admin/analytics?days='+days,{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:controller.signal})
@@ -48,7 +55,7 @@ export function AnalyticsOverview({token}:{token:string}){
       actions={
         <div className="w-32">
           <Select aria-label="统计周期" value={days} onChange={event=>setDays(Number(event.target.value))}>
-            <option value={7}>近 7 天</option><option value={30}>近 30 天</option><option value={90}>近 90 天</option>
+            <option value={1}>今天</option><option value={7}>近 7 天</option><option value={30}>近 30 天</option><option value={90}>近 90 天</option>
           </Select>
         </div>
       }

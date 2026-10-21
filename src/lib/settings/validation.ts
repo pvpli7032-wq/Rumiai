@@ -45,7 +45,16 @@ export function normalizeSettingValue(def: SettingDefinition, raw: unknown): Jso
     }
     case 'text': {
       const value = String(raw ?? '').trim();
-      if (!value) fail(def, '不能为空。');
+      // 为什么按「登记默认值是否为空串」判断，而不是按 key 前缀或给类型加标记：
+      // 默认值是这一项「未设置」时的形态，它本身就是最权威的语义声明 ——
+      // 默认 '' 的项（ai.taskModel.*：留空 = 沿用默认模型计划）空串是合法状态，
+      // 默认非 '' 的项（prompt.*：空模板等于让模型没有指令）空串仍是错误输入。
+      // 这条规则覆盖所有 text 项，没有例外名单；不要把它当成漏洞「顺手修掉」，
+      // 那会把「沿用默认」重新堵死 —— 后台点保存会直接 400。
+      if (!value) {
+        if (def.default === '') return '';
+        fail(def, '不能为空。');
+      }
       if (value.length > 8000) fail(def, '长度不能超过 8000。');
       return value;
     }

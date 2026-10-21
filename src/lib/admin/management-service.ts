@@ -140,6 +140,31 @@ export async function saveRole(actorId: string, input: unknown) {
   });
 }
 
+/**
+ * 后台列表统一的日期区间：from / until 都是 YYYY-MM-DD 的 UTC 日，含结束日期当天
+ * （上界取 until 次日零点，用 lt）。
+ *
+ * 为什么抽出来：操作审计、用户列表、充值订单三处都要「按天筛创建时间」，
+ * 各写一份必然出现「有的含当天、有的不含」。label 只影响报错文案，
+ * fail 让各域抛出自己的错误类型（状态码映射各域不同）。
+ */
+export function parseUtcDayRange(
+  from: string | null | undefined,
+  until: string | null | undefined,
+  label: string,
+  fail: (message: string) => Error = message => new AdminManagementError(message),
+): {gte?: Date; lt?: Date} {
+  const range: {gte?: Date; lt?: Date} = {};
+  for (const [key, value] of [['from', from], ['until', until]] as const) {
+    if (!value) continue;
+    const date = new Date(value + 'T00:00:00.000Z');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw fail(`${label}无效，请使用 YYYY-MM-DD。`);
+    if (key === 'from') range.gte = date; else range.lt = new Date(date.getTime() + 86_400_000);
+  }
+  if (range.gte && range.lt && range.gte >= range.lt) throw fail('开始日期不能晚于结束日期。');
+  return range;
+}
+
 export async function readAdminAudit(actorId: string, page = 1, filters: {actorId?:string;targetId?:string;action?:string;from?:string;until?:string} = {}) {
   await requirePermission(actorId, 'admin.audit.read');
   if (!Number.isSafeInteger(page) || page < 1 || page > 10000) throw new AdminManagementError('页码无效。');
@@ -148,14 +173,7 @@ export async function readAdminAudit(actorId: string, page = 1, filters: {actorI
     const value=filters[key]?.trim();
     if(value){if(!/^[A-Za-z0-9_:-]{1,100}$/.test(value))throw new AdminManagementError('操作人、对象或动作筛选格式无效。');where[key]=value;}
   }
-  const dates:{gte?:Date;lt?:Date}={};
-  for(const key of ['from','until'] as const){
-    const value=filters[key];if(!value)continue;
-    const date=new Date(value+'T00:00:00.000Z');
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value)throw new AdminManagementError('审计日期无效，请使用 YYYY-MM-DD。');
-    if(key==='from')dates.gte=date;else dates.lt=new Date(date.getTime()+86400000);
-  }
-  if(dates.gte&&dates.lt&&dates.gte>=dates.lt)throw new AdminManagementError('开始日期不能晚于结束日期。');
+  const dates=parseUtcDayRange(filters.from,filters.until,'审计日期');
   if(dates.gte||dates.lt)where.createdAt=dates;
   return db.$transaction(async tx => {
     await requirePermission(actorId, 'admin.audit.read', tx);

@@ -1,5 +1,6 @@
 import {db, pragmasReady} from '@/lib/db';
 import {DisputeError} from './case-service';
+import {markCaseHidden} from './visibility-service';
 
 /**
  * 撤回（V3 §24）。
@@ -19,8 +20,7 @@ export async function withdrawDisputeCase(userId: string, caseId: string) {
     if (row.closeStatus === 'WITHDRAWN') return {withdrawn: true};
     if (row.closeStatus === 'CLOSED') throw new DisputeError('案例已经结案，结案结果不能撤回。', 409, 'CONFLICT');
     if (row.closeStatus === 'CLOSING') throw new DisputeError('案例正在结案，角色回应生成中，无法撤回。', 409, 'CONFLICT');
-    await tx.disputeCase.update({where: {id: caseId}, data: {closeStatus: 'WITHDRAWN'}});
-    await tx.post.update({where: {id: row.postId}, data: {status: 'HIDDEN'}});
+    await markCaseHidden(tx, {caseId, postId: row.postId});
     return {withdrawn: true};
   });
 }

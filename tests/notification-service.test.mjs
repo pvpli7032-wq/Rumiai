@@ -133,7 +133,8 @@ test('标记已读幂等，且不会替别人标记', async () => {
   await assert.rejects(() => markNotificationRead(stranger.id, row.id), error => error.status === 404);
   assert.equal((await listNotifications(stranger.id)).unreadCount, 0);
 
-  const reply = await notifyReply({userId: owner.id, messageId: 'msg-1', conversationId: 'conv-1', characterName: '阿岚', excerpt: '晚上好。'});
+  // 契约已改为「回复出现在哪个业务对象上」：targetType + targetId 决定跳转，replyId 做幂等键。
+  const reply = await notifyReply({userId: owner.id, replyId: 'reply-1', replierName: '阿岚', excerpt: '晚上好。', targetType: 'CONVERSATION', targetId: 'conv-1'});
   assert.equal(reply.created, true);
   const item = (await listNotifications(owner.id)).items.find(entry => entry.id === reply.id);
   assert.equal(item.type, 'REPLY');

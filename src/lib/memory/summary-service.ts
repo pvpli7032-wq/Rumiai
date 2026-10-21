@@ -2,7 +2,7 @@ import {db} from '@/lib/db';
 import {logWarning} from '@/lib/logger';
 import {readSettingValue} from '@/lib/settings';
 import {isAiChatAvailable} from '@/lib/launch-guards';
-import {readAiModelPlan} from '@/lib/ai/models/runtime-service';
+import {readTaskModelPlan} from '@/lib/ai/models/task-models';
 import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
 import {reserveAiCall, finishAiCall, AiQuotaError} from '@/lib/ai/ai-usage';
 import type {AiStreamMetrics} from '@/lib/ai/types';
@@ -162,7 +162,7 @@ function mockSummary(count: number, maxChars: number): string {
 }
 
 async function summarizeWithModel(input: {conversationId: string; userId: string; characterId: string; prompt: string; maxChars: number}): Promise<{text: string; metrics: AiStreamMetrics}> {
-  const plan = await readAiModelPlan(null, input.characterId);
+  const plan = await readTaskModelPlan('memorySummary', {characterId: input.characterId});
   if (plan?.length === 0) throw new Error('NO_MODEL');
   const configured = plan === null ? await readActiveAiProviders() : [];
   const character = await db.character.findUnique({

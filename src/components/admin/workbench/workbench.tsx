@@ -121,7 +121,7 @@ export function Workbench() {
 
       {!error && data && (
         <>
-          <MetricCards data={data} />
+          <MetricCards data={data} range={range} />
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="min-w-0 lg:col-span-2">
               <TodoPanel items={data.todos} />

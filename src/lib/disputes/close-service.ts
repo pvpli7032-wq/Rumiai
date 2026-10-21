@@ -2,12 +2,14 @@ import {db, pragmasReady} from '@/lib/db';
 import {logWarning} from '@/lib/logger';
 import {recordProductEvent} from '@/lib/analytics/product-events';
 import {readSettingValue} from '@/lib/settings';
-import {readAiModelPlan} from '@/lib/ai/models/runtime-service';
+import {readTaskModelPlan} from '@/lib/ai/models/task-models';
 import {streamOpenAIResponse} from '@/lib/conversations/chat-stream';
 import {finishAiCall, reserveAiCall} from '@/lib/ai/ai-usage';
 import type {AiStreamMetrics} from '@/lib/ai/types';
 import {readCaseRecord, readTallies} from './case-service';
 import {awardHotRewards} from './reward-service';
+import {notifyActivityResult} from '@/lib/notifications/write';
+import {notifySafely} from '@/lib/notifications/emit';
 import type {DisputeCaseRecord, DisputeChoice, DisputeExcerptMessage, DisputeTally, DisputeVerdict} from './types';
 import {emptyTally, leadingChoice} from './types';
 
@@ -61,7 +63,7 @@ type CloseContext = Pick<DisputeCaseRecord, 'id' | 'claim' | 'characterId' | 'au
 
 /** 一次模型回应；失败直接抛给上层，由上层决定是否还有下一次。 */
 async function generateVerdict(input: CloseContext): Promise<string> {
-  const plan = await readAiModelPlan(null, input.characterId ?? undefined);
+  const plan = await readTaskModelPlan('disputeVerdict', {characterId: input.characterId ?? undefined});
   if (plan !== null && plan.length === 0) throw new Error('NO_MODEL_ROUTE');
   const character = input.characterId
     ? await db.character.findUnique({where: {id: input.characterId}, select: {name: true, personality: true, background: true, scenario: true, roleTemplate: true, isAdult: true}})
@@ -158,8 +160,28 @@ export async function closeDisputeCase(caseId: string, options: CloseOptions = {
 async function finish(caseId: string, verdict: DisputeVerdict) {
   const saved = await db.disputeCase.updateMany({where: {id: caseId, closeStatus: 'CLOSING'}, data: {closeStatus: 'CLOSED', verdictJson: JSON.stringify(verdict), closedAt: new Date()}});
   if (!saved.count) return false;
+  // 结案结果通知发起人：只有真正写成 CLOSED 的这一次才发，重复结案不会重复通知（V3 §26）。
+  await notifyCaseClosed(caseId, verdict);
   await awardHotRewards(caseId);
   return true;
+}
+
+/** 结案通知：事件键用「案例 id + 结案时间」，同一次结案只落一条。 */
+async function notifyCaseClosed(caseId: string, verdict: DisputeVerdict) {
+  try {
+    const record = await readCaseRecord(caseId);
+    await notifySafely(() => notifyActivityResult({
+      userId: record.authorId,
+      activityId: caseId + ':' + (verdict.closedAt ?? ''),
+      activityName: '评理案例',
+      summary: '你的评理案例已结案：' + verdict.text.slice(0, 60),
+      targetType: 'DISPUTE',
+      targetId: caseId,
+    }), 'dispute_case_closed');
+  } catch (error) {
+    // 结案已经落库，通知读不到案例也不能反过来让结案失败。
+    logWarning('dispute_close_notify_failed', {caseId, error: error instanceof Error ? error.message : String(error)});
+  }
 }
 
 /** 到期或票数先到就登记/推进一次结案任务；不在这里发模型请求。 */

@@ -103,8 +103,7 @@ export function TasksAdmin() {
     setError('');
     setNotice('');
     try {
-      // 手动执行接口是 POST /api/admin/tasks/{kind}/run，路径表只登记了列表地址。
-      const result = await apiFetch<TaskRunResult>(`/api/admin/tasks/${encodeURIComponent(item.kind)}/run`, {token, method: 'POST'});
+      const result = await apiFetch<TaskRunResult>(API.admin.taskRun(item.kind), {token, method: 'POST'});
       const suffix = result.failed > 0 ? `，${result.failed} 个失败` : '';
       setNotice(`${item.name}：${result.detail}（完成 ${result.affected} 个${suffix}）`);
       setRefreshKey(value => value + 1);

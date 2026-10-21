@@ -33,7 +33,7 @@ export function notificationTypeLabel(value: string): string {
  * 通知指向的业务对象。只有登记在这里的类型才有跳转地址，新增目标必须同时
  * 在 `notificationHref` 里给出路径，避免出现点了没反应的死链。
  */
-export const NOTIFICATION_TARGET_TYPES = ['CHARACTER', 'CONVERSATION', 'COIN_LEDGER', 'ACTIVITY'] as const;
+export const NOTIFICATION_TARGET_TYPES = ['CHARACTER', 'CONVERSATION', 'COIN_LEDGER', 'ACTIVITY', 'DISPUTE', 'POST'] as const;
 export type NotificationTargetType = (typeof NOTIFICATION_TARGET_TYPES)[number];
 
 function isTargetType(value: string): value is NotificationTargetType {
@@ -55,6 +55,15 @@ export function notificationHref(targetType: string | null, targetId: string | n
       return '/shop/ledger';
     case 'ACTIVITY':
       return '/leaderboard';
+    case 'DISPUTE':
+      return targetId ? '/zh/disputes/' + encodeURIComponent(targetId) : null;
+    case 'POST': {
+      // 帖子没有独立页面，圈子页用 #post-<id> 锚点定位到具体那条（与前台现有链接同一套约定）。
+      if (!targetId) return null;
+      const [circleId, postId] = targetId.split(':');
+      if (!circleId) return null;
+      return '/zh/circles/' + encodeURIComponent(circleId) + (postId ? '#post-' + encodeURIComponent(postId) : '');
+    }
     default:
       return null;
   }

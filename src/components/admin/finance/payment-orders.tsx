@@ -80,15 +80,29 @@ export function PaymentOrderManagement({ token }: { token: string }) {
   const [status, setStatus] = useState('ALL');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  /**
+   * 下单日期区间（UTC 日，含结束当天）。null 表示还没读到 URL —— 此时不发请求，
+   * 避免先按「无日期」查一次再从 URL 带日期重查。
+   * 用 window.location 而不是 useSearchParams，理由同 account-management.tsx。
+   */
+  const [created, setCreated] = useState<{from: string; until: string} | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setCreated({from: params.get('from') ?? '', until: params.get('until') ?? ''});
+  }, []);
+
   const load = useCallback(async (signal?: AbortSignal) => {
+    if (!created) return;
     setBusy(true); setError('');
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: '25', status });
       if (query.trim()) params.set('q', query.trim());
+      if (created.from) params.set('from', created.from);
+      if (created.until) params.set('until', created.until);
       const response = await fetch('/api/admin/finance/orders/all?' + params, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store', signal });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
@@ -101,7 +115,7 @@ export function PaymentOrderManagement({ token }: { token: string }) {
     } finally {
       if (!signal?.aborted) setBusy(false);
     }
-  }, [page, query, status, token]);
+  }, [page, query, status, token, created]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -137,7 +151,7 @@ export function PaymentOrderManagement({ token }: { token: string }) {
   const pages = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
 
   return (
-    <AdminPanel title="充值订单" description="只读订单快照与退款状态；退款执行在下方独立工作区。">
+    <AdminPanel title="充值订单" description="只读订单快照与退款状态；退款执行在下方独立工作区。日期按下单时间筛，UTC 日边界并包含截止日当天。">
       <div className="space-y-4">
         <form onSubmit={search}>
           <AdminToolbar>
@@ -150,6 +164,14 @@ export function PaymentOrderManagement({ token }: { token: string }) {
               <Select aria-label="订单状态" value={status} onChange={event => changeStatus(event.target.value)}>
                 {STATUS_FILTERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </Select>
+            </label>
+            <label className="w-40 space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">下单起始日（UTC）</span>
+              <Input type="date" aria-label="下单起始日" max={created?.until || undefined} value={created?.from ?? ''} onChange={event => {setCreated(current => ({from: event.target.value, until: current?.until ?? ''})); setPage(1);}} />
+            </label>
+            <label className="w-40 space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">下单截止日（UTC）</span>
+              <Input type="date" aria-label="下单截止日" min={created?.from || undefined} value={created?.until ?? ''} onChange={event => {setCreated(current => ({from: current?.from ?? '', until: event.target.value})); setPage(1);}} />
             </label>
             <Button type="submit" size="sm" variant="outline" leadingIcon={<Search className="h-4 w-4" />} disabled={busy}>查询</Button>
             <Button type="button" size="sm" variant="outline" leadingIcon={<Download className="h-4 w-4" />} loading={exporting} onClick={() => void exportCsv()}>{exporting ? '正在导出…' : '导出 CSV（最多 5000 笔）'}</Button>

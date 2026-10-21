@@ -24,6 +24,23 @@ export interface CoinPriceView {
   items: CoinPriceItem[];
   /** 成本换算与建议价的口径（V3 §28）：样本阈值、汇率、目标毛利、每币单价。 */
   pricing: PricingBasis;
+  /** 每个 AI 任务用哪个模型（V3 §22）；modelKey 为空串表示沿用默认模型计划。 */
+  taskModels: TaskModelChoice[];
+  /** 下拉可选的在售模型；available=false 表示已停用，只用来标出当前配置失效。 */
+  modelOptions: ModelOption[];
+}
+
+export interface TaskModelChoice {
+  task: string;
+  label: string;
+  setting: string;
+  modelKey: string;
+}
+
+export interface ModelOption {
+  key: string;
+  displayName: string;
+  available: boolean;
 }
 
 export interface CostPrice {

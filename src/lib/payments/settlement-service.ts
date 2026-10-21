@@ -1,6 +1,8 @@
 import { db } from '@/lib/db';
 import { parseCnyCents, uniqueUrlParams, verifyEzfpParams } from './ezfp-v2';
 import {resolveOrderPaymentConfiguration} from './merchant-config-service';
+import {notifyCoinsReceived} from '@/lib/notifications/write';
+import {notifySafely} from '@/lib/notifications/emit';
 
 export class PaymentNotificationError extends Error {
   constructor(message: string, readonly reason: string, readonly status = 400) {
@@ -65,7 +67,7 @@ export async function settleEzfpNotification(callbackUrl: string): Promise<{ dup
       return {outcome:'REJECTED' as const,reasonCode};
     }
     await tx.user.update({ where: { id: order.userId }, data: { coins: { increment: order.coinAmount } } });
-    await tx.coinTransaction.create({
+    const ledger = await tx.coinTransaction.create({
       data: {
         userId: order.userId,
         paymentOrderId: order.id,
@@ -74,13 +76,23 @@ export async function settleEzfpNotification(callbackUrl: string): Promise<{ dup
         type: 'PURCHASE',
         description: `EZFP 充值订单 ${order.orderNo}`,
       },
+      select: { id: true },
     });
     await tx.paymentCallbackEvent.create({data:{
       paymentOrderId:order.id,provider:'EZFP',providerTradeNo:params.trade_no,outcome:'SETTLED',
     }});
-    return {outcome:'SETTLED' as const};
+    return {outcome:'SETTLED' as const,ledgerId:ledger.id,userId:order.userId,coins:order.coinAmount,orderNo:order.orderNo};
   });
 
   if(settled.outcome==='REJECTED')reject(settled.reasonCode);
+  // 到账通知放在结算事务提交之后，并且只有真正完成结算的那一次才发：
+  // 支付回调是重试高发区，重复回调在上面已经返回 DUPLICATE，走不到这里；
+  // 即便走到，事件键用的是流水 id，同一笔入账也只落一条通知。
+  if(settled.outcome==='SETTLED'){
+    await notifySafely(() => notifyCoinsReceived({
+      userId: settled.userId, transactionId: settled.ledgerId, amount: settled.coins,
+      reason: `充值订单 ${settled.orderNo} 金币已到账`,
+    }), 'coin_settlement');
+  }
   return { duplicate: settled.outcome==='DUPLICATE' };
 }

@@ -3,6 +3,8 @@ import {db, pragmasReady} from '@/lib/db';
 import {readHistory, readSettingValue} from '@/lib/settings';
 import {listActiveCoinPackages} from '@/lib/coins/package-service';
 import type {ExchangeRateState, PricingBasis} from '@/lib/ai/costs/price-suggestion';
+import {readAiModelOptions} from '@/lib/ai/models/runtime-service';
+import {AI_TASK_NAMES, TASK_LABELS, TASK_MODEL_SETTING, readTaskModelKey} from '@/lib/ai/models/task-models';
 import {AdminOpsError, idParam} from './ops-error';
 
 /**
@@ -32,6 +34,10 @@ export interface AdminCoinPriceView {
   marginAlertPercent: number;
   /** 成本换算与建议价的口径（V3 §28）；四项齐备才有建议币价。 */
   pricing: PricingBasis;
+  /** 每个 AI 任务用哪个模型（V3 §22）；key 为空串表示沿用默认模型计划。 */
+  taskModels: Array<{task: string; label: string; setting: string; modelKey: string}>;
+  /** 下拉可选的在售模型；available=false 的已停用，仅用于标出「当前配置已不可用」。 */
+  modelOptions: Array<{key: string; displayName: string; available: boolean}>;
 }
 
 function toItem(row: {id: string; modelId: string; coinsPerReply: number; effectiveAt: Date; version: number; createdBy: string; createdAt: Date; model: {key: string; displayName: string}}): AdminCoinPriceItem {
@@ -112,7 +118,14 @@ export async function readAdminCoinPrices(): Promise<AdminCoinPriceView> {
     coinUnitPriceNote: coinUnit.note,
     exchange: await readExchangeRate(exchangeRate, exchangeEffectiveAt),
   };
-  return {models, items: rows.map(toItem), targetMarginPercent, marginAlertPercent, pricing};
+  const [taskKeys, modelOptions] = await Promise.all([
+    Promise.all(AI_TASK_NAMES.map(readTaskModelKey)),
+    readAiModelOptions(),
+  ]);
+  const taskModels = AI_TASK_NAMES.map((task, index) => ({
+    task, label: TASK_LABELS[task], setting: TASK_MODEL_SETTING[task], modelKey: taskKeys[index],
+  }));
+  return {models, items: rows.map(toItem), targetMarginPercent, marginAlertPercent, pricing, taskModels, modelOptions};
 }
 
 export interface AdminCoinPriceInput {

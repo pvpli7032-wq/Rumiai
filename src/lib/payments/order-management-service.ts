@@ -1,4 +1,5 @@
 import {db,pragmasReady} from '@/lib/db';
+import {parseUtcDayRange} from '@/lib/admin/management-service';
 
 export const PAYMENT_ORDER_STATUSES=['PENDING','PAID','REFUND_PENDING','REFUNDED','FAILED'] as const;
 export type PaymentOrderStatus=typeof PAYMENT_ORDER_STATUSES[number];
@@ -8,7 +9,7 @@ export class PaymentOrderQueryError extends Error{
   constructor(message:string,public status=400){super(message);this.name='PaymentOrderQueryError';}
 }
 
-export function parsePaymentOrderQuery(input:{page?:unknown;pageSize?:unknown;status?:unknown;query?:unknown}){
+export function parsePaymentOrderQuery(input:{page?:unknown;pageSize?:unknown;status?:unknown;query?:unknown;from?:unknown;until?:unknown}){
   const page=input.page===undefined?1:Number(input.page);
   const pageSize=input.pageSize===undefined?25:Number(input.pageSize);
   const status=input.status===undefined||input.status==='ALL'?'ALL':input.status;
@@ -17,15 +18,21 @@ export function parsePaymentOrderQuery(input:{page?:unknown;pageSize?:unknown;st
   if(!Number.isInteger(pageSize)||pageSize<1||pageSize>100)throw new PaymentOrderQueryError('每页数量必须为 1–100。');
   if(status!=='ALL'&&(typeof status!=='string'||!PAYMENT_ORDER_STATUSES.includes(status as PaymentOrderStatus)))throw new PaymentOrderQueryError('订单状态筛选值无效。');
   if(typeof query!=='string'||query.length>80||query.trim().length>80||query.trim()&&!/^[A-Za-z0-9_-]+$/.test(query.trim()))throw new PaymentOrderQueryError('订单号或渠道单号格式无效。');
-  return {page,pageSize,status:status as PaymentOrderStatus|'ALL',query:query.trim()};
+  // 日期按订单创建时间（createdAt）筛，UTC 日边界，含结束日期当天 —— 与操作审计同一口径。
+  const created=parseUtcDayRange(
+    typeof input.from==='string'?input.from:'',typeof input.until==='string'?input.until:'',
+    '订单日期',message=>new PaymentOrderQueryError(message),
+  );
+  return {page,pageSize,status:status as PaymentOrderStatus|'ALL',query:query.trim(),created};
 }
 
 /** Read-only operations projection. It never returns account credentials or message data. */
-export async function listPaymentOrders(input:{page?:unknown;pageSize?:unknown;status?:unknown;query?:unknown}){
+export async function listPaymentOrders(input:{page?:unknown;pageSize?:unknown;status?:unknown;query?:unknown;from?:unknown;until?:unknown}){
   const filter=parsePaymentOrderQuery(input);
   await pragmasReady;
   const where={
     ...(filter.status==='ALL'?{}:{status:filter.status}),
+    ...(filter.created.gte||filter.created.lt?{createdAt:filter.created}:{}),
     ...(filter.query?{
       OR:[
         {orderNo:{contains:filter.query}},

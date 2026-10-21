@@ -1,6 +1,8 @@
 import { db, pragmasReady } from '@/lib/db';
 import { isUniqueViolation } from '@/lib/user-identity';
 import { grantEarnedCoins } from '@/lib/coins/reward-ledger';
+import { notifyCoinsReceived } from '@/lib/notifications/write';
+import { notifySafely } from '@/lib/notifications/emit';
 
 const MAX_TITLE = 200;
 const MAX_DESCRIPTION = 2_000;
@@ -79,11 +81,14 @@ export async function createCharacterQuest(ownerId: string, characterId: string,
 
 export async function claimCharacterQuest(userId: string, characterId: string, questId: string) {
   await pragmasReady;
+  // 事务里读到的任务标题带出来给通知用，避免通知再查一次库。
+  let questTitle = '';
   return db.$transaction(async tx => {
     await tx.$executeRaw`UPDATE users SET account_version = account_version WHERE id = ${userId}`;
     const quest = await tx.characterQuest.findUnique({where: {id: questId}, select: {id: true, characterId: true, title: true, rewardCoins: true, requiredMessages: true, isActive: true}});
     if (!quest || quest.characterId !== characterId) throw new CharacterQuestError('Quest not found', 404);
     if (!quest.isActive) throw new CharacterQuestError('Quest is not active', 409);
+    questTitle = quest.title;
     const progress = await tx.message.count({where: {role: 'USER', conversation: {userId, characterId}}});
     if (progress < quest.requiredMessages) throw new CharacterQuestError('Quest condition not met', 409, progress, quest.requiredMessages);
 
@@ -98,5 +103,13 @@ export async function claimCharacterQuest(userId: string, characterId: string, q
     }
     const newBalance = await grantEarnedCoins(tx, userId, quest.rewardCoins, `角色任务：${quest.title}`, 'CHARACTER_QUEST_REWARD');
     return {coinsEarned: quest.rewardCoins, newBalance};
-  }, {maxWait: 10_000, timeout: 15_000});
+  }, {maxWait: 10_000, timeout: 15_000}).then(async result => {
+    // 任务奖励到账通知：事务提交后才写，事件键用「任务 + 用户」，同一个任务只通知一次（V3 §26）。
+    // result 为 null 说明这次是幂等命中（此前已领取），不重复通知。
+    if (result && result.coinsEarned > 0) await notifySafely(() => notifyCoinsReceived({
+      userId, transactionId: `quest:${questId}:${userId}`, amount: result.coinsEarned,
+      reason: `角色任务「${questTitle}」奖励已到账`,
+    }), 'character_quest_reward');
+    return result;
+  });
 }
