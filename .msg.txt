@@ -1,0 +1,9 @@
+chore: 清理项目体积，本地开发库与验证残留不入库
+
+- prisma/.local/dev.db 从版本库移除（1.6MB 二进制，可用 migrate deploy 重建），
+  .gitignore 覆盖整个 prisma/.local/。
+- 删掉 prisma/ 下 47 个测试残留库（isolated-build / growth-invite / mirror-generation
+  等，每个 1.7MB，共 78MB）。
+- 删掉 .next-validation-build（426MB）、.next-build（805MB）构建缓存与 artifacts/
+  本地验证残留（日志、tsbuildinfo、浏览器截图）。
+- 排除 node_modules/.git 后项目体积 511MB → 9.4MB。
