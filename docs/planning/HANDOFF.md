@@ -84,24 +84,32 @@ worker 把每回合抽出的确认事实写进 `run.stateJson`，但 `turn-servi
 - 接线：`src/app/(app)/discover/page.tsx`、`src/components/character-detail-dialog.tsx`、`src/app/[locale]/character/[id]/page.tsx`、`src/app/(app)/chat/page.tsx`
 - 测试：`tests/stories-v0.test.mjs`（5 条）、`scripts/verify-v0-story-browser.mjs`（11 条）
 
-### 4.2 聊天应用服务（已合入，未部署）
+### 4.2 聊天应用服务（已上线）
 - `src/lib/conversations/chat-application-service.ts` — `executeChatTurn()`，一次聊天回合的完整编排
 - 两个路由只剩 HTTP 层：`src/app/api/conversations/[id]/messages/route.ts`（POST + 原 GET）、`.../[messageId]/regenerate/route.ts`
 - 行为对照表：`docs/planning/m0-behavior-parity.md`（**改这里之前必读**）
 - 测试：`tests/chat-application-service.test.mjs`（7 条）、`tests/m0-route-behavior.test.cjs`（14 条）、`tests/m2-context.test.cjs`（4 条）
 
-### 4.3 M3 数据模型（已合入，未部署）
+### 4.3 M3 数据模型（已上线，48 条迁移全部 applied）
 - `prisma/schema.prisma` 末尾 6 个模型；`prisma/migrations/20261020120000_story_run_contract/migration.sql`
 - 契约：`docs/planning/m3-data-contract.md`（第 1 节模型、第 5 节 API、第 9 节拍板结论）
 - 迁移已验证纯增量：`conversations`/`messages`/`users` 三表建表语句与索引前后逐字节相同，`foreign_key_check` 0 行
 
-### 4.4 故事回合编排与生命周期（M3-3/M4/W07，已合入未部署）
+### 4.4 故事回合编排与生命周期（M3-3/M4/W07，已上线）
 - 回合：`src/lib/stories/turn-service.ts`（SSE 编排、CAS、幂等）、`src/lib/stories/lifecycle/`（state-model/state-worker/chapter-service/invalidation/export-service/share-service）
 - 端点：`/api/story-runs`（创建/列表/详情）、`/turns`（SSE）、`/turns/[turnId]/retry-state|close-chapter`、`/resume`、`/export`、`/shares`（POST/DELETE）
 - 灰度旗标：`src/lib/stories/rollout-flags.ts` + 三个 route 薄层 3 行落点（F1 RUNS/F2 TURNS/F3 CLOSE），F4 worker 开关在 `src/instrumentation.ts`
 - 接线：`message-service.ts` 通过 `registerStoryHistoryInvalidator` 依赖倒置（组合根 side-effect import 在 `messages/[messageId]/route.ts`）；依赖方向只许 stories→conversations
 - 测试：story 全套 37 条（run 8/turn 8/lifecycle 9/quota 1/w07 6/rollout 5）
 - 契约：`docs/planning/m3-data-contract.md`（§7 依赖方向拍板、§12 分享模型）
+
+### 4.5 故事发现与体验（c7 上线）
+
+- 目录：`src/lib/stories/catalog-service.ts` — `listPublishedStories` / `readPublishedStory`，只经 `readVersion()` 取公开投影（slug/title/locale/角色四字段/publicSummary/chapters/templateVersionId），未发布或不存在一律 404
+- 端点：`GET /api/stories`（locale/cursor/limit，limit 上限 50）、`GET /api/stories/[slug]` → `{story}`；两条都匿名可读
+- 入口页：`src/app/(app)/stories/[slug]/page.tsx`（服务端直接调 catalog-service，不绕自己的 HTTP）+ `src/components/stories/story-entry-page.tsx`；404 走 `notFound()`；公开契约没有 roleTemplate，身份区块给中性说明而不是编造
+- 故事会话：`src/components/chat/story-mode.tsx`（`/chat?storyRun=<id>`），`chat/page.tsx` 只加分支挂载（+9/−1 行）。正文复用 owner-scoped 的 `GET /api/conversations/{id}/messages` 按 turn 的 inputMessageId/assistantMessageId 对齐；run view 本身不投影正文（隐私契约）
+- 测试：`tests/story-catalog.test.mjs`（5 条）、`scripts/verify-story-browser.mjs`（8 项，已挂进默认浏览器矩阵 `test:story:browser`）
 
 ## 5. 验证基线（改动后用这些自证）
 
@@ -115,16 +123,20 @@ node --test tests/m2-context.test.cjs                 # 4 条
 node --import tsx --test tests/stories-v0.test.mjs    # 5 条
 node --import tsx --test tests/story-run-service.test.mjs tests/story-turn-service.test.mjs tests/story-lifecycle-service.test.mjs tests/story-state-quota.test.mjs tests/story-lifecycle-w07.test.mjs tests/story-rollout-flags.test.mjs   # story 全套
 node --import tsx --test tests/database-upgrade.test.mjs tests/account-closure.test.mjs tests/account-data-export.test.mjs
-node scripts/verify-story-eval.mjs run                # W08 评测：基线 PASS=15 FAIL=0 PENDING=44 BLOCKED=1
-DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs test:browser   # 9 PASS / 1 SKIP
+node --import tsx --test tests/story-catalog.test.mjs tests/locale-middleware.test.mjs   # 目录 5 条 + 中间件 3 条
+node scripts/verify-story-eval.mjs validate           # 60 条结构校验
+node scripts/verify-story-eval.mjs run --tier=domain  # 选中 36：PASS=30 FAIL=0 PENDING=6 ERROR=0
+DISABLE_MOCK_AI=false node scripts/run-browser-matrix.mjs    # 12 套件全绿：合计 PASS=47 SKIP=1 FAIL=0
 ```
+
+W08 现状：implemented 37 / skeleton 23。仍为 skeleton 的每条都在 `tests/story-evaluation/BLOCKED-TIERS.md` 里写了阻塞原因、责任人、授权后命令与最小可执行条件——要推进它们需要产品/财务/运维/本地化分别拍板，不是工程侧能自行完成的。
 
 构建坑：`npm run build` 会撞 safe-delete 垫片的 genie-trash 间歇故障 → 用 `CODEBUDDY_SAFE_DELETE_ENABLED=0 npm run build`（仅构建产物目录，不对用户文件用）；先 `rm -rf .next-build` 防僵尸进程占锁。
 
 浏览器矩阵的几个坑（**踩过，不要再踩**）：
 - 必须显式 `DISABLE_MOCK_AI=false`，否则本地 `.env` 里是 true，聊天返回 503。
 - `test:m2:chat` 硬要求 18782 端口，矩阵用随机端口，跑不通是既有问题。
-- `test:screenshots` 会因 `NEXT_PUBLIC_SITE_URL` 是 localhost 而 307 失败，既有问题。
+- ~~`test:screenshots` 会因 `NEXT_PUBLIC_SITE_URL` 是 localhost 而 307 失败~~ 已在 c7 修掉：middleware 改为按 `x-forwarded-host/proto`（回退 `host`）推导重定向来源，不再依赖构建期内联的 `NEXT_PUBLIC_*`。
 - `npm test`（`tests/runner.ts`）要求 `localhost:3000` 有服务，否则 147 条全 fetch failed，不是回归。
 - 发现页场景区是客户端渲染，**curl/grep HTML 永远找不到**，必须用浏览器。
 
