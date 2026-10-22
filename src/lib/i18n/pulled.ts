@@ -5,7 +5,6 @@ import phPulled from './dictionaries/ph.json';
 import jaPulled from './dictionaries/ja.json';
 import esPulled from './dictionaries/es.json';
 import ptPulled from './dictionaries/pt.json';
-import zhPulled from './dictionaries/zh.json';
 import zhTwPulled from './dictionaries/zh-tw.json';
 import koPulled from './dictionaries/ko.json';
 import {DICTIONARIES} from './dictionaries';
@@ -28,7 +27,6 @@ const PULLED: Partial<Record<Locale, Record<string, string>>> = {
   ja: jaPulled,
   es: esPulled,
   pt: ptPulled,
-  zh: zhPulled,
   'zh-tw': zhTwPulled,
   ko: koPulled,
 };
@@ -41,7 +39,8 @@ const PULLED_FIELDS: Partial<Record<keyof Dictionary, string>> = {
 
 export function getDictionary(locale: Locale): Dictionary {
   const base = DICTIONARIES[locale] ?? DICTIONARIES.en!;
-  const pulled = locale === 'zh' ? undefined : PULLED[locale];
+  // zh 有手写文案（DICTIONARIES.zh），PULLED 里没有 zh，所以这一句对 zh 自然返回 undefined。
+  const pulled = PULLED[locale];
   if (!pulled) return base;
 
   const overrides: Partial<Dictionary> = {};

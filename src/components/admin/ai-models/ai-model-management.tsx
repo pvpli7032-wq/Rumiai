@@ -9,6 +9,7 @@ import {EmptyState} from '@/components/ui/empty-state';
 import {Input} from '@/components/ui/input';
 import {Select} from '@/components/ui/select';
 import {Textarea} from '@/components/ui/textarea';
+import {API} from '@/lib/api-paths';
 
 type Provider={id:string;name:string;isActive:boolean;hasSecret:boolean};
 type Model={id:string;key:string;displayName:string;modelCode:string;providerId:string;provider:{id:string;name:string;isActive:boolean};isActive:boolean;isDefault:boolean;isFallback:boolean;sortOrder:number;timeoutMs:number;maxRetries:number;maxOutputTokens:number;lastCheckAt:string|null;lastCheckStatus:string|null;version:number};
@@ -20,7 +21,7 @@ export function AiModelManagement(){
   const {token,permissions,loading}=useAdminAccess(),[rows,setRows]=useState<Model[]>([]),[providers,setProviders]=useState<Provider[]>([]),[draft,setDraft]=useState<Draft|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const canManage=permissions.includes('ai.models.manage'),canTest=permissions.includes('ai.models.test');
   const request=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetch(url,{...init,cache:'no-store',headers:{Authorization:`Bearer ${token}`,...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});const data=await response.json();if(!response.ok)throw Error(data.error||'AI模型请求失败。');return data;},[token]);
-  const load=useCallback(async()=>{if(!token)return;try{const [models,sources]=await Promise.all([request('/api/admin/ai/models'),request('/api/admin/ai/providers')]);setRows(models);setProviders(sources);setError('');}catch(value){setError((value as Error).message);}},[request,token]);
+  const load=useCallback(async()=>{if(!token)return;try{const [models,sources]=await Promise.all([request('/api/admin/ai/models'),request(API.admin.ai.providers)]);setRows(models);setProviders(sources);setError('');}catch(value){setError((value as Error).message);}},[request,token]);
   useEffect(()=>{void load();},[load]);
   function set<K extends keyof Draft>(key:K,value:Draft[K]){setDraft(old=>old?{...old,[key]:value}:old);}
   async function save(event:React.FormEvent){event.preventDefault();if(!draft||busy)return;setBusy(true);setError('');setNotice('');try{const body={...draft,sortOrder:Number(draft.sortOrder),timeoutMs:Number(draft.timeoutMs),maxRetries:Number(draft.maxRetries),maxOutputTokens:Number(draft.maxOutputTokens)};await request(draft.id?`/api/admin/ai/models/${encodeURIComponent(draft.id)}`:'/api/admin/ai/models',{method:draft.id?'PATCH':'POST',body:JSON.stringify(body)});setDraft(null);setNotice('模型与路由配置已保存。');await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}

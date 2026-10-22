@@ -2,9 +2,11 @@
 // domain services still enforce authentication and fine-grained permissions.
 // The compatibility window is over: every handler lives under /api/admin and the old
 // prefixes no longer reach a route, so there is nothing else to exempt here.
+import { API } from '@/lib/api-paths';
+
 const administrationRoots = ['/api/admin'];
-const continuingEndpoints = new Set([
-  '/api/auth/login', '/api/auth/logout',
+const continuingEndpoints = new Set<string>([
+  API.auth.login, API.auth.logout,
 ]);
 
 export function isMaintenanceProtectedWrite(pathname: string, method: string) {

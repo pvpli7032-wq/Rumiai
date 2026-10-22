@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { readNumber, useUiConfig } from '@/lib/settings/use-ui-config';
 import { ReportDialog } from '@/components/report-dialog';
+import { API } from '@/lib/api-paths';
 
 type Comment = { id: string; content: string; imageUrl: string | null; createdAt: string; updatedAt: string; isMine: boolean; author: { id: string; name: string; avatar_url: string | null } };
 type Post = { id: string; content: string; createdAt: string; updatedAt: string; isMine: boolean; images: string[]; character: { id: string; name: string } | null; commentCount: number; author: { id: string; name: string; avatar_url: string | null }; comments: Comment[] };
@@ -15,7 +16,7 @@ async function uploadImages(files: File[], token: string) {
   const urls: string[] = [];
   for (const file of files) {
     const form = new FormData(); form.set('file', file);
-    const response = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+    const response = await fetch(API.upload, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || '图片上传失败，请重试。'); urls.push(data.url);
   }
   return urls;

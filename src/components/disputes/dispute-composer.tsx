@@ -33,7 +33,7 @@ export function DisputeComposer({locale}: {locale: string}) {
   useEffect(() => {
     if (isLoading) return;
     const controller = new AbortController();
-    void fetch(`${API.disputes.create}/options`, {signal: controller.signal, headers: token ? {Authorization: `Bearer ${token}`} : {}}).then(r => r.ok ? r.json() : null).then(data => { if (data?.options) setOptions(data.options); }).catch(() => {});
+    void fetch(API.disputes.options, {signal: controller.signal, headers: token ? {Authorization: `Bearer ${token}`} : {}}).then(r => r.ok ? r.json() : null).then(data => { if (data?.options) setOptions(data.options); }).catch(() => {});
     if (token) void fetch(API.conversations.list(), {signal: controller.signal, headers: {Authorization: `Bearer ${token}`}}).then(r => r.ok ? r.json() : []).then((rows: Conversation[]) => setConversations(Array.isArray(rows) ? rows.slice(0, 50) : [])).catch(() => {});
     return () => controller.abort();
   }, [isLoading, token]);
@@ -45,7 +45,7 @@ export function DisputeComposer({locale}: {locale: string}) {
     setMessages([]);
     setNotice('');
     try {
-      const response = await fetch(`${API.disputes.create}/excerpt?conversationId=${encodeURIComponent(id)}`, {headers: {Authorization: `Bearer ${token}`}});
+      const response = await fetch(`${API.disputes.excerpt}?conversationId=${encodeURIComponent(id)}`, {headers: {Authorization: `Bearer ${token}`}});
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '聊天消息加载失败。');
       setMessages(data.messages ?? []);

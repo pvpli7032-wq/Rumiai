@@ -8,6 +8,7 @@ import {CheckinRewards} from './checkin-rewards';
 import {MissionManagement,type Mission} from './missions';
 import {GiftCatalogManagement} from './gift-catalog';
 import {RewardBudget} from './reward-budget';
+import {API} from '@/lib/api-paths';
 
 export function GrowthManagement(){
   const {token,isLoading}=useAuth(),{permissions,loading:accessLoading,error:accessError}=useAdminAccess();
@@ -16,7 +17,7 @@ export function GrowthManagement(){
   const refresh=useCallback(async(showLoading=true)=>{
     if(!token||!canRead){setLoading(false);return;}
     if(showLoading)setLoading(true);setError('');
-    try{const response=await fetch('/api/admin/growth/missions',{headers:{Authorization:'Bearer '+token},cache:'no-store'});const data=await response.json();if(!response.ok)throw Error(data.error);setMissions(data.missions);}
+    try{const response=await fetch(API.admin.growth.missions,{headers:{Authorization:'Bearer '+token},cache:'no-store'});const data=await response.json();if(!response.ok)throw Error(data.error);setMissions(data.missions);}
     catch(e){setError(e instanceof Error?e.message:'任务配置读取失败。');}
     finally{if(showLoading)setLoading(false);}
   },[token,canRead]);

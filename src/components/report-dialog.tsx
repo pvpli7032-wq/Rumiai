@@ -8,6 +8,7 @@ import { loginWithNext } from '@/lib/next-path';
 import { useRouter } from 'next/navigation';
 import { REPORT_CATEGORIES, IMAGE_REASONS, COPYRIGHT_RELATIONSHIPS, MAX_DETAILS } from '@/lib/community/report-types';
 import { CATEGORY_LABELS, IMAGE_REASON_LABELS, RELATIONSHIP_LABELS } from '@/lib/report-labels';
+import { API } from '@/lib/api-paths';
 
 type Category = (typeof REPORT_CATEGORIES)[number];
 
@@ -48,7 +49,7 @@ export function ReportDialog({
     setError('');
 
     try {
-    const res = await fetch('/api/reports', {
+    const res = await fetch(API.reports, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({

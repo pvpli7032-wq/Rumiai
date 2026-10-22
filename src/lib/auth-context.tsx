@@ -1,5 +1,6 @@
 'use client';
 import { zhError } from '@/lib/copy/zh';
+import { API } from '@/lib/api-paths';
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 
 interface User {
@@ -80,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string) {
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(API.auth.login, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -131,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // a token only dropped from storage stayed valid for the rest of its week.
     // Local state is cleared regardless, so a failed request still signs you out here.
     if (token) {
-      fetch('/api/auth/logout', {
+      fetch(API.auth.logout, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         keepalive: true,

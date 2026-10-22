@@ -31,6 +31,9 @@ export function PriceCostAdmin() {
   const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('ai.costs.read');
   const canManage = permissions.includes('ai.costs.manage');
+  // 币价写入属于计费（billing.manage），预算与熔断属于 AI 成本（ai.costs.manage）；两个开关各自独立，
+  // 否则只有其一的账号会看到可点按钮却拿到 403。
+  const canManageBilling = permissions.includes('billing.manage');
   const canReadBilling = permissions.includes('billing.read');
   const canReadSettings = permissions.includes('settings.read');
   const canWriteSettings = permissions.includes('settings.write');
@@ -274,7 +277,7 @@ export function PriceCostAdmin() {
       <ModelPriceDrawer
         key={editing?.id ?? 'none'}
         row={editing}
-        canManage={canManage}
+        canManage={canManageBilling}
         busy={busy}
         onClose={() => setEditing(null)}
         onSubmit={(row, draft) => void savePrice(row, draft)}

@@ -9,6 +9,7 @@ import {createMirrorModelCaller, MirrorModelError} from './model-call';
 import {consumeMirrorLimit, mirrorDayKey, mirrorQuotaView, readMirrorLimitState, readMirrorUsage, releaseMirrorLimit, type MirrorIdentity, type MirrorLimitPlan} from './limits';
 import {hashMirrorIp, mirrorAttributionCookieName, mirrorIpSalt, newMirrorSubject, readCookie, readMirrorQuotaCookie, signMirrorAttribution, toOwnerResult, toPublicResult, type MirrorRow} from './share';
 import {readConfigFor, type MirrorConfig} from './config';
+import {clientIp} from '@/lib/http/client-ip';
 import {MirrorError} from './errors';
 import type {BillingTurn} from '@/lib/billing/turn';
 import {readMirrorAccess} from '@/lib/ai/task-budget';
@@ -51,13 +52,6 @@ export async function readMirrorContext(request: Request): Promise<MirrorContext
     ipHash: hashMirrorIp(clientIp(request), mirrorIpSalt()),
     cookieQuota: readMirrorQuotaCookie(cookieHeader),
   };
-}
-
-/** 反代后面取真实来源：只认第一段，不解析整条链。 */
-function clientIp(request: Request): string | null {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const first = forwarded?.split(',')[0]?.trim();
-  return first || request.headers.get('x-real-ip')?.trim() || null;
 }
 
 /** 自动选取：已审核公开且标了「本站原创」优先，不足用最热门公开角色补齐。 */

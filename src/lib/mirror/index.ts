@@ -22,7 +22,7 @@ export {compareMirrorResults, deleteMirrorResult, expireMirrorResults, readMirro
 export type {MirrorCompareEntry} from './types';
 export {MirrorModelError} from './model-call';
 export {mirrorDayKey, readMirrorUsage, type MirrorIdentity} from './limits';
-export {exampleForCharacter, missingQuestionCount, parseMirrorExamples, parseMirrorQuestions, toExampleView} from './examples';
+export {exampleForCharacter, parseMirrorExamples, parseMirrorQuestions, toExampleView} from './examples';
 export {mirrorAttributionCookieName, newMirrorSubject, readCookie, signMirrorAttribution, verifyMirrorAttribution} from './share';
 export type {
   MirrorCharacterOption,

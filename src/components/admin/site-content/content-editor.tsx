@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import type { SitePageBlock } from '@/lib/use-site-content';
+import { toDateTimeLocalInput } from '@/lib/format/date-time';
 import { DEFAULT_ACCENT_FROM, DEFAULT_ACCENT_TO } from '@/lib/site-content/brand-defaults';
 
 type Action = 'SAVE' | 'SCHEDULE' | 'PUBLISH' | 'UNPUBLISH' | 'DELETE_DRAFT';
@@ -19,12 +20,6 @@ type Props = { type: ContentType; item: SiteContentRow | null; canManage: boolea
 
 const sourceOptions = [['FOR_YOU', '为你推荐'], ['EXCLUSIVE', '独家角色'], ['POPULAR', '热门'], ['NEWEST', '最新发布'], ['TAG', '按分类']];
 const fieldLabel = (name: string) => ({ placement: '展示位置', kind: '页面类型', slug: '固定路径键', title: '标题', summary: '页面摘要', description: '说明', href: '站内跳转路径', gradientFrom: '渐变起点色', gradientTo: '渐变终点色', imageUrl: '站内图片', sortOrder: '排序值', isActive: '在前台显示', key: '稳定键', label: '显示名称', group: '分类分组', filterRow: '首页筛选行', emoji: '图标', source: '角色来源', tagKey: '关联分类', blocks: '页面组件', startsAt: '内容生效时间', endsAt: '内容结束时间', brandName: '品牌名称', logoUrl: '品牌图标', accentFrom: '品牌渐变起点', accentTo: '品牌渐变终点', footerNote: '页脚说明' } as Record<string, string>)[name] ?? name;
-const localTime = (value: unknown) => {
-  if (!value) return '';
-  const date = new Date(String(value)); date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-  return date.toISOString().slice(0, 16);
-};
-
 export function ContentEditor({ type, item, canManage, canPublish, busy, revisions, revisionLoading, onApply, onRestore, onLoadRevisions, onClose }: Props) {
   const [content, setContent] = useState<Record<string, unknown>>({}), [reason, setReason] = useState(''), [publishAt, setPublishAt] = useState(''), [error, setError] = useState('');
   useEffect(() => { setContent(item?.content ? { ...item.content } : {}); setReason(''); setPublishAt(''); setError(''); }, [type, item?.id, item?.version]);
@@ -106,7 +101,7 @@ export function ContentEditor({ type, item, canManage, canPublish, busy, revisio
       return (
         <label className="block space-y-1.5" key={name}>
           <span className="text-sm font-medium">{label}</span>
-          <Input type="datetime-local" value={localTime(value)} onChange={event => set(name, event.target.value ? new Date(event.target.value).toISOString() : null)} />
+          <Input type="datetime-local" value={toDateTimeLocalInput(value as string | null)} onChange={event => set(name, event.target.value ? new Date(event.target.value).toISOString() : null)} />
         </label>
       );
     }

@@ -17,8 +17,8 @@ export async function GET(request: Request) {
 
 /** 新增一个币价版本：只追加新行，不改历史。 */
 export async function POST(request: Request) {
-  const access = await requireAdmin(request, 'ai.costs.manage');
-  if (!access.ok) return access.reason === 'anonymous' ? unauthorized() : forbidden('只有具备价格保存权限的管理员可以新增模型币价。');
+  const access = await requireAdmin(request, 'billing.manage');
+  if (!access.ok) return access.reason === 'anonymous' ? unauthorized() : forbidden('只有具备计费管理权限的管理员可以新增模型币价。');
   const body = await readJsonBody(request);
   if (body.response) return body.response;
   if (!body.input || typeof body.input !== 'object' || Array.isArray(body.input)) return badRequest('币价数据格式不正确。');

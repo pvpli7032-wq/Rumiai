@@ -8,17 +8,12 @@ import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { formatCny } from '@/lib/format/number';
+import { toDateTimeLocalInput } from '@/lib/format/date-time';
 
 type Package = { id: string; label: string; coins: number; bonus: number; priceCnyCents: number | null; sortOrder: number; isActive: boolean; version: number; bonusStartsAt: string | null; bonusEndsAt: string | null; effectiveBonus: number };
 type Change = { id: string; packageId: string; actorId: string; createdAt: string; beforeJson: string | null; afterJson: string };
 type Form = { label: string; coins: string; bonus: string; price: string; sortOrder: string; isActive: boolean; start: string; end: string };
 const empty: Form = { label: '', coins: '60', bonus: '0', price: '6', sortOrder: '0', isActive: true, start: '', end: '' };
-
-function localTime(value: string | null) {
-  if (!value) return '';
-  const time = new Date(value);
-  return new Date(time.getTime() - time.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-}
 
 export function FinancePackages({ token, canEdit }: { token: string; canEdit: boolean }) {
   const [packages, setPackages] = useState<Package[]>([]), [changes, setChanges] = useState<Change[]>([]);
@@ -38,7 +33,7 @@ export function FinancePackages({ token, canEdit }: { token: string; canEdit: bo
 
   function edit(pkg: Package) {
     setEditing(pkg); setError(''); setMessage('');
-    setForm({ label: pkg.label, coins: String(pkg.coins), bonus: String(pkg.bonus), price: pkg.priceCnyCents === null ? '' : (pkg.priceCnyCents / 100).toFixed(2), sortOrder: String(pkg.sortOrder), isActive: pkg.isActive, start: localTime(pkg.bonusStartsAt), end: localTime(pkg.bonusEndsAt) });
+    setForm({ label: pkg.label, coins: String(pkg.coins), bonus: String(pkg.bonus), price: pkg.priceCnyCents === null ? '' : (pkg.priceCnyCents / 100).toFixed(2), sortOrder: String(pkg.sortOrder), isActive: pkg.isActive, start: toDateTimeLocalInput(pkg.bonusStartsAt), end: toDateTimeLocalInput(pkg.bonusEndsAt) });
   }
 
   async function save(e: React.FormEvent) {

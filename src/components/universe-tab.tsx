@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookUser, MessageCircle, Search, Tag } from 'lucide-react';
 import {compactNumber} from '@/lib/i18n/format';
+import {API} from '@/lib/api-paths';
 
 interface Universe {
   id: string;
@@ -41,7 +42,7 @@ export function UniverseTab() {
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('trending');
 
   useEffect(() => {
-    fetch('/api/universes')
+    fetch(API.universes)
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => Array.isArray(d) && setUniverses(d))
       .catch(() => {});

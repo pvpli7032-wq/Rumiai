@@ -11,8 +11,6 @@ import type {MirrorExampleResult, MirrorExampleView, MirrorResultFields} from '.
  *   所以它走同一套字数上限与校验，配错的内容直接丢掉而不是显示半截。
  */
 
-const charCount = (value: string) => [...value].length;
-
 export type MirrorLengthLimits = {titleMaxChars: number; observationMaxChars: number; quoteMaxChars: number};
 
 /**
@@ -65,11 +63,6 @@ export function parseMirrorQuestions(value: unknown, questionCount: number): str
     .map(cleanLine)
     .filter((item): item is string => Boolean(item))
     .slice(0, asked);
-}
-
-/** 缺几道题：题目条数不足时前台据此明确提示，而不是静默用默认题顶上。 */
-export function missingQuestionCount(questions: string[], questionCount: number): number {
-  return Math.max(0, Math.trunc(questionCount) - questions.length);
 }
 
 /** 转成前台视图：与真实结果同形，但没有 shareId，也不带任何回答。 */

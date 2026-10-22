@@ -32,7 +32,6 @@ export const API = {
   mirror: {
     generate: '/api/mirror',
     result: (shareId: string) => `/api/mirror/${e(shareId)}`,
-    mine: '/api/mirror/mine',
     compare: '/api/mirror/compare',
   },
   disputes: {
@@ -41,6 +40,8 @@ export const API = {
     detail: (id: string) => `/api/disputes/${e(id)}`,
     vote: (id: string) => `/api/disputes/${e(id)}/vote`,
     withdraw: (id: string) => `/api/disputes/${e(id)}/withdraw`,
+    options: '/api/disputes/options',
+    excerpt: '/api/disputes/excerpt',
   },
   upload: '/api/upload',
   analytics: {
@@ -86,10 +87,9 @@ export const API = {
     comments: (id: string) => `/api/characters/${e(id)}/comments`,
     quests: (id: string) => `/api/characters/${e(id)}/quests`,
     completeQuest: (id: string, qid: string) => `/api/characters/${e(id)}/quests/${e(qid)}/complete`,
-    gifts: (id: string) => `/api/characters/${e(id)}/gifts`,
+    gift: (id: string) => `/api/characters/${e(id)}/gift`,
     like: (id: string) => `/api/characters/${e(id)}/like`,
     bookmark: (id: string) => `/api/characters/${e(id)}/bookmark`,
-    gift: (id: string) => `/api/characters/${e(id)}/gift`,
   },
 
   comments: {
@@ -193,7 +193,7 @@ export const API = {
     siteContentType: (type: string) => `/api/admin/site-content/${e(type)}`,
     siteContentItem: (type: string, id: string) => `/api/admin/site-content/${e(type)}/${e(id)}`,
     siteContentRevisions: (type: string, id: string) => `/api/admin/site-content/${e(type)}/${e(id)}/revisions`,
-    siteContentRestore: (type: string, id: string) => `/api/admin/site-content/${e(type)}/${e(id)}/restore`,
+    siteContentRestore: (type: string, id: string, revisionId: string) => `/api/admin/site-content/${e(type)}/${e(id)}/revisions/${e(revisionId)}/restore`,
     payments: {
       merchants: '/api/admin/payments/merchants',
       testMerchant: (id: string) => `/api/admin/payments/merchants/${e(id)}/test`,
@@ -219,16 +219,13 @@ export const API = {
     accountSettings: (id: string) => `/api/admin/accounts/${e(id)}/settings`,
     accountSetting: (id: string, key: string) => `/api/admin/accounts/${e(id)}/settings/${e(key)}`,
     coinPrices: '/api/admin/ai/coin-prices',
-    billing: '/api/admin/billing',
     billingCharges: (query: string) => `/api/admin/billing/charges?${query}`,
     tasks: '/api/admin/tasks',
     notificationStats: (query: string) => `/api/admin/notifications/stats?${query}`,
     taskRun: (kind: string) => `/api/admin/tasks/${e(kind)}/run`,
-    task: (id: string) => `/api/admin/tasks/${e(id)}`,
     mirrorResults: (query: string) => `/api/admin/mirror/results?${query}`,
     mirrorResult: (id: string) => `/api/admin/mirror/results/${e(id)}`,
     disputeCases: (query: string) => `/api/admin/disputes/cases?${query}`,
-    disputeCase: (id: string) => `/api/admin/disputes/cases/${e(id)}`,
     disputeCaseClose: (id: string) => `/api/admin/disputes/cases/${e(id)}/close`,
     disputeCaseHide: (id: string) => `/api/admin/disputes/cases/${e(id)}/hide`,
     operators: '/api/admin/operators',

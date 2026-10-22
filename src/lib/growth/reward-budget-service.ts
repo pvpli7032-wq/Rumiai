@@ -1,4 +1,3 @@
-import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
 import {readSettingValue} from '@/lib/settings';

@@ -1,6 +1,5 @@
 import type {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
-import {readSettingValue} from '@/lib/settings';
 import {recordProductEvent} from '@/lib/analytics/product-events';
 import {DisputeError, snapshotOf} from './case-service';
 import {awardVoteReward} from './reward-service';

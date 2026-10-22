@@ -10,6 +10,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { API } from '@/lib/api-paths';
 
 export function CircleEditor({ circle, canEdit, busy, onApply, onClose, onRefresh }: { circle: ManagedCircle | null; canEdit: boolean; busy: boolean; onApply: (action: CircleAction, reason: string, content?: CircleContent) => Promise<void>; onClose: () => void; onRefresh: () => void }) {
   const original = { name: circle?.name ?? '', description: circle?.description ?? '', tags: circle?.tags ?? '', universeId: circle?.universeId ?? null };
@@ -20,7 +21,7 @@ export function CircleEditor({ circle, canEdit, busy, onApply, onClose, onRefres
   const editable = canEdit && !circle?.owner?.deletedAt;
   useEffect(() => {
     const controller = new AbortController();
-    void fetch('/api/universes', { signal: controller.signal }).then(response => response.ok ? response.json() : []).then(rows => { if (!controller.signal.aborted && Array.isArray(rows)) setWorlds(rows); }).catch(() => {});
+    void fetch(API.universes, { signal: controller.signal }).then(response => response.ok ? response.json() : []).then(rows => { if (!controller.signal.aborted && Array.isArray(rows)) setWorlds(rows); }).catch(() => {});
     return () => controller.abort();
   }, []);
   return (

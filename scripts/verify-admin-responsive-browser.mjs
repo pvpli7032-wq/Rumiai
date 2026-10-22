@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {spawn, spawnSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
+import {existsSync} from 'node:fs';
 import {mkdir, open, rm} from 'node:fs/promises';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
@@ -38,7 +39,17 @@ const file = `admin-responsive-${stamp}.db`;
 const port = 18851;
 const base = `http://127.0.0.1:${port}`;
 const out = path.resolve('artifacts/admin-responsive', stamp);
-const distDir = process.env.NEXT_DIST_DIR?.trim() || '.next-build';
+// 默认目录与 `npm run verify:build`（scripts/verify-production-build.mjs）产出的目录一致，
+// 这样不带任何环境变量直接跑 npm run verify:admin:responsive 就能用。需要测别的产物时用
+// NEXT_DIST_DIR 覆盖，与其它浏览器脚本同一约定。
+const distDir = process.env.NEXT_DIST_DIR?.trim() || '.next-validation-build';
+
+// 缺构建时给出能照着做的中文提示，而不是 next start 抛出来的几百行栈。
+if (!existsSync(path.join(distDir, 'BUILD_ID'))) {
+  console.error(`未找到构建产物（${distDir}），请先运行 npm run verify:build。`);
+  process.exit(1);
+}
+
 await mkdir(out, {recursive: true});
 
 const env = {
@@ -65,17 +76,27 @@ const {db, pragmasReady} = await import('../src/lib/db.ts');
 await pragmasReady;
 
 // marker 是「真实内容已渲染」的锚点：只等外壳会量到一张空页，量不出真溢出。
+// heading 是 AdminPageHeader 渲染的 <h1>：桌面档要断言它真的看得见。
 const PAGES = [
-  {path: '/admin', label: '工作台', marker: {role: 'heading', name: '管理中心'}},
-  {path: '/admin/accounts', label: '用户管理', marker: {role: 'heading', name: '用户列表'}},
-  {path: '/admin/settings', label: '设置中心', marker: {role: 'tablist', name: '设置分类'}},
-  {path: '/admin/ai/costs', label: '价格与成本', marker: {role: 'heading', name: '价格与成本'}},
-  {path: '/admin/finance', label: '财务支付', marker: {role: 'heading', name: '财务支付'}},
+  {path: '/admin', label: '工作台', marker: {role: 'heading', name: '管理中心'}, heading: '管理中心'},
+  {path: '/admin/accounts', label: '用户管理', marker: {role: 'heading', name: '用户列表'}, heading: '用户管理'},
+  {path: '/admin/settings', label: '设置中心', marker: {role: 'tablist', name: '设置分类'}, heading: '设置中心'},
+  {path: '/admin/ai/costs', label: '价格与成本', marker: {role: 'heading', name: '价格与成本'}, heading: '价格与成本'},
+  {path: '/admin/finance', label: '财务支付', marker: {role: 'heading', name: '财务支付'}, heading: '财务支付'},
   // 通知统计由同事并行开发：路由还不存在时跳过，不让别人的进度把这条验收变红。
-  {path: '/admin/notifications', label: '通知统计', marker: {role: 'heading', name: '通知统计'}, optional: true},
+  {path: '/admin/notifications', label: '通知统计', marker: {role: 'heading', name: '通知统计'}, heading: '通知统计', optional: true},
 ];
-const WIDTHS = [360, 390];
-const ALL = ['accounts.read', 'characters.read', 'moderation.read', 'community.read', 'site.content.read', 'disputes.read', 'mirror.read', 'growth.read', 'analytics.read', 'ai.models.read', 'ai.providers.read', 'ai.costs.read', 'finance.read', 'payments.merchants.read', 'settings.read', 'tasks.read', 'operations.read', 'admin.staff.read', 'admin.audit.read', 'compliance.read'];
+// 手机两档量「有没有溢出」；桌面两档量「是不是真的能读」（V3 表 25）。
+const VIEWPORTS = [
+  {width: 360, height: 800, kind: '手机'},
+  {width: 390, height: 800, kind: '手机'},
+  {width: 1280, height: 800, kind: '桌面'},
+  {width: 1440, height: 900, kind: '桌面'},
+];
+// 侧栏展开是 256px（w-64），收成图标栏是 76px；低于这个阈值就是被压成了图标栏。
+const SIDEBAR_MIN_WIDTH = 200;
+// 后台六个页面各要自己的权限；漏一个，页面会渲染「无权限」而不是内容，测试就白跑了。
+const ALL = ['accounts.read', 'characters.read', 'moderation.read', 'community.read', 'site.content.read', 'disputes.read', 'mirror.read', 'growth.read', 'analytics.read', 'ai.models.read', 'ai.providers.read', 'ai.costs.read', 'finance.read', 'payments.merchants.read', 'settings.read', 'tasks.read', 'operations.read', 'admin.staff.read', 'admin.audit.read', 'compliance.read', 'notifications.read'];
 
 /**
  * 量整页宽度，并挑出真正「没被任何滚动容器接住」的越界元素。
@@ -109,13 +130,48 @@ function measure() {
     offenders.push(`${describe(node)} (右边界 ${Math.round(rect.right)}px)`);
   }
   const region = document.querySelector('[aria-label="后台工作区"]');
+  const aside = document.querySelector('aside');
+  const heading = document.querySelector('h1');
+  const shown = node => {
+    if (!node) return false;
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+  };
   return {
     scrollWidth: scrolling.scrollWidth,
     clientWidth: viewport,
     regionScrollWidth: region?.scrollWidth ?? 0,
     regionClientWidth: region?.clientWidth ?? 0,
+    // 桌面档看布局：侧栏实际宽度、内容区实际宽度、主标题是否可见。
+    // 内容区用 border box 宽度（含滚动条槽），避免竖直滚动条把「被压窄」判成误报。
+    asideWidth: aside && shown(aside) ? Math.round(aside.getBoundingClientRect().width) : 0,
+    asideTextLength: aside && shown(aside) ? (aside.innerText || '').trim().length : 0,
+    regionWidth: region ? Math.round(region.getBoundingClientRect().width) : 0,
+    headingText: (heading?.innerText || '').trim(),
+    headingVisible: shown(heading),
     offenders: offenders.slice(0, 5),
   };
+}
+
+/**
+ * 桌面档的通过条件是「桌面可读」，不是「没有溢出」——桌面本来就宽，溢出断言几乎恒真。
+ * 这里查三件真的会让页面不可读的事：侧栏被压成图标栏、内容区被侧栏压成窄条、主标题看不见。
+ */
+function desktopProblems(result, spec, viewportWidth) {
+  const problems = [];
+  if (result.asideWidth < SIDEBAR_MIN_WIDTH) {
+    problems.push(`侧栏宽 ${result.asideWidth}px（应展开 ≥${SIDEBAR_MIN_WIDTH}px）`);
+  } else if (result.asideTextLength === 0) {
+    problems.push('侧栏只剩图标，没有导航文字');
+  }
+  const room = viewportWidth - result.asideWidth - 8;
+  if (result.regionWidth < room) {
+    problems.push(`内容区被压窄：${result.regionWidth}px < 视口 ${viewportWidth}px − 侧栏 ${result.asideWidth}px`);
+  }
+  if (!result.headingVisible) problems.push('页面主标题不可见');
+  else if (result.headingText !== spec.heading) problems.push(`主标题是「${result.headingText}」，应为「${spec.heading}」`);
+  return problems;
 }
 
 const password = randomBytes(24).toString('hex');
@@ -156,19 +212,20 @@ try {
   assert(ready, '生产服务没有就绪，见 ' + serverLog);
 
   browser = await chromium.launch();
-  const context = await browser.newContext({viewport: {width: WIDTHS[0], height: 800}, locale: 'zh-CN'});
+  const context = await browser.newContext({viewport: {width: VIEWPORTS[0].width, height: VIEWPORTS[0].height}, locale: 'zh-CN'});
   const login = await context.request.post(base + '/api/auth/login', {data: {email: `responsive-${stamp}@example.invalid`, password}, timeout: 120000});
   assert.equal(login.status(), 200, await login.text());
   await context.addInitScript(value => localStorage.setItem('xingban_token', value), (await login.json()).token);
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
 
-  for (const width of WIDTHS) {
-    await page.setViewportSize({width, height: 800});
+  for (const viewport of VIEWPORTS) {
+    await page.setViewportSize({width: viewport.width, height: viewport.height});
     for (const spec of PAGES) {
       const response = await page.goto(base + spec.path, {timeout: 120000});
+      const meta = {path: spec.path, label: spec.label, kind: viewport.kind, width: viewport.width};
       if (spec.optional && response?.status() === 404) {
-        rows.push({path: spec.path, label: spec.label, width, skipped: '路由未建，跳过'});
+        rows.push({...meta, skipped: '路由未建，跳过'});
         continue;
       }
       assert.notEqual(response?.status(), 404, `${spec.path} 返回 404`);
@@ -178,33 +235,41 @@ try {
       const result = await page.evaluate(measure);
       const overflow = result.scrollWidth - result.clientWidth;
       const regionOverflow = result.regionScrollWidth - result.regionClientWidth;
-      const row = {path: spec.path, label: spec.label, width, ...result, overflow, regionOverflow};
+      const problems = [];
+      if (overflow > 1) problems.push(`整页横向溢出 ${overflow}px`);
+      if (regionOverflow > 1) problems.push(`内容区横向溢出 ${regionOverflow}px`);
+      // 溢出断言在桌面上几乎恒真，所以桌面档另外查「真的能读」。
+      if (viewport.kind === '桌面') problems.push(...desktopProblems(result, spec, viewport.width));
+      const row = {...meta, ...result, overflow, regionOverflow, problems};
       rows.push(row);
-      if (overflow > 1 || regionOverflow > 1) {
+      if (problems.length) {
         failures.push(row);
-        await page.screenshot({path: path.join(out, `${spec.path.replace(/\//g, '_')}-${width}.png`), fullPage: true});
+        await page.screenshot({path: path.join(out, `${spec.path.replace(/\//g, '_')}-${viewport.width}.png`), fullPage: true});
       }
     }
   }
 
   const pad = (text, size) => text + ' '.repeat(Math.max(0, size - text.length));
-  console.log('后台横向溢出检查（整页 scrollWidth 与内容区 scrollWidth 均不得超过各自 clientWidth +1px）');
-  console.log(pad('页面', 22) + pad('路径', 24) + pad('宽度', 8) + pad('整页 scroll/client', 20) + pad('内容区 scroll/client', 22) + '结论');
+  console.log('后台响应式检查：手机档查整页/内容区是否横向溢出；桌面档查侧栏是否被压成图标栏、内容区是否被压窄、主标题是否可见');
+  console.log(pad('页面', 22) + pad('路径', 24) + pad('视口', 8) + pad('宽度', 8) + pad('整页 scroll/client', 20) + pad('内容区 scroll/client', 22) + '结论');
   for (const row of rows) {
-    const head = pad(row.label, 22) + pad(row.path, 24) + pad(row.width + 'px', 8);
+    const head = pad(row.label, 22) + pad(row.path, 24) + pad(row.kind, 8) + pad(row.width + 'px', 8);
     if (row.skipped) { console.log(head + pad('-', 20) + pad('-', 22) + '跳过（' + row.skipped + '）'); continue; }
     const docCell = `${row.scrollWidth}/${row.clientWidth}`;
     const regionCell = `${row.regionScrollWidth}/${row.regionClientWidth}`;
-    const verdict = row.overflow > 1 ? `整页溢出 ${row.overflow}px` : row.regionOverflow > 1 ? `内容区溢出 ${row.regionOverflow}px` : 'OK';
+    const verdict = row.problems.length === 0
+      ? row.kind === '桌面' ? `OK（侧栏 ${row.asideWidth}px / 内容区 ${row.regionWidth}px）` : 'OK'
+      : row.problems.join('；');
     console.log(head + pad(docCell, 20) + pad(regionCell, 22) + verdict);
     for (const offender of row.offenders) console.log('    越界元素：' + offender);
   }
   const checked = rows.filter(row => !row.skipped).length;
-  console.log(`\n共检查 ${checked} 组（${PAGES.length} 个页面 × ${WIDTHS.length} 档宽度），不合格 ${failures.length} 组。`);
+  const widthsOf = kind => VIEWPORTS.filter(viewport => viewport.kind === kind).map(viewport => viewport.width + 'px').join(' / ');
+  console.log(`\n共检查 ${checked} 组（${PAGES.length} 个页面 × ${VIEWPORTS.length} 档宽度），不合格 ${failures.length} 组。`);
 
   assert.deepEqual(errors, [], '页面不应有脚本错误');
-  assert.equal(failures.length, 0, `横向溢出：${failures.map(row => `${row.path}@${row.width}px(整页+${row.overflow}/内容区+${row.regionOverflow})`).join('、')}`);
-  console.log('PASS 后台在 ' + WIDTHS.join('px / ') + 'px 下均无整页横向溢出，内容区也无需横向滚动');
+  assert.equal(failures.length, 0, `不合格：${failures.map(row => `${row.path}@${row.width}px ${row.problems.join('；')}`).join('、')}`);
+  console.log(`PASS 后台手机档（${widthsOf('手机')}）无整页横向溢出；桌面档（${widthsOf('桌面')}）侧栏展开、内容区未被压窄、主标题可见`);
   console.log('artifacts: ' + out);
 } finally {
   await browser?.close();

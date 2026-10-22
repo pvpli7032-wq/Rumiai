@@ -1,7 +1,7 @@
 import type {AiStreamMetrics} from '@/lib/ai/types';
 import {aiErrorCode, aiUserError, type PromptCharacter} from '@/lib/conversations/chat-stream';
 import {MirrorError} from './errors';
-import {clampLine, cleanLine, readIndex} from './text';
+import {charCount, clampLine, cleanLine, readIndex} from './text';
 import type {MirrorCharacterOption, MirrorResultFields, MirrorRules} from './types';
 
 /**
@@ -85,8 +85,6 @@ function extractJsonText(raw: string): string {
   const end = text.lastIndexOf('}');
   return start >= 0 && end > start ? text.slice(start, end + 1) : text;
 }
-
-const charCount = (value: string) => [...value].length;
 
 export type MirrorValidation =
   | {ok: true; fields: MirrorResultFields}

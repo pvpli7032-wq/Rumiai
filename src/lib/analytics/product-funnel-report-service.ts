@@ -1,6 +1,7 @@
 import {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
+import {ratio as rate} from '@/lib/ratio';
 import {PRODUCT_EVENT_LABELS, type ProductEventName} from './product-events';
 
 /**
@@ -47,8 +48,6 @@ export interface ProductFunnelReport {
   funnels: Funnel[];
   definitions: Record<string, string>;
 }
-
-const rate = (numerator: number, denominator: number) => (denominator > 0 ? numerator / denominator : null);
 
 /** 归属表达式：登录优先，其次匿名主体；两者都没有的行不计入任何人数。 */
 const IDENTITY = "CASE WHEN user_id IS NOT NULL THEN 'u:' || user_id WHEN anonymous_subject IS NOT NULL THEN 'a:' || anonymous_subject ELSE NULL END";

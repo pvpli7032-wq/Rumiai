@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { readCommunityRules } from '@/lib/settings';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { formatUser } from '@/lib/user-identity';
+import { requireReadableCharacter } from './access';
 import { notifyReply } from '@/lib/notifications/write';
 import { notifySafely } from '@/lib/notifications/emit';
 
@@ -12,17 +13,6 @@ export class CharacterCommentError extends Error {
   constructor(message: string, readonly status: number, readonly retryAfter?: number) {
     super(message);
     this.name = 'CharacterCommentError';
-  }
-}
-
-async function requireReadableCharacter(characterId: string, userId?: string) {
-  const character = await db.character.findUnique({
-    where: {id: characterId},
-    select: {id: true, isPublic: true, reviewStatus: true, creatorId: true},
-  });
-  if (!character) throw new CharacterCommentError('Character not found', 404);
-  if ((!character.isPublic || character.reviewStatus !== 'APPROVED') && character.creatorId !== userId) {
-    throw new CharacterCommentError('Private character access forbidden', 403);
   }
 }
 
@@ -38,7 +28,7 @@ function shapeComment(comment: {
 }
 
 export async function listCharacterComments(characterId: string, viewerId: string | undefined, options: {limit?: number; cursor?: string | null} = {}) {
-  await requireReadableCharacter(characterId, viewerId);
+  await requireReadableCharacter(characterId, viewerId, (message, status) => new CharacterCommentError(message, status));
   const take = Math.min(PAGE_SIZE, Math.max(1, options.limit || PAGE_SIZE));
   const cursor = options.cursor || undefined;
   const roots = await db.comment.findMany({
@@ -75,7 +65,7 @@ export async function listCharacterComments(characterId: string, viewerId: strin
 }
 
 export async function createCharacterComment(authorId: string, characterId: string, input: unknown) {
-  await requireReadableCharacter(characterId, authorId);
+  await requireReadableCharacter(characterId, authorId, (message, status) => new CharacterCommentError(message, status));
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new CharacterCommentError('评论数据格式不正确。', 400);
   const body = input as Record<string, unknown>;
   const text = typeof body.body === 'string' ? body.body.trim() : '';

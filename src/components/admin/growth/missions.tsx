@@ -9,6 +9,8 @@ import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { API } from '@/lib/api-paths';
+import { toDateTimeLocalInput } from '@/lib/format/date-time';
 
 export type Mission = { id: string; title: string; description: string | null; rewardCoins: number; category: string; conditionType: string; conditionTarget: number; period: string; isActive: boolean; sortOrder: number; version: number; startsAt: string | null; endsAt: string | null };
 type Draft = { id?: string; version: number; title: string; description: string; rewardCoins: number; category: string; conditionType: string; conditionTarget: number; period: string; isActive: boolean; sortOrder: number; startsAt: string; endsAt: string; reason: string };
@@ -19,21 +21,20 @@ const PERIODS = [['ONCE', '一次'], ['DAILY', '每日'], ['WEEKLY', '每周']] 
 const PERIOD_LABELS = { ONCE: '一次', DAILY: '每日', WEEKLY: '每周' } as Record<string, string>;
 
 const newDraft = (sortOrder: number): Draft => ({ version: 0, title: '', description: '', rewardCoins: 0, category: 'DAILY', conditionType: 'CHECKIN_COUNT', conditionTarget: 1, period: 'DAILY', isActive: false, sortOrder, startsAt: '', endsAt: '', reason: '' });
-const localDate = (value: string | null) => { if (!value) return ''; const date = new Date(value), local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000); return local.toISOString().slice(0, 16); };
 
 export function MissionManagement({ token, canManage, missions, onSaved }: { token: string; canManage: boolean; missions: Mission[]; onSaved: () => void }) {
   const [draft, setDraft] = useState<Draft | null>(null), [saving, setSaving] = useState(false), [error, setError] = useState('');
   const change = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft(current => current ? { ...current, [key]: value } : current);
   function edit(mission: Mission) {
     setError('');
-    setDraft({ id: mission.id, version: mission.version, title: mission.title, description: mission.description ?? '', rewardCoins: mission.rewardCoins, category: mission.category, conditionType: mission.conditionType, conditionTarget: mission.conditionTarget, period: mission.period, isActive: mission.isActive, sortOrder: mission.sortOrder, startsAt: localDate(mission.startsAt), endsAt: localDate(mission.endsAt), reason: '' });
+    setDraft({ id: mission.id, version: mission.version, title: mission.title, description: mission.description ?? '', rewardCoins: mission.rewardCoins, category: mission.category, conditionType: mission.conditionType, conditionTarget: mission.conditionTarget, period: mission.period, isActive: mission.isActive, sortOrder: mission.sortOrder, startsAt: toDateTimeLocalInput(mission.startsAt), endsAt: toDateTimeLocalInput(mission.endsAt), reason: '' });
   }
   async function save() {
     if (!draft) return;
     setSaving(true); setError('');
     const body = { ...draft, startsAt: draft.startsAt ? new Date(draft.startsAt).toISOString() : null, endsAt: draft.endsAt ? new Date(draft.endsAt).toISOString() : null };
     try {
-      const response = await fetch(draft.id ? `/api/admin/growth/missions/${draft.id}` : '/api/admin/growth/missions', { method: draft.id ? 'PATCH' : 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const response = await fetch(draft.id ? `${API.admin.growth.missions}/${draft.id}` : API.admin.growth.missions, { method: draft.id ? 'PATCH' : 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setDraft(null); onSaved();

@@ -1,9 +1,4 @@
-import {hasAdminPermission} from '@/lib/admin/authorization';
 import {requireAdmin} from '@/lib/http/auth';
-
-export function isFinanceAdmin(userId: string) {
-  return hasAdminPermission(userId, 'finance.read');
-}
 
 /** Thin wrapper over the route layer's permission check; the shape is kept for existing callers and tests. */
 export async function getFinanceAdmin(request: Request, permission: 'finance.read' | 'finance.packages.write' | 'finance.refunds.request' | 'finance.refunds.approve' | 'finance.refunds.execute' | 'finance.reconciliation.import' = 'finance.read') {

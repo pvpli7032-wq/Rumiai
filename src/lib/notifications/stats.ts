@@ -1,4 +1,5 @@
 import type {Prisma} from '@prisma/client';
+import {ratio} from '@/lib/ratio';
 import {NOTIFICATION_TYPES, NOTIFICATION_TYPE_LABELS, isNotificationType} from './types';
 
 /**
@@ -38,8 +39,6 @@ export interface NotificationStats {
   rows: NotificationTypeStat[];
   totals: NotificationTotals;
 }
-
-const ratio = (numerator: number, denominator: number) => (denominator > 0 ? numerator / denominator : null);
 
 /** 一次分组计数；未读与全量各调一次，避免第二份聚合实现。 */
 async function countByType(tx: Prisma.TransactionClient, since: Date, until: Date, unreadOnly: boolean) {

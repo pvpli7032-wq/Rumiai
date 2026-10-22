@@ -31,8 +31,8 @@ const [owner, reader, nobody] = await Promise.all([
   db.user.create({data: {username: 'stats_nobody', email: 'stats-nobody@example.invalid', passwordHash: 'synthetic-only'}}),
 ]);
 await bootstrapOwner(owner.email);
-// reader 拿到 operations.read，nobody 不给任何角色。
-const opsRole = await saveRole(owner.id, {name: '通知统计只读', permissions: ['operations.read'], reason: '通知统计只读验收'});
+// reader 拿到 notifications.read，nobody 不给任何角色。
+const opsRole = await saveRole(owner.id, {name: '通知统计只读', permissions: ['notifications.read'], reason: '通知统计只读验收'});
 await saveOperator(owner.id, {userId: reader.id, enabled: true, version: 0, roleIds: [opsRole.id], reason: '通知统计只读验收'});
 
 test.after(async () => {

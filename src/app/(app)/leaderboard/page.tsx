@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Trophy, Medal, Star, Loader2, Gift } from 'lucide-react';
+import { Trophy, Medal, Loader2, Gift } from 'lucide-react';
 
 interface LeaderEntry { rank: number; characterId: string; name: string; avatarUrl?: string | null; giftAmount: number; giftCount: number; }
 

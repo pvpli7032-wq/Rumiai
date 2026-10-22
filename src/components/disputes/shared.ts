@@ -1,4 +1,4 @@
-import type {DisputeCaseDetail, DisputeCaseSummary} from '@/lib/disputes/types';
+import type {DisputeCaseSummary} from '@/lib/disputes/types';
 
 /** 三种投票选择在前后台都只有一个来源。 */
 export const CHOICE_OPTIONS = [

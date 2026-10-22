@@ -23,8 +23,6 @@ export interface SettingsHistoryDialogProps {
   onRestored: () => void;
 }
 
-const PAGE_SIZE = 20;
-
 export function SettingsHistoryDialog({open, token, group, canWrite, definitions, onClose, onRestored}: SettingsHistoryDialogProps) {
   const [items, setItems] = useState<SettingRevision[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);

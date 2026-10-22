@@ -1,5 +1,6 @@
 import {Prisma} from '@prisma/client';
 import {readAiCostReport} from '@/lib/ai/cost-report';
+import {ratio} from '@/lib/ratio';
 
 /**
  * 运营统计首轮指标（V3 §26）。
@@ -82,8 +83,6 @@ export interface OpsMetrics {
   costNote: string;
   definitions: Record<string, string>;
 }
-
-const ratio = (numerator: number, denominator: number) => (denominator > 0 ? numerator / denominator : null);
 
 async function countPeople(tx: Prisma.TransactionClient, events: string[], since: Date, until: Date, tier: AudienceTier): Promise<Map<string, number>> {
   const rows = await tx.$queryRaw<Array<{event: string; people: number}>>(Prisma.sql`

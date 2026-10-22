@@ -8,6 +8,7 @@ import {Button} from '@/components/ui/button';
 import {EmptyState} from '@/components/ui/empty-state';
 import {Input} from '@/components/ui/input';
 import {Textarea} from '@/components/ui/textarea';
+import {API} from '@/lib/api-paths';
 
 type Provider={id:string;name:string;protocol:string;baseUrl:string;isActive:boolean;sortOrder:number;version:number;hasSecret:boolean};
 type Draft={id?:string;name:string;baseUrl:string;protocol:string;isActive:boolean;sortOrder:number;version:number;apiKey:string;clearSecret:boolean;reason:string};
@@ -17,11 +18,11 @@ export function AiProviderManagement(){
   const {token,permissions,loading}=useAdminAccess(),[rows,setRows]=useState<Provider[]>([]),[draft,setDraft]=useState<Draft|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const canManage=permissions.includes('ai.providers.manage'),canSecrets=permissions.includes('ai.providers.secrets.manage'),canTest=permissions.includes('ai.providers.test');
   const request=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetch(url,{...init,cache:'no-store',headers:{Authorization:`Bearer ${token}`,...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});const data=await response.json();if(!response.ok)throw Error(data.error||'AI供应商请求失败。');return data;},[token]);
-  const load=useCallback(async()=>{if(!token)return;try{setRows(await request('/api/admin/ai/providers'));setError('');}catch(value){setError((value as Error).message);}},[request,token]);
+  const load=useCallback(async()=>{if(!token)return;try{setRows(await request(API.admin.ai.providers));setError('');}catch(value){setError((value as Error).message);}},[request,token]);
   useEffect(()=>{void load();},[load]);
   function set<K extends keyof Draft>(key:K,value:Draft[K]){setDraft(old=>old?{...old,[key]:value}:old);}
-  async function save(event:React.FormEvent){event.preventDefault();if(!draft||busy)return;setBusy(true);setError('');setNotice('');try{const body={...draft,sortOrder:Number(draft.sortOrder)};const saved=await request(draft.id?`/api/admin/ai/providers/${encodeURIComponent(draft.id)}`:'/api/admin/ai/providers',{method:draft.id?'PATCH':'POST',body:JSON.stringify(body)});setDraft(null);setNotice('供应商配置已保存。');await load();if(!saved.hasSecret&&draft.isActive)setNotice('配置已保存；启用前需要配置密钥。');}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
-  async function test(provider:Provider){if(busy)return;setBusy(true);setError('');setNotice('');try{const result=await request(`/api/admin/ai/providers/${encodeURIComponent(provider.id)}/test`,{method:'POST'});setNotice(result.reachable?`连接可达（HTTP ${result.status}，${result.latencyMs}ms）；${result.authorized?'认证成功':'服务端未接受当前密钥'}`:`连接失败（${result.latencyMs}ms），请检查地址、密钥及服务端网络。`);}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
+  async function save(event:React.FormEvent){event.preventDefault();if(!draft||busy)return;setBusy(true);setError('');setNotice('');try{const body={...draft,sortOrder:Number(draft.sortOrder)};const saved=await request(draft.id?`${API.admin.ai.providers}/${encodeURIComponent(draft.id)}`:API.admin.ai.providers,{method:draft.id?'PATCH':'POST',body:JSON.stringify(body)});setDraft(null);setNotice('供应商配置已保存。');await load();if(!saved.hasSecret&&draft.isActive)setNotice('配置已保存；启用前需要配置密钥。');}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
+  async function test(provider:Provider){if(busy)return;setBusy(true);setError('');setNotice('');try{const result=await request(`${API.admin.ai.providers}/${encodeURIComponent(provider.id)}/test`,{method:'POST'});setNotice(result.reachable?`连接可达（HTTP ${result.status}，${result.latencyMs}ms）；${result.authorized?'认证成功':'服务端未接受当前密钥'}`:`连接失败（${result.latencyMs}ms），请检查地址、密钥及服务端网络。`);}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
   if(loading)return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
   if(!token||!permissions.includes('ai.providers.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有 AI 供应商查看权限。" /></AdminPage>;
   return <AdminPage>

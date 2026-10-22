@@ -3,6 +3,7 @@ import { zhError } from '@/lib/copy/zh';
 
 import { useRef, useState } from 'react';
 import { AlertCircle, Check, Link2, Loader2, Trash2, UploadCloud } from 'lucide-react';
+import { API } from '@/lib/api-paths';
 
 /** Poster ratio used by every character card on the site. */
 const RATIO = 160 / 213;
@@ -96,7 +97,7 @@ export function ImageUpload({
     setBusy(true);
     const body = new FormData();
     body.append('file', file);
-    const res = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body });
+    const res = await fetch(API.upload, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
 

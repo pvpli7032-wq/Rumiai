@@ -1,4 +1,5 @@
 import {db,pragmasReady} from '@/lib/db';
+import {isUniqueViolation} from '@/lib/user-identity';
 
 export class CreatorFollowError extends Error{
   constructor(message:string,status:number){super(message);this.name='CreatorFollowError';this.status=status;}
@@ -11,8 +12,6 @@ export async function resolveCreatorFollowTarget(actorId:string,username:string,
   if(rejectSelf&&target.id===actorId)throw new CreatorFollowError('不能关注自己。',400);
   return target;
 }
-
-function isUniqueViolation(error:unknown){return typeof error==='object'&&error!==null&&'code'in error&&error.code==='P2002';}
 
 export async function followCreator(actorId:string,targetId:string){
   await pragmasReady;

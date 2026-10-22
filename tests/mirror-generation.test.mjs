@@ -26,7 +26,7 @@ await pragmasReady;
 const {generateMirrorResult, validateMirrorOutput, normalizeAnswers, buildMirrorPrompt} = await import('../src/lib/mirror/generation.ts');
 const {consumeMirrorLimit, readMirrorUsage, readMirrorLimitState, releaseMirrorLimit, resetMirrorLimits, mirrorQuotaView, mirrorDayKey} = await import('../src/lib/mirror/limits.ts');
 const {toPublicResult, toOwnerResult, isMirrorReadable, canDeleteMirrorResult, hashMirrorIp, signMirrorAttribution, verifyMirrorAttribution} = await import('../src/lib/mirror/share.ts');
-const {readMirrorResult, deleteMirrorResult} = await import('../src/lib/mirror/repository.ts');
+const {readMirrorResult, deleteMirrorResult, readMyMirrorResults} = await import('../src/lib/mirror/repository.ts');
 const {clearCache} = await import('../src/lib/settings/cache.ts');
 const {purchasePlanOf, purchaseBlockedReason, readPurchasedToday} = await import('../src/lib/mirror/purchase.ts');
 const {listMirrorCharacters} = await import('../src/lib/mirror/service.ts');
@@ -540,7 +540,6 @@ test('接口层：回答题数不对时返回 400，且不消耗额度', async (
 
 test('接口层：分享接口返回公开视图，mine 只列自己的，compare 未登录 401', async () => {
   const {GET: readOne, DELETE: removeOne} = await import('../src/app/api/mirror/[shareId]/route.ts');
-  const {GET: readMine} = await import('../src/app/api/mirror/mine/route.ts');
   const {GET: compare} = await import('../src/app/api/mirror/compare/route.ts');
   const character = await db.character.create({data: {name: '接口角色', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
   const shareId = 'share' + randomUUID().replace(/-/g, '').slice(0, 12);
@@ -554,9 +553,13 @@ test('接口层：分享接口返回公开视图，mine 只列自己的，compar
   // 陌生人拿到的响应体里没有任何原回答。
   assert.equal(JSON.stringify(body).includes('原回答'), false);
 
-  const mine = await readMine(new Request('http://localhost/api/mirror/mine'));
-  assert.equal(mine.status, 200);
-  assert.deepEqual((await mine.json()).results, []);
+  // 「我的结果」由页面服务端直读仓储（mirror-home 的 page.mine），没有前端调 HTTP 版本；
+  // 路由 /api/mirror/mine 已删除，这里直接断言仓储的两种身份分支。
+  assert.deepEqual(await readMyMirrorResults(null, null), [], '既没有登录也没有主体标识时为空');
+  const mineBySubject = await readMyMirrorResults(null, 'subject-api-0000000001');
+  assert.deepEqual(mineBySubject.map(row => row.shareId), [shareId], '匿名主体只看到自己的结果');
+  assert.equal(mineBySubject[0].characterName, '接口角色');
+  assert.equal(mineBySubject[0].title, '称号');
 
   assert.equal((await compare(new Request('http://localhost/api/mirror/compare?shareId=' + shareId))).status, 401);
 

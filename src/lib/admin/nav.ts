@@ -105,7 +105,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     entries: [
       {href: '/admin/settings', label: '设置中心', description: '聊天内容、计费额度、增长玩法、账号运行与提示词', icon: 'settings', permission: 'settings.read'},
       {href: '/admin/tasks', label: '后台任务', description: '摘要、结案、过期、核对与备份清理的运行状态', icon: 'tasks', permission: 'tasks.read'},
-      {href: '/admin/notifications', label: '通知统计', description: '各类型通知的发送量、未读与已读情况', icon: 'notifications', permission: 'operations.read'},
+      {href: '/admin/notifications', label: '通知统计', description: '各类型通知的发送量、未读与已读情况', icon: 'notifications', permission: 'notifications.read'},
       {href: '/admin/operations', label: '系统运行', description: '应用进程、迁移、备份清单与维护开关', icon: 'operations', permission: 'operations.read'},
       {href: '/admin/operators', label: '管理员与角色', description: '管理身份、角色分配与操作权限', icon: 'operators', permission: 'admin.staff.read'},
       {href: '/admin/audit', label: '操作审计', description: '权限变更、操作理由与审计记录', icon: 'audit', permission: 'admin.audit.read'},

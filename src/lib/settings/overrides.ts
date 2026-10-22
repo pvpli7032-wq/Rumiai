@@ -9,25 +9,6 @@ import type {JsonValue, SettingValue} from './types';
  * 到期后读取时自动回落公共值，不做后台清理任务（V3 §7）。
  */
 
-export interface UserOverrideItem {
-  key: string;
-  value: JsonValue;
-  expiresAt: string | null;
-  version: number;
-  label: string;
-}
-
-export async function listUserOverrides(userId: string): Promise<UserOverrideItem[]> {
-  const rows = await db.userSettingOverride.findMany({where: {userId}, orderBy: {key: 'asc'}});
-  return rows.flatMap(row => {
-    const def = SETTINGS_BY_KEY[row.key];
-    if (!def) return [];
-    let value: JsonValue;
-    try { value = JSON.parse(row.value) as JsonValue; } catch { return []; }
-    return [{key: row.key, value, expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null, version: row.version, label: def.label}];
-  });
-}
-
 /** 用户详情页要能一次看到「继承公共值 / 有特例」两种状态。 */
 export async function readUserQuota(userId: string, settings: SettingValue[]): Promise<SettingValue[]> {
   const rows = await db.userSettingOverride.findMany({where: {userId}});

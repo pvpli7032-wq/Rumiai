@@ -3,7 +3,6 @@ import {useCallback, useEffect, useState} from 'react';
 import {Flag} from 'lucide-react';
 import {Button, Textarea} from '@/components/ui';
 import {ReportDialog} from '@/components/report-dialog';
-import {API} from '@/lib/api-paths';
 import {useAuth} from '@/lib/auth-context';
 import {MAX_COMMENT_CHARS, formatTime} from './shared';
 

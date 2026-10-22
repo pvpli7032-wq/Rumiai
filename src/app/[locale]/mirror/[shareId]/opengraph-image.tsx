@@ -1,4 +1,3 @@
-import React from 'react';
 import {ImageResponse} from 'next/og';
 import {MIRROR_PREVIEW_SITE, MIRROR_PREVIEW_SIZE, readPreviewCard} from './_preview-card';
 import {readPreviewFont} from './_preview-font';

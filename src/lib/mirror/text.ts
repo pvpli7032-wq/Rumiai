@@ -13,6 +13,11 @@ export function cleanLine(value: unknown): string | null {
   return text || null;
 }
 
+/** 按字符数（不是 UTF-16 码元）计长度：emoji 与组合字都算一个字，与字数上限口径一致。 */
+export function charCount(value: string): number {
+  return [...value].length;
+}
+
 /** 超长截断到上限，不因此判整份结果失败——长度上限是展示规则，不是内容错误。 */
 export function clampLine(value: string, max: number): string {
   const chars = [...value];

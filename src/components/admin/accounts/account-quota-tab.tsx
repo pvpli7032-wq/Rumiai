@@ -5,6 +5,7 @@ import {RotateCcw, SlidersHorizontal} from 'lucide-react';
 import type {AdminPermission} from '@/lib/admin/permissions';
 import type {JsonValue, SettingDefinition, SettingValue} from '@/lib/settings/types';
 import {API} from '@/lib/api-paths';
+import {toDateTimeLocalInput} from '@/lib/format/date-time';
 import {apiFetch} from '@/lib/api-client';
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
@@ -37,14 +38,6 @@ function quotaText(definition: SettingDefinition, value: JsonValue | undefined):
 
 function formatExpiry(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString('zh-CN') : '长期有效';
-}
-
-/** datetime-local 的输入值（本地时区），空串表示不设到期时间。 */
-function toLocalInput(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function AccountQuotaTab({userId, token, permissions}: {userId: string; token: string | null; permissions: AdminPermission[]}) {
@@ -102,7 +95,7 @@ export function AccountQuotaTab({userId, token, permissions}: {userId: string; t
   function startEdit(definition: SettingDefinition, current: SettingValue | undefined) {
     setEditing(definition.key);
     setDraftValue(String(current?.value ?? definition.default ?? ''));
-    setDraftExpiry(toLocalInput(current?.expiresAt));
+    setDraftExpiry(toDateTimeLocalInput(current?.expiresAt));
     setRowErrors(list => ({...list, [definition.key]: ''}));
   }
 

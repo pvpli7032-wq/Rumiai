@@ -29,7 +29,7 @@ import { buildStoryContext } from './lifecycle/context-service';
 import {readChatRules} from '@/lib/settings';
 import type { AiStreamMetrics } from '@/lib/ai/types';
 import {beginBillingTurn, readBalance, readTurnReceipt, toChargeError, type BillingTurn} from '@/lib/billing/turn';
-import {classifyExisting, replayStream, replayTurn, requestHash, type TurnRow} from './turn-replay';
+import {classifyExisting, replayStream, replayTurn, requestHash} from './turn-replay';
 
 type Run = Prisma.StoryRunGetPayload<{include: typeof runInclude}>;
 

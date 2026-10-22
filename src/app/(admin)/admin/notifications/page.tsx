@@ -8,9 +8,9 @@ import {NotificationStatsPanel} from '@/components/admin/notifications/notificat
 export default function NotificationsPage(){
   const {token,isLoading}=useAuth();
   const {permissions,loading,error}=useAdminAccess();
-  if(isLoading||loading)return <AdminPage><AdminNotice tone="loading" title="正在验证运维查看权限…" /></AdminPage>;
+  if(isLoading||loading)return <AdminPage><AdminNotice tone="loading" title="正在验证通知记录查看权限…" /></AdminPage>;
   if(!token)return <AdminPage><AdminNotice tone="warning" title="请先登录。" /></AdminPage>;
   if(error)return <AdminPage><AdminNotice tone="error" title={error} /></AdminPage>;
-  if(!permissions.includes('operations.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有运维状态查看权限。" /></AdminPage>;
+  if(!permissions.includes('notifications.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有通知记录查看权限。" /></AdminPage>;
   return <NotificationStatsPanel token={token}/>;
 }

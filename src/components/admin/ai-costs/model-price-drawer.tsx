@@ -178,7 +178,7 @@ export function ModelPriceDrawer({row, canManage, busy, onClose, onSubmit}: Mode
             </DetailSection>
           )}
 
-          {!canManage && <AdminNotice tone="info" title="当前账号只能查看价格" description="保存需要「AI 成本管理」权限。" />}
+          {!canManage && <AdminNotice tone="info" title="当前账号只能查看价格" description="保存需要「计费管理」权限。" />}
           {error && <AdminNotice tone="error" title={error} />}
         </form>
       )}

@@ -16,7 +16,8 @@ const sourceUploads=path.join(uploadRoot,'source-uploads');
 const backup=path.join(uploadRoot,'backup');
 const recovered=path.join(uploadRoot,'recovered');
 const sourceDb=path.resolve('prisma',file);
-const dist=process.env.NEXT_DIST_DIR||'.next-build';
+// 与 npm run verify:build 的产出目录保持一致，直接跑不必再手动指定 NEXT_DIST_DIR。
+const dist=process.env.NEXT_DIST_DIR||'.next-validation-build';
 const previousRelease=process.env.RECOVERY_PREVIOUS_RELEASE;
 const env={...process.env,NODE_ENV:'production',DATABASE_URL:`file:./${file}`,UPLOADS_DIRECTORY:sourceUploads,JWT_SECRET:randomUUID()+randomUUID(),NEXT_PUBLIC_SITE_URL:'http://127.0.0.1'};
 env.AI_PROVIDER_ENCRYPTION_KEY=randomBytes(32).toString('hex');

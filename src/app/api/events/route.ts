@@ -3,7 +3,7 @@ import {getAuthUser} from '@/lib/auth';
 import {hashMirrorIp, mirrorIpSalt, readCookie} from '@/lib/mirror/share';
 import {MIRROR_SUBJECT_COOKIE} from '@/lib/mirror/types';
 import {checkRateLimit} from '@/lib/rate-limit';
-import {jsonError, privateHeaders, readJsonBody} from '@/lib/http';
+import {clientIp, jsonError, privateHeaders, readJsonBody} from '@/lib/http';
 import {ProductEventError, parseProductEventInput, recordClientProductEvent} from '@/lib/analytics/product-events-service';
 
 export const dynamic = 'force-dynamic';
@@ -20,12 +20,6 @@ export const dynamic = 'force-dynamic';
 const WINDOW_MS = 60_000;
 const PER_IDENTITY = 40;
 const PER_IP = 120;
-
-function clientIp(request: Request): string | null {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const first = forwarded?.split(',')[0]?.trim();
-  return first || request.headers.get('x-real-ip')?.trim() || null;
-}
 
 export async function POST(request: Request) {
   const auth = await getAuthUser(request);

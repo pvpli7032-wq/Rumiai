@@ -2,6 +2,7 @@
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {useAuth} from '@/lib/auth-context';
+import {API} from '@/lib/api-paths';
 type Circle={id:string;name:string;description:string;tags:string|null;owner:{id:string;username:string;displayName:string|null}|null;isFeatured:boolean;universe:{id:string;name:string}|null;subscriberCount:number;subscribed:boolean};
 export function CircleDiscovery(){
  const {token,isLoading}=useAuth();
@@ -9,7 +10,7 @@ export function CircleDiscovery(){
  const [loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState('');
  const [creating,setCreating]=useState(false),[name,setName]=useState(''),[description,setDescription]=useState(''),[tags,setTags]=useState('');
  const [universeId,setUniverseId]=useState(''),[universes,setUniverses]=useState<{id:string;name:string}[]>([]);
- useEffect(()=>{const controller=new AbortController();fetch('/api/universes',{signal:controller.signal}).then(r=>r.ok?r.json():[]).then(data=>{if(Array.isArray(data))setUniverses(data)}).catch(()=>{});return()=>controller.abort()},[]);
+ useEffect(()=>{const controller=new AbortController();fetch(API.universes,{signal:controller.signal}).then(r=>r.ok?r.json():[]).then(data=>{if(Array.isArray(data))setUniverses(data)}).catch(()=>{});return()=>controller.abort()},[]);
  useEffect(()=>{
   setRows([]);setError('');setLoading(true);if(isLoading)return;
   if(scope&&!token){setLoading(false);return}

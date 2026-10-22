@@ -8,8 +8,6 @@
 /** 固定取值，对应 generation_charges.operation（V3 表 18）。 */
 export type ChargeOperation = 'CHAT_SEND' | 'CHAT_REGENERATE' | 'STORY_TURN' | 'MIRROR' | 'DISPUTE_VERDICT' | 'MEMORY_SUMMARY';
 
-export const CHARGE_OPERATIONS: readonly ChargeOperation[] = ['CHAT_SEND', 'CHAT_REGENERATE', 'STORY_TURN', 'MIRROR', 'DISPUTE_VERDICT', 'MEMORY_SUMMARY'];
-
 /** 状态机（V3 表 17）：HELD → SETTLED / RELEASED；结果不明为 UNKNOWN，只等核对。 */
 export type ChargeStatus = 'HELD' | 'SETTLED' | 'RELEASED' | 'UNKNOWN';
 

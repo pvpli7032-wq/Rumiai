@@ -1,5 +1,6 @@
 import { db, pragmasReady } from '@/lib/db';
 import { isUniqueViolation } from '@/lib/user-identity';
+import { requireReadableCharacter } from './access';
 import { grantEarnedCoins } from '@/lib/coins/reward-ledger';
 import { notifyCoinsReceived } from '@/lib/notifications/write';
 import { notifySafely } from '@/lib/notifications/emit';
@@ -17,16 +18,8 @@ export class CharacterQuestError extends Error {
   }
 }
 
-async function requireReadableCharacter(characterId: string, userId?: string) {
-  const character = await db.character.findUnique({where: {id: characterId}, select: {id: true, isPublic: true, reviewStatus: true, creatorId: true}});
-  if (!character) throw new CharacterQuestError('Character not found', 404);
-  if ((!character.isPublic || character.reviewStatus !== 'APPROVED') && character.creatorId !== userId) {
-    throw new CharacterQuestError('Private character access forbidden', 403);
-  }
-}
-
 export async function listCharacterQuests(characterId: string, userId?: string) {
-  await requireReadableCharacter(characterId, userId);
+  await requireReadableCharacter(characterId, userId, (message, status) => new CharacterQuestError(message, status));
   const quests = await db.characterQuest.findMany({
     where: {characterId, isActive: true}, orderBy: {sortOrder: 'asc'},
     select: {id: true, title: true, description: true, rewardCoins: true, requiredMessages: true, sortOrder: true},
