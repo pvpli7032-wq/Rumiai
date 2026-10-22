@@ -1,15 +1,10 @@
 import { NextResponse } from 'next/server';
 import { logRouteError } from '@/lib/logger';
 import { getAuthUser } from '@/lib/auth';
-import { CharacterCommentError, createCharacterComment, listCharacterComments } from '@/lib/characters/comment-service';
+import { createCharacterComment, listCharacterComments } from '@/lib/characters/comment-service';
+import { commentError } from '@/app/api/comments/_response';
 
 export const dynamic = 'force-dynamic';
-
-function commentError(error: unknown) {
-  if (!(error instanceof CharacterCommentError)) return null;
-  const headers = error.retryAfter === undefined ? undefined : {'Retry-After': String(error.retryAfter)};
-  return NextResponse.json({error: error.message}, {status: error.status, headers});
-}
 
 export async function GET(request: Request, {params}: {params: Promise<{id: string}>}) {
   try {
