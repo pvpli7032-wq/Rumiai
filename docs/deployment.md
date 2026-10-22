@@ -105,6 +105,8 @@ runuser -u www -- env PM2_HOME=/www/wwwroot/khui-ai/shared/pm2 /usr/bin/pm2 list
 | 聊天记忆 | `memory.enabled=false` | 不再生成摘要与注入事实，已存在的数据保留。 |
 | 真实支付 | `EZFP_ENABLED=false` | 下单入口关闭，历史订单与退款记录保留。 |
 
+**重启后回退两版的坑（2026-10-22 实际踩到）**：PM2 由 `khui-ai-pm2.service` 以 `User=www`、`PM2_HOME=/www/wwwroot/khui-ai/shared/pm2` 拉起，开机执行 `pm2 resurrect` 读的是 `dump.pm2`。切换发布目录后如果没跑 `pm2 save`，机器一重启就回到 dump 里记录的旧目录（当时从 c15 退回 c13）。所以每次切换后必须 `pm2 save`，并确认 `grep -o "commercial-[a-z0-9-]*" $PM2_HOME/dump.pm2` 指向当前版本。另外不要用 root 直接 `pm2 start`：进程会变成 root 属主，而 `shared/database.db` 与 `shared/pm2` 都是 www 属主，后续以 www 启动时写 WAL 会失败。正确做法是 `systemctl restart khui-ai-pm2.service`。
+
 回退：切换前保留上一发布目录与联合备份；需要回退时先停写，`state:restore` 恢复到全新目录，再一起切换代码、数据库、上传与配置。切换后已有新写入时，先保存现状与恢复来源，人工核对新增数据，禁止直接回旧库丢弃记录。
 
 ## 7.1 发布记录
