@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import path from 'node:path';
+import {rm} from 'node:fs/promises';
 
 const file = `growth-invite-${process.pid}-${Date.now()}.db`;
 process.env.DATABASE_URL = `file:./${file}`;
@@ -23,6 +24,12 @@ assert.equal(migration.status, 0, migration.stdout + migration.stderr);
 
 const {db, pragmasReady} = await import('../src/lib/db.ts');
 await pragmasReady;
+
+// 这个用例建的是真库，不清就会在 prisma/ 下一次留 1.7M。跟 account-closure 用同一套收尾。
+test.after(async () => {
+  await db.$disconnect();
+  for (const suffix of ['', '-wal', '-shm', '-journal']) await rm(path.resolve('prisma', file + suffix), {force: true});
+});
 const {ensureInviteCode, resolveInviterId, grantInviteRewardIfDue, readInviteSettings} = await import('../src/lib/growth/invite-service.ts');
 const {readOnboarding, saveOnboarding} = await import('../src/lib/growth/onboarding-service.ts');
 const {saveGroup} = await import('../src/lib/settings/service.ts');
