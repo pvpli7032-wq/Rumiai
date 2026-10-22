@@ -8,7 +8,7 @@
 
 | 命令 | 结果 |
 |---|---|
-| `npm run test:commercial` | **225 tests / 225 pass / 0 fail / 0 skipped**（20 个测试文件） |
+| `npm run test:commercial` | **226 tests / 226 pass / 0 fail / 0 skipped**（20 个测试文件） |
 | `npm run verify:build` | **通过**：产物 `.next-validation-build`，BUILD_ID `9vl28mYSz2AnXws7mgM04` |
 | `npm run verify:admin:responsive` | **通过**：24 组（6 页 × 360/390/1280/1440px），不合格 0 组 |
 | `node --import tsx --test tests/sqlite-backup.test.mjs` | **6 tests / 6 pass / 0 fail** |
@@ -111,7 +111,7 @@ V3 表 24 给了六个阶段的退出条件，第 225 段又要求「每阶段�
 
 2026-10-22 这一轮把其中 27 条全部补完并落到线上（`commercial-20261022-c20`），逐条在「状态」列写明落地方式。**第 23 条仍是有意不做的**：三处都是版式偏好，与功能可用性无关，改价格表列数还要重排现有信息密度，收益不明。
 
-第 6 条留了一个尾巴：`limits.login.*` 已进设置中心，但登录路由本身还没有限流消费者 —— 参数存在而没人读，是比参数不存在更容易误导的状态。
+第 6 条原本留的尾巴（`limits.login.*` 已进设置中心但登录路由没有限流）已补上：登录路由按 `x-real-ip` 分桶、每次尝试计数，超出 `limits.login.*` 返回 429 + `Retry-After`，改设置立即生效。
 
 | # | 规格出处 | 缺什么 | 影响 | 状态 |
 |---|---|---|---|---|
@@ -120,7 +120,7 @@ V3 表 24 给了六个阶段的退出条件，第 225 段又要求「每阶段�
 | 3 | §74 / 表 4 | 费用单快照有价格与时间，缺当时的配置版本号 | 事后无法证明「这单按哪一版设置算」 | 已修：快照补七项定价键各自的设置版本 |
 | 4 | §79 数据结构 | 账号导出与注销未覆盖 MirrorResult / DisputeCase / DisputeVote / ConversationMemory / MemoryFact | 导出不完整；注销后新对象残留（注销是匿名化不是删行，Cascade 不生效） | 已修：导出与注销都覆盖这五个对象；MemoryFact 无对话外键，改为显式删除 + 失效兜底 |
 | 5 | §78 排序 | 结案扫描与记忆事实查询用单键 orderBy，无 ID 次序键 | 同毫秒记录顺序不稳 | 已修：结案扫描、记忆事实与摘要查询都补 `id` 次序键 |
-| 6 | §203 迁移第六步 | `limits.upload/follow/report/login.*` 四个频率参数仍是 env 或模块常量 | 运营改不了，且违反表 10「不得模块级求值」 | 已修：四组都进设置中心；`limits.login.*` 已注册但登录路由尚未限流，属未接闸门 |
+| 6 | §203 迁移第六步 | `limits.upload/follow/report/login.*` 四个频率参数仍是 env 或模块常量 | 运营改不了，且违反表 10「不得模块级求值」 | 已修：四组都进设置中心，且四组都有真实消费者（登录路由按来源限流已接上） |
 | 7 | §192 任务启动 | 只有进程内 setTimeout 轮询，无可被计划任务调用的 CLI 入口 | 进程不跑就完全没有任务执行 | 已修：`scripts/run-tasks.mjs` + `tasks:run`，可挂计划任务 |
 | 8 | 表 22 邀请漏斗 | `invite_visited`、`invite_first_chat` 零生产者 | 漏斗后两环永远 0 | 已修：新增 `/api/growth/invite/visit` 落地口记访问，首次对话记转化 |
 | 9 | 表 22 玩法漏斗 | 报告只组三环，分享访问与转聊天未进漏斗 | 漏斗不完整 | 已修：漏斗补 `mirror_share_viewed`、`mirror_to_chat` 等环节 |

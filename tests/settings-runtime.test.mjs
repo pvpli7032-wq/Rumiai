@@ -24,6 +24,7 @@ const {validateCharacter} = await import('../src/lib/characters/validation.ts');
 const {registerAccount, AccountRegistrationError} = await import('../src/lib/accounts/registration-service.ts');
 const {reserveAiCall, AiQuotaError} = await import('../src/lib/ai/ai-usage.ts');
 const {readChatRules} = await import('../src/lib/settings/limits.ts');
+const {POST: login} = await import('../src/app/api/auth/login/route.ts');
 const {readSetting, readSettingValue} = await import('../src/lib/settings/service.ts');
 const {quoteReplyPrice} = await import('../src/lib/billing/price.ts');
 
@@ -96,6 +97,29 @@ test('聊天规则：发送次数与窗口长度来自设置，不是环境变�
   await setSetting('chat.historyMessages', 9);
   const rules = await readChatRules();
   assert.deepEqual(rules, {maxMessageChars: 1234, historyMessages: 9, perWindow: 7, windowMs: 90_000});
+});
+
+/**
+ * 登录频率：阈值与窗口来自设置，分桶键是来源而不是全局计数。
+ *
+ * 用错密码打登录：前 perWindow 次会走到业务层拿 401（说明真的尝试了），
+ * 第 perWindow+1 次被限流拦在 429。换一个来源不受影响 —— 若把键写成常量，
+ * 第二个来源也会被 429，这条断言就会失败。
+ */
+test('登录频率：按来源分桶，阈值与窗口来自设置', async () => {
+  await setSetting('limits.login.perWindow', 2);
+  await setSetting('limits.login.windowSeconds', 60);
+  const attempt = ip => login(new Request('http://localhost/api/auth/login', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'x-real-ip': ip},
+    body: JSON.stringify({email: 'login-limit@example.invalid', password: 'wrong-password'}),
+  }));
+  assert.equal((await attempt('203.0.113.10')).status, 401);
+  assert.equal((await attempt('203.0.113.10')).status, 401);
+  const blocked = await attempt('203.0.113.10');
+  assert.equal(blocked.status, 429);
+  assert.ok(Number(blocked.headers.get('Retry-After')) > 0, '限流响应要告诉客户端等多久');
+  assert.equal((await attempt('203.0.113.11')).status, 401, '换来源不该被上一个来源的计数连坐');
 });
 
 /**

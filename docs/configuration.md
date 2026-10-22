@@ -52,7 +52,7 @@
 | `limits.upload.perWindow` / `limits.upload.windowSeconds` | `UPLOAD_RATE_LIMIT` / `UPLOAD_RATE_WINDOW_MS` | 上传频率，默认 20 次 / 60 秒。 |
 | `limits.follow.perWindow` / `limits.follow.windowSeconds` | 关注频率常量 | 关注频率，默认 60 次 / 60 秒。 |
 | `limits.report.perWindow` / `limits.report.windowSeconds` | `REPORT_RATE_LIMIT` / `REPORT_RATE_WINDOW_MS` | 举报频率，默认 20 次 / 60 秒。 |
-| `limits.login.perWindow` / `limits.login.windowSeconds` | 登录频率常量 | 登录尝试频率。**已登记但当前未生效**：登录路由没有限流，这两项只保存不拦截。 |
+| `limits.login.perWindow` / `limits.login.windowSeconds` | 登录频率常量 | 登录尝试频率，默认 10 次 / 300 秒，按来源（`x-real-ip`）分桶，每次尝试都计数，超出返回 429 + `Retry-After`。 |
 
 读取入口是 `readRateLimitRules()`（`src/lib/settings/limits.ts`）：每个调用点在请求开始时读一次，同请求内共用一次 `readSettings`（15 秒缓存），改完立即生效。原来的模块级 env 常量已删除，不再有「后台改了、env 又盖回去」的第二来源。
 

@@ -141,6 +141,7 @@ src/components/notifications/    顶栏通知铃铛与抽屉
 - 登录态只认 `Authorization: Bearer`；所有私有响应带 `Cache-Control: private, no-store`。
 - 请求体统一走 `readJsonBody`（带大小上限与统一的中文解析失败文案）。
 - 公开上报端点 `POST /api/events`：事件名必须在 `PRODUCT_EVENTS` 白名单内，匿名可调，按用户/IP 限流；埋点写失败只记日志，不影响主流程。
+- `POST /api/auth/login` 按来源限流：键取 nginx 写的 `x-real-ip`（不是 `X-Forwarded-For`，线上 vhost 没设后者，按它分桶等于让客户端换头换桶），每次尝试都计数，超出 `limits.login.*` 返回 429 + `Retry-After`。
 - 增长端点 `GET/POST /api/growth/onboarding`、`GET /api/growth/invite`。
 - 路由实现约定：先鉴权，再校验入参，业务错误抛带 `status`/`code` 的领域错误，最后用 `jsonError` 兜底为 500 并只记日志。
 
