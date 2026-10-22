@@ -5,6 +5,7 @@ import {AdminNotice, AdminPanel} from '@/components/admin/admin-page';
 import {Badge} from '@/components/ui/badge';
 import {Select} from '@/components/ui/select';
 import {API} from '@/lib/api-paths';
+import {formatNumber, formatPercent} from '@/lib/format/number';
 import {mirrorStatsCards} from './types';
 
 /**
@@ -33,9 +34,7 @@ type Funnel = {key: string; title: string; description: string; steps: FunnelSte
 type FunnelReport = {generatedAt: string; since: string; days: number; funnels: Funnel[]; definitions: Record<string, string>};
 
 const DAY_OPTIONS = [7, 14, 30];
-const number = (value: number) => new Intl.NumberFormat('zh-CN').format(value);
 /** 分母为 0 时是 null：写「样本不足」，绝不写 0%。 */
-const percent = (value: number | null) => (value === null ? '样本不足' : (value * 100).toFixed(1) + '%');
 
 /** 数字 + 进度条，不引图表库：比例只用来给眼睛一个长度参考。 */
 function RatioBar({value}: {value: number | null}) {
@@ -51,10 +50,10 @@ function RatioCard({metric}: {metric: RatioMetric}) {
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
-      <p className="mt-3 text-2xl font-semibold tabular-nums leading-none text-foreground">{percent(metric.value)}</p>
+      <p className="mt-3 text-2xl font-semibold tabular-nums leading-none text-foreground">{formatPercent(metric.value)}</p>
       <RatioBar value={metric.value} />
       <p className="mt-2 text-xs leading-5 text-muted-foreground">
-        {number(metric.numerator)} / {number(metric.denominator)} · {metric.formula}
+        {formatNumber(metric.numerator)} / {formatNumber(metric.denominator)} · {metric.formula}
       </p>
     </div>
   );
@@ -148,7 +147,7 @@ export function MirrorStatsPanel({token}: {token: string}) {
       <AdminPanel
         title="玩法漏斗"
         description={mirrorFunnel?.description ?? '访问 → 开始答题 → 生成完成；生成完成由服务端在结果落库后写，不接受客户端自称完成。'}
-        badge={mirrorFunnel ? <Badge variant="outline">端到端 {percent(mirrorFunnel.overallRate)}</Badge> : undefined}
+        badge={mirrorFunnel ? <Badge variant="outline">端到端 {formatPercent(mirrorFunnel.overallRate)}</Badge> : undefined}
       >
         {!mirrorFunnel ? (
           <p className="text-sm text-muted-foreground">{loading ? '正在读取漏斗…' : '漏斗数据还没有返回。'}</p>
@@ -158,12 +157,12 @@ export function MirrorStatsPanel({token}: {token: string}) {
               <li key={step.event} className="py-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-sm font-medium text-foreground">{index + 1}. {step.label}</span>
-                  <span className="text-sm tabular-nums text-foreground">{number(step.people)} 人</span>
+                  <span className="text-sm tabular-nums text-foreground">{formatNumber(step.people)} 人</span>
                 </div>
                 <RatioBar value={step.rateFromStart} />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  相对首步 {percent(step.rateFromStart)}
-                  {index > 0 && <> · 相对上一步 {percent(step.rateFromPrevious)}</>}
+                  相对首步 {formatPercent(step.rateFromStart)}
+                  {index > 0 && <> · 相对上一步 {formatPercent(step.rateFromPrevious)}</>}
                 </p>
               </li>
             ))}

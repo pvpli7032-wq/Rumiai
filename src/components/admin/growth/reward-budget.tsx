@@ -4,14 +4,13 @@ import { useEffect, useState } from 'react';
 import { AdminNotice, AdminPanel, AdminStat, AdminStatGrid } from '../admin-page';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { Select } from '@/components/ui/select';
+import { formatNumber } from '@/lib/format/number';
 
 type Report = { days: number; since: string; generatedAt: string; budgetLimitConfigured: boolean; totalClaims: number; totalCoins: number; sources: { key: string; label: string; claims: number; coins: number }[]; daily: { date: string; claims: number; coins: number }[] };
-const format = (value: number) => new Intl.NumberFormat('zh-CN').format(value);
-
 const dailyColumns: DataTableColumn<Report['daily'][number]>[] = [
   { id: 'date', header: 'UTC 日期', cell: row => <span className="whitespace-nowrap">{row.date}</span> },
-  { id: 'coins', header: '发放金币', align: 'right', width: '140px', cell: row => <span className="tabular-nums">{format(row.coins)}</span> },
-  { id: 'claims', header: '领取笔数', align: 'right', width: '140px', cell: row => <span className="tabular-nums">{format(row.claims)}</span> },
+  { id: 'coins', header: '发放金币', align: 'right', width: '140px', cell: row => <span className="tabular-nums">{formatNumber(row.coins)}</span> },
+  { id: 'claims', header: '领取笔数', align: 'right', width: '140px', cell: row => <span className="tabular-nums">{formatNumber(row.claims)}</span> },
 ];
 
 export function RewardBudget({ token }: { token: string }) {
@@ -44,15 +43,15 @@ export function RewardBudget({ token }: { token: string }) {
         {report && (
           <>
             <AdminStatGrid className="sm:grid-cols-3 xl:grid-cols-3">
-              <AdminStat label="奖励金币" value={format(report.totalCoins)} tone="brand" />
-              <AdminStat label="领取笔数" value={format(report.totalClaims)} />
+              <AdminStat label="奖励金币" value={formatNumber(report.totalCoins)} tone="brand" />
+              <AdminStat label="领取笔数" value={formatNumber(report.totalClaims)} />
               <AdminStat label="预算上限" value={report.budgetLimitConfigured ? '已配置' : '未配置'} tone={report.budgetLimitConfigured ? 'success' : 'warning'} />
             </AdminStatGrid>
             <div className="grid gap-3 sm:grid-cols-3">
               {report.sources.map(source => (
                 <div key={source.key} className="min-w-0 rounded-lg border border-border p-3">
                   <p className="text-sm font-medium">{source.label}</p>
-                  <p className="mt-1 text-sm tabular-nums text-muted-foreground">{format(source.coins)} 金币 · {format(source.claims)} 笔领取</p>
+                  <p className="mt-1 text-sm tabular-nums text-muted-foreground">{formatNumber(source.coins)} 金币 · {formatNumber(source.claims)} 笔领取</p>
                 </div>
               ))}
             </div>

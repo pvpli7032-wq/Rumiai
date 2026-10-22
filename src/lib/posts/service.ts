@@ -17,7 +17,8 @@ function version(input: unknown) {
   return Date.parse(input);
 }
 function nextVersion(previous: Date) { return new Date(Math.max(Date.now(), previous.getTime() + 1)); }
-async function claimWriter(tx: Prisma.TransactionClient, userId: string) {
+/** 社区写入前的账号校验：账号未注销未封禁，且没有被社区禁言。与 admin 的管理员写锁无关。 */
+async function requireCommunityWriter(tx: Prisma.TransactionClient, userId: string) {
   const result = await tx.user.updateMany({where: {id: userId, deletedAt: null, suspendedAt: null}, data: {tokenVersion: {increment: 0}}});
   if (!result.count) postError('账号当前无法发布社区内容。', 403);
   if ((await readCommunityRestriction(userId, tx))?.communityBannedAt) postError('你的社区发言权限暂时受限。', 403);
@@ -53,7 +54,7 @@ export async function createPost(userId: string, circleId: string, input: unknow
   const body = input as Record<string, unknown>, content = await validatePostContent(body.content), characterId = body.characterId == null || body.characterId === '' ? null : typeof body.characterId === 'string' ? body.characterId : postError('关联角色无效。');
   await claimPostRateLimit(userId, 'post'); await pragmasReady;
   return db.$transaction(async tx => {
-    await claimWriter(tx, userId); await requireMembership(tx, circleId, userId);
+    await requireCommunityWriter(tx, userId); await requireMembership(tx, circleId, userId);
     if (characterId && !await tx.character.findFirst({where: {id: characterId, isPublic: true, reviewStatus: 'APPROVED'}, select: {id: true}})) postError('只能关联已审核通过的公开角色。');
     const images = await validatePostImages(body.images, userId, tx);
     return tx.post.create({data: {circleId, authorId: userId, content, characterId, media: {create: images.map((url, position) => ({url, position}))}}, select: postSelect});
@@ -65,7 +66,7 @@ export async function editPost(userId: string, postId: string, input: unknown) {
   const characterId = body.characterId === undefined ? undefined : body.characterId == null || body.characterId === '' ? null : typeof body.characterId === 'string' ? body.characterId : postError('关联角色无效。');
   await pragmasReady;
   return db.$transaction(async tx => {
-    await claimWriter(tx, userId);
+    await requireCommunityWriter(tx, userId);
     const post = await tx.post.findUnique({where: {id: postId}, select: {authorId: true, status: true, updatedAt: true, circleId: true}});
     if (!post) postError('帖子不存在。', 404); if (post.authorId !== userId) postError('只能编辑自己的帖子。', 403); if (post.status !== 'VISIBLE') postError('帖子已隐藏，无法编辑。', 409); if (post.updatedAt.getTime() !== expected) postError('帖子已被修改，请刷新后重试。', 409);
     await requireMembership(tx, post.circleId, userId);
@@ -80,7 +81,7 @@ export async function editPost(userId: string, postId: string, input: unknown) {
 export async function deletePost(userId: string, postId: string, expectedValue: unknown) {
   const expected = version(expectedValue);
   return db.$transaction(async tx => {
-    await claimWriter(tx, userId);
+    await requireCommunityWriter(tx, userId);
     const post = await tx.post.findUnique({where: {id: postId}, select: {authorId: true, status: true, updatedAt: true}});
     if (!post) postError('帖子不存在。', 404); if (post.authorId !== userId) postError('只能删除自己的帖子。', 403); if (post.status === 'DELETED') return {success: true}; if (post.updatedAt.getTime() !== expected) postError('帖子已被修改，请刷新后重试。', 409);
     await tx.postMedia.deleteMany({where: {postId}});
@@ -95,7 +96,7 @@ export async function createPostComment(userId: string, postId: string, input: u
   const body = input as Record<string, unknown>, {content, imageUrl} = await validatePostComment(body.content, body.imageUrl);
   await claimPostRateLimit(userId, 'comment'); await pragmasReady;
   return db.$transaction(async tx => {
-    await claimWriter(tx, userId);
+    await requireCommunityWriter(tx, userId);
     const post = await tx.post.findFirst({where: {id: postId, status: 'VISIBLE', circle: {status: 'ACTIVE'}}, select: {id: true, circleId: true, authorId: true}});
     if (!post) postError('帖子不存在或已隐藏。', 404); await requireMembership(tx, post.circleId, userId);
     if (imageUrl) await validatePostImages([imageUrl], userId, tx);
@@ -117,7 +118,7 @@ export async function editPostComment(userId: string, commentId: string, input: 
   if (!input || typeof input !== 'object' || Array.isArray(input)) postError('评论数据格式不正确。');
   const body = input as Record<string, unknown>, expected = version(body.updatedAt), {content, imageUrl} = await validatePostComment(body.content, body.imageUrl);
   return db.$transaction(async tx => {
-    await claimWriter(tx, userId);
+    await requireCommunityWriter(tx, userId);
     const comment = await tx.postComment.findUnique({where: {id: commentId}, select: {authorId: true, status: true, updatedAt: true, post: {select: {status: true, circleId: true, circle: {select: {status: true}}}}}});
     if (!comment) postError('评论不存在。', 404); if (comment.authorId !== userId) postError('只能编辑自己的评论。', 403); if (comment.status !== 'VISIBLE' || comment.post.status !== 'VISIBLE' || comment.post.circle.status !== 'ACTIVE') postError('评论已隐藏，无法编辑。', 409); if (comment.updatedAt.getTime() !== expected) postError('评论已被修改，请刷新后重试。', 409);
     await requireMembership(tx, comment.post.circleId, userId);
@@ -128,7 +129,7 @@ export async function editPostComment(userId: string, commentId: string, input: 
 export async function deletePostComment(userId: string, commentId: string, expectedValue: unknown) {
   const expected = version(expectedValue);
   return db.$transaction(async tx => {
-    await claimWriter(tx, userId);
+    await requireCommunityWriter(tx, userId);
     const comment = await tx.postComment.findUnique({where: {id: commentId}, select: {authorId: true, status: true, updatedAt: true}});
     if (!comment) postError('评论不存在。', 404); if (comment.authorId !== userId) postError('只能删除自己的评论。', 403); if (comment.updatedAt.getTime() !== expected) postError('评论已被修改，请刷新后重试。', 409);
     await tx.postComment.update({where: {id: commentId}, data: {content: '', imageUrl: null, status: 'DELETED', updatedAt: nextVersion(comment.updatedAt)}});

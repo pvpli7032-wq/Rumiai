@@ -1,11 +1,13 @@
 import type {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@/lib/db';
-import {readSettingValue} from '@/lib/settings';
 import {recordProductEvent} from '@/lib/analytics/product-events';
 import {readConversationMessages} from '@/lib/conversations/message-service';
 import {readCommunityRestriction} from '@/lib/community/restriction-service';
-import type {DisputeCandidate, DisputeCaseRecord, DisputeCaseSummary, DisputeExcerptMessage, DisputeExcerptOptions, DisputeListResult, DisputeRuleSnapshot, DisputeSort, DisputeVerdict, DisputeVoteState} from './types';
-import {emptyTally, isDisputeRules, leadingChoice} from './types';
+import type {DisputeCandidate, DisputeCaseRecord, DisputeCaseSummary, DisputeListResult, DisputeRuleSnapshot, DisputeSort} from './types';
+import {emptyTally} from './types';
+import {parseExcerpt, parseVerdict, voteState} from './case-parse';
+import {buildRuleSnapshot, DISPUTE_TOPIC_ID, disputeDayStart, ensureDisputeTopic, HOUR_MS, readDisputeOptions, snapshotOf} from './case-rules';
+import {caseSelect, readCaseCharacters, readPostFacts, readTallies, toSummary, type CaseRow} from './case-view';
 
 /**
  * 评理广场：发起与读取（V3 第 24 章）。
@@ -13,17 +15,14 @@ import {emptyTally, isDisputeRules, leadingChoice} from './types';
  * 案例复用系统圈子的帖子承载评论、点赞与举报，这里只新增案例本身：
  * 创建时把运营规则写进 rule_snapshot_json，此后后台改设置不影响已开案例。
  * 帖子在 schema 里没有反向关系，所以帖子状态统一用 postId 单独读。
+ *
+ * 规则、JSON 解析、展示映射分别在 case-rules / case-parse / case-view；
+ * 这里只留发起、列表、详情与结案读取的编排。
  */
 
-/** 案例挂在系统圈子里：它给评论、点赞、举报一个落点，但不在圈子列表里做推荐。 */
-export const DISPUTE_TOPIC_ID = 'xingban-topic-disputes';
-const DISPUTE_TOPIC_NAME = '评理广场';
-const DISPUTE_TOPIC_DESCRIPTION = '谁更有理：从聊天摘出片段，写明诉求，让大家投票。评论、点赞与举报沿用社区规则。';
-const DISPUTE_TOPIC_TAGS = '评理,社区';
-
-/** 业务日按 Asia/Shanghai 切：每日发起限制不会随 UTC 零点漂移。 */
-const DISPUTE_DAY_OFFSET_MS = 8 * 3_600_000;
-const HOUR_MS = 3_600_000;
+export {readDisputeOptions} from './case-rules';
+export {snapshotOf} from './case-rules';
+export {readTallies} from './case-view';
 
 export class DisputeError extends Error {
   readonly reason: string;
@@ -43,98 +42,6 @@ export function disputeErrorResponse(error: unknown) {
     return {status: error.status, headers: error.retryAfter ? {'Retry-After': String(error.retryAfter)} : undefined, message: error.message};
   }
   return null;
-}
-
-export function disputeDayStart(now = new Date()) {
-  const shifted = new Date(now.getTime() + DISPUTE_DAY_OFFSET_MS);
-  return new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - DISPUTE_DAY_OFFSET_MS);
-}
-
-/**
- * 读运营规则。必须在真正执行动作时读：设置值不允许导出成模块顶层常量，
- * 否则后台改完不生效。
- */
-export async function readDisputeOptions(userId?: string | null): Promise<DisputeExcerptOptions> {
-  const [enabled, maxExcerptMessages, claimMaxChars, dailyLimit, minAccountAgeHours, maxVoteChanges, closeAfterHours, closeAtVotes, verdictMaxChars] = await Promise.all([
-    readSettingValue<boolean>('dispute.enabled'),
-    readSettingValue<number>('dispute.maxExcerptMessages'),
-    readSettingValue<number>('dispute.claimMaxChars'),
-    readSettingValue<number>('dispute.dailyLimit'),
-    readSettingValue<number>('dispute.minAccountAgeHours'),
-    readSettingValue<number>('dispute.maxVoteChanges'),
-    readSettingValue<number>('dispute.closeAfterHours'),
-    readSettingValue<number>('dispute.closeAtVotes'),
-    readSettingValue<number>('dispute.verdictMaxChars'),
-  ]);
-  const base = {maxExcerptMessages: Number(maxExcerptMessages), claimMaxChars: Number(claimMaxChars), dailyLimit: Number(dailyLimit), minAccountAgeHours: Number(minAccountAgeHours), maxVoteChanges: Number(maxVoteChanges), closeAfterHours: Number(closeAfterHours), closeAtVotes: Number(closeAtVotes), verdictMaxChars: Number(verdictMaxChars)};
-  if (!userId) return {...base, enabled: Boolean(enabled), remaining: null, eligible: null, topicName: DISPUTE_TOPIC_NAME};
-  const [user, used] = await Promise.all([
-    db.user.findUnique({where: {id: userId}, select: {createdAt: true, deletedAt: true, suspendedAt: true}}),
-    db.disputeCase.count({where: {authorId: userId, createdAt: {gte: disputeDayStart()}}}),
-  ]);
-  const ageHours = user ? (Date.now() - user.createdAt.getTime()) / HOUR_MS : 0;
-  const valid = Boolean(user && !user.deletedAt && !user.suspendedAt);
-  return {...base, enabled: Boolean(enabled), remaining: valid ? Math.max(0, base.dailyLimit - used) : 0, eligible: valid && ageHours >= base.minAccountAgeHours, topicName: DISPUTE_TOPIC_NAME};
-}
-
-/** 把当前设置冻结成快照。创建时只写一次，之后的投票与结案都读快照。 */
-export function buildRuleSnapshot(options: DisputeExcerptOptions, now = new Date()): DisputeRuleSnapshot {
-  return {
-    version: 1,
-    capturedAt: now.toISOString(),
-    closeAfterHours: options.closeAfterHours,
-    closeAtVotes: options.closeAtVotes,
-    maxVoteChanges: options.maxVoteChanges,
-    verdictMaxChars: options.verdictMaxChars,
-    maxExcerptMessages: options.maxExcerptMessages,
-    claimMaxChars: options.claimMaxChars,
-  };
-}
-
-export function snapshotOf(raw: string): DisputeRuleSnapshot {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return isDisputeRules(parsed) ? parsed : fallbackRules();
-  } catch {
-    return fallbackRules();
-  }
-}
-
-/** 历史脏数据兜底：按 V3 默认值，不抛错让详情整页打不开。 */
-function fallbackRules(): DisputeRuleSnapshot {
-  return {version: 1, capturedAt: '', closeAfterHours: 48, closeAtVotes: 200, maxVoteChanges: 1, verdictMaxChars: 120, maxExcerptMessages: 6, claimMaxChars: 60};
-}
-
-export function parseExcerpt(raw: string | null | undefined): DisputeExcerptMessage[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap(item => {
-      if (!item || typeof item !== 'object') return [];
-      const row = item as Record<string, unknown>;
-      if (typeof row.messageId !== 'string' || typeof row.content !== 'string') return [];
-      return [{messageId: row.messageId, role: row.role === 'USER' ? 'USER' as const : 'ASSISTANT' as const, content: row.content, createdAt: String(row.createdAt ?? '')}];
-    });
-  } catch {
-    return [];
-  }
-}
-
-export function parseVerdict(raw: string | null): DisputeVerdict | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as DisputeVerdict;
-    return typeof parsed.text === 'string' && (parsed.status === 'READY' || parsed.status === 'FALLBACK') ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-async function ensureTopic(tx: Prisma.TransactionClient) {
-  const existing = await tx.circle.findUnique({where: {id: DISPUTE_TOPIC_ID}, select: {id: true}});
-  if (existing) return;
-  await tx.circle.create({data: {id: DISPUTE_TOPIC_ID, name: DISPUTE_TOPIC_NAME, description: DISPUTE_TOPIC_DESCRIPTION, tags: DISPUTE_TOPIC_TAGS, ownerId: null, status: 'ACTIVE'}});
 }
 
 /** 发起页的候选消息：只读当前用户自己的会话，最近 60 条作为可选窗口。 */
@@ -196,7 +103,7 @@ export async function createDisputeCase(userId: string, input: unknown): Promise
     // 事务内再数一次：并发发起时以事务里的计数为准。
     const used = await tx.disputeCase.count({where: {authorId: userId, createdAt: {gte: disputeDayStart(now)}}});
     if (used >= options.dailyLimit) throw new DisputeError(`每天最多发起 ${options.dailyLimit} 个案例，请明天再来。`, 429, 'LIMITED');
-    await ensureTopic(tx);
+    await ensureDisputeTopic(tx);
     const post = await tx.post.create({data: {circleId: DISPUTE_TOPIC_ID, authorId: userId, characterId, content: claim}, select: {id: true}});
     const row = await tx.disputeCase.create({
       data: {postId: post.id, authorId: userId, characterId, excerptJson: JSON.stringify(excerpt), claim, ruleSnapshotJson: JSON.stringify(rules), deadlineAt},
@@ -207,79 +114,6 @@ export async function createDisputeCase(userId: string, input: unknown): Promise
   // 漏斗埋点写在事务之外：统计写失败不影响已经创建的案例。
   await recordProductEvent({event: 'dispute_started', userId, subjectKey: created.caseId});
   return created;
-}
-
-/** 投票统计：dispute_votes 的唯一键保证一人一票，这里只负责逐票累计。 */
-export function tallyVotes(rows: Array<{choice: string}>) {
-  const tally = emptyTally();
-  for (const row of rows) {
-    if (row.choice === 'AUTHOR' || row.choice === 'OTHER' || row.choice === 'SPLIT') tally[row.choice] += 1;
-  }
-  tally.total = tally.AUTHOR + tally.OTHER + tally.SPLIT;
-  return tally;
-}
-
-export async function readTallies(caseIds: string[]) {
-  if (!caseIds.length) return new Map<string, ReturnType<typeof emptyTally>>();
-  const rows = await db.disputeVote.findMany({where: {caseId: {in: caseIds}}, select: {caseId: true, choice: true}});
-  const grouped = new Map<string, string[]>();
-  for (const row of rows) {
-    const bucket = grouped.get(row.caseId) ?? [];
-    bucket.push(row.choice);
-    grouped.set(row.caseId, bucket);
-  }
-  return new Map(caseIds.map(id => [id, tallyVotes((grouped.get(id) ?? []).map(choice => ({choice})))]));
-}
-
-/** 列表与详情只需要的案例字段；帖子字段另取，避免依赖 schema 里不存在的反向关系。 */
-export const caseSelect = {
-  id: true, postId: true, authorId: true, characterId: true, claim: true, createdAt: true, deadlineAt: true, closeStatus: true, voteCount: true, ruleSnapshotJson: true, excerptJson: true,
-  author: {select: {id: true, username: true, displayName: true, avatarUrl: true}},
-} as const;
-
-export type CaseRow = {
-  id: string; postId: string; authorId: string; characterId: string | null; claim: string; createdAt: Date; deadlineAt: Date; closeStatus: string; voteCount: number; ruleSnapshotJson: string; excerptJson: string;
-  author: {id: string; username: string; displayName: string | null; avatarUrl: string | null};
-};
-
-/** 角色不在 DisputeCase 的关系里（schema 只存 characterId），按 id 批量补名字。 */
-export async function readCaseCharacters(characterIds: Array<string | null>) {
-  const ids = [...new Set(characterIds.filter((id): id is string => Boolean(id)))];
-  if (!ids.length) return new Map<string, {id: string; name: string}>();
-  const rows = await db.character.findMany({where: {id: {in: ids}}, select: {id: true, name: true}});
-  return new Map(rows.map(row => [row.id, row]));
-}
-
-/** 一次取齐页内所有帖子的公开状态与可见评论数。 */
-export async function readPostFacts(postIds: string[]) {
-  if (!postIds.length) return new Map<string, {status: string; commentCount: number}>();
-  const rows = await db.post.findMany({where: {id: {in: postIds}}, select: {id: true, status: true, _count: {select: {comments: {where: {status: 'VISIBLE'}}}}}});
-  return new Map(rows.map(row => [row.id, {status: row.status, commentCount: row._count.comments}]));
-}
-
-function voteState(vote: {choice: string; reviseCount: number} | null | undefined, maxVoteChanges: number): DisputeVoteState | null {
-  if (!vote || (vote.choice !== 'AUTHOR' && vote.choice !== 'OTHER' && vote.choice !== 'SPLIT')) return null;
-  return {choice: vote.choice, reviseCount: vote.reviseCount, maxVoteChanges, remainingChanges: Math.max(0, maxVoteChanges - vote.reviseCount)};
-}
-
-export function toSummary(row: CaseRow, facts: {commentCount: number} | undefined, tally: ReturnType<typeof emptyTally>, myVote: DisputeVoteState | null, character: {id: string; name: string} | null = null): DisputeCaseSummary {
-  const rules = snapshotOf(row.ruleSnapshotJson);
-  const excerpt = parseExcerpt(row.excerptJson);
-  return {
-    id: row.id, postId: row.postId, claim: row.claim,
-    createdAt: row.createdAt.toISOString(), deadlineAt: row.deadlineAt.toISOString(),
-    closeStatus: row.closeStatus === 'CLOSED' || row.closeStatus === 'CLOSING' ? row.closeStatus : 'OPEN',
-    voteCount: tally.total,
-    closeAtVotes: rules.closeAtVotes, closeAfterHours: rules.closeAfterHours,
-    tally, main: leadingChoice(tally),
-    author: {id: row.author.id, name: row.author.displayName ?? row.author.username, avatarUrl: row.author.avatarUrl},
-    character,
-    commentCount: facts?.commentCount ?? 0,
-    excerptCount: excerpt.length,
-    excerpt,
-    myVote,
-    ...(row.closeStatus === 'WITHDRAWN' ? {withdrawn: true} : {}),
-  };
 }
 
 export async function listDisputeCases(query: {sort?: DisputeSort; cursor?: string | null; limit?: number; userId?: string | null}): Promise<DisputeListResult> {

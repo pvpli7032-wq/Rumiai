@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { encodeCursor } from '@/lib/pagination';
 import { StoryError, readVersion } from './repository/contracts';
 
 const DEFAULT_LIMIT = 20;
@@ -14,10 +15,6 @@ function parseCursor(value?: string | null): Cursor | null {
     if (typeof parsed.updatedAt !== 'string' || typeof parsed.id !== 'string' || !parsed.id) throw Error();
     return {updatedAt: parsed.updatedAt, id: parsed.id};
   } catch { throw new StoryError('INVALID_PAGINATION', '故事游标格式不正确。', 422); }
-}
-
-function encodeCursor(cursor: Cursor): string {
-  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
 }
 
 function limitOf(value?: number | string | null): number {

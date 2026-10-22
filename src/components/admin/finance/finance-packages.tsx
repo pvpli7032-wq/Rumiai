@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
+import { formatCny } from '@/lib/format/number';
 
 type Package = { id: string; label: string; coins: number; bonus: number; priceCnyCents: number | null; sortOrder: number; isActive: boolean; version: number; bonusStartsAt: string | null; bonusEndsAt: string | null; effectiveBonus: number };
 type Change = { id: string; packageId: string; actorId: string; createdAt: string; beforeJson: string | null; afterJson: string };
@@ -62,7 +63,7 @@ export function FinancePackages({ token, canEdit }: { token: string; canEdit: bo
         <p className="text-xs text-muted-foreground">排序 {pkg.sortOrder} · 版本 {pkg.version}</p>
       </div>
     ) },
-    { id: 'price', header: '价格', width: '120px', cell: pkg => <span className="tabular-nums">{pkg.priceCnyCents === null ? '价格待配置' : `¥${(pkg.priceCnyCents / 100).toFixed(2)}`}</span> },
+    { id: 'price', header: '价格', width: '120px', cell: pkg => <span className="tabular-nums">{pkg.priceCnyCents === null ? '价格待配置' : formatCny(pkg.priceCnyCents)}</span> },
     { id: 'coins', header: '金币', width: '180px', cell: pkg => <span className="tabular-nums">基础 {pkg.coins} · 当前赠送 {pkg.effectiveBonus}</span> },
     { id: 'bonus', header: '赠送活动', cell: pkg => pkg.bonusStartsAt
       ? <span className="text-xs text-muted-foreground">{new Date(pkg.bonusStartsAt).toLocaleString('zh-CN')} 至 {new Date(pkg.bonusEndsAt!).toLocaleString('zh-CN')}</span>

@@ -96,6 +96,3 @@ export const api = {
   blob: apiBlob,
   raw: apiRaw,
 };
-
-/** 只关心成败、不需要 body 的调用。 */
-export const apiVoid = (path: string, options: ApiRequest = {}) => apiFetch<unknown>(path, options).then(() => undefined);

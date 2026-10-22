@@ -1,6 +1,7 @@
 import type {AiStreamMetrics} from '@/lib/ai/types';
 import {aiErrorCode, aiUserError, type PromptCharacter} from '@/lib/conversations/chat-stream';
 import {MirrorError} from './errors';
+import {clampLine, cleanLine, readIndex} from './text';
 import type {MirrorCharacterOption, MirrorResultFields, MirrorRules} from './types';
 
 /**
@@ -86,24 +87,6 @@ function extractJsonText(raw: string): string {
 }
 
 const charCount = (value: string) => [...value].length;
-
-function cleanLine(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const text = value.replace(/\s+/g, ' ').trim();
-  return text || null;
-}
-
-/** 超长就截断到上限，不因此判整份结果失败——长度上限是展示规则，不是内容错误。 */
-function clampLine(value: string, max: number): string {
-  const chars = [...value];
-  return chars.length <= max ? value : chars.slice(0, max).join('');
-}
-
-function readIndex(value: unknown): number | null {
-  const number = typeof value === 'string' ? Number(value.trim()) : value;
-  if (typeof number !== 'number' || !Number.isFinite(number)) return null;
-  return Math.max(0, Math.min(100, Math.round(number)));
-}
 
 export type MirrorValidation =
   | {ok: true; fields: MirrorResultFields}

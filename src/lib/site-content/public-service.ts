@@ -65,7 +65,3 @@ export async function readPublishedSitePage(slug:string,at=now()){
 export async function readPublishedAnnouncements(at=now()){
   return (await readEffectivePages(at)).filter(page=>page.kind==='ANNOUNCEMENT');
 }
-
-export async function readPublicHeroBanners(){
-  return(await readPublicSiteContent()).banners.hero.map(({id,title,description,href,gradientFrom,gradientTo,imageUrl})=>({id,title,description,href,gradientFrom,gradientTo,imageUrl}));
-}

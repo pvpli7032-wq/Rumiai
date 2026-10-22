@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Search, Users } from 'lucide-react';
+import {compactNumber} from '@/lib/i18n/format';
 
 interface Creator {
   rank: number;
@@ -29,11 +30,6 @@ const SORTS = [
 ] as const;
 
 /** 10800 -> "10.8K" */
-function compact(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`;
-  return String(n);
-}
-
 /** Podium pillar styling per place: [gradient, height, ring, ordinal]. */
 const PODIUM = {
   1: { grad: 'from-[#FFF4CF] to-[#FDBB3C]', h: 'h-24 sm:h-36 md:h-52 lg:h-64', ring: 'ring-yellow-400', label: '1', sup: ' st', z: 'z-30' },
@@ -146,7 +142,7 @@ export function CreatorTab() {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
                       <Users className="h-3 w-3 shrink-0" />
-                      <span className="text-[10px] leading-4">{compact(c.followerCount)} {"关注者"}</span>
+                      <span className="text-[10px] leading-4">{compactNumber(c.followerCount)} {"关注者"}</span>
                     </div>
                     <span className="whitespace-nowrap text-[10px] leading-4 text-muted-foreground">
                       {c.characterCount} {"角色"}</span>
@@ -173,17 +169,17 @@ export function CreatorTab() {
 function metricLabel(c: Creator, sort: string) {
   switch (sort) {
     case 'popularByMessageCount':
-      return "💬" + (compact(c.messageCount)) + "消息";
+      return "💬" + (compactNumber(c.messageCount)) + "消息";
     case 'popularByChatCount':
-      return "💬" + (compact(c.chatCount)) + "聊天";
+      return "💬" + (compactNumber(c.chatCount)) + "聊天";
     case 'popularByUniverseMessageCount':
-      return "🌍" + (compact(c.universeMessageCount)) + "消息";
+      return "🌍" + (compactNumber(c.universeMessageCount)) + "消息";
     case 'popularByUniverseChatCount':
-      return "🌍" + (compact(c.universeChatCount)) + "聊天";
+      return "🌍" + (compactNumber(c.universeChatCount)) + "聊天";
     case 'trendingByFollowerCount':
-      return "📈 +" + (compact(c.weeklyFollowerGain)) + "本周";
+      return "📈 +" + (compactNumber(c.weeklyFollowerGain)) + "本周";
     default:
-      return "💬" + (compact(c.messageCount)) + "消息";
+      return "💬" + (compactNumber(c.messageCount)) + "消息";
   }
 }
 

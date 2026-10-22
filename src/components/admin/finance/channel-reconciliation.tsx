@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
+import { formatCny } from '@/lib/format/number';
 
 type Batch = { id: string; provider: string; importedById: string; importReason: string; rowCount: number; matchedRowCount: number; exceptionRowCount: number; grossCnyCents: number; feeCnyCents: number; netCnyCents: number; periodStart: string; periodEnd: string; createdAt: string; duplicate?: boolean };
 type Entry = { entrySource: string; lineNumber: number | null; providerTradeNo: string | null; orderNo: string; grossCnyCents: number | null; feeCnyCents: number | null; netCnyCents: number | null; paidAt: string; matchStatus: string; matchLabel: string; exceptionCode: string | null; internalAmountCnyCents: number | null; internalOrderStatus: string | null };
 type Detail = { batch: Batch; page: number; pageSize: number; total: number; entries: Entry[] };
-const formatMoney = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 
 export function ChannelReconciliation({ token, canImport }: { token: string; canImport: boolean }) {
   const [batches, setBatches] = useState<Batch[]>([]), [selected, setSelected] = useState(''), [detail, setDetail] = useState<Detail | null>(null), [page, setPage] = useState(1);
@@ -97,7 +97,7 @@ export function ChannelReconciliation({ token, canImport }: { token: string; can
             : <div className="grid gap-2 md:grid-cols-2">{batches.map(batch => (
               <button key={batch.id} type="button" onClick={() => { setSelected(batch.id); setPage(1); }} className={`min-h-20 rounded-lg border p-3 text-left transition-colors ${selected === batch.id ? 'border-brand bg-brand-soft' : 'border-border hover:bg-muted'}`}>
                 <span className="block break-all text-sm font-medium">{new Date(batch.createdAt).toLocaleString('zh-CN')} · {batch.rowCount} 笔</span>
-                <span className="mt-1 block text-xs text-muted-foreground">匹配 {batch.matchedRowCount} · 差异 {batch.exceptionRowCount} · 手续费 {formatMoney(batch.feeCnyCents)}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">匹配 {batch.matchedRowCount} · 差异 {batch.exceptionRowCount} · 手续费 {formatCny(batch.feeCnyCents)}</span>
               </button>
             ))}</div>}
         </div>
@@ -105,7 +105,7 @@ export function ChannelReconciliation({ token, canImport }: { token: string; can
           <div className="space-y-3 border-t border-border pt-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-sm font-medium">批次对账结果</p>
-              <p className="text-xs text-muted-foreground">原始金额 {formatMoney(detail.batch.grossCnyCents)} · 手续费 {formatMoney(detail.batch.feeCnyCents)} · 估算净额 {formatMoney(detail.batch.netCnyCents)}</p>
+              <p className="text-xs text-muted-foreground">原始金额 {formatCny(detail.batch.grossCnyCents)} · 手续费 {formatCny(detail.batch.feeCnyCents)} · 估算净额 {formatCny(detail.batch.netCnyCents)}</p>
             </div>
             <p className="text-xs text-muted-foreground">导入原因：{detail.batch.importReason} · 时间范围 {new Date(detail.batch.periodStart).toLocaleString('zh-CN')} – {new Date(detail.batch.periodEnd).toLocaleString('zh-CN')}</p>
             <div className="space-y-2">{detail.entries.map((entry, index) => (
@@ -115,7 +115,7 @@ export function ChannelReconciliation({ token, canImport }: { token: string; can
                   <Badge variant={entry.exceptionCode ? 'warning' : 'success'}>{entry.matchLabel}</Badge>
                 </div>
                 <p className="break-all text-xs text-muted-foreground">{entry.orderNo} · {entry.providerTradeNo ?? '渠道交易号缺失'}</p>
-                <p className="tabular-nums">{entry.grossCnyCents === null ? '渠道账单缺失' : `${formatMoney(entry.grossCnyCents)} · 手续费 ${formatMoney(entry.feeCnyCents ?? 0)}`}{entry.internalAmountCnyCents !== null ? ` · 本地 ${formatMoney(entry.internalAmountCnyCents)}` : ''}</p>
+                <p className="tabular-nums">{entry.grossCnyCents === null ? '渠道账单缺失' : `${formatCny(entry.grossCnyCents)} · 手续费 ${formatCny(entry.feeCnyCents ?? 0)}`}{entry.internalAmountCnyCents !== null ? ` · 本地 ${formatCny(entry.internalAmountCnyCents)}` : ''}</p>
                 {entry.exceptionCode && <p className="text-xs text-amber-600">差异码：{entry.exceptionCode}</p>}
               </article>
             ))}</div>

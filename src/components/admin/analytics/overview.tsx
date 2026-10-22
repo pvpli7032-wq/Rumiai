@@ -18,8 +18,7 @@ type Report={
   definitions:{activeUsers:string;retentionAvailable:boolean;grossMarginAvailable:boolean;grossMarginUnavailableReason:string};
 };
 
-const number=(value:number)=>new Intl.NumberFormat('zh-CN').format(value);
-const yuan=(cents:number)=>'¥'+(cents/100).toFixed(2);
+import {formatCny, formatNumber} from '@/lib/format/number';
 
 export function AnalyticsOverview({token}:{token:string}){
   // 工作台指标卡会带 ?days= 进来（V3 §14「点击指标进入对应列表并保留筛选日期」），
@@ -41,10 +40,10 @@ export function AnalyticsOverview({token}:{token:string}){
   },[days,token]);
 
   const cards=report?[
-    ['新注册用户',number(report.users.registered)],['活跃账号',number(report.users.active)],['付费用户',number(report.users.payingUsers)],
-    ['新建对话',number(report.engagement.newConversations)],['用户消息',number(report.engagement.userMessages)],['AI 回复',number(report.engagement.assistantMessages)],
-    ['公开帖子',number(report.engagement.visiblePosts)],['公开评论',number(report.engagement.visibleComments)],['审核动作',number(report.engagement.moderationActions)],
-    ['已付订单',number(report.payments.paidOrders)],['支付金额',yuan(report.payments.paidAmountCnyCents)],['成功退款',number(report.payments.completedRefunds)],
+    ['新注册用户',formatNumber(report.users.registered)],['活跃账号',formatNumber(report.users.active)],['付费用户',formatNumber(report.users.payingUsers)],
+    ['新建对话',formatNumber(report.engagement.newConversations)],['用户消息',formatNumber(report.engagement.userMessages)],['AI 回复',formatNumber(report.engagement.assistantMessages)],
+    ['公开帖子',formatNumber(report.engagement.visiblePosts)],['公开评论',formatNumber(report.engagement.visibleComments)],['审核动作',formatNumber(report.engagement.moderationActions)],
+    ['已付订单',formatNumber(report.payments.paidOrders)],['支付金额',formatCny(report.payments.paidAmountCnyCents)],['成功退款',formatNumber(report.payments.completedRefunds)],
   ]:[];
 
   return <AdminPage>
@@ -73,16 +72,16 @@ export function AnalyticsOverview({token}:{token:string}){
         <AdminPanel title="转化与退款" description="付费率沿用同周期注册与 EZFP 人民币已付款用户口径；退款只计已确认成功。">
           <div className="space-y-2 text-sm">
             <p>注册用户付费率：{report.users.registrationPaymentRate===null?'样本不足':(report.users.registrationPaymentRate*100).toFixed(2)+'%'}</p>
-            <p>退款金额：{yuan(report.payments.refundedAmountCnyCents)}</p>
-            <p>退款后充值金额：{yuan(report.payments.paidAmountCnyCents-report.payments.refundedAmountCnyCents)}</p>
+            <p>退款金额：{formatCny(report.payments.refundedAmountCnyCents)}</p>
+            <p>退款后充值金额：{formatCny(report.payments.paidAmountCnyCents-report.payments.refundedAmountCnyCents)}</p>
           </div>
         </AdminPanel>
         <AdminPanel title="AI 调用与成本估算" description="不同币种分开统计；未知成本没有按零处理。">
           {report.aiCosts.length
             ? <div className="space-y-3">{report.aiCosts.map(row=>(
                 <div key={row.currency} className="rounded-lg border border-border p-3">
-                  <p className="text-sm text-foreground">{row.currency} · {number(row.calls)} 次调用 · 已知成本 {row.estimatedCost.toFixed(6)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">已知 {number(row.knownCostCalls)} 次 · 未知 {number(row.unknownCostCalls)} 次 · 失败 {number(row.failedCalls)} 次 · 模拟 {number(row.mockCalls)} 次</p>
+                  <p className="text-sm text-foreground">{row.currency} · {formatNumber(row.calls)} 次调用 · 已知成本 {row.estimatedCost.toFixed(6)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">已知 {formatNumber(row.knownCostCalls)} 次 · 未知 {formatNumber(row.unknownCostCalls)} 次 · 失败 {formatNumber(row.failedCalls)} 次 · 模拟 {formatNumber(row.mockCalls)} 次</p>
                 </div>
               ))}</div>
             : <p className="text-sm text-muted-foreground">此周期没有 AI 调用记录。</p>}
@@ -101,7 +100,7 @@ export function AnalyticsOverview({token}:{token:string}){
               className="border-none"
               columns={[
                 {id: 'cohort', header: '注册日（UTC）', cell: row => row.cohortDate},
-                {id: 'size', header: '注册人数', align: 'right', cell: row => <span className="tabular-nums">{number(row.cohortSize)}</span>},
+                {id: 'size', header: '注册人数', align: 'right', cell: row => <span className="tabular-nums">{formatNumber(row.cohortSize)}</span>},
                 {id: 'd1', header: 'D1 留存', cell: row => renderRetention(row.d1)},
                 {id: 'd7', header: 'D7 留存', cell: row => renderRetention(row.d7)},
                 {id: 'd30', header: 'D30 留存', cell: row => renderRetention(row.d30)},
@@ -124,5 +123,5 @@ export function AnalyticsOverview({token}:{token:string}){
 function renderRetention(metric: {returned: number; matured: boolean; rate: number | null}) {
   if (!metric.matured) return <span className="text-xs text-muted-foreground">未成熟</span>;
   if (metric.rate === null) return <span className="text-muted-foreground">—</span>;
-  return <span className="tabular-nums">{(metric.rate*100).toFixed(1)}% ({number(metric.returned)})</span>;
+  return <span className="tabular-nums">{(metric.rate*100).toFixed(1)}% ({formatNumber(metric.returned)})</span>;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { BookUser, MessageCircle, Search, Tag } from 'lucide-react';
+import {compactNumber} from '@/lib/i18n/format';
 
 interface Universe {
   id: string;
@@ -24,11 +25,6 @@ const TABS = [
 ] as const;
 
 /** 3900 -> "3.9k" */
-function compact(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
-  return String(n);
-}
-
 /** Deterministic cover gradient so a world without artwork still reads as itself. */
 const COVERS = [
   'linear-gradient(160deg,#3b1d4d,#141428)',
@@ -190,7 +186,7 @@ function UniverseCard({ universe, index }: { universe: Universe; index: number }
           </div>
           <div className="flex items-center gap-1 rounded-full bg-black/50 px-1.5 py-0.5">
             <MessageCircle className="h-3 w-3 text-white" />
-            <span className="text-[10px] font-semibold text-white">{compact(universe.chatCount)}</span>
+            <span className="text-[10px] font-semibold text-white">{compactNumber(universe.chatCount)}</span>
           </div>
         </div>
       </div>

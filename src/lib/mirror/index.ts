@@ -19,6 +19,7 @@ export {
   type MirrorRequestStateLike,
 } from './service';
 export {compareMirrorResults, deleteMirrorResult, expireMirrorResults, readMirrorResult, readMyMirrorResults, type MirrorOwnerView, type MirrorReadResult} from './repository';
+export type {MirrorCompareEntry} from './types';
 export {MirrorModelError} from './model-call';
 export {mirrorDayKey, readMirrorUsage, type MirrorIdentity} from './limits';
 export {exampleForCharacter, missingQuestionCount, parseMirrorExamples, parseMirrorQuestions, toExampleView} from './examples';

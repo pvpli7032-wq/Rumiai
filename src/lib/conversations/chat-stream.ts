@@ -42,17 +42,6 @@ export function aiUserError(error:unknown):string {
  return code==='REQUEST_TIMEOUT'||code==='IDLE_TIMEOUT'||code==='CONNECT_TIMEOUT'?'AI 回复超时，请稍后重试。':code==='STREAM_INCOMPLETE'?'AI 连接中断，未保存不完整回复，请重试。':'AI 服务暂时不可用，请稍后重试。';
 }
 
-/**
- * Per-account ceiling on chat replies. Generous for a person typing, but it stops one
- * account from looping the endpoint and spending the whole shared daily AI quota.
- */
-
-/**
- * The per-minute ceiling only stops bursts — a reply takes seconds, so sequential
- * requests never reach it. This daily cap is what actually keeps one account from
- * spending the platform's whole shared token budget for the day.
- */
-
 /** The in-character fallback line, exported so a test can assert it holds the role. */
 export function mockBeat(name: string): string {
   return MOCK_BEATS[Math.floor(Math.random() * MOCK_BEATS.length)](name);
@@ -68,19 +57,23 @@ export interface StreamWireOptions {
   context?: string;
 }
 
+const ENCODER = new TextEncoder();
+
+/** Write one already-mapped event in the SSE wire format; the frame was written out by hand three times. */
+function sendEvent(controller: ReadableStreamDefaultController, event: Record<string, unknown>) {
+  controller.enqueue(ENCODER.encode(`data: ${JSON.stringify(event)}\n\n`));
+}
+
 export async function streamMockResponse(controller: ReadableStreamDefaultController, character: { name: string; personality: string }, userMessage: string, signal?:AbortSignal, options: StreamWireOptions = {}): Promise<string> {
   const fullResponse = '【模拟 AI 回复，仅供测试】\n\n' + mockBeat(character.name);
   // Clients MUST be able to distinguish demo output from real model content.
-  const demo = options.mapEvent ? options.mapEvent({demo: true}) : {demo: true};
-  controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(demo)}\n\n`));
+  sendEvent(controller, options.mapEvent ? options.mapEvent({demo: true}) : {demo: true});
 
   // Stream word by word
   const words = fullResponse.split(' ');
   for (const word of words) {
     signal?.throwIfAborted();
-    const payload = options.mapEvent ? options.mapEvent({content: word + ' '}) : {content: word + ' '};
-    const chunk = `data: ${JSON.stringify(payload)}\n\n`;
-    controller.enqueue(new TextEncoder().encode(chunk));
+    sendEvent(controller, options.mapEvent ? options.mapEvent({content: word + ' '}) : {content: word + ' '});
     await new Promise(r => setTimeout(r, 80));
   }
   return fullResponse;
@@ -277,7 +270,7 @@ export async function streamOpenAIResponse(
       }
       const choice=parsed.choices?.[0];if(choice?.finish_reason)finished=true;
       const content=choice?.delta?.content;
-      if(typeof content==='string'&&content){const payload=options.mapEvent?options.mapEvent({content}):{content};fullContent+=content;controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(payload)}\n\n`));}
+      if(typeof content==='string'&&content){const payload=options.mapEvent?options.mapEvent({content}):{content};fullContent+=content;sendEvent(controller,payload);}
     };
     while(!ended){
       signal.throwIfAborted();

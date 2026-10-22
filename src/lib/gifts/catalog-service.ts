@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
-import {recordAdminAudit} from '@/lib/admin/management-service';
+import {claimWriter, recordAdminAudit} from '@/lib/admin/management-service';
 
 export class GiftCatalogError extends Error{
   constructor(message:string,public status=400){super(message);this.name='GiftCatalogError';}
@@ -10,8 +10,6 @@ export class GiftCatalogError extends Error{
 
 function object(input:unknown){if(!input||typeof input!=='object'||Array.isArray(input))throw new GiftCatalogError('礼物配置格式错误。');return input as Record<string,unknown>;}
 async function requireGrowth(actor:string,permission:'growth.read'|'growth.manage',tx?:Prisma.TransactionClient){if(!await hasAdminPermission(actor,permission,tx))throw new GiftCatalogError('当前账号没有礼物目录管理权限。',403);}
-async function claimWriter(tx:Prisma.TransactionClient,actor:string){await tx.$executeRaw`UPDATE admin_operators SET version = version WHERE user_id = ${actor}`;}
-
 const publicSelect={id:true,code:true,name:true,description:true,emoji:true,coinPrice:true,sortOrder:true} as const;
 
 export async function readPublicGiftCatalog(){

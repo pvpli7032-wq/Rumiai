@@ -30,7 +30,7 @@ export interface AdminChargeItem {
 export interface AdminChargePage {
   items: AdminChargeItem[];
   nextCursor: string | null;
-  summary: {held: number; unknown: number; heldCoins: number};
+  summary: {held: number; unknown: number; heldCoins: number; unknownCoins: number};
 }
 
 const rowSelect = {
@@ -58,14 +58,21 @@ function decodeCursor(raw: string | null): DecodedCursor | null {
   return {bucket, heldAt: new Date(ms), id};
 }
 
+/** 状态筛选：允许逗号分隔的多个取值，结果按 ORDER 的优先级顺序返回。 */
+function statusFilter(raw: string | null): AdminChargeStatus[] {
+  if (!raw) return [];
+  const picked = raw.split(',').filter(part => part !== '').map(part => statusParam(part, ORDER) as AdminChargeStatus);
+  return picked.length ? ORDER.filter(status => picked.includes(status)) : [];
+}
+
 export async function listAdminCharges(query: {status?: string | null; cursor?: string | null; limit?: string | null}): Promise<AdminChargePage> {
   await pragmasReady;
   const limit = limitParam(query.limit ?? null, 20, 50);
-  const status = statusParam(query.status ?? null, ORDER);
+  const selected = statusFilter(query.status ?? null);
   const cursor = decodeCursor(query.cursor ?? null);
-  const buckets: readonly AdminChargeStatus[] = status ? [status] : ORDER;
+  const buckets: readonly AdminChargeStatus[] = selected.length ? selected : ORDER;
   const collected: Array<{row: Prisma.GenerationChargeGetPayload<{select: typeof rowSelect}>; bucket: number}> = [];
-  let bucketIndex = status ? 0 : cursor?.bucket ?? 0;
+  let bucketIndex = cursor?.bucket ?? 0;
   if (cursor && cursor.bucket >= buckets.length) bucketIndex = buckets.length;
   while (bucketIndex < buckets.length && collected.length < limit + 1) {
     const bucketStatus = buckets[bucketIndex];
@@ -88,7 +95,7 @@ export async function listAdminCharges(query: {status?: string | null; cursor?: 
   const last = page[page.length - 1];
   const [held, unknown] = await Promise.all([
     db.generationCharge.aggregate({where: {status: 'HELD'}, _count: {_all: true}, _sum: {coins: true}}),
-    db.generationCharge.count({where: {status: 'UNKNOWN'}}),
+    db.generationCharge.aggregate({where: {status: 'UNKNOWN'}, _count: {_all: true}, _sum: {coins: true}}),
   ]);
   const now = Date.now();
   return {
@@ -107,6 +114,6 @@ export async function listAdminCharges(query: {status?: string | null; cursor?: 
       ageMinutes: Math.max(0, Math.floor((now - row.heldAt.getTime()) / 60000)),
     })),
     nextCursor: hasMore && last ? `${last.bucket}:${last.row.heldAt.getTime()}:${last.row.id}` : null,
-    summary: {held: held._count._all, unknown, heldCoins: held._sum.coins ?? 0},
+    summary: {held: held._count._all, unknown: unknown._count._all, heldCoins: held._sum.coins ?? 0, unknownCoins: unknown._sum.coins ?? 0},
   };
 }

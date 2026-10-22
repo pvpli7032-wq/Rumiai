@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
-import {recordAdminAudit} from '@/lib/admin/management-service';
+import {claimWriter, recordAdminAudit} from '@/lib/admin/management-service';
 
 export const MISSION_CONDITIONS=['CHECKIN_COUNT','MESSAGE_COUNT','POST_COUNT','COMMENT_COUNT','MANUAL'] as const;
 export const MISSION_PERIODS=['ONCE','DAILY','WEEKLY'] as const;
@@ -27,8 +27,6 @@ function optionalDate(value:unknown,name:string){
 async function requirePermission(actor:string,permission:'growth.read'|'growth.manage',tx?:Prisma.TransactionClient){
   if(!await hasAdminPermission(actor,permission,tx))throw new MissionManagementError('当前账号没有任务与奖励管理权限。',403);
 }
-async function claimWriter(tx:Prisma.TransactionClient,actor:string){await tx.$executeRaw`UPDATE admin_operators SET version = version WHERE user_id = ${actor}`;}
-
 export async function readManagedMissions(actor:string){
   await pragmasReady;
   return db.$transaction(async tx=>{

@@ -12,6 +12,7 @@ import {MirrorCharacterPicker} from './character-picker';
 import {MirrorQuotaNote} from './quota-note';
 import {MirrorResultCard} from './result-card';
 import {MirrorActions} from './mirror-actions';
+import {MirrorCompare} from './mirror-compare';
 import {trackProductEvent} from '@/lib/analytics/product-events-client';
 import type {MirrorGenerateResponse, MirrorPageResponse} from './client-types';
 
@@ -167,6 +168,9 @@ export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageRespon
           </Card>
         </>
       )}
+
+      {/* 对比要登录：接口对匿名请求直接 401，所以未登录时整块不渲染。 */}
+      {token && <MirrorCompare token={token} mine={page.mine} compareLimit={rules.compareLimit} />}
 
       {page.mine.length > 0 && (
         <Card>

@@ -18,6 +18,7 @@ import {Prisma} from '@prisma/client';
 import {db} from '@/lib/db';
 import {logWarning} from '@/lib/logger';
 import {readAiInteger} from '@/lib/ai/config';
+import {collectStreamText} from '@/lib/ai/stream-collect';
 import {StoryError} from '../repository/contracts';
 import {runInclude} from '../repository/run-service';
 import {isAiChatAvailable} from '@/lib/launch-guards';
@@ -80,34 +81,6 @@ function mockExtraction(turnNo: number): string {
   return JSON.stringify({schemaVersion: 1, events: [{type: 'FACT', summary: `【模拟整理】第 ${turnNo} 回合完成状态抽取（模拟环境，非真实抽取）。`}]});
 }
 
-async function readStreamText(response: Response & {body: ReadableStream<Uint8Array>}): Promise<string> {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let text = '';
-  try {
-    for (;;) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, {stream: true});
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        if (!line.trim().startsWith('data:')) continue;
-        const data = line.trim().slice(5).trim();
-        if (data === '[DONE]') continue;
-        try {
-          const parsed = JSON.parse(data);
-          if (typeof parsed.choices?.[0]?.delta?.content === 'string') text += parsed.choices[0].delta.content;
-        } catch { /* skip malformed keep-alive lines */ }
-      }
-    }
-  } finally {
-    await reader.cancel().catch(() => {});
-  }
-  return text;
-}
-
 async function readModelPlan(run: RunRow): Promise<{providers: RuntimeProvider[]; models: RuntimeAiModel[] | null}> {
   const modelPlan = await readAiModelPlan(run.conversation.aiModel, run.conversation.characterId);
   if (modelPlan?.length === 0) throw new AiStreamError('NO_MODEL');
@@ -132,7 +105,7 @@ async function extractWithModel(run: RunRow, prompt: string): Promise<{text: str
     metrics.attempts = (metrics.attempts || 0) + 1;
     try {
       const response = await openUpstream(candidate.model, prompt, [], '', undefined, candidate.provider, candidate.config);
-      const text = await readStreamText(response);
+      const text = await collectStreamText(response);
       if (!text.trim()) throw new AiStreamError('EMPTY_RESPONSE');
       return {text, metrics};
     } catch (error) { lastError = error; }

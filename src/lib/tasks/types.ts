@@ -48,13 +48,3 @@ export interface TaskRunReport {
   results: Array<{kind: string; subjectId: string; outcome: string; error?: string}>;
 }
 
-export interface TaskRowView {
-  id: string;
-  kind: string;
-  subjectId: string;
-  status: string;
-  attempts: number;
-  nextRunAt: string;
-  lastError: string | null;
-  updatedAt: string;
-}

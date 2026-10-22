@@ -1,3 +1,4 @@
+import {clampLine, cleanLine, readIndex} from './text';
 import type {MirrorExampleResult, MirrorExampleView, MirrorResultFields} from './types';
 
 /**
@@ -11,24 +12,6 @@ import type {MirrorExampleResult, MirrorExampleView, MirrorResultFields} from '.
  */
 
 const charCount = (value: string) => [...value].length;
-
-function cleanLine(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const text = value.replace(/\s+/g, ' ').trim();
-  return text || null;
-}
-
-/** 与真实结果同一套长度规则：超长截断到设置的上限，不因为多写几个字丢掉整条示例。 */
-function clampLine(value: string, max: number): string {
-  const chars = [...value];
-  return chars.length <= max ? value : chars.slice(0, max).join('');
-}
-
-function readIndex(value: unknown): number | null {
-  const number = typeof value === 'string' ? Number(value.trim()) : value;
-  if (typeof number !== 'number' || !Number.isFinite(number)) return null;
-  return Math.max(0, Math.min(100, Math.round(number)));
-}
 
 export type MirrorLengthLimits = {titleMaxChars: number; observationMaxChars: number; quoteMaxChars: number};
 

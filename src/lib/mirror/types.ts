@@ -35,6 +35,19 @@ export type MirrorOwnerResult = MirrorPublicResult & {
 };
 
 /**
+ * 对比里的一个条目（V3 §23）。
+ *
+ * 每条 shareId 独立成条：成功给公开结果，失败给原因。整组不会因为其中一条
+ * 被删、过期或数据损坏而一起失败，前台据此单独重试那一条。
+ *
+ * 成功分支的类型是 MirrorPublicResult 而不是 MirrorOwnerResult：对比视图只比结果，
+ * 三题原回答在这里结构上就不存在，不需要靠「渲染时不读」来保证。
+ */
+export type MirrorCompareEntry =
+  | {shareId: string; status: 'READY'; result: MirrorPublicResult}
+  | {shareId: string; status: 'FAILED'; reason: string};
+
+/**
  * 示例结果（V3 §23「上线内容先准备 6 个角色和每个角色的示例结果」）。
  * 运营在设置中心 mirror.exampleResults 里准备，不是真实用户结果，前台一律标「示例」。
  */

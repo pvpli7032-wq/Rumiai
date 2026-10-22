@@ -62,10 +62,6 @@ export function readState(raw: string): StoryState | null {
   }
 }
 
-export function initialState(chapterKey: string): StoryState {
-  return {schemaVersion: STATE_SCHEMA_VERSION, chapterKey, facts: []};
-}
-
 /** Merges confirmed summaries into the rolling state, newest last, capped. */
 export function withFacts(state: StoryState, added: readonly string[]): StoryState {
   return {...state, facts: [...state.facts, ...added].slice(-MAX_FACTS)};

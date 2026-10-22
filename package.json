@@ -94,7 +94,7 @@
     "test:memory:tasks": "node --import tsx --test tests/background-tasks.test.mjs",
     "test:settings:runtime": "node --import tsx --test tests/settings-runtime.test.mjs",
     "test:admin:commercial": "node --import tsx --test tests/admin-commercial-apis.test.mjs",
-    "test:commercial": "node --import tsx --test tests/settings-runtime.test.mjs tests/billing-charge.test.mjs tests/mirror-generation.test.mjs tests/dispute-case.test.mjs tests/notification-service.test.mjs tests/background-tasks.test.mjs tests/admin-commercial-apis.test.mjs tests/product-events.test.mjs tests/growth-invite-onboarding.test.mjs tests/ai-budget-guard.test.mjs tests/ai-budget-report.test.mjs tests/settings-transfer.test.mjs tests/price-suggestion.test.mjs tests/task-models.test.mjs tests/notification-producers.test.mjs",
+    "test:commercial": "node --import tsx --test tests/settings-runtime.test.mjs tests/billing-charge.test.mjs tests/mirror-generation.test.mjs tests/dispute-case.test.mjs tests/notification-service.test.mjs tests/background-tasks.test.mjs tests/admin-commercial-apis.test.mjs tests/product-events.test.mjs tests/growth-invite-onboarding.test.mjs tests/ai-budget-guard.test.mjs tests/ai-budget-report.test.mjs tests/settings-transfer.test.mjs tests/price-suggestion.test.mjs tests/task-models.test.mjs tests/notification-producers.test.mjs tests/notification-stats.test.mjs tests/charge-recovery-drill.test.mjs tests/charge-admin.test.mjs tests/mirror-compare.test.mjs tests/playbook-e2e.test.mjs",
     "test:circles:browser": "node --import tsx scripts/verify-circle-management-browser.mjs",
     "test:posts:management": "node --import tsx --test tests/post-management.test.mjs tests/post-management-migration.test.mjs",
     "test:posts:browser": "node --import tsx scripts/verify-post-management-browser.mjs",
@@ -125,7 +125,8 @@
     "test:discovery:read": "node --import tsx --test tests/discovery-read.test.mjs",
     "test:production:guards": "node scripts/run-production-guards.mjs",
     "test:story:browser": "node scripts/verify-story-browser.mjs",
-    "test:chat:paging:browser": "node scripts/verify-chat-pagination-browser.mjs"
+    "test:chat:paging:browser": "node scripts/verify-chat-pagination-browser.mjs",
+    "verify:admin:responsive": "node scripts/verify-admin-responsive-browser.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

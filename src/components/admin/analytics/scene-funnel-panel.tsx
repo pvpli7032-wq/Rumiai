@@ -11,7 +11,7 @@ type SceneFunnelReport={
   definitions:{[key:string]:string};
 };
 
-const number=(value:number)=>new Intl.NumberFormat('zh-CN').format(value);
+import {formatNumber} from '@/lib/format/number';
 const percent=(rate:number|null)=>rate===null?'样本不足':(rate*100).toFixed(2)+'%';
 
 /**
@@ -50,7 +50,7 @@ export function SceneFunnelPanel({token,days}:{token:string;days:number}){
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        事实计数（近 {report.days} 天）：开场到达 {number(report.events.opened)} · 首条消息 {number(report.events.firstSent)} · 结束确认 {number(report.events.activeEndConfirmed)} · 继续点击 {number(report.events.continueClicked)}
+        事实计数（近 {report.days} 天）：开场到达 {formatNumber(report.events.opened)} · 首条消息 {formatNumber(report.events.firstSent)} · 结束确认 {formatNumber(report.events.activeEndConfirmed)} · 继续点击 {formatNumber(report.events.continueClicked)}
       </p>
       <details className="text-xs text-muted-foreground">
         <summary className="cursor-pointer select-none">指标口径</summary>

@@ -222,6 +222,7 @@ export const API = {
     billing: '/api/admin/billing',
     billingCharges: (query: string) => `/api/admin/billing/charges?${query}`,
     tasks: '/api/admin/tasks',
+    notificationStats: (query: string) => `/api/admin/notifications/stats?${query}`,
     taskRun: (kind: string) => `/api/admin/tasks/${e(kind)}/run`,
     task: (id: string) => `/api/admin/tasks/${e(id)}`,
     mirrorResults: (query: string) => `/api/admin/mirror/results?${query}`,

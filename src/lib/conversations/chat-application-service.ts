@@ -1,6 +1,6 @@
 import { logRouteError } from '@/lib/logger';
 import { ConversationError, readConversationForChat } from '@/lib/conversations/conversation-service';
-import { ConversationMessageError, createUserMessage, prepareMessageRegeneration, readRecentMessageHistory, persistAssistantResponse, replaceMessageReply } from '@/lib/conversations/message-service';
+import { ConversationMessageError, createUserMessage, prepareMessageRegeneration, readRecentMessageHistory, persistAssistantResponseInTx, replaceMessageReplyInTx } from '@/lib/conversations/message-service';
 import { isAiChatAvailable } from '@/lib/launch-guards';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { reserveAiCall, finishAiCall, AiQuotaError } from '@/lib/ai/ai-usage';
@@ -11,6 +11,8 @@ import {buildMemoryContext, enqueueSummaryIfDue} from '@/lib/memory';
 import {readActiveAiProviders} from '@/lib/ai/providers/management-service';
 import {readTaskModelPlan} from '@/lib/ai/models/task-models';
 import {beginBillingTurn, parseJsonBody, readBalance, readRequestId, readTurnReceipt, toChargeError, type BillingTurn} from '@/lib/billing/turn';
+import {findChargeInTx, releaseInTx, settleInTx} from '@/lib/billing/charge-service';
+import {readCancelContext, settleCancellationInTx} from '@/lib/billing/cancel';
 import {db} from '@/lib/db';
 import {grantInviteRewardIfDue} from '@/lib/growth/invite-service';
 
@@ -138,31 +140,48 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
         // 用户取消：我们自己 abort 造成的中断，不能被当成供应商故障（否则取消策略永远走不到）。
         const userCancelled = cancelled && (!failure || aiErrorCode(failure) === 'CANCELLED');
         try {
-          // V3 表 16：本轮不保存部分回复——失败与用户取消都不落库半截内容（取消仍可能计费）。
-          if (input.mode === 'SEND') {
-            if (userCancelled || failure) assistantContent = '';
-            const saved = await persistAssistantResponse(input.conversationId, conversation.characterId, assistantContent);
-            persistedMessageId = saved?.id ?? null;
-            // 新消息累计到阈值才登记摘要任务；任务由统一后台入口执行，不在响应后裸跑 Promise。
-            if (saved) await enqueueSummaryIfDue(input.conversationId).catch(error => logRouteError('chat memory summary enqueue', error));
-            // 被邀请人首次成功聊天：邀请奖励由服务自己判断（没邀请人/已发过都直接返回），
-            // 不阻塞回复落地，也不影响计费链路。
-            if (saved) void grantInviteRewardIfDue(input.userId);
-          } else if (!failure && !cancelled) {
-            // 重新生成被取消时保留原回复，不写半截内容。
-            const replaced = await replaceMessageReply(input.conversationId, replaceAt!, assistantContent);
-            persistedMessageId = replaced?.id ?? null;
-          }
+          // V3 §21：消息保存与费用结算必须在同一个事务里完成。分两次事务时，中间进程中断会留下
+          // 「消息已保存、费用单仍冻结、aiCallId 与 messageId 都为空」，核对时被当成「调用没开始」
+          // 而退款——已经落库的回复被白送。取消判定要读设置，先在事务外取好再进事务。
+          const chargeInput = {userId: input.userId, requestId, operation: CHARGE_OPERATION[input.mode]};
+          const cancelContext = userCancelled
+            ? await readCancelContext({...chargeInput, outputDelivered: billing.deliveredOutput()})
+            : null;
+          persistedMessageId = await db.$transaction(async tx => {
+            let messageId: string | null = null;
+            // V3 表 16：本轮不保存部分回复——失败与用户取消都不落库半截内容（取消仍可能计费）。
+            if (input.mode === 'SEND') {
+              if (userCancelled || failure) assistantContent = '';
+              messageId = (await persistAssistantResponseInTx(tx, input.conversationId, conversation.characterId, assistantContent))?.id ?? null;
+            } else if (!failure && !cancelled) {
+              // 重新生成被取消时保留原回复，不写半截内容。
+              messageId = (await replaceMessageReplyInTx(tx, input.conversationId, replaceAt!, assistantContent))?.id ?? null;
+            }
+            if (billing.hold.held) {
+              const now = new Date();
+              const existing = await findChargeInTx(tx, input.userId, chargeInput.operation, requestId);
+              // 用户取消交给取消策略（可能消耗一次免费取消，也可能按已输出结算）；
+              // 非用户原因一律释放，不消耗次数。
+              if (cancelContext) await settleCancellationInTx(tx, {...chargeInput, messageId, aiCallId: call.id, outputDelivered: billing.deliveredOutput()}, cancelContext);
+              else if (failure) await releaseInTx(tx, existing, {...chargeInput, messageId, aiCallId: billing.hold.aiCallId, reason: aiErrorCode(failure)}, now);
+              else await settleInTx(tx, existing, {...chargeInput, messageId, aiCallId: call.id}, now);
+            }
+            return messageId;
+          }, {timeout: 30_000});
+          // AI 调用记录不属于账本事务：事务提交后再收尾，失败分支在 catch 里记 PERSISTENCE_ERROR。
           await finishAiCall(call.id, call.startedAt, failure && aiErrorCode(failure) !== 'CANCELLED' ? 'FAILED' : cancelled ? 'CANCELLED' : usingRealAi ? 'SUCCEEDED' : 'MOCK', metrics, failure ? aiErrorCode(failure) : cancelled ? 'CANCELLED' : undefined);
-          // 用户取消交给取消策略（可能消耗一次免费取消，也可能按已输出结算）；
-          // 非用户原因一律释放，不消耗次数。
-          if (userCancelled) await billing.cancel({messageId: persistedMessageId, aiCallId: call.id});
-          else if (failure) await billing.release(aiErrorCode(failure));
-          else await billing.settle({messageId: persistedMessageId, aiCallId: call.id});
+          // 保存成功后的附带动作留在事务之外：摘要任务与邀请奖励都不进账本事务，也不阻塞回复落地。
+          if (persistedMessageId && input.mode === 'SEND') {
+            // 新消息累计到阈值才登记摘要任务；任务由统一后台入口执行，不在响应后裸跑 Promise。
+            await enqueueSummaryIfDue(input.conversationId).catch(error => logRouteError('chat memory summary enqueue', error));
+            // 被邀请人首次成功聊天：邀请奖励由服务自己判断（没邀请人/已发过都直接返回）。
+            void grantInviteRewardIfDue(input.userId);
+          }
           const receipt = await readTurnReceipt({userId: input.userId, conversationId: input.conversationId, operation: CHARGE_OPERATION[input.mode], requestId});
           if (receipt && !cancelled) emit(controller, 'data: ' + JSON.stringify({costResult: {...receipt, balance: await readBalance(input.userId)}}) + '\n\n', () => false);
           emit(controller, 'data: [DONE]\n\n', () => cancelled);
         } catch (error) {
+          // 事务已整体回滚：消息与费用单都停在原样，这里再释放一次（幂等，已结算/已释放不动）。
           await finishAiCall(call.id, call.startedAt, 'FAILED', metrics, 'PERSISTENCE_ERROR').catch(() => {});
           await billing.release('PERSISTENCE_ERROR').catch(releaseError => logRouteError('chat charge release', releaseError));
           logRouteError(input.mode === 'SEND' ? 'POST /api/conversations/[id]/messages (persistence)' : 'POST /api/conversations/[id]/messages/[messageId]/regenerate (persistence)', error);

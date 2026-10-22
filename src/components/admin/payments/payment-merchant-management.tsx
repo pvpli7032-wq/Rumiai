@@ -1,185 +1,24 @@
 'use client';
 
-import {useCallback, useEffect, useState, type FormEvent} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import {Plus} from 'lucide-react';
 import {useAdminAccess} from '@/components/admin/use-admin-access';
 import {AdminNotice, AdminPage, AdminPageHeader} from '@/components/admin/admin-page';
-import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
 import {Dialog} from '@/components/ui/dialog';
-import {Input} from '@/components/ui/input';
-import {Select} from '@/components/ui/select';
-import {Textarea} from '@/components/ui/textarea';
+import {apiFetch} from '@/lib/api-client';
+import {API} from '@/lib/api-paths';
 import {CheckoutSettings} from './checkout-settings';
+import {MerchantCard} from './merchant-card';
+import {MerchantForm} from './merchant-form';
+import {draftFromMerchant, newDraft, type Merchant, type MerchantDraft} from './merchant-types';
 
-type Merchant = {
-  id: string;
-  name: string;
-  provider: string;
-  environment: string;
-  isActive: boolean;
-  version: number;
-  currentRevision: {
-    revision: number;
-    merchantNo: string;
-    apiBaseUrl: string;
-    refundsEnabled: boolean;
-    createdAt: string;
-    hasMerchantPrivateKey: boolean;
-    hasPlatformPublicKey: boolean;
-  } | null;
-};
-
-type MerchantDraft = {
-  id?: string;
-  version: number;
-  name: string;
-  environment: 'TEST' | 'PRODUCTION';
-  isActive: boolean;
-  merchantNo: string;
-  apiBaseUrl: string;
-  merchantPrivateKey: string;
-  platformPublicKey: string;
-  refundsEnabled: boolean;
-  reason: string;
-};
-
-type MerchantFormProps = {
-  initial: MerchantDraft;
-  canManage: boolean;
-  canManageSecrets: boolean;
-  onSave: (draft: MerchantDraft) => Promise<void>;
-};
-
-function newDraft(): MerchantDraft {
-  return {
-    version: 0,
-    name: '',
-    environment: 'TEST',
-    isActive: false,
-    merchantNo: '',
-    apiBaseUrl: 'http://127.0.0.1:19090',
-    merchantPrivateKey: '',
-    platformPublicKey: '',
-    refundsEnabled: false,
-    reason: '',
-  };
-}
-
-function draftFromMerchant(merchant: Merchant): MerchantDraft {
-  return {
-    id: merchant.id,
-    version: merchant.version,
-    name: merchant.name,
-    environment: merchant.environment === 'PRODUCTION' ? 'PRODUCTION' : 'TEST',
-    isActive: merchant.isActive,
-    merchantNo: merchant.currentRevision?.merchantNo ?? '',
-    apiBaseUrl: merchant.currentRevision?.apiBaseUrl ?? 'http://127.0.0.1:19090',
-    merchantPrivateKey: '',
-    platformPublicKey: '',
-    refundsEnabled: merchant.currentRevision?.refundsEnabled ?? false,
-    reason: '',
-  };
-}
-
-function MerchantForm({initial, canManage, canManageSecrets, onSave}: MerchantFormProps) {
-  const [draft, setDraft] = useState(initial);
-
-  function update<K extends keyof MerchantDraft>(key: K, value: MerchantDraft[K]) {
-    setDraft(current => ({...current, [key]: value}));
-  }
-
-  function changeEnvironment(environment: MerchantDraft['environment']) {
-    setDraft(current => ({
-      ...current,
-      environment,
-      apiBaseUrl: environment === 'TEST' ? 'http://127.0.0.1:19090' : 'https://www.ezfp.cn',
-      isActive: environment === 'TEST' ? false : current.isActive,
-    }));
-  }
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void onSave(draft);
-  }
-
-  return (
-    <form id="merchant-form" onSubmit={submit} className="space-y-4">
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">商户名称</span>
-        <Input required maxLength={60} value={draft.name} onChange={event => update('name', event.target.value)} />
-      </label>
-
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">环境</span>
-        <Select aria-label="环境" value={draft.environment} onChange={event => changeEnvironment(event.target.value as MerchantDraft['environment'])}>
-          <option value="TEST">本机模拟</option>
-          <option value="PRODUCTION">正式 EZFP</option>
-        </Select>
-      </label>
-
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">商户编号</span>
-        <Input required maxLength={30} inputMode="numeric" value={draft.merchantNo} onChange={event => update('merchantNo', event.target.value)} />
-      </label>
-
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">API Base URL</span>
-        <Input required readOnly className="bg-muted" value={draft.apiBaseUrl} />
-      </label>
-
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">商户 RSA 私钥{draft.id && <span className="text-muted-foreground">（留空沿用当前版本）</span>}</span>
-        <Textarea
-          rows={4}
-          required={!draft.id}
-          disabled={!canManageSecrets}
-          autoComplete="off"
-          spellCheck={false}
-          className="font-mono text-xs"
-          value={draft.merchantPrivateKey}
-          onChange={event => update('merchantPrivateKey', event.target.value)}
-        />
-        <span className="block text-xs text-muted-foreground">填写生成 RSA 密钥对时保存的商户私钥，不是商户公钥或 MD5 密钥。支持 PEM 和不带头尾的 Base64。</span>
-      </label>
-
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">支付平台 RSA 公钥{draft.id && <span className="text-muted-foreground">（留空沿用当前版本）</span>}</span>
-        <Textarea
-          rows={4}
-          required={!draft.id}
-          disabled={!canManageSecrets}
-          autoComplete="off"
-          spellCheck={false}
-          className="font-mono text-xs"
-          value={draft.platformPublicKey}
-          onChange={event => update('platformPublicKey', event.target.value)}
-        />
-        <span className="block text-xs text-muted-foreground">复制易支付「个人资料 → API信息 → V2接口」的平台公钥，可直接粘贴不带头尾的内容。两项密钥均须为至少 2048 位 RSA。</span>
-      </label>
-
-      <label className="flex items-center gap-2 text-sm font-medium">
-        <input type="checkbox" className="h-4 w-4 rounded border-border accent-brand" checked={draft.isActive} disabled={draft.environment === 'TEST'} onChange={event => update('isActive', event.target.checked)} />
-        作为唯一正式商户启用
-      </label>
-
-      <label className="flex items-center gap-2 text-sm font-medium">
-        <input type="checkbox" className="h-4 w-4 rounded border-border accent-brand" checked={draft.refundsEnabled} onChange={event => update('refundsEnabled', event.target.checked)} />
-        允许此版本执行退款（仍受服务器全局开关控制）
-      </label>
-
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">商户配置操作理由</span>
-        <Input required maxLength={300} value={draft.reason} onChange={event => update('reason', event.target.value)} />
-      </label>
-
-      <p className="text-xs text-muted-foreground">
-        保存只验证 RSA 密钥格式，不验证渠道账号是否开通，也不会连接渠道或创建真实支付。测试环境仅允许本机模拟 provider。
-      </p>
-    </form>
-  );
-}
-
+/**
+ * 「支付商户」页（V3 支付章）。
+ *
+ * 密钥独立加密保存，每次保存生成不可变配置版本，新订单固定引用对应版本。
+ * 页面只负责取列表、保存、自检三件事，表单与卡片各自成文件。
+ */
 export function PaymentMerchantManagement() {
   const {token, permissions, loading} = useAdminAccess();
   const [rows, setRows] = useState<Merchant[]>([]);
@@ -194,20 +33,14 @@ export function PaymentMerchantManagement() {
 
   const load = useCallback(async () => {
     if (!token) return;
-    const response = await fetch('/api/admin/payments/merchants', {
-      headers: {Authorization: `Bearer ${token}`},
-      cache: 'no-store',
-    });
-    const data = await response.json();
-    if (!response.ok) throw Error(data.error);
-    setRows(data);
+    setRows(await apiFetch<Merchant[]>(API.admin.payments.merchants, {token, cache: 'no-store'}));
   }, [token]);
 
   useEffect(() => {
     let active = true;
     if (token) {
       void load().catch(loadError => {
-        if (active) setError(loadError.message);
+        if (active) setError(loadError instanceof Error ? loadError.message : '读取商户配置失败。');
       });
     }
     return () => {
@@ -221,14 +54,11 @@ export function PaymentMerchantManagement() {
     setError('');
     setNotice('');
     try {
-      const response = await fetch('/api/admin/payments/merchants', {
+      const data = await apiFetch<{legacyOrdersPreservedBySnapshot?: boolean | null}>(API.admin.payments.merchants, {
+        token,
         method: 'POST',
-        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
-        body: JSON.stringify(value),
+        body: value,
       });
-      const data = await response.json();
-      if (!response.ok) throw Error(data.error);
-
       setDraft(null);
       if (data.legacyOrdersPreservedBySnapshot === true) {
         setNotice('商户配置已保存；旧环境配置已加密留存，旧订单继续引用历史凭据。');
@@ -251,12 +81,7 @@ export function PaymentMerchantManagement() {
     setError('');
     setNotice('');
     try {
-      const response = await fetch(
-        `/api/admin/payments/merchants/${encodeURIComponent(merchant.id)}/test`,
-        {method: 'POST', headers: {Authorization: `Bearer ${token}`}},
-      );
-      const data = await response.json();
-      if (!response.ok) throw Error(data.error);
+      const data = await apiFetch<{credentialsValid: boolean}>(API.admin.payments.testMerchant(merchant.id), {token, method: 'POST'});
       setNotice(data.credentialsValid
         ? '凭据格式检查通过；未连接支付渠道，也未创建真实支付。'
         : '凭据无法解密或 RSA 密钥格式无效；未连接支付渠道。');
@@ -289,31 +114,15 @@ export function PaymentMerchantManagement() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {rows.map(merchant => (
-          <article key={merchant.id} className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-foreground">{merchant.name}</h2>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant={merchant.environment === 'PRODUCTION' ? 'brand' : 'neutral'}>{merchant.environment === 'PRODUCTION' ? '正式环境' : '本机模拟环境'}</Badge>
-                <Badge variant={merchant.isActive ? 'success' : 'neutral'}>{merchant.isActive ? '已启用' : '已停用'}</Badge>
-              </div>
-            </div>
-            <div className="space-y-1 break-all text-sm text-muted-foreground">
-              <p>商户号：{merchant.currentRevision?.merchantNo ?? '尚未配置'}</p>
-              <p>渠道：EZFP · 配置版本：{merchant.currentRevision?.revision ?? '无'}</p>
-              <p>服务地址：{merchant.currentRevision?.apiBaseUrl ?? '无'}</p>
-              <p>
-                凭据：{merchant.currentRevision?.hasMerchantPrivateKey ? '商户私钥已加密' : '缺失'}
-                {' / '}
-                {merchant.currentRevision?.hasPlatformPublicKey ? '平台公钥已加密' : '缺失'}
-                {' · 退款：'}
-                {merchant.currentRevision?.refundsEnabled ? '已启用' : '关闭'}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {canManage && <Button size="sm" variant="outline" onClick={() => setDraft(draftFromMerchant(merchant))}>编辑 / 新版本</Button>}
-              {canTest && <Button size="sm" variant="outline" disabled={busy} onClick={() => void testMerchant(merchant)}>验证本地密钥</Button>}
-            </div>
-          </article>
+          <MerchantCard
+            key={merchant.id}
+            merchant={merchant}
+            canManage={canManage}
+            canTest={canTest}
+            busy={busy}
+            onEdit={() => setDraft(draftFromMerchant(merchant))}
+            onTest={() => void testMerchant(merchant)}
+          />
         ))}
       </div>
 
@@ -349,7 +158,6 @@ export function PaymentMerchantManagement() {
           <MerchantForm
             key={draft.id ?? 'new'}
             initial={draft}
-            canManage={canManage}
             canManageSecrets={canManageSecrets}
             onSave={saveMerchant}
           />
@@ -358,4 +166,3 @@ export function PaymentMerchantManagement() {
     </AdminPage>
   );
 }
-

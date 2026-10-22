@@ -1,7 +1,7 @@
 import {db} from '@/lib/db';
 import {canDeleteMirrorResult, canReadMirrorAnswers, isMirrorReadable, toOwnerResult, toPublicResult, verifyMirrorAttribution, type MirrorRow, type MirrorViewer} from './share';
 import {MirrorError} from './errors';
-import type {MirrorOwnerResult, MirrorPublicResult} from './types';
+import type {MirrorCompareEntry, MirrorOwnerResult, MirrorPublicResult} from './types';
 
 /**
  * 结果读写。删除一律写在 status 上（HIDDEN / EXPIRED），所以删除、过期、隐藏之后
@@ -67,22 +67,33 @@ export async function deleteMirrorResult(shareId: string, viewer: MirrorViewer, 
   if (!changed.count) throw new MirrorError('这条结果不存在或已删除。', 404, 'MIRROR_NOT_FOUND');
 }
 
-/** 对比：登录后可并排看最多 compareLimit 个角色的结果，别人的只给公开字段。 */
-export async function compareMirrorResults(shareIds: unknown, userId: string, compareLimit: number): Promise<MirrorReadResult[]> {
+/**
+ * 对比：登录后可并排看最多 compareLimit 个角色的结果（V3 §23）。
+ *
+ * 每条 shareId 都返回一个条目，被删、过期或数据损坏的那条给 FAILED + 原因，
+ * 不整组丢弃也不整组失败——前台据此只重取那一条。对比是纯读，重试不会重新生成、
+ * 也不会重复扣费。
+ *
+ * 成功条目一律是公开视图：对比只比结果字段，三题原回答连自己的也不返回，
+ * 所以「对比视图不出现原回答」是结构保证，不依赖渲染层自觉。
+ */
+export async function compareMirrorResults(shareIds: unknown, compareLimit: number): Promise<MirrorCompareEntry[]> {
   const ids = Array.isArray(shareIds) ? Array.from(new Set(shareIds.filter((id): id is string => typeof id === 'string' && id.length > 0))) : [];
+  // 硬上限 6：设置里配得再大也不让一次 IN 查询无限增长。
   const capped = ids.slice(0, Math.max(1, Math.min(compareLimit, 6)));
   if (!capped.length) return [];
   const rows = await db.mirrorResult.findMany({where: {shareId: {in: capped}}});
   const byId = new Map(rows.map(row => [row.shareId, row]));
   const characters = await db.character.findMany({where: {id: {in: rows.map(row => row.characterId)}}, select: {id: true, name: true, avatarUrl: true}});
   const views = new Map(characters.map(item => [item.id, item]));
-  const output: MirrorReadResult[] = [];
+  const output: MirrorCompareEntry[] = [];
   for (const id of capped) {
     const row = byId.get(id);
-    if (!row || !isMirrorReadable(row)) continue;
+    if (!row) { output.push({shareId: id, status: 'FAILED', reason: '这条结果不存在。'}); continue; }
+    if (!isMirrorReadable(row)) { output.push({shareId: id, status: 'FAILED', reason: '这条结果已删除或已过期。'}); continue; }
     const pub = toPublicResult(row as MirrorRow, views.get(row.characterId) ?? {id: row.characterId, name: '角色', avatarUrl: null});
-    if (!pub) continue;
-    output.push(row.userId === userId ? {kind: 'owner', result: toOwnerResult(pub, parseAnswers(row.answersJson), true)} : {kind: 'public', result: pub});
+    if (!pub) { output.push({shareId: id, status: 'FAILED', reason: '这条结果数据不完整，无法对比。'}); continue; }
+    output.push({shareId: id, status: 'READY', result: pub});
   }
   return output;
 }

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { formatCny } from '@/lib/format/number';
 
 type Refund = { refundNo: string; status: string; amountCnyCents: number; coinAmount: number; errorCode: string | null; createdAt: string; completedAt: string | null; requestedByMe: boolean; reason: string; approvedAt: string | null; approvalReason: string | null; rejectedAt: string | null; rejectionReason: string | null };
 type Order = { orderNo: string; status: string; provider: string; providerTradeNo: string | null; amountCnyCents: number; coinAmount: number; paidAt: string | null; refund: Refund | null };
@@ -22,7 +23,7 @@ function actionAllowed(action: Action, canRequest: boolean, canApprove: boolean,
 }
 
 function confirmText(action: Action, order: Order) {
-  const amount = `¥${(order.amountCnyCents / 100).toFixed(2)}`;
+  const amount = formatCny(order.amountCnyCents);
   if (action === 'request') return `申请整单退款 ${amount}，将暂扣账号余额中的 ${order.coinAmount} 枚金币，等待另一位管理员审批。`;
   if (action === 'approve') return `批准退款 ${amount} 并提交到支付渠道？`;
   if (action === 'reject') return '驳回退款申请并释放已暂扣金币？';

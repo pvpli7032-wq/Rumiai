@@ -14,10 +14,3 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? EMPTY_DATE : date.toLocaleString('zh-CN', {hour12: false});
 }
-
-/** 只要日期不要时间，用于按天分组的列表。 */
-export function formatDate(value: string | Date | null | undefined): string {
-  if (!value) return EMPTY_DATE;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? EMPTY_DATE : date.toLocaleDateString('zh-CN');
-}

@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { invalidateMemoryForMessages } from '@/lib/memory/invalidation';
+import { encodeCursor } from '@/lib/pagination';
 
 /**
  * Dependency inversion for story history（V3 第 16 章）：the single
@@ -50,10 +51,6 @@ function decodeCursor(value?: string | null): MessageCursor | null {
     if (Number.isNaN(Date.parse(parsed.createdAt))) throw Error();
     return {createdAt: parsed.createdAt, id: parsed.id};
   } catch { throw new ConversationMessageError('历史游标格式不正确。', 422); }
-}
-
-function encodeCursor(cursor: MessageCursor): string {
-  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
 }
 
 function pageSizeOf(value?: string | null): number {
@@ -114,16 +111,23 @@ export async function readRecentMessageHistory(conversationId: string, excludedM
   return recent.reverse();
 }
 
-export async function persistAssistantResponse(conversationId: string, characterId: string, content: string) {
+/**
+ * 同事务版本：V3 §21 要求「消息保存与费用结算尽量在同一个数据库事务完成」，聊天链
+ * 因此把保存与结算收进一个事务。会话的 updatedAt 与角色消息计数属于同一次保存，
+ * 一并留在这个事务体里，不拆到事务外。
+ */
+export async function persistAssistantResponseInTx(tx: Prisma.TransactionClient, conversationId: string, characterId: string, content: string) {
   const hasReply = Boolean(content.trim());
-  return db.$transaction(async tx => {
-    const assistantMessage = hasReply
-      ? await tx.message.create({data: {conversationId, role: 'ASSISTANT', content}})
-      : null;
-    await tx.conversation.update({where: {id: conversationId}, data: {updatedAt: new Date()}});
-    await tx.character.update({where: {id: characterId}, data: {messageCount: {increment: hasReply ? 2 : 1}}});
-    return assistantMessage;
-  });
+  const assistantMessage = hasReply
+    ? await tx.message.create({data: {conversationId, role: 'ASSISTANT', content}})
+    : null;
+  await tx.conversation.update({where: {id: conversationId}, data: {updatedAt: new Date()}});
+  await tx.character.update({where: {id: characterId}, data: {messageCount: {increment: hasReply ? 2 : 1}}});
+  return assistantMessage;
+}
+
+export async function persistAssistantResponse(conversationId: string, characterId: string, content: string) {
+  return db.$transaction(tx => persistAssistantResponseInTx(tx, conversationId, characterId, content));
 }
 
 export async function prepareMessageRegeneration(userId: string, conversationId: string, targetMessageId: string, historyLimit: number) {
@@ -143,14 +147,18 @@ export async function prepareMessageRegeneration(userId: string, conversationId:
   return {prompt, history: history.reverse()};
 }
 
+/** 同事务版本：重新生成时「删旧回复 + 写新回复」与费用结算同一个事务（V3 §21）。 */
+export async function replaceMessageReplyInTx(tx: Prisma.TransactionClient, conversationId: string, promptCreatedAt: Date, content: string) {
+  if (!content.trim()) return null;
+  await tx.message.deleteMany({where: {conversationId, createdAt: {gt: promptCreatedAt}}});
+  const assistant = await tx.message.create({data: {conversationId, role: 'ASSISTANT', content}});
+  await tx.conversation.update({where: {id: conversationId}, data: {updatedAt: new Date()}});
+  return assistant;
+}
+
 export async function replaceMessageReply(conversationId: string, promptCreatedAt: Date, content: string) {
   if (!content.trim()) return null;
-  return db.$transaction(async tx => {
-    await tx.message.deleteMany({where: {conversationId, createdAt: {gt: promptCreatedAt}}});
-    const assistant = await tx.message.create({data: {conversationId, role: 'ASSISTANT', content}});
-    await tx.conversation.update({where: {id: conversationId}, data: {updatedAt: new Date()}});
-    return assistant;
-  });
+  return db.$transaction(tx => replaceMessageReplyInTx(tx, conversationId, promptCreatedAt, content));
 }
 
 const MAX_MESSAGE_CONTENT = 4_000;

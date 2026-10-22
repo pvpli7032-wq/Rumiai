@@ -29,7 +29,8 @@ function ids(value: unknown) {
   if (!Array.isArray(value) || value.length > 20 || value.some(id => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(id)) || new Set(value).size !== value.length) throw new AdminManagementError('角色列表无效。');
   return value as string[];
 }
-async function claimWriter(tx: Prisma.TransactionClient, actorId: string) {
+/** 写锁：SQLite 串行化写入前先把操作者行摸一遍，同一事务里读到的版本号才是当前的。 */
+export async function claimWriter(tx: Prisma.TransactionClient, actorId: string) {
   await tx.$executeRaw`UPDATE admin_operators SET version = version WHERE user_id = ${actorId}`;
 }
 export async function recordAdminAudit(tx: Prisma.TransactionClient, actorId: string, action: string, targetId: string, explanation: string, changes: object) {

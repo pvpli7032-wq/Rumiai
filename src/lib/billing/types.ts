@@ -21,9 +21,6 @@ export type CancelPolicy = 'CHARGE_WHEN_OUTPUT' | 'RELEASE_ALWAYS';
 
 export const CANCEL_POLICIES: readonly CancelPolicy[] = ['CHARGE_WHEN_OUTPUT', 'RELEASE_ALWAYS'];
 
-/** 流水里 charge_action 的取值；每条费用单每种动作最多一行。 */
-export type ChargeAction = 'HOLD' | 'SETTLE' | 'RELEASE';
-
 /** 负流水对应的消费来源键：预扣后未结算时记「聊天预扣」，结算后归为「聊天消费」。 */
 export const HOLD_SOURCE_KEY = 'CHAT_HOLD';
 export const SETTLE_SOURCE_KEY = 'CHAT_SPEND';

@@ -7,6 +7,7 @@ import {PublicFooter} from '@/components/site-content/public-footer';
 import {SignedInRedirect} from './signed-in-redirect';
 import {readPublicSiteContent} from '@/lib/site-content/public-service';
 import {listCharacters} from '@/lib/characters/catalog-service';
+import {compactNumber} from '@/lib/i18n/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,8 +23,6 @@ export async function generateMetadata({params}: {params: Promise<{locale: strin
     openGraph: {title, description: dict.landing.subhead, url: `${SITE_URL}/${raw}`, type: 'website'},
   };
 }
-
-const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n));
 
 /**
  * 公开落地页。访问者还没登录，这一页只做四件事：说清价值、露出真实角色、
@@ -104,7 +103,7 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
                       {character.tagline || character.personality}
                     </span>
                     <span className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-500">
-                      <span>💬 {compact(character.chatCount)}</span>
+                      <span>💬 {compactNumber(character.chatCount)}</span>
                       {character.creator && <span className="truncate">@{character.creator.displayName || character.creator.username}</span>}
                     </span>
                   </span>

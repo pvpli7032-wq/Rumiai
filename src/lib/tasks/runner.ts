@@ -3,7 +3,7 @@ import {db} from '@/lib/db';
 import {logWarning} from '@/lib/logger';
 import {readSettingValue} from '@/lib/settings';
 import {handlerFor} from './handlers';
-import {FAIL_ON_EXHAUSTED_KINDS, SWEEP_SUBJECT, SWEEP_TASK_KINDS, type TaskRunReport, type TaskRowView} from './types';
+import {FAIL_ON_EXHAUSTED_KINDS, SWEEP_SUBJECT, SWEEP_TASK_KINDS, type TaskRunReport} from './types';
 
 /**
  * 统一后台任务入口（V3 第 24 章）。
@@ -139,12 +139,6 @@ export async function runDueTasks(options: {limit?: number; now?: Date; kinds?: 
   return report;
 }
 
-/** 手动执行一个任务：不等到点，直接跑一次（后台「立即执行」按钮）。 */
-export async function runTaskNow(taskId: string): Promise<TaskRunReport> {
-  await db.backgroundTask.updateMany({where: {id: taskId}, data: {status: 'PENDING', nextRunAt: new Date(), leaseOwner: null, leaseUntil: null}});
-  return runDueTasks({limit: 1});
-}
-
 /**
  * 按 kind 手动跑一次（后台任务页的「立即执行」）。
  *
@@ -161,20 +155,6 @@ export async function runKindNow(kind: string): Promise<TaskRunReport> {
     });
   }
   return runDueTasks({kinds: [kind]});
-}
-
-export async function readTaskRows(limit = 50): Promise<TaskRowView[]> {
-  const rows = await db.backgroundTask.findMany({orderBy: [{updatedAt: 'desc'}], take: Math.min(200, Math.max(1, limit))});
-  return rows.map(row => ({
-    id: row.id,
-    kind: row.kind,
-    subjectId: row.subjectId,
-    status: row.status,
-    attempts: row.attempts,
-    nextRunAt: row.nextRunAt.toISOString(),
-    lastError: row.lastError,
-    updatedAt: row.updatedAt.toISOString(),
-  }));
 }
 
 let timer: NodeJS.Timeout | null = null;
@@ -202,6 +182,3 @@ export function startTaskRunner(): () => void {
   return () => { if (timer) { clearTimeout(timer); timer = null; } };
 }
 
-export function stopTaskRunner(): void {
-  if (timer) { clearTimeout(timer); timer = null; }
-}

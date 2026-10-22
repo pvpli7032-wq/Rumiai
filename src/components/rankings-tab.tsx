@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, User } from 'lucide-react';
+import {compactNumber} from '@/lib/i18n/format';
 
 interface RankedCharacter {
   rank: number; id: string; name: string; avatarUrl: string | null; chatCount: number; isNew: boolean;
@@ -25,11 +26,6 @@ interface Rankings {
 }
 
 /** 604100 -> "604.1K" */
-function compact(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`;
-  return String(n);
-}
-
 /** Medal colours for the creator card ribbons. */
 const RIBBON = ['var(--brand-accent-1)', '#A8B0B8', '#B56800'];
 
@@ -102,7 +98,7 @@ export function RankingsTab() {
                       {c.name}
                     </span>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground md:text-sm">💬 {compact(c.chatCount)}</span>
+                      <span className="text-xs text-muted-foreground md:text-sm">💬 {compactNumber(c.chatCount)}</span>
                       {c.isNew && (
                         <span className="rounded-sm bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{"新"}</span>
                       )}
@@ -163,7 +159,7 @@ export function RankingsTab() {
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] leading-4 text-muted-foreground md:text-xs">💬 {compact(c.totalChats)}</span>
+                  <span className="text-[10px] leading-4 text-muted-foreground md:text-xs">💬 {compactNumber(c.totalChats)}</span>
                 </div>
               ))}
             </div>

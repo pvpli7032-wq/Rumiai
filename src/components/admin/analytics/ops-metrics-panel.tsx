@@ -19,9 +19,8 @@ type Metrics = {
 };
 type Report = {generatedAt: string; since: string; days: number; metrics: Metrics};
 
-const number = (value: number) => new Intl.NumberFormat('zh-CN').format(value);
+import {formatNumber, formatPercent} from '@/lib/format/number';
 /** 分母为 0 时是 null：写「样本不足」，绝不写 0%。 */
-const percent = (value: number | null) => (value === null ? '样本不足' : (value * 100).toFixed(1) + '%');
 
 /**
  * 运营统计首轮五项指标（V3 §26）。每项都带计算口径；
@@ -61,8 +60,8 @@ export function OpsMetricsPanel({token, days}: {token: string; days: number}) {
       <div className="grid gap-3 sm:grid-cols-2">
         {metrics.ratios.map(item => <div key={item.key} className="rounded-lg border border-border p-3">
           <p className="text-sm font-medium text-foreground">{item.label}</p>
-          <p className="mt-1 text-2xl tabular-nums text-foreground">{percent(item.value)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{number(item.numerator)} / {number(item.denominator)} · {item.formula}</p>
+          <p className="mt-1 text-2xl tabular-nums text-foreground">{formatPercent(item.value)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{formatNumber(item.numerator)} / {formatNumber(item.denominator)} · {item.formula}</p>
         </div>)}
       </div>
 
@@ -76,9 +75,9 @@ export function OpsMetricsPanel({token, days}: {token: string; days: number}) {
               <span className="text-foreground">{row.currency}</span>
               <span className="tabular-nums text-muted-foreground">
                 {row.costPerReply === null ? '样本不足' : row.costPerReply.toFixed(6) + ' / 回复'}
-                <span className="ml-2">已知成本 {row.knownCost.toFixed(6)}（{number(row.knownCostCalls)} 次调用）</span>
-                <span className="ml-2">未知成本 {number(row.unknownCostCalls)} 次调用（未计入分子）</span>
-                <span className="ml-2">有效回复 {number(row.replies)}</span>
+                <span className="ml-2">已知成本 {row.knownCost.toFixed(6)}（{formatNumber(row.knownCostCalls)} 次调用）</span>
+                <span className="ml-2">未知成本 {formatNumber(row.unknownCostCalls)} 次调用（未计入分子）</span>
+                <span className="ml-2">有效回复 {formatNumber(row.replies)}</span>
               </span>
             </li>)}
           </ul>}

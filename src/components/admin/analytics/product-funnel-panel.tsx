@@ -8,9 +8,8 @@ type FunnelStep = {event: string; label: string; people: number; rateFromStart: 
 type Funnel = {key: string; title: string; description: string; steps: FunnelStep[]; overallRate: number | null};
 type Report = {generatedAt: string; since: string; days: number; funnels: Funnel[]; definitions: Record<string, string>};
 
-const number = (value: number) => new Intl.NumberFormat('zh-CN').format(value);
+import {formatNumber, formatPercent} from '@/lib/format/number';
 /** 分母为 0 时是 null：显示「样本不足」，绝不当成 0%。 */
-const percent = (rate: number | null) => (rate === null ? '样本不足' : (rate * 100).toFixed(1) + '%');
 
 /**
  * 玩法漏斗面板（V3 表 22）。与运营分析共用统计周期，只展示去重人数与转化率，
@@ -38,16 +37,16 @@ export function ProductFunnelPanel({token, days}: {token: string; days: number})
       {report.funnels.map(funnel => <div key={funnel.key} className="rounded-lg border border-border p-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="text-sm font-medium text-foreground">{funnel.title}</p>
-          <p className="text-xs text-muted-foreground">端到端转化 {percent(funnel.overallRate)}</p>
+          <p className="text-xs text-muted-foreground">端到端转化 {formatPercent(funnel.overallRate)}</p>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{funnel.description}</p>
         <div className="mt-3 space-y-2">
           {funnel.steps.map(step => <div key={step.event} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
             <span className="text-foreground">{step.label}</span>
             <span className="tabular-nums text-muted-foreground">
-              {number(step.people)} 人
-              {step.rateFromPrevious !== null && <span className="ml-2">上一步 {percent(step.rateFromPrevious)}</span>}
-              <span className="ml-2">整体 {percent(step.rateFromStart)}</span>
+              {formatNumber(step.people)} 人
+              {step.rateFromPrevious !== null && <span className="ml-2">上一步 {formatPercent(step.rateFromPrevious)}</span>}
+              <span className="ml-2">整体 {formatPercent(step.rateFromStart)}</span>
             </span>
           </div>)}
         </div>

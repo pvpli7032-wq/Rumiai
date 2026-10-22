@@ -1,4 +1,4 @@
-import type {MirrorCharacterOption, MirrorExampleView, MirrorOwnerResult, MirrorPublicResult, MirrorQuota} from '@/lib/mirror/types';
+import type {MirrorCharacterOption, MirrorCompareEntry, MirrorExampleView, MirrorOwnerResult, MirrorPublicResult, MirrorQuota} from '@/lib/mirror/types';
 
 export type MirrorRulesView = import('@/lib/mirror/types').MirrorRules & {enabled: boolean; timezone: string};
 
@@ -19,3 +19,6 @@ export type MirrorPageResponse = {
 export type MirrorGenerateResponse = {result: MirrorOwnerResult; quota: MirrorQuota};
 
 export type MirrorView = {kind: 'public'; result: MirrorPublicResult} | {kind: 'owner'; result: MirrorOwnerResult};
+
+/** 对比接口的返回：每条独立带状态，上限由服务端设置给出。 */
+export type MirrorCompareResponse = {entries: MirrorCompareEntry[]; compareLimit: number};

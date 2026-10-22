@@ -52,21 +52,43 @@ async function claimFreeCancel(tx: Tx, userId: string, day: string, limit: numbe
   return false;
 }
 
-/** 用户取消：判定与落账在同一个事务里完成，重复调用只生效一次。 */
-export async function settleCancellation(input: CancelInput): Promise<ChargeOutcome> {
+/**
+ * 取消判定要用的设置与业务日。必须在事务**之外**读：事务里只做条件更新，
+ * 免得在同一个写事务里再去开一次读连接。
+ */
+export interface CancelContext {
+  policy: CancelPolicy;
+  freeCancelLimit: number;
+  day: string;
+  now: Date;
+}
+
+export async function readCancelContext(input: CancelInput): Promise<CancelContext> {
   const now = input.now ?? new Date();
   const [policy, freeCancelLimit, timezone] = await Promise.all([readCancelPolicy(input.userId), readFreeCancelLimit(input.userId), readBillingTimezone(input.userId)]);
-  const day = resolveBillingDay(now, timezone);
+  return {policy, freeCancelLimit, day: resolveBillingDay(now, timezone), now};
+}
+
+/**
+ * 同事务版本：聊天链把「保存消息 → 取消判定 → 落账」收进一个事务（V3 §21），
+ * 所以判定与落账拆成接收 tx 的函数，设置由调用方提前用 readCancelContext 取好。
+ */
+export async function settleCancellationInTx(tx: Tx, input: CancelInput, context: CancelContext): Promise<ChargeOutcome> {
+  const {policy, freeCancelLimit, day, now} = context;
   const base = {userId: input.userId, requestId: input.requestId, operation: input.operation, messageId: input.messageId ?? null, aiCallId: input.aiCallId ?? null};
-  return db.$transaction(async tx => {
-    // 先取写锁：判定与落账必须落在同一段串行区间，否则并发取消会各自读到 HELD 各占一次。
-    await lockAllowanceDay(tx, input.userId);
-    const existing = await findChargeInTx(tx, input.userId, input.operation, input.requestId);
-    // 关闭收费没有费用单，或已经结算/释放：幂等回放，绝不占用次数。
-    if (!existing || existing.status !== 'HELD') return releaseInTx(tx, existing, base, now);
-    const releaseNow = !input.outputDelivered
-      || policy === 'RELEASE_ALWAYS'
-      || (freeCancelLimit > 0 && await claimFreeCancel(tx, input.userId, day, freeCancelLimit));
-    return releaseNow ? releaseInTx(tx, existing, {...base, reason: 'USER_CANCELLED'}, now) : settleInTx(tx, existing, base, now);
-  }, {timeout: 30_000});
+  // 先取写锁：判定与落账必须落在同一段串行区间，否则并发取消会各自读到 HELD 各占一次。
+  await lockAllowanceDay(tx, input.userId);
+  const existing = await findChargeInTx(tx, input.userId, input.operation, input.requestId);
+  // 关闭收费没有费用单，或已经结算/释放：幂等回放，绝不占用次数。
+  if (!existing || existing.status !== 'HELD') return releaseInTx(tx, existing, base, now);
+  const releaseNow = !input.outputDelivered
+    || policy === 'RELEASE_ALWAYS'
+    || (freeCancelLimit > 0 && await claimFreeCancel(tx, input.userId, day, freeCancelLimit));
+  return releaseNow ? releaseInTx(tx, existing, {...base, reason: 'USER_CANCELLED'}, now) : settleInTx(tx, existing, base, now);
+}
+
+/** 用户取消：判定与落账在同一个事务里完成，重复调用只生效一次。 */
+export async function settleCancellation(input: CancelInput): Promise<ChargeOutcome> {
+  const context = await readCancelContext(input);
+  return db.$transaction(tx => settleCancellationInTx(tx, input, context), {timeout: 30_000});
 }

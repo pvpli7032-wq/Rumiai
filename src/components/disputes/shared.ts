@@ -7,8 +7,6 @@ export const CHOICE_OPTIONS = [
   {value: 'SPLIT', label: '各打五十大板', hint: '两边都有道理，也都有问题'},
 ] as const;
 
-export const CHOICE_LABELS: Record<string, string> = Object.fromEntries(CHOICE_OPTIONS.map(option => [option.value, option.label]));
-
 export const SORT_TABS = [
   {value: 'hot', label: '热门'},
   {value: 'latest', label: '最新'},

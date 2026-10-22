@@ -3,7 +3,7 @@
 import {useEffect, useState} from 'react';
 import Link from 'next/link';
 import {
-  Activity, BarChart3, Bot, ChevronDown, ChevronRight, ClipboardList, Coins, Cpu, FileText, Gift, KeyRound,
+  Activity, BarChart3, Bell, Bot, ChevronDown, ChevronRight, ClipboardList, Coins, Cpu, FileText, Gift, KeyRound,
   Landmark, LayoutDashboard, LayoutTemplate, MessageSquare, Pin, PinOff, RefreshCw, Scale, ScrollText, Settings,
   ShieldCheck, Sparkles, UserCog, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
@@ -36,6 +36,7 @@ const ICONS: Record<AdminNavIcon, LucideIcon> = {
   mirror: Sparkles,
   disputes: Scale,
   tasks: RefreshCw,
+  notifications: Bell,
   settings: Settings,
 };
 
