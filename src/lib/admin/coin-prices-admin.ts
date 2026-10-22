@@ -79,24 +79,40 @@ async function readExchangeRate(rate: number | null, effectiveAt: string | null)
   return {rate: previous ?? null, pendingRate: rate, pendingEffectiveAt: at.toISOString(), effectiveAt: null};
 }
 
+export interface CoinUnitPrice {
+  /** 建议价与毛利计算用的单值：最优惠那一档（每币最便宜）。null 表示没有可用套餐价。 */
+  unitPrice: number | null;
+  /** 全部在售套餐的每币单价区间（最低～最高），V3 §218「多个套餐分别展示区间」。 */
+  minUnitPrice: number | null;
+  maxUnitPrice: number | null;
+  /** 单值口径说明：哪一档最优惠。 */
+  note: string | null;
+}
+
 /**
  * 每币单价（人民币/币）。
  *
  * 复用套餐自己的口径：实发币数 = coins + 当期 bonus，价格取 price_cny_cents。
- * 取最优惠的一档做折算 —— 用户买得最便宜的那档决定平台每币真实收入，用它算建议价不会偏低。
+ * 平台有多个套餐，每币单价各不相同，所以既给区间（页面展示），也给最优惠的单值
+ * （建议价与毛利按它算 —— 用户买得最便宜的那档决定每币真实收入，用它算不会偏低）。
+ * 没有真实消费归因，不做加权平均。
  */
-async function readCoinUnitPrice(): Promise<{unitPrice: number | null; note: string | null}> {
+async function readCoinUnitPrice(): Promise<CoinUnitPrice> {
   const packages = await listActiveCoinPackages();
   let best: {unitPrice: number; note: string} | null = null;
+  let min: number | null = null;
+  let max: number | null = null;
   for (const pkg of packages) {
     if (!pkg.priceCnyCents || pkg.priceCnyCents <= 0) continue;
     const coins = pkg.coins + pkg.bonus;
     if (coins <= 0) continue;
     const unitPrice = pkg.priceCnyCents / 100 / coins;
+    if (min === null || unitPrice < min) min = unitPrice;
+    if (max === null || unitPrice > max) max = unitPrice;
     if (best && best.unitPrice <= unitPrice) continue;
     best = {unitPrice, note: `最优惠到手价：${pkg.label} ¥${pkg.priceCnyCents / 100} / ${coins} 币`};
   }
-  return {unitPrice: best?.unitPrice ?? null, note: best?.note ?? null};
+  return {unitPrice: best?.unitPrice ?? null, minUnitPrice: min, maxUnitPrice: max, note: best?.note ?? null};
 }
 
 export async function readAdminCoinPrices(): Promise<AdminCoinPriceView> {
@@ -115,6 +131,7 @@ export async function readAdminCoinPrices(): Promise<AdminCoinPriceView> {
     minSample,
     targetMarginPercent,
     coinUnitPriceCny: coinUnit.unitPrice,
+    coinUnitPriceRangeCny: coinUnit.minUnitPrice !== null && coinUnit.maxUnitPrice !== null ? {min: coinUnit.minUnitPrice, max: coinUnit.maxUnitPrice} : null,
     coinUnitPriceNote: coinUnit.note,
     exchange: await readExchangeRate(exchangeRate, exchangeEffectiveAt),
   };

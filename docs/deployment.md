@@ -79,6 +79,46 @@ node scripts/restore-state.mjs <备份目录> <全新恢复目录>   # 恢复到
 4. 用 `PORT=3101 DATABASE_URL=file:/tmp/drill-restore-<标签>/database.db` 起一个隔离实例，`/login`、`/chat`、`/shop`、`/square` 都要 200；确认无误后杀掉隔离实例、删掉临时目录与演练备份。
 5. 最后 `pm2 start deploy/baota/ecosystem.config.js` 恢复生产，核对 `pm_cwd` 指向当前发布目录、`restarts` 为 0。
 
+## 5.1 设置备份与恢复
+
+设置不是配置文件，而是数据库里的三张表：`operation_settings`（公共值）、`user_setting_overrides`（用户特例）、`setting_revisions`（每次保存的历史版本）。三张表都在同一个 SQLite 文件里，所以**整库备份就是设置的完整备份**，不需要单独的设置备份脚本。
+
+- 备份：`npm run state:backup -- <标签>`（数据库 + 上传联合备份）。`manifest.json` 与脚本输出的 `counts` 带逐表行数，含这三张表，恢复后先对行数。
+- 恢复：`node scripts/restore-state.mjs <备份目录> <全新恢复目录>`，再按第 6 节切换发布。设置随库一起回到备份时刻，用户特例与历史版本一并回来。
+- 只跑 `npm run db:backup -- <标签>` 也能覆盖设置本身，但上传对不上，日常仍用 `state:backup`。
+
+### 只导出公共参数（不含用户特例与凭据）
+
+跨环境搬运营参数时用设置中心的导出/导入，而不是搬整库：
+
+| 动作 | 接口 | 权限 | 行为 |
+|---|---|---|---|
+| 导出 | `GET /api/admin/settings/export` | `settings.read` | 直接下载 `settings-<日期>.json`，结构 `{version, exportedAt, values}`。 |
+| 导入预览 | `POST /api/admin/settings/import` | `settings.write` | 只算差异，不写库；每项标 `change` / `same` / `unknown-key`。 |
+| 导入确认 | `POST /api/admin/settings/import/confirm` | `settings.write` | 一次事务写入，走与分组 PATCH 相同的 `saveChanges`。 |
+
+导出文件里**只有登记表里的键的公共值**：
+
+- 不含用户特例：导出按登记表逐项读公共值、不带 `userId`，`user_setting_overrides` 不可能被带出去。
+- 不含凭据：AI 供应商密钥、支付商户凭据、数据库路径与上传目录都不在登记表里，它们存在各自的数据表或环境变量中。
+- 不含历史版本：`setting_revisions` 不导出；导入写入的是新版本，历史照常追加。
+
+导入的规则：只写真正变化的项（`same` 不写，不制造无意义的版本递增与历史噪音）；带 `expectedVersions` 做并发校验，别人先改过返回 409；文件里只要有一个未登记的键就**整批拒绝**，不做部分导入。
+
+两条路的取舍：整库备份是「回到某一时刻」的完整恢复点（含用户特例、历史版本、订单与消息）；导出 JSON 是「把这套公共参数复制到另一个环境」，恢复后用户特例与凭据要各自另行处理。
+
+## 5.2 后台任务启动
+
+后台任务（摘要、结案、过期清理、对账、备份清理等七个巡检 kind）由应用进程自己拉起，不依赖外部调度：
+
+- 入口是 `src/instrumentation.ts` 的 `register()`：`NEXT_RUNTIME === 'nodejs'` 时调用 `startTaskRunner()`（`src/lib/tasks/runner.ts`）。启动会打一条 `{"event":"background_task_runner_started"}`，运维从 `pm2 logs khui-ai` 确认它真的起来了，而不是只看后台页面有没有数据。
+- 轮询：每轮先 `ensureSweepTasks()` 补齐巡检占位行，再 `runDueTasks()` 跑一批；每轮结束重新读 `tasks.intervalMs`（默认 `15000`），`tasks.batchSize`、`tasks.maxAttempts` 同样每轮现读，改设置不用重启进程。
+- 租约在数据库里（120 秒），进程重启不丢：过期的 RUNNING 会被重新领取，别人持有的活租约不会被抢。部署是 PM2 单实例，重复调用只保留一个定时器。
+- 单跑某个 kind：后台任务页的「立即执行」走 `runKindNow()`，与巡检共用 `handlers.ts` 一份分派表。
+- `STORY_WORKER_DISABLED=1` 只停故事状态提取 worker，不影响上面这个任务入口。
+
+外部计划任务：任务入口支持被宝塔计划任务调用——`node scripts/run-tasks.mjs` 一次性执行一批到期任务后退出，不在进程内常驻。调用方必须与 PM2 进程用同一份 `shared/app.env`（`DATABASE_URL` 指向同一个库）、以 `www` 身份执行，否则会去操作另一个库。当前默认仍是进程内轮询；外部计划任务入口见 `scripts/run-tasks.mjs`。
+
 ## 6. 发布流程（单机 Next + PM2 + Nginx）
 
 1. **准备**：停写 → `npm run state:backup -- <标签>` 联合备份 → 在新版本目录 `npm ci && npx prisma generate && npm run verify:build`。

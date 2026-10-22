@@ -1,7 +1,7 @@
 import {readSettings} from '@/lib/settings/service';
 import {normalizeTimezone} from './limits';
 import {parseMirrorExamples, parseMirrorQuestions} from './examples';
-import {MIRROR_SETTINGS, type MirrorExampleResult, type MirrorOverLimitPolicy, type MirrorRules} from './types';
+import {MIRROR_SETTINGS, readMirrorLayout, type MirrorExampleResult, type MirrorOverLimitPolicy, type MirrorResultLayout, type MirrorRules} from './types';
 
 /** 一次请求需要的全部设置；同一次生成里只读一次列表，不反复查库。 */
 export type MirrorConfig = MirrorRulesView & {
@@ -21,11 +21,15 @@ export type MirrorConfig = MirrorRulesView & {
   purchaseEnabled: boolean;
   purchaseCoins: number;
   purchaseDailyCap: number;
+  /** 三条观察的写作风格说明，直接拼进提示词；空字符串表示不额外要求。 */
+  observationStyle: string;
+  /** 新结果使用的版式；生成时冻结进结果，改它不影响旧结果。 */
+  resultLayout: MirrorResultLayout;
   template: string;
 };
 
 /** 对外只暴露展示需要的规则，提示词模板不带到前台。 */
-export type MirrorRulesView = MirrorRules & {enabled: boolean; timezone: string};
+export type MirrorRulesView = MirrorRules & {enabled: boolean; timezone: string; observationStyle: string; resultLayout: MirrorResultLayout};
 
 export function toRulesView(config: MirrorConfig): MirrorRulesView {
   return {
@@ -37,6 +41,8 @@ export function toRulesView(config: MirrorConfig): MirrorRulesView {
     quoteMaxChars: config.quoteMaxChars,
     compareLimit: config.compareLimit,
     resultRetentionDays: config.resultRetentionDays,
+    observationStyle: config.observationStyle,
+    resultLayout: config.resultLayout,
     timezone: config.timezone,
   };
 }
@@ -74,6 +80,8 @@ export async function readConfigFor(userId: string | null): Promise<MirrorConfig
     purchaseEnabled: byKey.get(MIRROR_SETTINGS.purchaseEnabled) === true,
     purchaseCoins: number(MIRROR_SETTINGS.purchaseCoins, 0),
     purchaseDailyCap: number(MIRROR_SETTINGS.purchaseDailyCap, 0),
+    observationStyle: String(byKey.get(MIRROR_SETTINGS.observationStyle) ?? '').trim(),
+    resultLayout: readMirrorLayout(byKey.get(MIRROR_SETTINGS.resultLayout)),
     template: String(byKey.get(MIRROR_SETTINGS.prompt) ?? ''),
     timezone: normalizeTimezone(String(byKey.get('billing.dayTimezone') ?? 'UTC')),
   };

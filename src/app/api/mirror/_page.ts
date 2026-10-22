@@ -1,6 +1,6 @@
 import {identityOf, listMirrorCharacters, quotaOf, readConfigFor, readMyMirrorResults, toRulesView} from '@/lib/mirror';
 import type {MirrorCookieWrite, MirrorOwnerView, MirrorRequestStateLike} from '@/lib/mirror';
-import type {MirrorCharacterOption, MirrorExampleView, MirrorQuota, MirrorRules} from '@/lib/mirror';
+import type {MirrorCharacterOption, MirrorExampleView, MirrorQuota, MirrorRulesView} from '@/lib/mirror';
 import {MIRROR_QUOTA_COOKIE, MIRROR_SUBJECT_COOKIE} from '@/lib/mirror';
 import {newMirrorSubject} from '@/lib/mirror';
 import {mirrorDayKey, readMirrorUsage} from '@/lib/mirror';
@@ -11,7 +11,7 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 /** 首页与 GET /api/mirror 共用的初始化数据。 */
 export type MirrorPagePayload = {
   characters: MirrorCharacterOption[];
-  rules: MirrorRules;
+  rules: MirrorRulesView;
   /** 按 questionCount 取好的提问文本；条数不足时前端明确提示，不补默认题。 */
   questions: string[];
   quota: MirrorQuota;

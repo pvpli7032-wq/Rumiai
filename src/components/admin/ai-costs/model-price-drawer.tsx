@@ -42,7 +42,8 @@ function initialDraft(row: ModelPriceRow): PriceDraft {
     outputPricePerMillion: row.costPrice?.outputPricePerMillion ?? '',
     currency: row.costPrice?.currency ?? 'USD',
     effectiveAt: defaultEffectiveInput(row.costPrice),
-    source: '',
+    // 回填当前版本的来源：改价时多半只是调数字，来源沿用上一次登记的那句才有意义。
+    source: row.costPrice?.source ?? '',
     reason: '',
   };
 }
@@ -104,6 +105,7 @@ export function ModelPriceDrawer({row, canManage, busy, onClose, onSubmit}: Mode
                   ? `${row.costPrice.currency} 输入 ${row.costPrice.inputPricePerMillion} / 输出 ${row.costPrice.outputPricePerMillion} · 每百万 Token · 生效 ${formatDateTime(row.costPrice.effectiveAt)}`
                   : NOT_CONFIGURED}
               </DetailRow>
+              <DetailRow label="成本价来源">{row.costPrice?.source || NOT_CONFIGURED}</DetailRow>
               {row.coinPricePending && <DetailRow label="待生效收费价">v{row.coinPricePending.version} · {formatDateTime(row.coinPricePending.effectiveAt)}</DetailRow>}
               {row.costPricePending && <DetailRow label="待生效成本价">{row.costPricePending.currency} · {formatDateTime(row.costPricePending.effectiveAt)}</DetailRow>}
             </div>

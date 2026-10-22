@@ -4,6 +4,10 @@ export type LandingCopy = {
   subhead: string;
   primaryCta: string;
   secondaryCta: string;
+  /** 「他眼中的你」入口卡：标题、一句说明、按钮（V3 表 15 公开首页）。 */
+  mirrorTitle: string;
+  mirrorBody: string;
+  mirrorCta: string;
   aiNotice: string;
   featuredTitle: string;
   featuredHint: string;
@@ -26,6 +30,9 @@ export const LANDING_ZH: LandingCopy = {
   subhead: '原创角色、即时对话、圈子社区。挑一个角色开口，故事就从这一句开始。',
   primaryCta: '免费开始对话',
   secondaryCta: '先看看有哪些角色',
+  mirrorTitle: '他眼中的你',
+  mirrorBody: '选一个角色，回答几道短问题，看看 TA 眼里的你是什么样子。结果可以分享给朋友。',
+  mirrorCta: '看看 TA 眼中的我',
   aiNotice: '对话由 AI 生成，内容为虚构演绎，请勿当作真实人物言论。',
   featuredTitle: '热门角色',
   featuredHint: '现在最多人在聊的几个',
@@ -63,6 +70,9 @@ export const LANDING_EN: LandingCopy = {
   subhead: 'Original characters, instant conversation, a community around them. Pick one and say hello.',
   primaryCta: 'Start chatting free',
   secondaryCta: 'Browse characters',
+  mirrorTitle: 'How they see you',
+  mirrorBody: 'Pick a character, answer a few short questions, and read what they make of you. Share the result with a friend.',
+  mirrorCta: 'See myself through their eyes',
   aiNotice: 'Replies are AI-generated fiction. Do not treat them as statements by real people.',
   featuredTitle: 'Popular characters',
   featuredHint: 'What people are talking to right now',
@@ -102,6 +112,9 @@ export const LANDING_TH: LandingCopy = {
   subhead: 'ตัวละครออริจินัล บทสนทนาทันที และคอมมิวนิตี้ของนักสร้าง เลือกสักตัวแล้วทักทายได้เลย',
   primaryCta: 'เริ่มแชทฟรี',
   secondaryCta: 'ดูก่อนว่ามีตัวละครอะไรบ้าง',
+  mirrorTitle: 'เขาเห็นคุณเป็นแบบไหน',
+  mirrorBody: 'เลือกตัวละครสักตัว ตอบคำถามสั้น ๆ แล้วดูว่าในสายตาเขาคุณเป็นคนแบบไหน แชร์ผลให้เพื่อนได้',
+  mirrorCta: 'ดูว่าฉันเป็นอย่างไรในสายตาเขา',
   aiNotice: 'บทสนทนาสร้างโดย AI เป็นเรื่องสมมติ โปรดอย่าถือเป็นคำพูดของบุคคลจริง',
   featuredTitle: 'ตัวละครยอดนิยม',
   featuredHint: 'คนคุยด้วยมากที่สุดตอนนี้',

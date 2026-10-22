@@ -1,8 +1,9 @@
 import { db } from '@/lib/db';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { readRateLimitRules } from '@/lib/settings/limits';
 import {
   CONTACT_TYPES, COPYRIGHT_RELATIONSHIPS, IMAGE_REASONS, MAX_DETAILS, REPORT_CATEGORIES,
-  REPORT_RATE_LIMIT, REPORT_RATE_WINDOW_MS, REPORT_TARGET_TYPES, isReportCategory, isReportTargetType,
+  REPORT_TARGET_TYPES, isReportCategory, isReportTargetType,
 } from './report-types';
 
 const oneOf = (list: readonly string[], value: unknown) => typeof value === 'string' && list.includes(value) ? value : undefined;
@@ -64,7 +65,8 @@ export async function submitReport(reporterId: string, input: unknown) {
     evidenceContent = comment.content + (comment.imageUrl ? '\n\n图片：\n' + comment.imageUrl : '');
   }
 
-  const limit = checkRateLimit(`report:${reporterId}`, REPORT_RATE_LIMIT, REPORT_RATE_WINDOW_MS);
+  const rules = await readRateLimitRules();
+  const limit = checkRateLimit(`report:${reporterId}`, rules.report.perWindow, rules.report.windowMs);
   if (!limit.allowed) throw new CommunityReportError('提交举报过于频繁，请稍后重试。', 429, limit.retryAfter);
 
   const data = {

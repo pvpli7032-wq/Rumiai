@@ -18,9 +18,24 @@ export type MirrorResultFields = {
   indices: MirrorIndices;
 };
 
+/**
+ * 结果页版式（V3 表 9「结果展示 · 版式」）：生成时按设置冻结进结果，
+ * 之后后台改版式只影响新结果，旧结果仍按生成时那一套渲染。
+ */
+export type MirrorResultLayout = 'FOUR_SECTION' | 'HERO_QUOTE';
+
+export const DEFAULT_MIRROR_LAYOUT: MirrorResultLayout = 'FOUR_SECTION';
+
+/** 设置里读出来的是字符串，这里统一收口：不认识的值一律按默认版式。 */
+export function readMirrorLayout(value: unknown): MirrorResultLayout {
+  return value === 'HERO_QUOTE' ? 'HERO_QUOTE' : DEFAULT_MIRROR_LAYOUT;
+}
+
 /** 可被公开分享的字段。三题原回答不在其中，分享页永远读不到。 */
 export type MirrorPublicResult = MirrorResultFields & {
   shareId: string;
+  /** 生成时冻结的版式；渲染方按它选版式，不再读当前设置。 */
+  layout: MirrorResultLayout;
   characterId: string;
   characterName: string;
   characterAvatarUrl: string | null;
@@ -158,6 +173,8 @@ export const MIRROR_SETTINGS = {
   titleMaxChars: 'mirror.titleMaxChars',
   observationMaxChars: 'mirror.observationMaxChars',
   quoteMaxChars: 'mirror.quoteMaxChars',
+  observationStyle: 'mirror.observationStyle',
+  resultLayout: 'mirror.resultLayout',
   prompt: 'prompt.mirror',
 } as const;
 

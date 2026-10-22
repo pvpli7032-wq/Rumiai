@@ -49,7 +49,7 @@ function userTier(tier: AudienceTier, column: string): string {
 }
 
 export interface RatioMetric {
-  key: 'mirrorSuccess' | 'shareAfterComplete' | 'inviteFirstChat' | 'sevenDayReturn';
+  key: 'mirrorSuccess' | 'shareAfterComplete' | 'inviteFirstChat' | 'sevenDayReturn' | 'freeReplyShare' | 'paidReplyShare';
   label: string;
   /** 分子与分母各自的口径，界面上逐项标注。 */
   formula: string;
@@ -57,6 +57,21 @@ export interface RatioMetric {
   denominator: number;
   /** 分母为 0 时为 null：界面显示「样本不足」。 */
   value: number | null;
+}
+
+/**
+ * 回复的免费/收费构成（V3 表 22 财务观察「收费回复数、免费占比」）。
+ *
+ * 分母是区间内**已结算**的费用单：HELD 还没定价、RELEASED 是退掉的、UNKNOWN 是结果
+ * 不明，把它们算进来会让「免费占比」随未完成的事情漂移。allowanceSource 为
+ * FREE_QUOTA（用掉每日免费额度）或 FREE_MODE（整站免费模式）都算免费回复，其余算收费。
+ */
+export interface ReplyMix {
+  free: number;
+  paid: number;
+  total: number;
+  /** 分母为 0 时为 null，界面显示「样本不足」。 */
+  freeShare: number | null;
 }
 
 export interface CostPerReplyRow {
@@ -79,6 +94,7 @@ export interface OpsMetrics {
   /** 测试/正式：只有「全部」一档，附原因。 */
   testTier: {key: 'all'; label: string; note: string};
   ratios: RatioMetric[];
+  replyMix: ReplyMix;
   costPerReply: CostPerReplyRow[];
   costNote: string;
   definitions: Record<string, string>;
@@ -154,12 +170,29 @@ async function readCostPerReply(tx: Prisma.TransactionClient, since: Date, until
     .sort((a, b) => a.currency.localeCompare(b.currency));
 }
 
+async function readReplyMix(tx: Prisma.TransactionClient, since: Date, until: Date): Promise<ReplyMix> {
+  const rows = await tx.generationCharge.groupBy({
+    by: ['allowanceSource'],
+    where: {status: 'SETTLED', settledAt: {gte: since, lte: until}},
+    _count: {_all: true},
+  });
+  let free = 0;
+  let paid = 0;
+  for (const row of rows) {
+    const count = row._count._all;
+    if (row.allowanceSource === 'FREE_QUOTA' || row.allowanceSource === 'FREE_MODE') free += count;
+    else paid += count;
+  }
+  return {free, paid, total: free + paid, freeShare: ratio(free, free + paid)};
+}
+
 export async function readOpsMetrics(tx: Prisma.TransactionClient, since: Date, until: Date, tier: AudienceTier): Promise<OpsMetrics> {
-  const [counts, shareAfterComplete, sevenDay, costPerReply] = await Promise.all([
+  const [counts, shareAfterComplete, sevenDay, costPerReply, replyMix] = await Promise.all([
     countPeople(tx, ['mirror_started', 'mirror_completed', 'mirror_share_viewed', 'invite_registered', 'invite_first_chat'], since, until, tier),
     countShareAfterComplete(tx, since, until, tier),
     countSevenDayReturn(tx, until, tier),
     readCostPerReply(tx, since, until),
+    readReplyMix(tx, since, until),
   ]);
   const started = counts.get('mirror_started') ?? 0;
   const completed = counts.get('mirror_completed') ?? 0;
@@ -180,7 +213,11 @@ export async function readOpsMetrics(tx: Prisma.TransactionClient, since: Date, 
       {key: 'shareAfterComplete', label: '分享后的访问', formula: '完成过生成、且之后打开过分享页的人数 / 打开过分享页的人数', numerator: shareAfterComplete, denominator: sharedViewers, value: ratio(shareAfterComplete, sharedViewers)},
       {key: 'inviteFirstChat', label: '注册到首次聊天', formula: '完成首次聊天人数 / 注册归属人数', numerator: firstChat, denominator: registered, value: ratio(firstChat, registered)},
       {key: 'sevenDayReturn', label: '七日回访', formula: '注册满 7 天后仍有玩法事件的人数 / 注册满 7 天的账号数', numerator: sevenDay.returned, denominator: sevenDay.cohort, value: ratio(sevenDay.returned, sevenDay.cohort)},
+      // 免费与收费是同一分母的两个补集：两张卡片并排读，收费回复数就是这一项的分子。
+      {key: 'freeReplyShare', label: '免费占比', formula: '免费回复数 / 全部已结算回复数', numerator: replyMix.free, denominator: replyMix.total, value: replyMix.freeShare},
+      {key: 'paidReplyShare', label: '收费回复数占比', formula: '收费回复数 / 全部已结算回复数（分子即收费回复数）', numerator: replyMix.paid, denominator: replyMix.total, value: ratio(replyMix.paid, replyMix.total)},
     ],
+    replyMix,
     costPerReply,
     costNote: '成本聚合与「AI 调用与成本估算」面板同一条链：分子只含已知成本，多次尝试、缺用量或缺价格的调用记为未知成本，单列条数，不按 0 计入分子；分母是区间内 ASSISTANT 消息数。成本不按免费/付费拆档，人数类指标才分档。',
     definitions: {
@@ -189,6 +226,7 @@ export async function readOpsMetrics(tx: Prisma.TransactionClient, since: Date, 
       sample: '分母为 0 时显示「样本不足」，不显示 0%。',
       shareAfterComplete: '完成事件不限窗口，只要求早于那次分享访问；分享访问本身必须落在窗口内。',
       sevenDay: '分母只含注册满 7 天且未删除的账号；分子要求注册后第 7 天起、窗口结束前存在任一玩法事件。',
+      replyMix: '免费/收费按已结算费用单的 allowanceSource 聚合：FREE_QUOTA（用掉每日免费额度）与 FREE_MODE（整站免费模式）算免费，其余算收费。分母不含 HELD（还没定价）、RELEASED（已退回）与 UNKNOWN（结果不明），否则占比会随未完成的事漂移。这一项是全量聚合，不是某一页的行数。',
     },
   };
 }

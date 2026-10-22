@@ -25,6 +25,7 @@ import Link from 'next/link';
 import { ChatHeader } from './chat-header';
 import { ChatMessageList } from './chat-message-list';
 import { ChatComposer } from './chat-composer';
+import { ChatShareAndDispute } from './chat-share-dispute';
 import { useChatThread } from './use-chat-thread';
 import { useChatTurns } from './use-chat-turns';
 
@@ -140,7 +141,8 @@ function ChatContent() {
         setEditDraft={setEditDraft}
       />
 
-      <div className="flex items-center justify-end gap-3 border-t border-white/10 px-4 py-2">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 px-4 py-2">
+        {conversationId&&token&&<ChatShareAndDispute conversationId={conversationId} disabled={streaming}/>}
         {conversationId&&token&&<ConversationTools conversationId={conversationId} token={token} title={character?.name} disabled={streaming} onDeleted={()=>router.push('/chat')}/>}
         {activeScene && <button type="button" onClick={() => setEndChapterDialogOpen(true)} className="text-sm text-zinc-400 hover:text-white">结束本次体验</button>}
       </div>

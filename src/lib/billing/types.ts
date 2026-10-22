@@ -19,6 +19,32 @@ export type CancelPolicy = 'CHARGE_WHEN_OUTPUT' | 'RELEASE_ALWAYS';
 
 export const CANCEL_POLICIES: readonly CancelPolicy[] = ['CHARGE_WHEN_OUTPUT', 'RELEASE_ALWAYS'];
 
+/**
+ * 费用单上的「为什么没走正常结算」（V3 §157）。只存代码，不存任何用户内容。
+ * 每个值都有真实写入方：用户取消来自 cancel.ts 与取消回调，空回复来自 chat-stream 的
+ * EMPTY_RESPONSE，持久化失败来自两条链的 PERSISTENCE_ERROR，调用没开始来自 recovery 的
+ * CALL_NEVER_STARTED，其余供应商/超时错误一律归为上游失败。
+ */
+export const CHARGE_CANCEL_REASONS = ['USER_CANCELLED', 'UPSTREAM_FAILED', 'EMPTY_RESPONSE', 'PERSISTENCE_ERROR', 'NEVER_STARTED'] as const;
+
+export type ChargeCancelReason = (typeof CHARGE_CANCEL_REASONS)[number];
+
+const CANCEL_REASON_ALIASES: Record<string, ChargeCancelReason> = {
+  USER_CANCELLED: 'USER_CANCELLED',
+  CANCELLED: 'USER_CANCELLED',
+  CLIENT_DISCONNECTED: 'USER_CANCELLED',
+  AI_CALL_CANCELLED: 'USER_CANCELLED',
+  STORY_TURN_CANCELLED: 'USER_CANCELLED',
+  EMPTY_RESPONSE: 'EMPTY_RESPONSE',
+  PERSISTENCE_ERROR: 'PERSISTENCE_ERROR',
+  CALL_NEVER_STARTED: 'NEVER_STARTED',
+};
+
+/** 把上游错误码/取消来源归到费用单的原因值；认不出的按上游失败记，绝不猜成用户取消。 */
+export function cancelReasonOf(reason: string | null | undefined): ChargeCancelReason {
+  return CANCEL_REASON_ALIASES[(reason ?? '').trim().toUpperCase()] ?? 'UPSTREAM_FAILED';
+}
+
 /** 负流水对应的消费来源键：预扣后未结算时记「聊天预扣」，结算后归为「聊天消费」。 */
 export const HOLD_SOURCE_KEY = 'CHAT_HOLD';
 export const SETTLE_SOURCE_KEY = 'CHAT_SPEND';
@@ -45,6 +71,11 @@ export interface ChargePriceSnapshot {
   reservationId?: string | null;
   timezone: string;
   capturedAt: string;
+  /**
+   * 参与这次定价的设置键版本号（V3 表 4「配置版本」）。键名 → operation_settings.version，
+   * 用户特例时是 user_setting_overrides.version。老快照没有这个字段，读出来是 undefined。
+   */
+  settingsVersion?: Record<string, number>;
 }
 
 /** hold 的结果：要么建了费用单，要么是免费模式下的直接放行。 */
@@ -107,6 +138,12 @@ export interface HoldInput {
   operation: ChargeOperation;
   conversationId?: string | null;
   modelKey?: string | null;
+  /**
+   * 用户这次实际提交的内容（SEND 是消息正文，REGENERATE 是被重新生成的目标消息 id）。
+   * 用来算 requestHash：同号换内容必须报冲突，不能静默回放旧结果（V3 §20）。
+   * 省略时不写摘要，也就没有内容冲突判定——故事链自己有一份回合级摘要。
+   */
+  requestContent?: string | null;
   now?: Date;
 }
 
@@ -116,6 +153,8 @@ export interface SettleInput {
   operation: ChargeOperation;
   messageId?: string | null;
   aiCallId?: string | null;
+  /** 结算时一并记下的取消原因（已输出后取消按计费这条路径，V3 §157）。 */
+  cancelReason?: string | null;
   now?: Date;
 }
 
@@ -156,5 +195,9 @@ export interface ChargeRecord {
   heldAt: string;
   settledAt: string | null;
   releasedAt: string | null;
+  /** 请求内容摘要；老单据为 null（null 时不做内容冲突判定）。 */
+  requestHash: string | null;
+  /** 没走正常结算的原因；正常完成时为 null。 */
+  cancelReason: ChargeCancelReason | null;
   price: ChargePriceSnapshot;
 }

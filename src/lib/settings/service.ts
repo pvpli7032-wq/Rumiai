@@ -20,8 +20,12 @@ export class SettingConflictError extends Error {
   }
 }
 
-function toSettingValue(def: SettingDefinition, value: JsonValue, source: SettingValue['source'], version: number, expiresAt?: Date | null): SettingValue {
-  return {key: def.key, value, source, version, expiresAt: expiresAt ? expiresAt.toISOString() : null};
+function toSettingValue(def: SettingDefinition, value: JsonValue, source: SettingValue['source'], version: number, expiresAt?: Date | null, updatedAt?: Date | null): SettingValue {
+  return {
+    key: def.key, value, source, version,
+    expiresAt: expiresAt ? expiresAt.toISOString() : null,
+    updatedAt: updatedAt ? updatedAt.toISOString() : null,
+  };
 }
 
 async function readOne(userId: string | null | undefined, key: string): Promise<SettingValue> {
@@ -29,7 +33,7 @@ async function readOne(userId: string | null | undefined, key: string): Promise<
   if (!def) throw new Error('未登记的设置键：' + key);
   const memoKey = cacheKey(userId, key);
   const hit = readCache(memoKey);
-  if (hit) return {key, value: hit.value, source: hit.source, version: hit.version, expiresAt: hit.expiresAt};
+  if (hit) return {key, value: hit.value, source: hit.source, version: hit.version, expiresAt: hit.expiresAt, updatedAt: hit.updatedAt};
 
   const now = new Date();
   const [override, row] = await Promise.all([
@@ -41,13 +45,14 @@ async function readOne(userId: string | null | undefined, key: string): Promise<
 
   let result: SettingValue;
   if (override && (!override.expiresAt || override.expiresAt > now)) {
-    result = toSettingValue(def, parseStoredValue(def, override.value), 'USER', override.version, override.expiresAt);
+    result = toSettingValue(def, parseStoredValue(def, override.value), 'USER', override.version, override.expiresAt, override.updatedAt);
   } else if (row) {
-    result = toSettingValue(def, parseStoredValue(def, row.value), 'GLOBAL', row.version, null);
+    result = toSettingValue(def, parseStoredValue(def, row.value), 'GLOBAL', row.version, null, row.updatedAt);
   } else {
-    result = toSettingValue(def, def.default, 'DEFAULT', 0, null);
+    // 登记默认值没有保存记录，也就没有更新时间。
+    result = toSettingValue(def, def.default, 'DEFAULT', 0, null, null);
   }
-  writeCache(memoKey, {value: result.value, source: result.source, version: result.version, expiresAt: result.expiresAt ?? null});
+  writeCache(memoKey, {value: result.value, source: result.source, version: result.version, expiresAt: result.expiresAt ?? null, updatedAt: result.updatedAt ?? null});
   return result;
 }
 

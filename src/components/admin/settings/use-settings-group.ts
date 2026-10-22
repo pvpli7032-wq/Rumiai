@@ -2,9 +2,9 @@
 
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {API} from '@/lib/api-paths';
-import {definitionsOfGroup} from '@/lib/settings/registry';
 import type {JsonValue, SettingDefinition, SettingGroup, SettingValue} from '@/lib/settings/types';
 import {sameSettingValue, validateSettingValue} from './format';
+import {visibleDefinitionsOfGroup} from './sections';
 
 /**
  * 一个设置分类的读取、草稿与保存。
@@ -56,7 +56,8 @@ export interface SettingsGroupController {
 }
 
 export function useSettingsGroup(token: string | undefined, group: SettingGroup, enabled: boolean): SettingsGroupController {
-  const definitions = useMemo(() => definitionsOfGroup(group), [group]);
+  // 只取设置中心展示的项：hidden 的键有专属编辑位置，草稿、常用项计数与搜索都不含它们。
+  const definitions = useMemo(() => visibleDefinitionsOfGroup(group), [group]);
   const [values, setValues] = useState<Record<string, SettingValue>>({});
   const [draft, setDraft] = useState<Record<string, JsonValue>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -173,6 +174,7 @@ export function useSettingsGroup(token: string | undefined, group: SettingGroup,
             source: 'GLOBAL',
             version: versions[key] ?? (current[key]?.version ?? 0) + 1,
             expiresAt: null,
+            updatedAt: new Date().toISOString(),
           };
         }
         return next;

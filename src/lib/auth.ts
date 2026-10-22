@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { db } from '@/lib/db';
 import { readSettingValue } from '@/lib/settings/service';
 import {logActivityStorageUnavailable,recordUserActivityDay} from '@/lib/analytics/activity-service';

@@ -9,7 +9,9 @@ try {
   page.on('pageerror', e => errors.push(e.message));
   assert.equal((await page.request.get(`${base}/api/admin/finance/report`)).status(), 401);
   await page.goto(`${base}/admin/finance`);
-  await page.getByText('请先登录财务管理员账号。', { exact: true }).waitFor();
+  // 五标签重排后，无权限的落点统一是「没有财务查看权限」，不再单独提示登录。
+  await page.getByRole('heading', { name: '财务支付', exact: true }).waitFor();
+  await page.getByText('当前账号没有财务查看权限。', { exact: true }).waitFor();
   // UI fixtures only; actual API authorization and database invariants are tested
   // in ezfp-route-integration.test.mjs against an independent migrated database.
   await page.route('**/api/auth/me', route => route.fulfill({ json: { user: { id: 'fixture', username: 'fixture', email: 'fixture@example.invalid', tier: 'FREE', coins: 0, streakCount: 0 } } }));
@@ -53,15 +55,18 @@ try {
     const request = route.request();
     if (request.method() === 'POST') {
       const body = request.postDataJSON(); actions.push(body);
+      // services/refund-service.ts 把「渠道结果未能确认」先写 UNKNOWN 再抛 502，所以回执是 502、状态却已推进；
+      // 「查询退款状态」同样可能 502（RefundProviderUncertain）。fixture 按这个真实形态回，好让抽屉的读回逻辑被真正走到。
+      const uncertain = {status: 502, json: {error: '支付渠道结果未能确认，金币暂时冻结。请查询状态后使用同一退款单号重试。'}};
       if(body.action==='request'){
-        order.status='REFUND_PENDING';order.refund={refundNo:'UI-REFUND',status:'PENDING_APPROVAL',actorId:'requester-fixture',approvedById:null,approvedAt:null,approvalReason:null,rejectedById:null,rejectedAt:null,rejectionReason:null,amountCnyCents:order.amountCnyCents,coinAmount:order.coinAmount,errorCode:null,createdAt:new Date().toISOString(),completedAt:null};
+        order.status='REFUND_PENDING';order.refund={refundNo:'UI-REFUND',status:'PENDING_APPROVAL',requestedByMe:false,actorId:'requester-fixture',approvedById:null,approvedAt:null,approvalReason:null,rejectedById:null,rejectedAt:null,rejectionReason:null,reason:body.reason,amountCnyCents:order.amountCnyCents,coinAmount:order.coinAmount,errorCode:null,createdAt:new Date().toISOString(),completedAt:null};
         return route.fulfill({status:201,json:order.refund});
       }
       if(body.action==='approve'&&outcome==='unknown'){
-        order.status = 'REFUND_PENDING'; order.refund.status='UNKNOWN';
-        return route.fulfill({ status: 502, json: { error: '渠道结果待核对。' } });
+        order.status = 'REFUND_PENDING'; order.refund.status='UNKNOWN'; order.refund.errorCode='provider_unexpected_result';
+        return route.fulfill(uncertain);
       }
-      if(body.action==='verify')return route.fulfill({status:502,json:{error:'渠道结果待核对。'}});
+      if(body.action==='verify')return route.fulfill(uncertain);
       order.status = 'REFUNDED'; order.refund.status = 'SUCCEEDED';
       return route.fulfill({ json: { status: 'SUCCEEDED' } });
     }
@@ -71,6 +76,8 @@ try {
       const filtered = orders.filter(item => (!q || item.orderNo.includes(q) || item.providerTradeNo.includes(q)) && (status === 'ALL' || item.status === status));
       return route.fulfill({ json: { page: pageNumber, pageSize, total: filtered.length, items: filtered.slice((pageNumber - 1) * pageSize, pageNumber * pageSize) } });
     }
+    // 详情按 ?orderNo= 取一行（route.ts 校验 ^[A-Z0-9]{20,40}$），抽屉读的是 data[0].refund。
+    if (url.searchParams.get('orderNo')) { return route.fulfill({ json: orders.filter(item => item.orderNo === url.searchParams.get('orderNo')) }); }
     return route.fulfill({ json: orders });
   });
   await page.route('**/api/admin/finance/report?*', route => route.fulfill({ status: denied ? 403 : 200, json: denied ? { error: '仅财务管理员可查看。' } : report }));
@@ -81,11 +88,13 @@ try {
   await page.getByText('2 笔', { exact: true }).waitFor();
   await page.getByText('¥2.25', { exact: true }).waitFor();
   await page.getByText(/未知成本 1 次/).waitFor();
+  await page.getByRole('tab', { name: '对账', exact: true }).click();
   await page.getByRole('heading',{name:'支付回调异常（聚合）',exact:true}).waitFor();
   await page.getByText('签名或时间戳校验失败',{exact:true}).waitFor();
+  // 订单异常摘要随经营概览留在订单标签里（对账标签只有回调异常与渠道账单）。
+  await page.getByRole('tab', { name: '订单', exact: true }).click();
   await page.getByText(/FIXTURE-ORDER · PAID/).waitFor();
-  await page.getByLabel('按订单号查找').waitFor();
-  await page.getByText('暂无可退款订单。', { exact: true }).waitFor();
+  await page.getByText('按订单号或渠道单号查找', { exact: true }).waitFor();
   await page.getByText('USD 已知成本 0.200000，达到预算 0.1', { exact: true }).waitFor();
   await page.getByText('当日 1 次调用成本未知', { exact: true }).waitFor();
   // 付费验证指标同样拆成了「标签 / 数值 / 口径说明」三段。
@@ -97,6 +106,7 @@ try {
   await page.getByText(/1 \/ 2 笔/).waitFor();
   await page.getByText('无法计算 · 2 次非模拟调用', { exact: true }).waitFor();
   await page.getByText('1500.000000 · 1 次非模拟调用', { exact: true }).waitFor();
+  await page.getByRole('tab', { name: '套餐', exact: true }).click();
   await page.getByLabel('套餐名称', { exact: true }).fill('浏览器套餐');
   await page.getByLabel('人民币价格（元）', { exact: true }).fill('6');
   await page.getByLabel('基础金币', { exact: true }).fill('60');
@@ -117,6 +127,7 @@ try {
   await page.getByRole('button', { name: '保存套餐', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: '套餐已被其他操作修改' }).waitFor();
   assert.equal(savedPackages.length, 2);
+  await page.getByRole('tab', { name: '对账', exact: true }).click();
   await page.getByRole('heading',{name:'渠道账单核对',exact:true}).waitFor();
   await page.getByLabel('核对开始时间').fill('2026-10-14T00:00');
   await page.getByLabel('核对结束时间').fill('2026-10-15T00:00');
@@ -125,11 +136,13 @@ try {
   await page.getByRole('status').filter({hasText:'匹配 1 笔，差异 1 笔。'}).waitFor();
   await page.getByText('本地订单不存在',{exact:false}).waitFor();
   orders = [order];
+  await page.getByRole('tab', { name: '订单', exact: true }).click();
   await page.getByLabel('按订单号或渠道单号查找').fill(order.orderNo);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   await page.getByText(order.orderNo, { exact: true }).waitFor();
-  await page.getByLabel('按订单号查找').fill(order.orderNo);
-  await page.getByRole('button', { name: '查找', exact: true }).click();
+  const detail = page.getByRole('button', { name: `查看订单 ${order.orderNo}` });
+  await detail.click();
+  await page.getByRole('dialog').filter({ hasText: order.orderNo }).waitFor();
   const apply = page.getByRole('button', { name: '申请整单退款', exact: true });
   await apply.waitFor(); assert(await apply.isDisabled());
   await page.getByLabel(/申请\s*\/\s*审批\s*\/\s*驳回理由/).fill('用户申请退款');
@@ -142,24 +155,34 @@ try {
   await refundConfirm.getByRole('button', {name: '确认执行', exact: true}).click();
   await page.getByRole('status').filter({hasText:'待审批'}).waitFor();
   assert.deepEqual(actions[0], { action: 'request', reason: '用户申请退款' });
+  // 审批与驳回同样要求先填理由（按钮 disabled 条件是 !reason.trim()）。
+  await page.getByLabel(/申请\s*\/\s*审批\s*\/\s*驳回理由/).fill('另一位管理员批准');
   await page.getByRole('button',{name:'批准并提交渠道',exact:true}).click();
   await refundConfirm.waitFor();
   await refundConfirm.getByRole('button',{name:'确认执行',exact:true}).click();
-  await page.getByRole('alert').filter({ hasText: '渠道结果待核对。' }).waitFor();
+  // 结果未知是正常回执不是请求失败：提示要留下，退款详情也要被读回成 UNKNOWN，查单与重试才会出现。
+  await page.getByRole('alert').filter({ hasText: '支付渠道结果未能确认' }).waitFor();
   assert.equal(actions[1].action,'approve');
-  await page.getByRole('button', { name: '查询退款状态', exact: true }).click();
-  await page.getByRole('alert').filter({ hasText: '渠道结果待核对。' }).waitFor();
-  assert.equal(actions[2].action, 'verify');
+  const verifyButton = page.getByRole('button', { name: '查询退款状态', exact: true });
+  await verifyButton.waitFor();
+  await page.getByRole('button', { name: '同退款单号重试', exact: true }).waitFor();
+  await verifyButton.click();
+  await page.getByRole('alert').filter({ hasText: '支付渠道结果未能确认' }).waitFor();
+  // 只有「查询退款状态」会带出 verify 动作：确认回执是查询，不是另一次申请或重试。
+  assert(actions.some(item => item.action === 'verify'), '查询退款状态必须发出 verify 动作');
   outcome = 'success';
   await page.getByRole('button', { name: '同退款单号重试', exact: true }).click();
   await page.getByRole('status').filter({ hasText: '退款成功' }).waitFor();
   assert.equal(actions[3].action, 'retry');
   assert.equal(await page.getByRole('button', { name: '同退款单号重试', exact: true }).count(), 0);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  // 抽屉是覆盖层，不关掉会把页头的「刷新」挡住；权限拒绝场景要回到页面本身。
+  await page.getByRole('button', { name: '关闭', exact: true }).last().click();
   denied = true;
   await page.getByRole('button', { name: '刷新', exact: true }).first().click();
+  await page.getByRole('tab', { name: '订单', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: '仅财务管理员可查看。' }).waitFor();
   assert.equal(await page.getByText(/FIXTURE-ORDER · PAID/).count(), 0, '拒绝访问后必须清除旧报告');
   assert.deepEqual(errors, []);
-  console.log('PASS 匿名接口 401；套餐创建/活动编辑/并发冲突；预算与未知成本提示；回调异常摘要；渠道账单导入/差异；退款申请/二人审批/拒绝/结果未知保留/查单/重试成功；390px 布局；权限拒绝清空（UI 使用明确模拟数据）');
+  console.log('PASS 匿名接口 401；五标签结构（订单/退款/套餐/对账/商户）；套餐创建/活动编辑/并发冲突；预算与未知成本提示；回调异常摘要；渠道账单导入/差异；退款申请/二人审批/拒绝/结果未知保留/查单/重试成功；390px 布局；权限拒绝清空（UI 使用明确模拟数据）');
 } finally { await browser.close(); }

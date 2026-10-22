@@ -7,12 +7,14 @@ import {API} from '@/lib/api-paths';
 
 type RatioMetric = {key: string; label: string; formula: string; numerator: number; denominator: number; value: number | null};
 type CostRow = {currency: string; knownCost: number; knownCostCalls: number; unknownCostCalls: number; replies: number; costPerReply: number | null};
+type ReplyMix = {free: number; paid: number; total: number; freeShare: number | null};
 type Metrics = {
   tier: string;
   tierLabel: string;
   tierOptions: Array<{key: string; label: string}>;
   testTier: {key: string; label: string; note: string};
   ratios: RatioMetric[];
+  replyMix: ReplyMix;
   costPerReply: CostRow[];
   costNote: string;
   definitions: Record<string, string>;
@@ -43,7 +45,7 @@ export function OpsMetricsPanel({token, days}: {token: string; days: number}) {
   }, [days, tier, token]);
 
   const metrics = report?.metrics;
-  return <AdminPanel title="首轮运营指标" description="生成成功率、分享后的访问、注册到首次聊天、七日回访、每个有效回复成本。分母为 0 一律显示「样本不足」。">
+  return <AdminPanel title="首轮运营指标" description="生成成功率、分享后的访问、注册到首次聊天、七日回访、免费占比与收费回复数（同一分母的两面），以及每个有效回复成本。分母为 0 一律显示「样本不足」。">
     <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
       <label className="flex items-center gap-2">
         <span className="text-muted-foreground">用户档位</span>
@@ -63,6 +65,11 @@ export function OpsMetricsPanel({token, days}: {token: string; days: number}) {
           <p className="mt-1 text-2xl tabular-nums text-foreground">{formatPercent(item.value)}</p>
           <p className="mt-1 text-xs text-muted-foreground">{formatNumber(item.numerator)} / {formatNumber(item.denominator)} · {item.formula}</p>
         </div>)}
+      </div>
+
+      <div className="rounded-lg border border-border p-3">
+        <p className="text-sm font-medium text-foreground">收费回复数与免费占比</p>
+        <p className="mt-1 text-xs text-muted-foreground">免费回复 {formatNumber(metrics.replyMix.free)} · 收费回复 {formatNumber(metrics.replyMix.paid)} · 合计 {formatNumber(metrics.replyMix.total)}（按已结算费用单全量聚合）</p>
       </div>
 
       <div className="rounded-lg border border-border p-3">

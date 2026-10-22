@@ -1,6 +1,6 @@
 'use client';
 
-import {EyeOff, RotateCcw, Trash2} from 'lucide-react';
+import {EyeOff, RotateCcw} from 'lucide-react';
 import Link from 'next/link';
 import {DetailDrawer, DetailRow, DetailSection} from '@/components/admin/layout/detail-drawer';
 import {Badge} from '@/components/ui/badge';
@@ -17,9 +17,10 @@ export interface MirrorResultDrawerProps {
   busy: boolean;
   onClose: () => void;
   onHide: (item: MirrorResultItem) => void;
+  onRestore: (item: MirrorResultItem) => void;
 }
 
-export function MirrorResultDrawer({item, canManage, busy, onClose, onHide}: MirrorResultDrawerProps) {
+export function MirrorResultDrawer({item, canManage, busy, onClose, onHide, onRestore}: MirrorResultDrawerProps) {
   return (
     <DetailDrawer
       open={Boolean(item)}
@@ -78,14 +79,23 @@ export function MirrorResultDrawer({item, canManage, busy, onClose, onHide}: Mir
 
           <DetailSection
             title="管理动作"
-            description="隐藏把状态置为 HIDDEN 并让分享码立即失效，记录保留以便与费用单对账。"
+            description="隐藏把状态置为 HIDDEN 并让分享码立即失效，记录保留以便与费用单对账；恢复按过期时间还原成已生成或已过期。"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" disabled leadingIcon={<RotateCcw className="h-4 w-4" />}>恢复</Button>
-              <Button variant="outline" size="sm" disabled leadingIcon={<Trash2 className="h-4 w-4" />}>删除</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                loading={busy}
+                disabled={item.status !== 'HIDDEN'}
+                leadingIcon={<RotateCcw className="h-4 w-4" />}
+                onClick={() => onRestore(item)}
+              >
+                {item.status === 'HIDDEN' ? '恢复结果' : '未隐藏，无需恢复'}
+              </Button>
             </div>
             <p className="text-xs leading-5 text-muted-foreground">
-              恢复与删除需要后台接口支持；当前接口只提供隐藏，按钮保持不可用，避免看起来能操作却发不出请求。
+              隐藏与删除在这张表上是同一个状态转换（置 HIDDEN、不删行），所以这里只有一个按钮；
+              前台作者删除走 /api/mirror/[shareId]。已过期的结果恢复后仍是已过期，不会重新公开。
             </p>
           </DetailSection>
         </div>

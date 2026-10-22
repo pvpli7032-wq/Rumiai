@@ -15,9 +15,13 @@ export function PricingBasisNote({pricing}: {pricing: PricingBasis}) {
       // 只登记了未来生效的汇率：生效前没有可用汇率，就照实说「待填写」，并把到点时间写出来。
       ? `待填写汇率（${exchange.pendingRate} 于 ${formatDateTime(exchange.pendingEffectiveAt)} 起生效，此前不换算毛利）`
       : '待填写汇率（不换算毛利）';
-  const unitText = pricing.coinUnitPriceCny !== null
-    ? `¥${pricing.coinUnitPriceCny.toFixed(4)}/币${pricing.coinUnitPriceNote ? `（${pricing.coinUnitPriceNote}）` : ''}`
-    : '套餐人民币价格待配置';
+  // 多档套餐每币单价不同：展示区间，并把建议价实际用的那个单值口径写在括号里（V3 §218）。
+  const range = pricing.coinUnitPriceRangeCny;
+  const unitText = pricing.coinUnitPriceCny === null || !range
+    ? '套餐人民币价格待配置'
+    : range.min === range.max
+      ? `¥${range.min.toFixed(4)}/币${pricing.coinUnitPriceNote ? `（${pricing.coinUnitPriceNote}）` : ''}`
+      : `¥${range.min.toFixed(4)}～¥${range.max.toFixed(4)}/币（按套餐到手价折算；建议价按最优惠 ¥${pricing.coinUnitPriceCny.toFixed(4)}/币 计算${pricing.coinUnitPriceNote ? `，${pricing.coinUnitPriceNote}` : ''}）`;
   const items = [
     {label: '成本币汇率', value: rateText},
     {label: '目标毛利', value: pricing.targetMarginPercent === null ? '未设（不生成建议价）' : `${pricing.targetMarginPercent}%`},
@@ -101,6 +105,8 @@ export function PriceTable({rows, days, pricing, loading, error, busy, onRetry, 
             <span className="block text-xs">
               <span className="block font-medium text-foreground">{row.costPrice.currency} {row.costPrice.inputPricePerMillion} / {row.costPrice.outputPricePerMillion}</span>
               <span className="mt-0.5 block text-muted-foreground">每百万 Token · {formatDateTime(row.costPrice.effectiveAt)}</span>
+              {/* 来源是录价格时强制填的，之前只写不读；对账时要能一眼看到依据哪份报价。 */}
+              <span className="mt-0.5 block break-words text-muted-foreground">来源：{row.costPrice.source || NOT_CONFIGURED}</span>
             </span>
           ) : (
             <span className="block text-xs">

@@ -1,37 +1,48 @@
 'use client';
 import { useEffect, useState } from 'react';
-import {CalendarClock, Wallet} from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import type { FinanceReport } from '@/lib/payments/reconciliation-service';
+import { useAdminAccess } from '@/components/admin/use-admin-access';
+import { AdminNotice, AdminPage, AdminPageHeader } from '@/components/admin/admin-page';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FinanceOverview } from '@/components/admin/finance/finance-overview';
 import { FinanceRefunds } from '@/components/admin/finance/finance-refunds';
-import { AiBudgetReport } from '@/components/admin/finance/ai-budget-report';
-import { PaymentValidationMetrics } from '@/components/admin/finance/payment-validation-metrics';
 import { FinancePackages } from '@/components/admin/finance/finance-packages';
-import {PaymentOrderManagement} from '@/components/admin/finance/payment-orders';
-import {CallbackAlerts} from '@/components/admin/finance/callback-alerts';
-import {ChannelReconciliation} from '@/components/admin/finance/channel-reconciliation';
-import {ChargeReconciliationPanel} from '@/components/admin/finance/charge-reconciliation-panel';
-import {useAdminAccess} from '@/components/admin/use-admin-access';
-import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel, AdminPlaceholder, AdminStat, AdminStatGrid} from '@/components/admin/admin-page';
-import {Badge} from '@/components/ui/badge';
-import {Button} from '@/components/ui/button';
-import {Select} from '@/components/ui/select';
-import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import { FinanceMerchants } from '@/components/admin/finance/finance-merchants';
+import { PaymentOrderManagement } from '@/components/admin/finance/payment-orders';
+import { CallbackAlerts } from '@/components/admin/finance/callback-alerts';
+import { ChannelReconciliation } from '@/components/admin/finance/channel-reconciliation';
+import { ChargeReconciliationPanel } from '@/components/admin/finance/charge-reconciliation-panel';
 
-/** 分转元，统一保留两位小数。 */
-function yuan(cents: number) {
-  return `¥${(cents / 100).toFixed(2)}`;
-}
+/**
+ * 财务支付（V3 表 14）：订单为默认标签，退款／套餐／对账／商户各自成标签。
+ *
+ * 每个标签只放自己那一件事：订单标签是经营概览 + 订单列表，
+ * 退款处理在订单详情抽屉内，套餐表单不再堆在订单页上。
+ */
+const TABS = [
+  { value: 'orders', label: '订单' },
+  { value: 'refunds', label: '退款' },
+  { value: 'packages', label: '套餐' },
+  { value: 'reconcile', label: '对账' },
+  { value: 'merchants', label: '商户' },
+] as const;
+type TabValue = (typeof TABS)[number]['value'];
 
 export default function FinancePage() {
   const { token, isLoading } = useAuth();
-  const {permissions} = useAdminAccess();
-  const [tab, setTab] = useState('orders');
+  const { permissions } = useAdminAccess();
+  const [tab, setTab] = useState<TabValue>('orders');
   const [days, setDays] = useState(7);
   const [report, setReport] = useState<FinanceReport | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  /** 退款台账点「在订单详情处理」时带过来的订单号；订单标签消费一次后清空。 */
+  const [focusOrderNo, setFocusOrderNo] = useState('');
+
   useEffect(() => {
     const controller = new AbortController();
     setReport(null); setError(''); setLoading(false);
@@ -66,72 +77,49 @@ export default function FinancePage() {
           </>
         ) : undefined}
       />
-      <Tabs value={tab} onValueChange={value => setTab(value === 'reconcile' ? 'reconcile' : 'orders')}>
+      <Tabs value={tab} onValueChange={value => setTab(TABS.some(item => item.value === value) ? value as TabValue : 'orders')}>
         <TabsList aria-label="财务标签">
-          <TabsTrigger value="orders">订单与退款</TabsTrigger>
-          <TabsTrigger value="reconcile">异常核对</TabsTrigger>
+          {TABS.map(item => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}
         </TabsList>
+
         <TabsContent value="orders" className="flex flex-col gap-6">
-        {error && <AdminNotice tone="error" title={error} />}
-        {loading && <AdminNotice tone="loading" title="正在核对订单与流水…" />}
-        {report && <>
-          <AdminStatGrid>
-            <AdminStat label="已付款订单" value={`${report.paidOrders} 笔`} hint={yuan(report.paidAmountCnyCents)} icon={<Wallet className="h-4 w-4" />} tone="brand" />
-            <AdminStat label="已完成退款" value={`${report.completedRefunds} 笔`} hint={yuan(report.refundedAmountCnyCents)} tone="warning" />
-            <AdminStat label="退款后金额" value={yuan(report.netAfterRefundsCnyCents)} hint="不含通道手续费、结算费用与 AI 成本" tone="success" />
-            <AdminStat label="报告时间" value={new Date(report.generatedAt).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})} hint={new Date(report.generatedAt).toLocaleDateString('zh-CN')} icon={<CalendarClock className="h-4 w-4" />} />
-          </AdminStatGrid>
-
-          <FinancePackages token={token!} canEdit={permissions.includes('finance.packages.write')} />
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            <AiBudgetReport report={report.aiBudget} />
-            <PaymentValidationMetrics metrics={report.validationMetrics} costs={report.aiCosts} />
-          </div>
-
-          <AdminPanel
-            title="全量账本异常"
-            description="历史期初余额尚未登记，暂不按流水合计推断余额。异常列表最多显示 100 条。"
-            badge={
-              <Badge variant={report.orderAnomalies.length + report.refundAnomalies.length + report.negativeBalances.length > 0 ? 'danger' : 'success'}>
-                订单 {report.orderAnomalies.length}{report.orderAnomaliesTruncated ? '+' : ''} · 退款 {report.refundAnomalies.length}{report.refundAnomaliesTruncated ? '+' : ''} · 负余额 {report.negativeBalances.length}{report.negativeBalancesTruncated ? '+' : ''}
-              </Badge>
-            }
-          >
-            <div className="space-y-3 text-sm">
-              {report.orderAnomalies.length === 0 && report.refundAnomalies.length === 0 && report.negativeBalances.length === 0 && (
-                <p className="text-muted-foreground">未发现不一致记录。</p>
-              )}
-              {report.orderAnomalies.map(row => <p className="break-all" key={row.orderNo}>{row.orderNo} · {row.status} · 应入账 {row.expectedCoins} / 实际 {row.actualCoins ?? '无流水'}</p>)}
-              {report.refundAnomalies.map(row => <p className="break-all" key={row.refundNo || row.orderNo}>{row.orderNo} · 退款单 {row.refundNo ?? '缺记录'} · {row.refundStatus ?? '无状态'} · 扣币 {row.debitCoins ?? '无流水'} / 返还 {row.releaseCoins ?? '无流水'}</p>)}
-              {report.negativeBalances.map(row => <p className="break-all" key={row.id}>账号 {row.id} · 余额 {row.coins}</p>)}
-            </div>
-          </AdminPanel>
-
-          <AdminPanel title="AI 成本估算" description="各币种分别统计，未知成本不能视为零；模拟调用不计真实成本。这不是供应商账单。" badge={<Badge>{report.aiCosts.length} 种币种</Badge>}>
-            {report.aiCosts.length === 0 ? (
-              <AdminPlaceholder>此时间范围暂无调用记录。</AdminPlaceholder>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {report.aiCosts.map(row => (
-                  <div key={row.currency} className="break-words rounded-lg border border-border p-4">
-                    <p className="text-sm font-medium text-foreground">{row.currency} · 已知成本 {row.estimatedCost.toFixed(6)}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">共 {row.calls} 次；有成本记录 {row.knownCostCalls} 次，未知成本 {row.unknownCostCalls} 次，模拟 {row.mockCalls} 次，失败或取消 {row.failedCalls} 次</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </AdminPanel>
-        </>}
-        {canReadFinance && <PaymentOrderManagement token={token!} />}
-        {canReadFinance && <CallbackAlerts token={token!} />}
-        {canReadFinance && <ChannelReconciliation token={token!} canImport={permissions.includes('finance.reconciliation.import')} />}
-        {token && !error && <FinanceRefunds token={token} canRequest={permissions.includes('finance.refunds.request')} canApprove={permissions.includes('finance.refunds.approve')} canExecute={permissions.includes('finance.refunds.execute')} />}
+          {canReadFinance
+            ? <>
+                <FinanceOverview report={report} loading={loading} error={error} />
+                <PaymentOrderManagement
+                  token={token!}
+                  canRequest={permissions.includes('finance.refunds.request')}
+                  canApprove={permissions.includes('finance.refunds.approve')}
+                  canExecute={permissions.includes('finance.refunds.execute')}
+                  focusOrderNo={focusOrderNo}
+                  onFocusHandled={() => setFocusOrderNo('')}
+                />
+              </>
+            : <AdminNotice tone="denied" title="当前账号没有财务查看权限。" />}
         </TabsContent>
+
+        <TabsContent value="refunds" className="flex flex-col gap-6">
+          {canReadFinance
+            ? <FinanceRefunds token={token!} onOpenOrder={orderNo => { setFocusOrderNo(orderNo); setTab('orders'); }} />
+            : <AdminNotice tone="denied" title="当前账号没有财务查看权限。" />}
+        </TabsContent>
+
+        <TabsContent value="packages" className="flex flex-col gap-6">
+          {token && !error
+            ? <FinancePackages token={token} canEdit={permissions.includes('finance.packages.write')} />
+            : <AdminNotice tone="denied" title={error || '请先登录财务管理员账号。'} />}
+        </TabsContent>
+
         <TabsContent value="reconcile" className="flex flex-col gap-6">
+          {canReadFinance && <ChannelReconciliation token={token!} canImport={permissions.includes('finance.reconciliation.import')} />}
+          {canReadFinance && <CallbackAlerts token={token!} />}
           {canReadBilling
             ? <ChargeReconciliationPanel token={token} canRun={permissions.includes('tasks.manage')} />
             : <AdminNotice tone="denied" title="当前账号没有计费查看权限，无法查看费用单。" />}
+        </TabsContent>
+
+        <TabsContent value="merchants" className="flex flex-col gap-6">
+          {token ? <FinanceMerchants token={token} permissions={permissions} /> : <AdminNotice tone="denied" title="请先登录财务管理员账号。" />}
         </TabsContent>
       </Tabs>
     </AdminPage>

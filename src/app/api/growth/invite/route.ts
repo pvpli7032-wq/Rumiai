@@ -17,7 +17,8 @@ export async function GET(request: Request) {
     if (!settings.enabled) return NextResponse.json({enabled: false, code: null, link: null, rewardCoins: settings.rewardCoins}, {headers: privateHeaders});
     const code = await ensureInviteCode(user.userId);
     const origin = new URL(request.url).origin;
-    return NextResponse.json({enabled: true, code, link: `${origin}/register?invite=${encodeURIComponent(code)}`, rewardCoins: settings.rewardCoins}, {headers: privateHeaders});
+    // 链接走落地口而不是直连注册页：访问这一环要由服务端记（见 invite/visit/route.ts）。
+    return NextResponse.json({enabled: true, code, link: `${origin}/api/growth/invite/visit?code=${encodeURIComponent(code)}`, rewardCoins: settings.rewardCoins}, {headers: privateHeaders});
   } catch (error) {
     return jsonError(error, 'GET /api/growth/invite', '邀请信息读取失败，请稍后重试。');
   }

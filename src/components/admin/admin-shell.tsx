@@ -11,6 +11,7 @@ import {findEntry, visibleGroups} from '@/lib/admin/nav';
 import {cn} from '@/components/ui/cn';
 import {AdminNav} from './layout/admin-nav';
 import {useNavPins} from './nav-pins';
+import {ThemeToggle} from '@/components/theme-toggle';
 
 const SIDEBAR_STATE_KEY = 'admin.sidebar.collapsed';
 
@@ -144,6 +145,7 @@ export function AdminShell({children}: {children: ReactNode}) {
               <ExternalLink className="h-4 w-4" />查看前台
             </Link>
             <span aria-hidden className="hidden h-6 w-px bg-border md:block" />
+            <ThemeToggle />
             <div className="relative">
               <button
                 type="button"

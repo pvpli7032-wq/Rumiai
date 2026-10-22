@@ -202,7 +202,7 @@ export async function enqueueCloseIfReached(caseId: string, now = new Date()) {
 
 /** 到期任务登记：在所有案例里找已到期的，登记成持久任务。 */
 export async function scheduleDueDisputes(now = new Date(), limit = 50) {
-  const due = await db.disputeCase.findMany({where: {closeStatus: 'OPEN', deadlineAt: {lte: now}}, orderBy: {deadlineAt: 'asc'}, take: limit, select: {id: true}});
+  const due = await db.disputeCase.findMany({where: {closeStatus: 'OPEN', deadlineAt: {lte: now}}, orderBy: [{deadlineAt: 'asc'}, {id: 'asc'}], take: limit, select: {id: true}});
   let queued = 0;
   for (const row of due) if (await enqueueCloseIfReached(row.id, now)) queued += 1;
   return queued;

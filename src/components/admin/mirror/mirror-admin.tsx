@@ -124,6 +124,27 @@ export function MirrorAdmin() {
     }
   }
 
+  async function restoreResult(item: MirrorResultItem) {
+    if (!token || busy) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const data = await apiFetch<{status: MirrorStatus; changed: boolean}>(API.admin.mirrorResult(item.id), {token, method: 'PATCH'});
+      setNotice(
+        data.changed
+          ? `结果 ${item.shareId} 已恢复为「${MIRROR_STATUS_LABELS[data.status]}」。`
+          : `结果 ${item.shareId} 当前是「${MIRROR_STATUS_LABELS[data.status]}」，不需要恢复。`,
+      );
+      setSelected(null);
+      setRefreshKey(value => value + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '恢复失败，请稍后重试。');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在验证管理权限…" /></AdminPage>;
   if (!token || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有「他眼中的你」查看权限。'} /></AdminPage>;
 
@@ -252,7 +273,14 @@ export function MirrorAdmin() {
         </TabsContent>
       </Tabs>
 
-      <MirrorResultDrawer item={selected} canManage={canManage} busy={busy} onClose={() => setSelected(null)} onHide={item => void hideResult(item)} />
+      <MirrorResultDrawer
+        item={selected}
+        canManage={canManage}
+        busy={busy}
+        onClose={() => setSelected(null)}
+        onHide={item => void hideResult(item)}
+        onRestore={item => void restoreResult(item)}
+      />
     </AdminPage>
   );
 }

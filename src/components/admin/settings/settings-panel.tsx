@@ -7,7 +7,8 @@ import {SettingsGroup} from '@/components/admin/layout/settings-group';
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
-import {SETTING_GROUPS} from '@/lib/settings/registry';
+import {SETTING_GROUPS, definitionsOfGroup} from '@/lib/settings/registry';
+import {SETTINGS_CACHE_TTL_MS} from '@/lib/settings/types';
 import type {SettingDefinition, SettingGroup as SettingsGroupId} from '@/lib/settings/types';
 import {ExportImportDialog} from './export-import-dialog';
 import {sameSettingValue} from './format';
@@ -68,8 +69,10 @@ export function SettingsPanel({activeGroup, token, canWrite, controller}: {
 
   useEffect(() => {
     if (savedAt === null) return;
-    setSavedNotice(`已保存 ${activeGroup === 'prompts' ? '提示词' : '本页'}设置，页面保持在当前位置。`);
-    const timer = window.setTimeout(() => setSavedNotice(''), 4000);
+    // V3 表 10「如何生效」：本进程立即生效，其他后台进程最多一个缓存周期后刷新，界面照实说。
+    const seconds = Math.round(SETTINGS_CACHE_TTL_MS / 1000);
+    setSavedNotice(`已保存 ${activeGroup === 'prompts' ? '提示词' : '本页'}设置，当前进程立即生效；其他后台进程最多 ${seconds} 秒内跟进。`);
+    const timer = window.setTimeout(() => setSavedNotice(''), 6000);
     return () => window.clearTimeout(timer);
   }, [savedAt, activeGroup]);
 
@@ -94,6 +97,7 @@ export function SettingsPanel({activeGroup, token, canWrite, controller}: {
           value={draft[definition.key] ?? definition.default}
           source={values[definition.key]?.source ?? 'DEFAULT'}
           version={values[definition.key]?.version ?? 0}
+          updatedAt={values[definition.key]?.updatedAt ?? null}
           dirty={dirtyKeys.includes(definition.key)}
           error={fieldErrors[definition.key]}
           disabled={!canWrite}
@@ -202,7 +206,8 @@ export function SettingsPanel({activeGroup, token, canWrite, controller}: {
           token={token}
           group={activeGroup}
           canWrite={canWrite}
-          definitions={definitions.map(definition => ({key: definition.key, label: definition.label}))}
+          // 历史按分类取全量键（含 hidden 的），否则那几项的修改记录在筛选里选不到。
+          definitions={definitionsOfGroup(activeGroup).map(definition => ({key: definition.key, label: definition.label}))}
           onClose={() => setHistoryOpen(false)}
           onRestored={() => controller.reload()}
         />
@@ -227,7 +232,7 @@ export function SettingsPanel({activeGroup, token, canWrite, controller}: {
 
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <Settings aria-hidden className="h-3.5 w-3.5" />
-        字段技术名、默认值、来源与版本在每项的「字段详情」里；同一项只在这里改一处。
+        字段技术名、默认值、可输入范围、来源、版本与更新时间在每项的「字段详情」里；同一项只在这里改一处。
       </p>
     </div>
   );

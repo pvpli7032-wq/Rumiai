@@ -2,7 +2,10 @@ import {db} from '@/lib/db';
 import {readSettingValue} from '@/lib/settings/service';
 import {lockAllowanceDay, readBillingTimezone, readFreeCancelLimit, resolveBillingDay} from './allowance';
 import {findChargeInTx, releaseInTx, settleInTx, type Tx} from './charge-service';
-import {CANCEL_POLICIES, type CancelPolicy, type ChargeOperation, type ChargeOutcome} from './types';
+import {CANCEL_POLICIES, type CancelPolicy, type ChargeCancelReason, type ChargeOperation, type ChargeOutcome} from './types';
+
+/** 取消原因只有这一个值：本文件处理的全是用户主动取消（V3 §157）。 */
+const USER_CANCEL: ChargeCancelReason = 'USER_CANCELLED';
 
 /**
  * 用户取消的计费判定（V3 表 8 billing.cancelPolicy / 表 16「用户取消」）。
@@ -84,7 +87,11 @@ export async function settleCancellationInTx(tx: Tx, input: CancelInput, context
   const releaseNow = !input.outputDelivered
     || policy === 'RELEASE_ALWAYS'
     || (freeCancelLimit > 0 && await claimFreeCancel(tx, input.userId, day, freeCancelLimit));
-  return releaseNow ? releaseInTx(tx, existing, {...base, reason: 'USER_CANCELLED'}, now) : settleInTx(tx, existing, base, now);
+  // 两条路径都要把原因落到费用单上：按已输出计费那条以前什么都不记，对账时分不出
+  // 「正常完成」和「取消但仍计费」（V3 §157）。
+  return releaseNow
+    ? releaseInTx(tx, existing, {...base, reason: USER_CANCEL}, now)
+    : settleInTx(tx, existing, {...base, cancelReason: USER_CANCEL}, now);
 }
 
 /** 用户取消：判定与落账在同一个事务里完成，重复调用只生效一次。 */

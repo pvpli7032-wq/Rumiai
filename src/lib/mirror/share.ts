@@ -1,5 +1,5 @@
-import {createHash, createHmac, randomBytes, timingSafeEqual} from 'crypto';
-import {MIRROR_QUOTA_COOKIE, type MirrorOwnerResult, type MirrorPublicResult} from './types';
+import {createHash, createHmac, randomBytes, timingSafeEqual} from 'node:crypto';
+import {DEFAULT_MIRROR_LAYOUT, MIRROR_QUOTA_COOKIE, readMirrorLayout, type MirrorOwnerResult, type MirrorPublicResult, type MirrorResultLayout} from './types';
 
 /**
  * 分享与匿名归属。
@@ -90,6 +90,8 @@ export type MirrorRow = {
   observationsJson: string;
   quote: string;
   indicesJson: string;
+  /** 生成时存档：模型原文 + 当时的版式。见 encodeMirrorSnapshot。 */
+  rawJson: string | null;
   status: string;
   createdAt: Date;
   expiresAt: Date | null;
@@ -103,6 +105,33 @@ function parseJson<T>(raw: string): T | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 生成结果的存档字段：模型原文与生成时的版式一起写进 raw_json。
+ *
+ * 版式必须跟着结果走（V3 表 9「只影响新结果」），但 mirror_results 没有单独的版式列，
+ * raw_json 是唯一按结果保存的自由字段，所以做成 {layout, raw} 的小信封。
+ * 读的时候两种形态都认：信封按 layout 取，早期直接存原文的行按默认版式。
+ */
+export function encodeMirrorSnapshot(raw: string, layout: MirrorResultLayout): string {
+  return JSON.stringify({layout, raw});
+}
+
+export function readMirrorSnapshot(rawJson: string | null): {layout: MirrorResultLayout; raw: string | null} {
+  if (!rawJson) return {layout: DEFAULT_MIRROR_LAYOUT, raw: null};
+  try {
+    const parsed: unknown = JSON.parse(rawJson);
+    // 只有带 raw 字段的对象才是信封；早期行存的模型原文本身也是 JSON 对象，
+    // 不能把它当成信封（那会读成「有版式、没原文」）。认不出就按原文处理。
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof (parsed as Record<string, unknown>).raw === 'string') {
+      const item = parsed as Record<string, unknown>;
+      return {layout: readMirrorLayout(item.layout), raw: item.raw as string};
+    }
+  } catch {
+    // 早期行直接存模型原文，不是 JSON：按默认版式读，原文原样返回。
+  }
+  return {layout: DEFAULT_MIRROR_LAYOUT, raw: rawJson};
 }
 
 /** 结果是否仍可读：状态为 READY 且未过期。删除写在 status 上，所以删除后就是 404。 */
@@ -126,6 +155,7 @@ export function toPublicResult(row: MirrorRow, character: MirrorCharacterView): 
   if (!Array.isArray(observations) || observations.length !== 3 || !indices) return null;
   return {
     shareId: row.shareId,
+    layout: readMirrorSnapshot(row.rawJson).layout,
     title: row.title,
     observations: [observations[0], observations[1], observations[2]],
     quote: row.quote,

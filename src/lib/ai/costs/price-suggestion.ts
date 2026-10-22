@@ -26,6 +26,11 @@ export interface PricingBasis {
   targetMarginPercent: number | null;
   /** 每币单价（人民币/币），由在售套餐的实发币数折算；null 表示没有可用的套餐价格。 */
   coinUnitPriceCny: number | null;
+  /**
+   * 全部在售套餐的每币单价区间（V3 §218）。多档套餐价格不同，页面按区间展示；
+   * 建议价与毛利仍用 coinUnitPriceCny 这个最优惠单值，不做加权（没有真实消费归因）。
+   */
+  coinUnitPriceRangeCny: {min: number; max: number} | null;
   /** 单价口径说明，例如「最优惠到手价：标准 ¥10 / 100 币」。 */
   coinUnitPriceNote: string | null;
   exchange: ExchangeRateState;

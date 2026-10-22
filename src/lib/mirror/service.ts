@@ -7,7 +7,7 @@ import type {AiStreamMetrics} from '@/lib/ai/types';
 import {buildMirrorPrompt, buildRepairPrompt, generateMirrorResult, MIRROR_TASK_TYPE, normalizeAnswers} from './generation';
 import {createMirrorModelCaller, MirrorModelError} from './model-call';
 import {consumeMirrorLimit, mirrorDayKey, mirrorQuotaView, readMirrorLimitState, readMirrorUsage, releaseMirrorLimit, type MirrorIdentity, type MirrorLimitPlan} from './limits';
-import {hashMirrorIp, mirrorAttributionCookieName, mirrorIpSalt, newMirrorSubject, readCookie, readMirrorQuotaCookie, signMirrorAttribution, toOwnerResult, toPublicResult, type MirrorRow} from './share';
+import {encodeMirrorSnapshot, hashMirrorIp, mirrorAttributionCookieName, mirrorIpSalt, newMirrorSubject, readCookie, readMirrorQuotaCookie, signMirrorAttribution, toOwnerResult, toPublicResult, type MirrorRow} from './share';
 import {readConfigFor, type MirrorConfig} from './config';
 import {clientIp} from '@/lib/http/client-ip';
 import {MirrorError} from './errors';
@@ -25,8 +25,14 @@ import {MIRROR_QUOTA_COOKIE, MIRROR_SUBJECT_COOKIE, type MirrorCharacterOption, 
  * 费用单，走 billing 的 hold → settle/release 唯一入口（见 purchase.ts）。
  */
 
-/** 首页角色数量上限：后台指定名单按顺序取这么多个，自动选取也补齐到这个数。 */
-const MIRROR_CHARACTER_LIMIT = 6;
+/**
+ * 自动选取时的角色数量（V3 表 22「先 6 个，再补到 20」）。
+ *
+ * 只约束「名单为空、由系统按热度挑」这一条路：要展示多少个角色由运营在
+ * mirror.featuredCharacterIds 里写多少个决定，名单本身就是数量配置，
+ * 不再有第二个写死的上限挡住「补到 20」。
+ */
+const AUTO_CHARACTER_LIMIT = 6;
 /** 匿名主体与归属凭据 Cookie 保留一年。 */
 export const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -59,15 +65,15 @@ async function autoFeaturedCharacters(): Promise<MirrorCharacterOption[]> {
   const featured = await db.character.findMany({
     where: {isPublic: true, reviewStatus: 'APPROVED', isExclusive: true},
     orderBy: [{chatCount: 'desc'}, {createdAt: 'asc'}],
-    take: MIRROR_CHARACTER_LIMIT,
+    take: AUTO_CHARACTER_LIMIT,
     select: CHARACTER_SELECT,
   });
   const picked = featured.map(item => ({...item, source: 'AUTO' as const}));
-  if (picked.length >= MIRROR_CHARACTER_LIMIT) return picked;
+  if (picked.length >= AUTO_CHARACTER_LIMIT) return picked;
   const fill = await db.character.findMany({
     where: {isPublic: true, reviewStatus: 'APPROVED', id: {notIn: picked.map(item => item.id)}},
     orderBy: [{chatCount: 'desc'}, {createdAt: 'asc'}],
-    take: MIRROR_CHARACTER_LIMIT - picked.length,
+    take: AUTO_CHARACTER_LIMIT - picked.length,
     select: CHARACTER_SELECT,
   });
   return [...picked, ...fill.map(item => ({...item, source: 'AUTO' as const}))];
@@ -77,10 +83,12 @@ async function autoFeaturedCharacters(): Promise<MirrorCharacterOption[]> {
  * 首页角色名单（V3 表 19）：后台 mirror.featuredCharacterIds 指定优先，按数组顺序取
  * 已审核公开的角色；名单里失效或已下架的 id 直接跳过，不报错。
  * 名单为空、或一个都取不到时回退自动选取——那段代码是 fallback，不是死代码。
+ *
+ * 名单长度就是展示数量：运营写 20 个 id 就展示 20 个，这里不再截断。
  */
 export async function listMirrorCharacters(): Promise<MirrorCharacterOption[]> {
   const config = await readConfigFor(null);
-  const ids = config.featuredCharacterIds.slice(0, MIRROR_CHARACTER_LIMIT);
+  const ids = config.featuredCharacterIds;
   if (ids.length) {
     const rows = await db.character.findMany({where: {id: {in: ids}, isPublic: true, reviewStatus: 'APPROVED'}, select: CHARACTER_SELECT});
     const byId = new Map(rows.map(row => [row.id, row]));
@@ -234,7 +242,7 @@ export async function generateMirror(context: MirrorContext, input: {answers?: u
     const call = await createMirrorModelCaller(character.id, metrics);
     outcome = await generateMirrorResult({
       call,
-      prompt: buildMirrorPrompt({template: config.template, character: character as MirrorCharacterOption & PromptCharacter, answers, rules: config}),
+      prompt: buildMirrorPrompt({template: config.template, character: character as MirrorCharacterOption & PromptCharacter, answers, rules: config, observationStyle: config.observationStyle}),
       repairPrompt: raw => buildRepairPrompt({raw, answers, rules: config}),
       limits: config,
     });
@@ -261,8 +269,12 @@ export async function generateMirror(context: MirrorContext, input: {answers?: u
       observationsJson: JSON.stringify(outcome.fields.observations),
       quote: outcome.fields.quote,
       indicesJson: JSON.stringify(outcome.fields.indices),
-      rawJson: outcome.raw.slice(0, 20000),
+      // 模型原文与生成时的版式一起存档；版式只影响新结果（V3 表 9），所以按结果冻结。
+      rawJson: encodeMirrorSnapshot(outcome.raw.slice(0, 20000), config.resultLayout),
       status: 'READY',
+      // 费用关联：hold 一建单就有 chargeId，settle 不会换 id，所以在结果行上直接落这一笔。
+      // 免费/未开收费时 hold.held=false、chargeId=null，结果照常保存，不伪造关联。
+      chargeId: chargeTurn?.hold.chargeId ?? null,
       expiresAt,
     },
   });

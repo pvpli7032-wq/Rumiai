@@ -24,6 +24,8 @@ assert.equal(migration.status, 0, migration.stdout + migration.stderr);
 const {db, pragmasReady} = await import('../src/lib/db.ts');
 await pragmasReady;
 const {generateMirrorResult, validateMirrorOutput, normalizeAnswers, buildMirrorPrompt} = await import('../src/lib/mirror/generation.ts');
+const {encodeMirrorSnapshot, readMirrorSnapshot} = await import('../src/lib/mirror/share.ts');
+const {restoreAdminMirrorResult, hideAdminMirrorResult} = await import('../src/lib/admin/mirror-results-admin.ts');
 const {consumeMirrorLimit, readMirrorUsage, readMirrorLimitState, releaseMirrorLimit, resetMirrorLimits, mirrorQuotaView, mirrorDayKey} = await import('../src/lib/mirror/limits.ts');
 const {toPublicResult, toOwnerResult, isMirrorReadable, canDeleteMirrorResult, hashMirrorIp, signMirrorAttribution, verifyMirrorAttribution} = await import('../src/lib/mirror/share.ts');
 const {readMirrorResult, deleteMirrorResult, readMyMirrorResults} = await import('../src/lib/mirror/repository.ts');
@@ -122,6 +124,16 @@ test('提示词把角色身份、字数上限与三道回答都带给模型', ()
   assert.match(prompt, /不超过 8 字/);
   assert.match(prompt, /第3题回答：三/);
   assert.match(prompt, /observations/);
+  // 没配观察风格时不额外加一句，提示词里不该出现空的「三条观察的写法：」。
+  assert.equal(prompt.includes('三条观察的写法'), false);
+});
+
+test('观察风格来自设置中心，拼进提示词；没配就不加这一行', () => {
+  const character = {name: '林夏', tagline: '安静的画家', personality: '内敛', background: null, scenario: null};
+  const styled = buildMirrorPrompt({template: '你是观察者。', character, answers: ['一', '二', '三'], rules, observationStyle: '具体、克制，指出现象而不是下判断'});
+  assert.match(styled, /三条观察的写法：具体、克制，指出现象而不是下判断/);
+  const blank = buildMirrorPrompt({template: '你是观察者。', character, answers: ['一', '二', '三'], rules, observationStyle: '   '});
+  assert.equal(blank.includes('三条观察的写法'), false);
 });
 
 test('Cookie 通道上限 1 次：同一浏览器第二次就被拒', () => {
@@ -235,14 +247,37 @@ test('上限设为 0 表示暂停，文案说「暂停」而不是「用完了�
 });
 
 test('分享视图只有结果字段，绝不包含三题原回答', () => {
-  const row = {shareId: 'share-1', userId: null, anonymousSubject: 'subject', characterId: 'char-1', title: '安静的观察者', observationsJson: JSON.stringify(['观察一', '观察二', '观察三']), quote: '金句', indicesJson: JSON.stringify({atmosphere: 72, rapport: 88}), status: 'READY', createdAt: new Date('2026-10-21T00:00:00Z'), expiresAt: null};
+  const row = {shareId: 'share-1', userId: null, anonymousSubject: 'subject', characterId: 'char-1', title: '安静的观察者', observationsJson: JSON.stringify(['观察一', '观察二', '观察三']), quote: '金句', indicesJson: JSON.stringify({atmosphere: 72, rapport: 88}), rawJson: null, status: 'READY', createdAt: new Date('2026-10-21T00:00:00Z'), expiresAt: null};
   const view = toPublicResult(row, {id: 'char-1', name: '林夏', avatarUrl: null});
   const serialized = JSON.stringify(view);
-  assert.deepEqual(Object.keys(view).sort(), ['characterAvatarUrl', 'characterId', 'characterName', 'createdAt', 'expiresAt', 'indices', 'observations', 'quote', 'shareId', 'title']);
+  assert.deepEqual(Object.keys(view).sort(), ['characterAvatarUrl', 'characterId', 'characterName', 'createdAt', 'expiresAt', 'indices', 'layout', 'observations', 'quote', 'shareId', 'title']);
   assert.equal(serialized.includes('answers'), false);
   assert.equal(serialized.includes('原回答秘密'), false);
   const owner = toOwnerResult(view, ['原回答秘密'], true);
   assert.deepEqual(owner.answers, ['原回答秘密']);
+});
+
+test('版式在生成时冻结进结果：信封取得到，早期直接存原文的行按默认版式', () => {
+  assert.deepEqual(readMirrorSnapshot(null), {layout: 'FOUR_SECTION', raw: null});
+  const envelope = readMirrorSnapshot(encodeMirrorSnapshot('{"title":"x"}', 'HERO_QUOTE'));
+  assert.deepEqual(envelope, {layout: 'HERO_QUOTE', raw: '{"title":"x"}'});
+  // 早期行直接把模型原文写进 raw_json，不是 JSON 信封：按默认版式读，原文不丢。
+  assert.deepEqual(readMirrorSnapshot('{"title":"只有原文"}'), {layout: 'FOUR_SECTION', raw: '{"title":"只有原文"}'});
+  assert.deepEqual(readMirrorSnapshot('不是 JSON 的原文'), {layout: 'FOUR_SECTION', raw: '不是 JSON 的原文'});
+  const row = {shareId: 'share-layout', userId: null, anonymousSubject: null, characterId: 'char-1', title: '称号', observationsJson: JSON.stringify(['甲', '乙', '丙']), quote: '金句', indicesJson: JSON.stringify({atmosphere: 1, rapport: 2}), rawJson: encodeMirrorSnapshot('原文', 'HERO_QUOTE'), status: 'READY', createdAt: new Date('2026-10-21T00:00:00Z'), expiresAt: null};
+  assert.equal(toPublicResult(row, {id: 'char-1', name: '林夏', avatarUrl: null}).layout, 'HERO_QUOTE');
+});
+
+test('名单长度就是展示数量：配 8 个就展示 8 个，不再被 6 截断', async () => {
+  const many = [];
+  for (let index = 0; index < 8; index += 1) {
+    many.push(await db.character.create({data: {name: `扩容角色${index}`, personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}}));
+  }
+  await setSetting('mirror.featuredCharacterIds', many.map(item => item.id));
+  const list = await listMirrorCharacters();
+  assert.equal(list.length, 8);
+  assert.deepEqual(list.map(item => item.id), many.map(item => item.id));
+  assert(list.every(item => item.source === 'CONFIGURED'));
 });
 
 test('推广角色名单为空时回退自动选取', async () => {
@@ -661,6 +696,37 @@ test('结果隐藏、过期、删除后预览图拿不到内容（与分享页�
   assert.equal(await readPreviewCard(removable.shareId), null);
   // 从未存在的分享码同样是 null（路由据此返回 404，不渲染空白图）。
   assert.equal(await readPreviewCard('share-does-not-exist'), null);
+});
+
+test('后台隐藏后能恢复：未过期回到 READY，已过期回到 EXPIRED，非隐藏态不动', async () => {
+  const character = await db.character.create({data: {name: '恢复角色', personality: 'x', background: 'y', isPublic: true, reviewStatus: 'APPROVED'}});
+  const make = (expiresAt = null) => db.mirrorResult.create({data: {
+    shareId: 'restore' + randomUUID().replace(/-/g, '').slice(0, 10),
+    userId: null, anonymousSubject: 'subject-restore-000001', characterId: character.id,
+    answersJson: JSON.stringify(['一', '二', '三']), title: '称号', observationsJson: JSON.stringify(['甲', '乙', '丙']),
+    quote: '金句', indicesJson: JSON.stringify({atmosphere: 1, rapport: 2}), status: 'READY', expiresAt,
+  }});
+
+  // 未过期：隐藏 → 恢复 → 回到 READY，分享页重新可读。
+  const live = await make();
+  assert.equal((await hideAdminMirrorResult(live.id)).status, 'HIDDEN');
+  assert.equal(await readPreviewCard(live.shareId), null);
+  const restored = await restoreAdminMirrorResult(live.id);
+  assert.deepEqual({status: restored.status, changed: restored.changed}, {status: 'READY', changed: true});
+  assert.notEqual(await readPreviewCard(live.shareId), null);
+
+  // 已过期：恢复不能把它变回可访问，只能还原成 EXPIRED。
+  const stale = await make(new Date(Date.now() - 60_000));
+  await hideAdminMirrorResult(stale.id);
+  const staleRestored = await restoreAdminMirrorResult(stale.id);
+  assert.equal(staleRestored.status, 'EXPIRED');
+  assert.equal(await readPreviewCard(stale.shareId), null);
+  assert.equal((await db.mirrorResult.findUnique({where: {id: stale.id}, select: {status: true}})).status, 'EXPIRED');
+
+  // 非隐藏态：条件更新不命中，状态原样返回、changed=false，不误改别人的状态。
+  const untouched = await restoreAdminMirrorResult(live.id);
+  assert.deepEqual({status: untouched.status, changed: untouched.changed}, {status: 'READY', changed: false});
+  await assert.rejects(() => restoreAdminMirrorResult('no-such-id'), error => error.status === 404);
 });
 
 test('过期的结果同样读不到', async () => {

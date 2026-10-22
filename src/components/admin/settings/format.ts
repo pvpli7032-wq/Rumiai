@@ -34,6 +34,10 @@ export function formatSettingValue(definition: SettingDefinition, value: JsonVal
   }
 }
 
+/** 文本类设置的长度上限；校验与字段详情共用同一份数字。 */
+export const TEXT_MAX_CHARS = 8000;
+export const STRING_MAX_CHARS = 200;
+
 /** 数值输入框下方的可填范围提示。 */
 export function rangeHint(definition: SettingDefinition): string {
   if (definition.type !== 'number') return '';
@@ -43,6 +47,27 @@ export function rangeHint(definition: SettingDefinition): string {
   if (definition.min !== undefined) return `不小于 ${definition.min}${definition.unit ?? ''}`;
   if (definition.max !== undefined) return `不大于 ${definition.max}${definition.unit ?? ''}`;
   return '';
+}
+
+/**
+ * 字段详情里的「可输入范围」（V3 §85：建议值、可输入范围和当前值分开显示）。
+ *
+ * 数值取登记的 min/max，枚举列出全部可选值，文本类说明长度上限，
+ * 开关与 JSON 没有范围。默认值就是「建议值」，当前值在控件里，三者不混在一行。
+ */
+export function rangeText(definition: SettingDefinition): string {
+  switch (definition.type) {
+    case 'number':
+      return rangeHint(definition) || '不限';
+    case 'enum':
+      return (definition.options ?? []).map(option => option.label).join(' / ') || '不限';
+    case 'text':
+      return `不超过 ${TEXT_MAX_CHARS} 字`;
+    case 'string':
+      return `不超过 ${STRING_MAX_CHARS} 字`;
+    default:
+      return '不限';
+  }
 }
 
 /**
@@ -70,12 +95,12 @@ export function validateSettingValue(definition: SettingDefinition, value: JsonV
     case 'string': {
       const text = String(value ?? '').trim();
       if (!text) return '不能为空。';
-      return text.length > 200 ? '长度不能超过 200。' : null;
+      return text.length > STRING_MAX_CHARS ? `长度不能超过 ${STRING_MAX_CHARS}。` : null;
     }
     case 'text': {
       const text = String(value ?? '').trim();
       if (!text) return '不能为空。';
-      return text.length > 8000 ? '长度不能超过 8000。' : null;
+      return text.length > TEXT_MAX_CHARS ? `长度不能超过 ${TEXT_MAX_CHARS}。` : null;
     }
     case 'json': {
       if (value === null || value === undefined) return '需要 JSON 值。';

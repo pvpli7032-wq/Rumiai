@@ -1753,6 +1753,10 @@ model GenerationCharge {
   coins             Int       @default(0)
   priceSnapshotJson String    @map("price_snapshot_json")
   allowanceSource   String?   @map("allowance_source") // FREE_QUOTA, PAID
+  /// 请求内容的摘要。同号不同内容必须报冲突，不能静默回放旧结果（V3 §20）。
+  requestHash       String?   @map("request_hash")
+  /// 取消原因：USER_CANCEL / UPSTREAM_FAIL / EMPTY_RESPONSE 等，对账用（V3 §157）。
+  cancelReason      String?   @map("cancel_reason")
   conversationId    String?   @map("conversation_id")
   messageId         String?   @map("message_id")
   aiCallId          String?   @map("ai_call_id")

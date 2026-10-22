@@ -2,6 +2,7 @@ import {randomBytes} from 'node:crypto';
 import {db, pragmasReady} from '@/lib/db';
 import {readSettingValue} from '@/lib/settings';
 import {grantEarnedCoins, isDuplicateReward} from '@/lib/coins/reward-ledger';
+import {recordProductEvent} from '@/lib/analytics/product-events';
 
 /**
  * 邀请归属与邀请码（V3 表 9 增长「邀请奖励」、表 22「邀请与分享：记录分享来源、
@@ -64,12 +65,17 @@ export async function ensureInviteCode(userId: string): Promise<string> {
  *
  * rewardKey 用被邀请人 id：同一个人一辈子只触发一次，重复调用由唯一约束拦下。
  * 奖励是附带动作，失败不抛给聊天主流程。
+ *
+ * 漏斗最后一环（首次聊天）在发币之前记：奖励开关关掉、奖励币设成 0 只是不发币，
+ * 不代表这段邀请关系没有走到首次聊天。先记事实，再谈发币。
  */
 export async function grantInviteRewardIfDue(invitedUserId: string): Promise<boolean> {
   const {enabled, rewardCoins} = await readInviteSettings();
-  if (!enabled || rewardCoins <= 0) return false;
+  if (!enabled) return false;
   const invited = await db.user.findUnique({where: {id: invitedUserId}, select: {invitedByUserId: true, deletedAt: true}});
   if (!invited?.invitedByUserId || invited.deletedAt) return false;
+  await recordFirstChatOnce(invitedUserId, invited.invitedByUserId);
+  if (rewardCoins <= 0) return false;
   const rewardKey = `invite-first-chat:${invitedUserId}`;
   try {
     await db.$transaction(async tx => {
@@ -94,4 +100,44 @@ export async function resolveInviterId(inviteCode: string | null | undefined, ne
   const inviter = await db.user.findUnique({where: {inviteCode: code}, select: {id: true, deletedAt: true}});
   if (!inviter || inviter.deletedAt || inviter.id === newUserId) return null;
   return inviter.id;
+}
+/**
+ * 邀请漏斗的两端：访问与首次聊天（V3 表 22「记录分享来源、访问、注册及首次聊天」）。
+ *
+ * 三处口径：
+ * - 只由服务端写。访问这一环由邀请链接的落地路由写，不是浏览器自己上报：
+ *   预取、刷新、爬虫都会触发页面加载，只有服务端看到的那次请求才算一次访问。
+ * - 每个访客对同一个邀请人只记一条。读侧本来就按 DISTINCT 计人，重复写不改变人数，
+ *   只会把表撑大；首次聊天同理，一个人一辈子一条。
+ * - 邀请码无效、邀请人已注销、没有可归属的访客身份，一律不写也不报错：
+ *   埋点出问题不能让落地页打不开。
+ */
+
+/** 首次聊天：漏斗最后一环，与奖励开关无关。 */
+async function recordFirstChatOnce(invitedUserId: string, inviterId: string): Promise<void> {
+  const seen = await db.productEvent.findFirst({where: {name: 'invite_first_chat', userId: invitedUserId}, select: {id: true}});
+  if (seen) return;
+  await recordProductEvent({event: 'invite_first_chat', userId: invitedUserId, subjectKey: inviterId});
+}
+
+/** 访问：邀请链接被打开时记一条。返回是否真的写入了新记录。 */
+export async function recordInviteVisit(input: {inviteCode: string | null | undefined; userId: string | null; anonymousSubject: string | null}): Promise<boolean> {
+  const code = typeof input.inviteCode === 'string' ? input.inviteCode.trim().toUpperCase() : '';
+  if (!code) return false;
+  if (!input.userId && !input.anonymousSubject) return false;
+  await pragmasReady;
+  const inviter = await db.user.findUnique({where: {inviteCode: code}, select: {id: true, deletedAt: true}});
+  if (!inviter || inviter.deletedAt) return false;
+  const seen = await db.productEvent.findFirst({
+    where: {name: 'invite_visited', subjectKey: inviter.id, ...(input.userId ? {userId: input.userId} : {anonymousSubject: input.anonymousSubject})},
+    select: {id: true},
+  });
+  if (seen) return false;
+  await recordProductEvent({
+    event: 'invite_visited',
+    userId: input.userId,
+    anonymousSubject: input.userId ? null : input.anonymousSubject,
+    subjectKey: inviter.id,
+  });
+  return true;
 }

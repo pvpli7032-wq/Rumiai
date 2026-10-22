@@ -115,10 +115,15 @@ test('漏斗按 DISTINCT 归属计人，重复访问不重复计数', async () =
 
   const report = await (await readFunnel(funnelRequest(owner))).json();
   const mirror = report.funnels.find(funnel => funnel.key === 'mirror');
-  assert.deepEqual(mirror.steps.map(step => step.people), [3, 2, 2], '去重后的人数');
+  // 五环都在；后两环这批人没走过，人数就是 0。
+  assert.deepEqual(mirror.steps.map(step => step.people), [3, 2, 2, 0, 0], '去重后的人数');
   assert.equal(mirror.steps[1].rateFromPrevious, 2 / 3);
   assert.equal(mirror.steps[2].rateFromStart, 2 / 3);
-  assert.equal(mirror.overallRate, 2 / 3);
+  // 端到端是「最后一环 / 第一环」。五环补齐后最后一环是转去聊天，这批人一次都没走，
+  // 所以端到端是 0 而不是 2/3 —— 生成完成的转化看第三环的 rateFromStart，不看 overallRate。
+  assert.equal(mirror.steps[2].rateFromPrevious, 1, '上一环到完成没有流失');
+  assert.equal(mirror.overallRate, 0);
+  assert.equal(mirror.steps[3].rateFromPrevious, 0, '完成生成的人里没人打开分享页');
   assert.equal(mirror.steps[0].rateFromPrevious, null, '第一步没有上一步');
 });
 
@@ -181,4 +186,66 @@ test('事件清单与标签一一对应', async () => {
   const {PRODUCT_EVENT_LABELS} = await import('../src/lib/analytics/product-events.ts');
   assert.deepEqual(Object.keys(PRODUCT_EVENT_LABELS).sort(), [...PRODUCT_EVENTS].sort());
   for (const label of Object.values(PRODUCT_EVENT_LABELS)) assert.ok(label.length > 0);
+});
+
+test('Mirror 漏斗五环齐全，分享访问与转去聊天固定除以生成完成人数', async () => {
+  await db.productEvent.deleteMany({});
+  // 6 人访问 → 4 人开始 → 2 人完成；其中 1 人转过分享页，3 人（含没完成生成的匿名访客）转去聊天。
+  // 直接用 createMany 造事实：这里验的是漏斗口径，不是埋点写入路径。
+  // userId 有外键，所以先建一批真账号，再按 userId 写事件。
+  const makeUsers = async (prefix, count) => {
+    const rows = [];
+    for (let i = 0; i < count; i += 1) rows.push(await db.user.create({data: {username: `${prefix}_${i}`, email: `${prefix}${i}@example.invalid`, passwordHash: 'synthetic-only'}}));
+    return rows.map(row => row.id);
+  };
+  const people = (event, ids, extra = {}) => db.productEvent.createMany({data: ids.map(id => ({name: event, ...(id.startsWith('a:') ? {anonymousSubject: id.slice(2)} : {userId: id}), ...extra}))});
+  await people('mirror_visited', await makeUsers('mv', 6));
+  await people('mirror_started', await makeUsers('ms', 4));
+  await people('mirror_completed', await makeUsers('mc', 2));
+  await people('mirror_share_viewed', ['a:share-anon']);
+  await people('mirror_to_chat', await makeUsers('mt', 3));
+
+  const report = await (await readFunnel(funnelRequest(owner))).json();
+  const mirror = report.funnels.find(funnel => funnel.key === 'mirror');
+  assert.deepEqual(mirror.steps.map(step => step.event), ['mirror_visited', 'mirror_started', 'mirror_completed', 'mirror_share_viewed', 'mirror_to_chat'], '表 22 的五个环节都要在漏斗里');
+  assert.deepEqual(mirror.steps.map(step => step.people), [6, 4, 2, 1, 3]);
+  assert.equal(mirror.steps[3].rateFromPrevious, 1 / 2, '分享访问除以生成完成人数，不除以上一步');
+  assert.equal(mirror.steps[4].rateFromPrevious, 3 / 2, '转去聊天的分母同样是生成完成人数');
+  assert.equal(mirror.steps[4].rateFromStart, 3 / 6, '整体转化仍以第一环为分母');
+  assert.equal(mirror.overallRate, 3 / 6);
+});
+
+test('邀请后两环有真实生产者：落地访问与首次聊天都写得进去，且不重复膨胀', async () => {
+  await db.productEvent.deleteMany({});
+  const {recordInviteVisit, ensureInviteCode, grantInviteRewardIfDue} = await import('../src/lib/growth/invite-service.ts');
+  const {saveChanges} = await import('../src/lib/settings/service.ts');
+  // 邀请开关要打开：关闭时服务不生成归属，也不记这两个事件。
+  await saveChanges({changes: [{key: 'growth.inviteEnabled', value: true}, {key: 'growth.inviteRewardCoins', value: 0}], expectedVersions: {}, operatorId: owner.id});
+  const inviter = await db.user.create({data: {username: 'inv_host', email: 'inv-host@example.invalid', passwordHash: 'synthetic-only'}});
+  const code = await ensureInviteCode(inviter.id);
+
+  // 访问：同一访客对同一邀请人只落一条，换个人再访问才加一条。
+  assert.equal(await recordInviteVisit({inviteCode: code, userId: null, anonymousSubject: 'anon-visitor'}), true);
+  assert.equal(await recordInviteVisit({inviteCode: code, userId: null, anonymousSubject: 'anon-visitor'}), false, '同一访客重复进入不再写');
+  assert.equal(await recordInviteVisit({inviteCode: code, userId: viewer.id, anonymousSubject: null}), true);
+  assert.equal(await recordInviteVisit({inviteCode: 'ZZZZZZZZ', userId: null, anonymousSubject: 'anon-2'}), false, '无效邀请码不写');
+  assert.equal(await recordInviteVisit({inviteCode: code, userId: null, anonymousSubject: null}), false, '没有可归属的身份不写');
+  const visits = await eventsOf('invite_visited');
+  assert.equal(visits.length, 2);
+  assert.ok(visits.every(row => row.subjectKey === inviter.id), 'subjectKey 记邀请人');
+
+  // 首次聊天：奖励币设成 0 也要记——这段邀请关系确实走到了首次聊天。
+  const invited = await db.user.create({data: {username: 'inv_invited', email: 'inv-invited@example.invalid', passwordHash: 'synthetic-only', invitedByUserId: inviter.id}});
+  assert.equal(await grantInviteRewardIfDue(invited.id), false, '奖励币为 0 时不发币');
+  assert.equal((await eventsOf('invite_first_chat')).length, 1, '不发币但漏斗最后一环照记');
+  await grantInviteRewardIfDue(invited.id);
+  assert.equal((await eventsOf('invite_first_chat')).length, 1, '同一个人一辈子只记一条');
+
+  // 没有邀请归属的账号不写这一环，也不报错。
+  const lonely = await db.user.create({data: {username: 'inv_lonely', email: 'inv-lonely@example.invalid', passwordHash: 'synthetic-only'}});
+  assert.equal(await grantInviteRewardIfDue(lonely.id), false);
+  assert.equal((await eventsOf('invite_first_chat')).length, 1);
+
+  const funnel = (await (await readFunnel(funnelRequest(owner))).json()).funnels.find(item => item.key === 'invite');
+  assert.deepEqual(funnel.steps.map(step => step.people), [2, 0, 1], '后两环不再恒为 0');
 });

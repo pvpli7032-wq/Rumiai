@@ -34,13 +34,19 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
       id: 'chat-content',
       title: '帖子与评论',
       description: '社区内容长度、图片张数与发帖评论频率。',
-      matches: key => /^(content\.(post|comment)\.|limits\.(post|comment)\.)/.test(key),
+      matches: key => /^(content.(post|comment).|limits.(post|comment).)/.test(key),
     },
     {
       id: 'chat-character',
       title: '角色与上传',
       description: '角色资料各段字数上限，以及单文件上传大小。',
       matches: key => key.startsWith('content.character.') || key.startsWith('upload.'),
+    },
+    {
+      id: 'chat-limits',
+      title: '其他操作频率',
+      description: '上传、关注、举报与登录的频率限制，全部是高级项，默认折叠。',
+      matches: key => /^limits\.(upload|follow|report|login)\./.test(key),
     },
   ],
   billing: [
@@ -101,8 +107,19 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
   ],
 };
 
+/**
+ * 设置中心要展示的定义。
+ *
+ * 登记表是唯一的读取与校验来源，但 `hidden` 的键有专属编辑位置（例如任务用模型在
+ * 「价格与成本」页用下拉选），不在设置中心重复出现（V3 表 6「每项只在一个位置编辑」）。
+ * 分组渲染、常用项计数、设置搜索都从这里取，漏一处就等于没隐藏。
+ */
+export function visibleDefinitionsOfGroup(group: SettingGroup): SettingDefinition[] {
+  return definitionsOfGroup(group).filter(definition => !definition.hidden);
+}
+
 export function sectionsOfGroup(group: SettingGroup): SettingsSection[] {
-  const definitions = definitionsOfGroup(group);
+  const definitions = visibleDefinitionsOfGroup(group);
   const used = new Set<string>();
   const sections: SettingsSection[] = [];
 

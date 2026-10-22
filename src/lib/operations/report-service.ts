@@ -26,6 +26,22 @@ export function buildOperationsAlerts(
   return alerts;
 }
 
+/**
+ * 表 3 / 表 14 要求后台显示「连接类型」，而不只是「连通性」。
+ *
+ * 运行时唯一可信的来源是连接串本身：`prisma/schema.prisma` 的 provider 在生成客户端时
+ * 就固化了，运行中的进程读不到；而部署确实可能换连接串（表 3 第 6 行「后续扩容」），
+ * 那时页面必须跟着变。所以这里按 DATABASE_URL 的协议头判定，不写死 'SQLite'。
+ */
+function describeDatabaseEngine(url:string|undefined):string{
+  const scheme=(url??'').split(':')[0].trim().toLowerCase();
+  if(scheme==='file')return 'SQLite 文件数据库';
+  if(scheme==='postgresql'||scheme==='postgres')return 'PostgreSQL';
+  if(scheme==='mysql')return 'MySQL';
+  if(scheme==='sqlserver')return 'SQL Server';
+  return scheme?`未识别的连接协议（${scheme}）`:'未配置连接串';
+}
+
 export async function readOperationsReport(actorId:string){
   await pragmasReady;
   if(!await hasAdminPermission(actorId,'operations.read'))throw new OperationsReportError('当前账号没有运维状态查看权限。',403);
@@ -43,7 +59,7 @@ export async function readOperationsReport(actorId:string){
   return {
     generatedAt:new Date().toISOString(),
     runtime:{installation:path.basename(process.cwd()),environment:process.env.NODE_ENV??'development',nodeVersion:process.version,uptimeSeconds:Math.floor(process.uptime())},
-    database:{connected:Number(database[0]?.connected)===1,migrations:migrationStatus},
+    database:{connected:Number(database[0]?.connected)===1,engine:describeDatabaseEngine(process.env.DATABASE_URL),migrations:migrationStatus},
     backups,
     alerts:buildOperationsAlerts(migrationStatus,backupStatus),
     capabilities:{backupCreation:'命令行操作',restore:'仅支持恢复到新隔离目录',certificateRenewal:'由服务器外部运维流程执行',externalAlerts:'当前未配置'},

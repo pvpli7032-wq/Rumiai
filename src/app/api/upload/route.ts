@@ -2,20 +2,19 @@ import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { logRouteError } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { readRateLimitRules } from '@/lib/settings/limits';
 import { saveAccountUpload, UploadError } from '@/lib/uploads/storage-service';
 
 export const runtime = 'nodejs';
-
-/** Uploads land on disk, so cap how fast one account can fill it. */
-const UPLOAD_LIMIT = Number(process.env.UPLOAD_RATE_LIMIT) || 20;
-const UPLOAD_WINDOW_MS = Number(process.env.UPLOAD_RATE_WINDOW_MS) || 600_000;
 
 export async function POST(request: Request) {
   try {
     const authUser = await getAuthUser(request);
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const limit = checkRateLimit(`upload:${authUser.userId}`, UPLOAD_LIMIT, UPLOAD_WINDOW_MS);
+    // 上传会落盘，限制单账号的写入速度；参数来自设置中心，每次请求现读（V3 §203）。
+    const rules = await readRateLimitRules();
+    const limit = checkRateLimit(`upload:${authUser.userId}`, rules.upload.perWindow, rules.upload.windowMs);
     if (!limit.allowed) {
       return NextResponse.json(
         { error: '上传过于频繁，请稍后再试。' },

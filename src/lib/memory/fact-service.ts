@@ -34,7 +34,7 @@ export async function listMemoryFacts(userId: string, conversationId: string, op
   await requireOwnedConversation(userId, conversationId);
   const rows = await db.memoryFact.findMany({
     where: {conversationId, userId, ...(options.includeInactive ? {} : {status: 'ACTIVE'})},
-    orderBy: [{pinned: 'desc'}, {createdAt: 'desc'}],
+    orderBy: [{pinned: 'desc'}, {createdAt: 'desc'}, {id: 'asc'}],
     select: {id: true, text: true, pinned: true, sourceMessageId: true, status: true, createdAt: true},
   });
   return rows.map(toView);
@@ -113,7 +113,7 @@ export async function listPanelFacts(userId: string, conversationId: string): Pr
   await requireOwnedConversation(userId, conversationId);
   const rows = await db.memoryFact.findMany({
     where: {conversationId, userId, status: {in: [...PANEL_FACT_STATUSES]}},
-    orderBy: [{status: 'asc'}, {pinned: 'desc'}, {createdAt: 'desc'}],
+    orderBy: [{status: 'asc'}, {pinned: 'desc'}, {createdAt: 'desc'}, {id: 'asc'}],
     select: {id: true, text: true, pinned: true, sourceMessageId: true, status: true, createdAt: true},
   });
   return rows.map(toView);
@@ -158,7 +158,7 @@ export async function readInjectableFacts(conversationId: string, maxFacts: numb
   if (maxFacts <= 0) return [];
   const rows = await db.memoryFact.findMany({
     where: {conversationId, status: 'ACTIVE'},
-    orderBy: [{pinned: 'desc'}, {createdAt: 'desc'}],
+    orderBy: [{pinned: 'desc'}, {createdAt: 'desc'}, {id: 'asc'}],
     take: maxFacts,
     select: {id: true, text: true, pinned: true, sourceMessageId: true, status: true, createdAt: true},
   });

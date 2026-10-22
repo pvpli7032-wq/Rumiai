@@ -1,5 +1,6 @@
 import {db} from '@/lib/db';
-import {readSettingValue} from '@/lib/settings/service';
+import {readSettings} from '@/lib/settings/service';
+import type {SettingValue} from '@/lib/settings/types';
 import type {ChargePriceSnapshot, QuoteInput, QuoteResult} from './types';
 
 /**
@@ -12,6 +13,19 @@ import type {ChargePriceSnapshot, QuoteInput, QuoteResult} from './types';
  * 他眼中的你（MIRROR）是「购买次数」：只看 mirror.purchaseEnabled 与 mirror.purchaseCoins，
  * 不受聊天收费开关影响，也不占用聊天的免费回复条数（它自己有每日次数）。
  */
+
+/** 参与定价的设置键；快照里的 settingsVersion 就是这些键当时的版本号。 */
+const PRICING_KEYS = [
+  'billing.chargingEnabled',
+  'story.chargingEnabled',
+  'story.coinPrice',
+  'mirror.purchaseEnabled',
+  'mirror.purchaseCoins',
+  'billing.priceMultiplier',
+  'billing.dayTimezone',
+] as const;
+
+type PricingKey = (typeof PRICING_KEYS)[number];
 
 /** 千分比倍率：1000 = 原价，0 = 免费。向上取整，任何非零倍率都不会被抹成 0。 */
 export function applyPriceMultiplier(baseCoins: number, multiplier: number): number {
@@ -48,15 +62,16 @@ async function resolvePricingModel(modelKey: string | null | undefined): Promise
 export async function quoteReplyPrice(input: QuoteInput): Promise<QuoteResult> {
   const now = input.now ?? new Date();
   const model = await resolvePricingModel(input.modelKey);
-  const [chargingEnabled, storyChargingEnabled, storyCoinPrice, mirrorPurchaseEnabled, mirrorPurchaseCoins, multiplierSetting, timezoneSetting] = await Promise.all([
-    readSettingValue<boolean>('billing.chargingEnabled', input.userId),
-    readSettingValue<boolean>('story.chargingEnabled', input.userId),
-    readSettingValue<number>('story.coinPrice', input.userId),
-    readSettingValue<boolean>('mirror.purchaseEnabled', input.userId),
-    readSettingValue<number>('mirror.purchaseCoins', input.userId),
-    readSettingValue<number>('billing.priceMultiplier', input.userId),
-    readSettingValue<string>('billing.dayTimezone', input.userId),
-  ]);
+  // 一次读齐定价用到的设置，同时拿到各自版本号写进快照（V3 表 4「配置版本」）。
+  const settings = await readSettings([...PRICING_KEYS], input.userId);
+  const setting = Object.fromEntries(settings.map(item => [item.key, item])) as Record<PricingKey, SettingValue>;
+  const chargingEnabled = setting['billing.chargingEnabled'].value as boolean;
+  const storyChargingEnabled = setting['story.chargingEnabled'].value as boolean;
+  const storyCoinPrice = setting['story.coinPrice'].value as number;
+  const mirrorPurchaseEnabled = setting['mirror.purchaseEnabled'].value as boolean;
+  const mirrorPurchaseCoins = setting['mirror.purchaseCoins'].value as number;
+  const multiplierSetting = setting['billing.priceMultiplier'].value as number;
+  const timezoneSetting = setting['billing.dayTimezone'].value as string;
 
   const multiplier = Number.isFinite(multiplierSetting) ? Math.max(0, Math.trunc(multiplierSetting)) : 1000;
   // 购买次数只认自己的开关与币价：没开或没定价就是 NO_PRICE，不回落到模型币价。
@@ -79,6 +94,7 @@ export async function quoteReplyPrice(input: QuoteInput): Promise<QuoteResult> {
     day: '',
     timezone: typeof timezoneSetting === 'string' && timezoneSetting.trim() ? timezoneSetting.trim() : 'UTC',
     capturedAt: now.toISOString(),
+    settingsVersion: Object.fromEntries(settings.map(item => [item.key, item.version])),
   };
 
   let pricing: QuoteResult['pricing'];

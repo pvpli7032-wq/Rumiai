@@ -1,6 +1,13 @@
 import type {MirrorCharacterOption, MirrorCompareEntry, MirrorExampleView, MirrorOwnerResult, MirrorPublicResult, MirrorQuota} from '@/lib/mirror/types';
 
-export type MirrorRulesView = import('@/lib/mirror/types').MirrorRules & {enabled: boolean; timezone: string};
+export type MirrorRulesView = import('@/lib/mirror/types').MirrorRules & {
+  enabled: boolean;
+  timezone: string;
+  /** 观察风格说明：运营在设置中心写，直接拼进提示词，前台不展示。 */
+  observationStyle: string;
+  /** 新结果使用的版式；示例结果按它渲染。 */
+  resultLayout: import('@/lib/mirror/types').MirrorResultLayout;
+};
 
 /** 首页初始化接口的返回；与服务端 readPageView 的字段一一对应。 */
 export type MirrorPageResponse = {

@@ -13,6 +13,53 @@
 
 读取优先级：**用户特例 > 公共值 > 登记默认值**。到期或删除特例即回落公共值，不需要重启。
 
+## 1.1 部署配置（不可在后台改）
+
+这一节是**故意不进设置中心**的项：它们要么是部署环境与密钥，要么一旦中途改变会让历史数据失去可比性。列出来是为了让「后台为什么看不到」有据可查，不是遗漏。
+
+| 项 | 位置 | 为什么不在后台 |
+|---|---|---|
+| `DATABASE_URL`、`UPLOADS_DIRECTORY` | `shared/app.env` | 部署环境事实：路径换了，进程读到的就不是同一个库、同一批文件。 |
+| `JWT_SECRET` | `shared/app.env` | 会话密钥；改它等于让所有已登录会话失效，是运维动作。 |
+| `AI_PROVIDER_ENCRYPTION_KEY`、`PAYMENT_MERCHANT_ENCRYPTION_KEY` | `shared/app.env` | 库里凭据的加密主密钥；后台能改就等于后台能换锁，历史凭据会不可读。 |
+| `DISABLE_MOCK_AI`、`ALLOW_SIMULATED_PURCHASES` | `shared/app.env` | 生产闸门：不模拟 AI、不模拟充值。放后台等于留一个「把假数据打开」的开关。 |
+| `EZFP_ENABLED`、`EZFP_REFUNDS_ENABLED`、`EZFP_PID` | `shared/app.env` | 真实支付总开关与商户号；开启前要先把套餐人民币价与正式商户配好，属于发布动作。 |
+| `NEXT_PUBLIC_SITE_URL` | `shared/app.env` | 构建期与链接生成用的站点地址，改它要重新构建。 |
+| `AI_PRICE_CURRENCY` | `shared/app.env` | 成本记账的币种单位，理由见下。 |
+| `AI_MODEL`、`AI_FALLBACK_MODELS` | `shared/app.env` | 兜底默认模型；任务级模型已迁到设置中心 `ai.taskModel.chat` / `story` / `mirror` / `disputeVerdict` / `memorySummary`。 |
+| `AI_CONNECT_TIMEOUT_MS`、`AI_REQUEST_TIMEOUT_MS`、`AI_STREAM_IDLE_TIMEOUT_MS`、`AI_MAX_RETRIES`、`AI_MAX_TOKENS` | `shared/app.env` | 上游连接与超时行为，跟着部署环境和供应商走。 |
+| `AI_DAILY_COST_BUDGETS`、`AI_BUDGET_CIRCUIT_BREAKER` | `shared/app.env` | 兼容兜底与显式熔断开关。正式预算在「AI 与商业 → 价格与成本」页按币种保存站点/用户上限（`AiDailyCostBudget`），一旦有库内记录即以数据库为准，env 只作迁移期兜底。 |
+| `MODERATOR_USER_IDS`、`PAYMENT_ADMIN_USER_IDS` | `shared/app.env` | 权限名单按用户 ID 配置，只由运维写入，永不接受客户端传入。 |
+| `MIRROR_IP_SALT`、`MIRROR_ATTRIBUTION_SECRET` | `shared/app.env` | 匿名计数与归属 Cookie 的密钥；改了等于重置当日额度、作废旧归属。 |
+| `STORY_WORKER_DISABLED`、`NEXT_DIST_DIR`、`MIRROR_PREVIEW_FONT_PATH`、`TEST_BASE_URL` | `shared/app.env` | 进程、构建与演练开关。 |
+
+### 为什么 `AI_PRICE_CURRENCY` 故意不做成后台可改
+
+`AI_PRICE_CURRENCY`（`src/lib/ai/ai-usage.ts:19`，默认 `USD`）决定所有 `estimatedCost` 的币种语义：建调用记录时它写进 `AiCall.currency`，成本预算按币种归集，Mirror 生成与预算服务也用它兜底。它是**历史成本记账的单位**，不是运营可调的展示参数：
+
+- 中途改币种，等于把前后两段成本数字放进同一个账本却换了单位。`AiCall.currency` 已有记录不回写，新旧数字直接不可比，毛利、汇率换算与建议币价全部失去基准。
+- 单个模型可以有自己的结算币种（价格表按模型与生效时间保存，价格行的 `currency` 会覆盖 `AiCall.currency`）。所以「某个模型换结算币种」是改价格行，不是改这个全局默认。
+- 真要换记账币种，做法是停写、留档、按新币种重新起算，而不是后台点一下。
+
+这是有意为之，不是漏做。
+
+### 业务参数在设置中心（原 env 与模块常量已迁入）
+
+以下原本是环境变量或模块常量，现由设置中心维护，改完立即生效、不需要重启：
+
+| 设置键 | 原来源 | 说明 |
+|---|---|---|
+| `limits.upload.perWindow` / `limits.upload.windowSeconds` | `UPLOAD_RATE_LIMIT` / `UPLOAD_RATE_WINDOW_MS` | 上传频率，默认 20 次 / 60 秒。 |
+| `limits.follow.perWindow` / `limits.follow.windowSeconds` | 关注频率常量 | 关注频率，默认 60 次 / 60 秒。 |
+| `limits.report.perWindow` / `limits.report.windowSeconds` | `REPORT_RATE_LIMIT` / `REPORT_RATE_WINDOW_MS` | 举报频率，默认 20 次 / 60 秒。 |
+| `limits.login.perWindow` / `limits.login.windowSeconds` | 登录频率常量 | 登录尝试频率。**已登记但当前未生效**：登录路由没有限流，这两项只保存不拦截。 |
+
+读取入口是 `readRateLimitRules()`（`src/lib/settings/limits.ts`）：每个调用点在请求开始时读一次，同请求内共用一次 `readSettings`（15 秒缓存），改完立即生效。原来的模块级 env 常量已删除，不再有「后台改了、env 又盖回去」的第二来源。
+
+同组还有 `limits.chat.*`、`limits.post.*`、`limits.comment.*`、`upload.maxMB`、`chat.maxMessageChars`、`chat.historyMessages`、`billing.hardDailyMessages`：都在设置中心编辑，不再从环境变量读。
+
+部署侧的操作步骤见 `docs/deployment.md` 第 3 节与第 5.1 节。
+
 ## 2. 设置中心怎么用
 
 - 入口 `/admin/settings`，需要 `settings.read`；保存需要 `settings.write`。

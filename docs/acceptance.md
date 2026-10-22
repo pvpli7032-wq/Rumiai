@@ -1,7 +1,8 @@
 # 验收记录
 
-> 对应 V3 终稿表 25「上线前八组检查」。本记录针对 `commercial-refactor` 分支 `2807dfe`（`package.json` 0.2.0）这一次发布候选，所有数字都是本机实跑结果，不是预估。
+> 对应 V3 终稿表 25「上线前八组检查」。本记录针对 `commercial-refactor` 分支当前 HEAD（`package.json` 0.2.0）的发布候选；所有数字都是本机实跑结果，不是预估。**表里的构建与测试数字需在发布候选的最终 HEAD 上复跑一次**——本文件不钉死某个 commit，避免验收后又改代码导致记录与实际脱节。
 > 复跑命令：`npm run test:commercial` / `npm run verify:build` / `npm run verify:admin:responsive` / `node --import tsx --test tests/sqlite-backup.test.mjs` / `node --import tsx --test tests/state-recovery-runtime.test.mjs`。
+> **前置条件**：`tests/state-recovery-runtime.test.mjs` 会硬断言 `.next-validation-build/BUILD_ID` 存在，所以它必须在 `npm run verify:build` 之后跑；构建产物是临时目录，跑完即删，单独跑这个用例会以「先生成生产构建目录」失败。
 
 ## 0. 本轮实跑汇总
 
@@ -88,3 +89,53 @@
 ## 尚未完成
 
 1. **未做线上实测**：真实支付通道、真实 AI 供应商、生产域名拨测按 V3 第 3 章收缩范围未执行。线上只做了发布后健康检查与备份恢复演练，没有跑真实付款与真实模型计费。
+
+## M0 至 M5 阶段退出条件与对应检查
+
+V3 表 24 给了六个阶段的退出条件，第 225 段又要求「每阶段收尾只运行对应检查，改一个设置或页面不重新跑全站」。下表把两者对上：每个阶段写它自己的验证命令，**不是每阶段都跑 `npm run test:commercial` 全量**。
+
+| 阶段 | 退出条件（V3 表 24 原文） | 对应检查 | 状态 |
+|---|---|---|---|
+| M0 现状与设计 | 确认已有故事与调用链；冻结数据库增量、配置归属、后台四类布局 | 人工核对 + `npx tsc --noEmit` | **成立** |
+| M1 数据与设置 | 配置表、用户特例、分组保存、缓存；改一次参数后真实请求生效 | `tests/settings-runtime.test.mjs` + `tests/settings-transfer.test.mjs` | **成立** |
+| M2 后台与前台 | 六组导航、四类版式、旧入口可达、价格额度展示 | `npm run verify:admin:responsive`（24 组）+ `tests/admin-commercial-apis.test.mjs` | **成立** |
+| M3 计费接入 | 普通与故事共用费用服务；免费预占、扣费、释放、取消、重生成与核对 | `tests/billing-charge.test.mjs` + `tests/charge-recovery-drill.test.mjs` + `tests/charge-admin.test.mjs` | **成立** |
+| M4 新玩法与任务 | Mirror、评理、分享、通知、基础记忆、必要埋点和任务运行 | `tests/mirror-generation.test.mjs` + `tests/mirror-compare.test.mjs` + `tests/dispute-case.test.mjs` + `tests/background-tasks.test.mjs` + `tests/notification-service.test.mjs` + `tests/notification-producers.test.mjs` + `tests/product-events.test.mjs` + `tests/playbook-e2e.test.mjs` | **成立**（故事分享仅有数据层，前门未开放） |
+| M5 收尾与交付 | 一次关键流程检查；迁移、任务、回退、参数说明与剩余项 | `npm run verify:build` + `tests/sqlite-backup.test.mjs` + `tests/state-recovery-runtime.test.mjs` + `npm run verify:admin:responsive` | **成立** |
+
+`npm run test:commercial` 是上表全部文件的合集，用于**交付前一次性回归**，不是每阶段的必跑项。
+
+## 规格未覆盖项
+
+以下是 32 章逐条审计后查出的、规格明确要求但代码里还没有（或只做了一部分）的项。**这些不是本轮验收结论的一部分，是如实记录的剩余工作。**
+
+| # | 规格出处 | 缺什么 | 影响 | 状态 |
+|---|---|---|---|---|
+| 1 | §20 聊天计费 | 聊天链 requestId 只比 conversationId，同号换内容会静默回放旧结果 | 重复请求幂等与冲突语义不完整 | 修复中 |
+| 2 | §157 账本口径 | 取消原因未写入费用单（`generation_charges.cancel_reason`） | 已输出后取消按计费的对账依据缺失 | 修复中 |
+| 3 | §74 / 表 4 | 费用单快照有价格与时间，缺当时的配置版本号 | 事后无法证明「这单按哪一版设置算」 | 修复中 |
+| 4 | §79 数据结构 | 账号导出与注销未覆盖 MirrorResult / DisputeCase / DisputeVote / ConversationMemory / MemoryFact | 导出不完整；注销后新对象残留（注销是匿名化不是删行，Cascade 不生效） | 修复中 |
+| 5 | §78 排序 | 结案扫描与记忆事实查询用单键 orderBy，无 ID 次序键 | 同毫秒记录顺序不稳 | 修复中 |
+| 6 | §203 迁移第六步 | `limits.upload/follow/report/login.*` 四个频率参数仍是 env 或模块常量 | 运营改不了，且违反表 10「不得模块级求值」 | 修复中 |
+| 7 | §192 任务启动 | 只有进程内 setTimeout 轮询，无可被计划任务调用的 CLI 入口 | 进程不跑就完全没有任务执行 | 修复中 |
+| 8 | 表 22 邀请漏斗 | `invite_visited`、`invite_first_chat` 零生产者 | 漏斗后两环永远 0 | 修复中 |
+| 9 | 表 22 玩法漏斗 | 报告只组三环，分享访问与转聊天未进漏斗 | 漏斗不完整 | 修复中 |
+| 10 | 表 22 财务观察 | 免费占比零实现；收费回复数取当前分页而非全量 | 指标不可用 | 修复中 |
+| 11 | 表 19 环节 3 | `MirrorResult.chargeId` 从不写入 | 结果与费用的关联是空的 | 修复中 |
+| 12 | 表 19 环节 8 | 后台恢复与删除是 disabled 按钮，无端点 | 隐藏后无法恢复 | 修复中 |
+| 13 | 表 9 / §180 | 观察风格零实现；结果版式写死在前端组件 | 规格要求可配的项不可配 | 修复中 |
+| 14 | 表 22 内容供给 | Mirror 推广角色上限 6 硬编码，无「补到 20」机制；示例结果开箱 0 条 | 开箱不可用 | 修复中 |
+| 15 | 表 15 角色详情 | 「可用模型与费用」零命中 | 用户看不到要花多少钱 | 修复中 |
+| 16 | 表 15 聊天页 | 「分享及评理入口」零命中 | 评理只能从 /disputes 发起 | 修复中 |
+| 17 | 表 15 公开首页 | 「他眼中的你入口」缺失 | 主线入口少一个 | 修复中 |
+| 18 | §150 前台体验 | 首页文案与导航读前端常量，不读站点内容；后台却宣称能管 | 后台描述与实际不符 | 修复中 |
+| 19 | 表 14 财务支付 | 缺套餐/对账/商户标签，套餐表单堆在订单页；退款不在订单详情 | 违反「不把财务表单堆首页」 | 修复中 |
+| 20 | 表 14 系统运行 | 缺「立即运行」与「查看日志」；只显示连通性不显示连接类型 | 运维动作缺入口 | 修复中 |
+| 21 | 表 7 §82/§91 | 字段详情不显示可输入范围与更新时间 | 运营看不到边界与生效时间 | 修复中 |
+| 22 | 表 10 #3 | 未在界面显示「其他进程最多 15 秒刷新」 | 改完不知道何时全站生效 | 修复中 |
+| 23 | 表 13 | 筛选栏无「更多筛选」折叠；价格表 8 列超 5–7；抽屉无 560px 档位 | 版式规范未落地 | 未做 |
+| 24 | 表 6 | `ai.taskModel.*` 在价格页与设置中心两处可编辑 | 违反「每项只在一个位置」 | 修复中 |
+| 25 | §12 | 内容职责角色无 settings 权限，改不了自己那部分内容参数 | 职责角色不可用 | 已修 |
+| 26 | §212 | 价格来源 `source` 只写不读，编辑时回填空串 | 填了看不见等于没填 | 修复中 |
+| 27 | §218 | 每币收入多套餐只取最优惠一档，无区间 | 看不出套餐价差 | 修复中 |
+| 28 | 表 13/§116 | 后台默认深色且无切换入口 | 用户无法自救 | 修复中 |

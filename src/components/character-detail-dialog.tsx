@@ -15,6 +15,7 @@ import { resolveScene } from '@/lib/stories/scene-service';
 import { Overlay, GalleryArrow, Stat, IconAction, TabButton } from './character-detail-parts';
 import { AboutTab, QuestsTab, CastTab } from './character-detail-tabs';
 import { useCharacterDetail } from './use-character-detail';
+import { CharacterReplyPlan } from './character-reply-plan';
 
 type Tab = 'about' | 'quests' | 'cast' | 'comments';
 
@@ -213,6 +214,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
               {tab === 'about' && (
                 <AboutTab
                   character={character}
+                  replyPlan={<CharacterReplyPlan characterId={character.id} compact />}
                   scene={availableScene}
                   giftOptions={giftOptions}
                   sendingGift={sendingGift}

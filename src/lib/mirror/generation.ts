@@ -32,14 +32,21 @@ const OUTPUT_CONTRACT = [
   'observations 恰好三条，每条是一句独立观察，不是回答的复述。',
 ].join('\n');
 
-/** 生成提示词：设置中心的模板 + 角色身份 + 字数上限 + 用户回答。 */
+/**
+ * 生成提示词：设置中心的模板 + 角色身份 + 字数上限与观察风格 + 用户回答。
+ *
+ * observationStyle 是运营在设置中心写的「三条观察怎么写」的说明（V3 §180：观察风格
+ * 不能藏在前端常量里），空字符串表示不额外要求，保持默认那一句。
+ */
 export function buildMirrorPrompt(input: {
   template: string;
   character: Pick<MirrorCharacterOption, 'name' | 'tagline'> & Partial<PromptCharacter>;
   answers: string[];
   rules: Pick<MirrorRules, 'answerMaxChars' | 'titleMaxChars' | 'observationMaxChars' | 'quoteMaxChars'>;
+  observationStyle?: string;
 }): string {
   const {template, character, answers, rules} = input;
+  const style = input.observationStyle?.trim();
   const identity = [
     `角色：${character.name}`,
     character.tagline?.trim() ? `一句话简介：${character.tagline.trim()}` : null,
@@ -56,8 +63,9 @@ export function buildMirrorPrompt(input: {
       `三条观察每条不超过 ${rules.observationMaxChars} 字；`,
       `金句不超过 ${rules.quoteMaxChars} 字；`,
       '两个指数都是 0 到 100 的整数。',
+      style ? `三条观察的写法：${style}` : null,
       '站在这个角色的视角写，口吻与角色一致；可以锐利、可以有玩笑，但不做人身攻击，不编造回答里没有的事实。',
-    ].join('\n'),
+    ].filter((line): line is string => Boolean(line)).join('\n'),
     questions,
     OUTPUT_CONTRACT,
   ].join('\n\n');

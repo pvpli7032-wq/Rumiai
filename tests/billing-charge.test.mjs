@@ -202,6 +202,45 @@ test('重复 requestId 不重复扣：重放返回同一费用单，消息/会�
   assert.equal(await db.generationCharge.count({where: {userId: user.id, operation: 'CHAT_SEND'}}), 2);
 });
 
+test('同号换内容报冲突：requestHash 不同即拒绝，老单据 requestHash 为 NULL 时不做判定', async () => {
+  const {user, conversation} = await billingFixture({coins: 100});
+  await enableCharging(await pricedModel(20));
+
+  // 同一请求号 + 同一会话 + 同一内容：正常重放，不重复扣。
+  const requestId = randomUUID();
+  const first = await holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: conversation.id, requestContent: '你好'});
+  assert.equal(first.replayed, false);
+  assert.equal(await balanceOf(user), 80);
+  const same = await holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: conversation.id, requestContent: '你好'});
+  assert.equal(same.replayed, true);
+  assert.equal(same.chargeId, first.chargeId);
+  assert.equal(await balanceOf(user), 80);
+
+  // 同一请求号换了内容：不能静默回放旧回复，必须报冲突且不动余额。
+  await assert.rejects(
+    holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: conversation.id, requestContent: '换一句话'}),
+    error => error instanceof ChargeRequestConflictError && /别的内容/.test(error.message),
+  );
+  assert.equal(await balanceOf(user), 80, '冲突不扣币也不退款');
+  assert.equal((await chargeRow(user, 'CHAT_SEND', requestId)).requestHash.length, 32, 'sha256 前 32 位十六进制');
+
+  // 向后兼容：这一列上线前的老单据 requestHash 是 NULL，不能被判成冲突。
+  const legacyId = randomUUID();
+  const legacy = await holdCharge({userId: user.id, requestId: legacyId, operation: 'CHAT_SEND', conversationId: conversation.id, requestContent: '旧内容'});
+  await db.generationCharge.update({where: {id: legacy.chargeId}, data: {requestHash: null}});
+  const legacyReplay = await holdCharge({userId: user.id, requestId: legacyId, operation: 'CHAT_SEND', conversationId: conversation.id, requestContent: '完全不同的话'});
+  assert.equal(legacyReplay.replayed, true, 'NULL 时不做内容判定');
+  assert.equal(legacyReplay.chargeId, legacy.chargeId);
+  assert.equal(await balanceOf(user), 60, '仍然只有两次扣费');
+
+  // 不传内容（例如没有正文的调用方）不写摘要，也就没有内容判定——但不影响会话冲突。
+  const other = await db.conversation.create({data: {userId: user.id, characterId: conversation.characterId}});
+  await assert.rejects(
+    holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: other.id}),
+    error => error instanceof ChargeRequestConflictError,
+  );
+});
+
 test('免费次数：先预占，成功才消耗（free_used+1）；失败释放预占、不消耗', async () => {
   const {user, conversation} = await billingFixture({coins: 100});
   await enableCharging(await pricedModel(20));
@@ -539,6 +578,85 @@ test('聊天链路：已输出后取消按策略释放并占用一次免费取�
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('取消原因落库：每条分支都写，正常完成留空，重放不改写已终结的单', async () => {
+  const {user, conversation} = await billingFixture({coins: 200});
+  await enableCharging(await pricedModel(20));
+  await setSetting('billing.freeCancelPerDay', 1);
+  await setSetting('billing.cancelPolicy', 'CHARGE_WHEN_OUTPUT');
+  const reasonOf = async requestId => (await chargeRow(user, 'CHAT_SEND', requestId)).cancelReason;
+  const openCharge = async () => {
+    const requestId = randomUUID();
+    await holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: conversation.id});
+    return requestId;
+  };
+
+  // 1) 未输出就取消 → 释放，原因记用户取消。
+  const early = await openCharge();
+  assert.equal((await settleCancellation({userId: user.id, requestId: early, operation: 'CHAT_SEND', outputDelivered: false})).status, 'RELEASED');
+  assert.equal(await reasonOf(early), 'USER_CANCELLED');
+
+  // 2) 已输出 + 有免费取消次数 → 释放，原因同样是用户取消。
+  const freeOut = await openCharge();
+  assert.equal((await settleCancellation({userId: user.id, requestId: freeOut, operation: 'CHAT_SEND', outputDelivered: true})).status, 'RELEASED');
+  assert.equal(await reasonOf(freeOut), 'USER_CANCELLED');
+
+  // 3) 已输出 + 次数用完 → 按已输出结算（以前这条什么都不记，对账时分不出「正常完成」）。
+  const charged = await openCharge();
+  assert.equal((await settleCancellation({userId: user.id, requestId: charged, operation: 'CHAT_SEND', outputDelivered: true})).status, 'SETTLED');
+  assert.equal(await reasonOf(charged), 'USER_CANCELLED');
+
+  // 4) 正常完成留空：没有取消原因才是「完整跑完」。
+  const normal = await openCharge();
+  await settleCharge({userId: user.id, requestId: normal, operation: 'CHAT_SEND', messageId: 'msg-normal'});
+  assert.equal(await reasonOf(normal), null);
+
+  // 5) 非用户原因释放：上游失败/空回复按归类值记，认不出的错误码一律记上游失败。
+  const upstream = await openCharge();
+  await releaseCharge({userId: user.id, requestId: upstream, operation: 'CHAT_SEND', reason: 'UPSTREAM_ERROR'});
+  assert.equal(await reasonOf(upstream), 'UPSTREAM_FAILED');
+  const timeout = await openCharge();
+  await releaseCharge({userId: user.id, requestId: timeout, operation: 'CHAT_SEND', reason: 'IDLE_TIMEOUT'});
+  assert.equal(await reasonOf(timeout), 'UPSTREAM_FAILED');
+  const empty = await openCharge();
+  await releaseCharge({userId: user.id, requestId: empty, operation: 'CHAT_SEND', reason: 'EMPTY_RESPONSE'});
+  assert.equal(await reasonOf(empty), 'EMPTY_RESPONSE');
+  const persist = await openCharge();
+  await releaseCharge({userId: user.id, requestId: persist, operation: 'CHAT_SEND', reason: 'PERSISTENCE_ERROR'});
+  assert.equal(await reasonOf(persist), 'PERSISTENCE_ERROR');
+  const neverStarted = await openCharge();
+  await releaseCharge({userId: user.id, requestId: neverStarted, operation: 'CHAT_SEND', reason: 'CALL_NEVER_STARTED'});
+  assert.equal(await reasonOf(neverStarted), 'NEVER_STARTED');
+
+  // 6) 重放不改写已终结的单：已释放的单不会再被后来的取消或结算改写，也不再退一次。
+  const balanceBeforeReplay = await balanceOf(user);
+  await settleCancellation({userId: user.id, requestId: early, operation: 'CHAT_SEND', outputDelivered: true});
+  await settleCharge({userId: user.id, requestId: early, operation: 'CHAT_SEND'});
+  assert.equal(await reasonOf(early), 'USER_CANCELLED');
+  assert.equal((await chargeRow(user, 'CHAT_SEND', early)).status, 'RELEASED');
+  assert.equal(await balanceOf(user), balanceBeforeReplay, '重放不再改余额');
+});
+
+test('费用单快照：预扣时记下模型、整数币价、倍率、免费额度来源与配置版本', async () => {
+  const {user, conversation} = await billingFixture({coins: 100});
+  await enableCharging(await pricedModel(20));
+  await setSetting('billing.priceMultiplier', 1500);
+  const requestId = randomUUID();
+  const hold = await holdCharge({userId: user.id, requestId, operation: 'CHAT_SEND', conversationId: conversation.id});
+  const record = await readCharge(user.id, 'CHAT_SEND', requestId);
+  assert.deepEqual(
+    {modelKey: record.price.modelKey, baseCoins: record.price.baseCoins, multiplier: record.price.multiplier, coins: record.price.coins, allowanceSource: record.price.allowanceSource, priceSource: record.price.priceSource},
+    {modelKey: hold.price.modelKey, baseCoins: 20, multiplier: 1500, coins: 30, allowanceSource: 'PAID', priceSource: 'MODEL_PRICE'},
+  );
+  assert.equal(record.price.coins, hold.coins, '快照币价与实际扣费一致');
+  // 配置版本：定价用到的设置键各自的版本号，读得到且是设置中心当前值的版本。
+  const versions = record.price.settingsVersion;
+  assert.ok(versions && typeof versions === 'object', '老快照没有这个字段，新快照必须有');
+  assert.deepEqual(Object.keys(versions).sort(), ['billing.chargingEnabled', 'billing.dayTimezone', 'billing.priceMultiplier', 'mirror.purchaseCoins', 'mirror.purchaseEnabled', 'story.chargingEnabled', 'story.coinPrice']);
+  const current = await db.operationSetting.findUnique({where: {key: 'billing.priceMultiplier'}, select: {version: true}});
+  assert.equal(versions['billing.priceMultiplier'], current.version, '版本号取自设置中心当前生效值');
+  await removeSetting('billing.priceMultiplier');
 });
 
 test('GET /api/me/quota 暴露取消策略与免费取消额度（前端契约字段名不变）', async () => {

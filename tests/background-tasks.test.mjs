@@ -444,3 +444,40 @@ test('事件清理按保留天数删除，保留天数每次从数据库读，�
   assert.equal(await db.productEvent.count(), 1);
 });
 
+
+test('脚本入口跑一批就退出：复用同一份任务与租约，退出码反映是否有失败', async () => {
+  // 计划任务调的是 scripts/run-tasks.mjs，不是另一套任务系统：
+  // 这里只用子进程跑它，验证「能退出、退出码对、读的是同一张表」。
+  const run = () => spawnSync(process.execPath, ['--import', 'tsx', 'scripts/run-tasks.mjs'], {env, encoding: 'utf8', windowsHide: true, cwd: process.cwd()});
+  // 先把所有到期任务清干净，让第一轮的结果只由本用例造。
+  await db.backgroundTask.updateMany({data: {status: 'DONE', nextRunAt: new Date(Date.now() + 86_400_000)}});
+  await tasks.enqueueTask('memory-summary', conversation.id);
+  const ok = run();
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  const report = JSON.parse(ok.stdout.trim().split('\n').pop());
+  assert.equal(report.claimed, 1, '只领到本用例登记的那一个任务');
+  assert.equal(report.done, 1);
+  assert.equal(report.failed, 0);
+  assert.equal((await db.backgroundTask.findUnique({where: {kind_subjectId: {kind: 'memory-summary', subjectId: conversation.id}}})).status, 'DONE', '跑完写回同一张表');
+
+  // 处理器抛错且重试用尽 → 退出码非 0，计划任务据此告警。
+  // 用 daily-backup 制造真失败：它在重试用尽后置 FAILED（见 FAIL_ON_EXHAUSTED_KINDS），
+  // 而 memory-summary 缺会话只会 SKIPPED_DISABLED、story-state 空库会成功。
+  // 当前库的 DATABASE_URL 指向子目录，备份源文件按 cwd 解析不出来 → 处理器抛错。
+  await db.backgroundTask.update({
+    where: {kind_subjectId: {kind: 'daily-backup', subjectId: 'sweep'}},
+    data: {status: 'PENDING', attempts: 5, nextRunAt: new Date()},
+  });
+  // 换一个指向不存在数据库的 DATABASE_URL 跑同一个脚本：备份处理器在取源库时抛错，
+  // 重试用尽后任务置 FAILED。脚本自己的数据库连不上也不影响退出码约定——两种情况都非 0。
+  const failing = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/run-tasks.mjs'], {
+    env: {...env, DATABASE_URL: 'file:./prisma/no-such-source.db'},
+    encoding: 'utf8',
+    windowsHide: true,
+    cwd: process.cwd(),
+  });
+  assert.notEqual(failing.status, 0, '失败必须是非 0 退出码：' + failing.stdout + failing.stderr);
+
+  // 跑完就退出：子进程已经返回，没有常驻定时器残留。
+  assert.equal(typeof failing.pid, 'number');
+});

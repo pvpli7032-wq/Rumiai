@@ -70,9 +70,11 @@ export const SYSTEM_ROLES = [
   {code: 'FINANCE_REFUND_APPROVER', name: '退款审批员', permissions: ['finance.read', 'finance.refunds.approve', 'finance.refunds.execute'] as AdminPermission[]},
   {code: 'AUDITOR', name: '管理审计员', permissions: ['admin.staff.read', 'admin.audit.read'] as AdminPermission[]},
   {code: 'SUPPORT_AGENT', name: '用户客服', permissions: ['accounts.read', 'accounts.community.manage'] as AdminPermission[]},
-  {code: 'CHARACTER_MANAGER', name: '角色管理员', permissions: ['characters.read', 'characters.write', 'characters.publish'] as AdminPermission[]},
-  {code: 'COMMUNITY_MANAGER', name: '社区管理员', permissions: ['community.read', 'community.write', 'community.members.manage', 'moderation.read', 'moderation.write'] as AdminPermission[]},
-  {code: 'SITE_CONTENT_MANAGER', name: '站点内容管理员', permissions: ['site.content.read', 'site.content.manage', 'site.content.publish'] as AdminPermission[]},
+  // 内容参数（content.*、upload.*、limits.*）都在设置中心里，内容职责角色没有设置权限就改不了自己那部分，
+  // 所以按 V3 §12「按已有职责授予相关页面读写」给这三个角色补上设置读写。
+  {code: 'CHARACTER_MANAGER', name: '角色管理员', permissions: ['characters.read', 'characters.write', 'characters.publish', 'settings.read', 'settings.write'] as AdminPermission[]},
+  {code: 'COMMUNITY_MANAGER', name: '社区管理员', permissions: ['community.read', 'community.write', 'community.members.manage', 'moderation.read', 'moderation.write', 'settings.read', 'settings.write'] as AdminPermission[]},
+  {code: 'SITE_CONTENT_MANAGER', name: '站点内容管理员', permissions: ['site.content.read', 'site.content.manage', 'site.content.publish', 'settings.read', 'settings.write'] as AdminPermission[]},
   {code: 'AI_PROVIDER_MANAGER', name: 'AI 供应商管理员', permissions: ['ai.providers.read', 'ai.providers.manage', 'ai.providers.secrets.manage', 'ai.providers.test'] as AdminPermission[]},
   {code: 'AI_MODEL_MANAGER', name: 'AI 模型管理员', permissions: ['ai.providers.read', 'ai.models.read', 'ai.models.manage', 'ai.models.test'] as AdminPermission[]},
   {code: 'AI_COST_MANAGER', name: 'AI 成本管理员', permissions: ['ai.costs.read', 'ai.costs.manage'] as AdminPermission[]},

@@ -58,6 +58,8 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   const body = input.mode === 'SEND' ? await parseJsonBody('request' in input.input ? input.input.request : undefined) : null;
   const requestId = readRequestId(input.mode === 'SEND' ? body?.requestId : ('requestId' in input.input ? input.input.requestId : null));
   let content: string; let history: Awaited<ReturnType<typeof readRecentMessageHistory>> | undefined; let replaceAt: Date | undefined;
+  // 写进费用单摘要的「用户实际提交的内容」：发送是正文，重生成是被重新生成的那条消息 id。
+  let requestContent: string;
   if (input.mode === 'SEND') {
     // 请求体缺失或不是合法 JSON 对象：直接按格式错误拒绝，不要落到「须为文本」。
     if (!('request' in input.input) || !body) throw new ChatTurnHttpError('消息数据格式不正确。', 400);
@@ -65,10 +67,12 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
     if (typeof raw !== 'string' || raw.length > rules.maxMessageChars) throw new ChatTurnHttpError(`消息须为文本，最多 ${rules.maxMessageChars} 字。`, 400);
     if (!raw.trim()) throw new ChatTurnHttpError('Message content is required', 400);
     content = raw.trim();
+    requestContent = content;
   } else {
     if (!('targetMessageId' in input.input)) throw new ChatTurnHttpError('Internal server error', 500);
     const prepared = await prepareMessageRegeneration(input.userId, input.conversationId, input.input.targetMessageId, rules.historyMessages);
     content = prepared.prompt.content; history = prepared.history; replaceAt = prepared.prompt.createdAt;
+    requestContent = input.input.targetMessageId;
   }
   // V3 §20：请求号由客户端给。缺了就没法重放、也没法断线查询，直接 400 而不是自造一个。
   if (!requestId) throw new ChatTurnHttpError('缺少请求编号，请刷新页面重试。', 400);
@@ -82,7 +86,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
 
   let billing: BillingTurn;
   try {
-    billing = await beginBillingTurn({userId: input.userId, conversationId: input.conversationId, operation: CHARGE_OPERATION[input.mode], requestId}, {modelKey: modelPlan?.[0]?.key ?? null});
+    billing = await beginBillingTurn({userId: input.userId, conversationId: input.conversationId, operation: CHARGE_OPERATION[input.mode], requestId}, {modelKey: modelPlan?.[0]?.key ?? null, requestContent});
   } catch (error) {
     const chargeError = toChargeError(error);
     if (chargeError) throw new ChatTurnHttpError(chargeError.message, chargeError.status);

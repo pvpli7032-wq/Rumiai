@@ -1,5 +1,5 @@
 'use client';
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {ChevronDown, ChevronUp} from 'lucide-react';
@@ -16,8 +16,9 @@ type Selection = {conversationId: string; messageIds: string[]};
 /**
  * 发起表单：选一段自己的聊天 → 勾选连续消息 → 写诉求 → 预览 → 提交。
  * 连续性在点击时就检查，服务端还会再校验一次。
+ * 从聊天页的「评理」入口进来时带 conversationId，直接选中那一段并加载候选消息。
  */
-export function DisputeComposer({locale}: {locale: string}) {
+export function DisputeComposer({locale, initialConversationId}: {locale: string; initialConversationId?: string}) {
   const {token, isLoading} = useAuth();
   const router = useRouter();
   const [options, setOptions] = useState<ExcerptOptions | null>(null);
@@ -52,6 +53,14 @@ export function DisputeComposer({locale}: {locale: string}) {
       if (data.claimMaxChars && options) setOptions(current => current ? {...current, claimMaxChars: data.claimMaxChars, maxExcerptMessages: data.maxExcerptMessages ?? current.maxExcerptMessages} : current);
     } catch (cause) { setNotice(cause instanceof Error ? cause.message : '聊天消息加载失败。'); }
   }, [token, options]);
+
+  // 入口带过来的那段对话先选上；只做一次，用户之后自己换对话不会被拽回去。
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !token || !initialConversationId) return;
+    prefilled.current = true;
+    void loadMessages(initialConversationId);
+  }, [token, initialConversationId, loadMessages]);
 
   const chosen = useMemo(() => messages.filter(message => selection.messageIds.includes(message.messageId)), [messages, selection.messageIds]);
 
@@ -103,6 +112,8 @@ export function DisputeComposer({locale}: {locale: string}) {
         <select value={conversationId} onChange={event => void loadMessages(event.target.value)} className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm">
           <option value="">选择聊天</option>
           {conversations.map(item => <option key={item.id} value={item.id}>{item.title || item.character?.name || '未命名聊天'}</option>)}
+          {/* 入口带过来、但不在最近 50 段里的对话也要能显示出来，否则下拉框是空的。 */}
+          {conversationId && !conversations.some(item => item.id === conversationId) && <option value={conversationId}>当前对话</option>}
         </select>
       </section>
 

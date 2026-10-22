@@ -59,11 +59,33 @@ export async function exportAccountData(userId: string) {
       tx.aiCall.findMany({ where: { userId }, select: { id: true, conversationId: true, operation: true, status: true, model: true, attempts: true, inputTokens: true, outputTokens: true, estimatedCost: true, currency: true, startedAt: true, finishedAt: true } }),
       tx.aiDailyUsage.findMany({ where: { userId }, select: { day: true, count: true } }),
     ]);
+    // 本人角色的 id 只用来圈出「别人针对我角色的评理」，见下方第二个查询。
+    const myCharacterIds = characters.map(row => row.id);
+    const [mirrorResults, disputeCases, disputesAgainstMyCharacters, disputeVotes, conversationMemories, memoryFacts] = await Promise.all([
+      // 结果含本人写的三题原回答：公开视图从不给别人的这一份，导出给本人。
+      tx.mirrorResult.findMany({ where: { userId }, select: {
+        shareId: true, characterId: true, title: true, answersJson: true, observationsJson: true,
+        quote: true, indicesJson: true, status: true, expiresAt: true, createdAt: true, updatedAt: true,
+      } }),
+      // 本人发起的案例：作者视角，含自己的摘录、规则快照与结案结果。
+      tx.disputeCase.findMany({ where: { authorId: userId }, select: {
+        id: true, postId: true, characterId: true, claim: true, excerptJson: true, ruleSnapshotJson: true,
+        deadlineAt: true, voteCount: true, closeStatus: true, verdictJson: true, closedAt: true, createdAt: true, updatedAt: true,
+      } }),
+      // 别人对我角色发起的案例：只给已公开的案例字段，摘录属于发起人的对话，不导出。
+      tx.disputeCase.findMany({ where: { authorId: { not: userId }, characterId: { in: myCharacterIds } }, select: {
+        id: true, claim: true, deadlineAt: true, voteCount: true, closeStatus: true, verdictJson: true, closedAt: true, createdAt: true,
+      } }),
+      tx.disputeVote.findMany({ where: { userId }, select: { caseId: true, choice: true, reviseCount: true, createdAt: true, updatedAt: true } }),
+      tx.conversationMemory.findMany({ where: { conversation: { userId } }, select: { conversationId: true, summary: true, version: true, createdAt: true, updatedAt: true } }),
+      tx.memoryFact.findMany({ where: { userId }, select: { id: true, conversationId: true, text: true, sourceMessageId: true, pinned: true, status: true, createdAt: true } }),
+    ]);
     const adminIdentity = await readOwnAdminIdentity(tx, userId);
     // W07: story runs join the account archive in the same snapshot (plan chapter 24).
     const stories = await exportAccountStories(tx, userId);
     return { version: 3, generatedAt: new Date().toISOString(), account, adminIdentity, stories,
       conversations, characters, posts, postComments, comments, transactions, orders, uploads, circleRestrictions,
-      reports, appeals, following, followers, memberships, circles, bookmarks, characterLikes, postLikes, commentLikes, checkins, gifts, missions, questProgress, aiCalls, aiDailyUsage };
+      reports, appeals, following, followers, memberships, circles, bookmarks, characterLikes, postLikes, commentLikes, checkins, gifts, missions, questProgress, aiCalls, aiDailyUsage,
+      mirrorResults, disputeCases, disputesAgainstMyCharacters, disputeVotes, conversationMemories, memoryFacts };
   });
 }

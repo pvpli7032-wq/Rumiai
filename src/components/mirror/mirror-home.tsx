@@ -114,7 +114,7 @@ export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageRespon
 
       {result ? (
         <section className="space-y-4" aria-live="polite">
-          <MirrorResultCard fields={result} />
+          <MirrorResultCard fields={result} layout={result.layout} />
           <MirrorActions characterId={result.characterId} onAgain={reset} canShare onShare={() => router.push(`/${locale}/mirror/${result.shareId}`)} />
           <Link href={`/${locale}/mirror/${result.shareId}`} className="inline-block text-sm text-brand underline-offset-4 hover:underline">打开结果页</Link>
         </section>
@@ -138,7 +138,7 @@ export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageRespon
                   这是运营为{selected?.name ?? '这个角色'}准备的示例，不是你生成的结果；答题后看到的是你自己的。
                 </span>
               </div>
-              <MirrorResultCard fields={example} aiNote={false} />
+              <MirrorResultCard fields={example} layout={rules.resultLayout} aiNote={false} />
             </section>
           )}
 

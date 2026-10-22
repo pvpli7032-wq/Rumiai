@@ -6,6 +6,7 @@ import {SITE_URL, alternateLanguages, compactNumber, getDictionary, isLocale, ty
 import { PublicHeader } from '@/components/public-header';
 import { getSceneConfigByCharacterId } from '@/lib/stories/scene-config';
 import { resolveScene } from '@/lib/stories/scene-service';
+import { CharacterReplyPlan } from '@/components/character-reply-plan';
 
 export const revalidate = 300;
 
@@ -115,6 +116,10 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
           >
             {dict.chatNow}
           </Link>
+
+          <div className="mt-5 w-full max-w-md">
+            <CharacterReplyPlan characterId={character.id} />
+          </div>
         </div>
 
         {character.greeting && (

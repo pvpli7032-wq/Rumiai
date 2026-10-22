@@ -84,12 +84,12 @@ export function parseJsonBody(request: Request | null | undefined): Promise<Json
  */
 export async function beginBillingTurn(
   party: BillingParty,
-  options: {modelKey?: string | null; now?: Date} = {},
+  options: {modelKey?: string | null; requestContent?: string | null; now?: Date} = {},
 ): Promise<BillingTurn> {
   let delivered = false;
   const hold = await holdCharge({
     userId: party.userId, requestId: party.requestId, operation: party.operation, conversationId: party.conversationId,
-    modelKey: options.modelKey ?? null, now: options.now,
+    modelKey: options.modelKey ?? null, requestContent: options.requestContent ?? null, now: options.now,
   });
   return {
     requestId: party.requestId,

@@ -102,6 +102,43 @@ export async function readUploadMaxBytes(): Promise<number> {
   return num(map, 'upload.maxMB', 8) * 1024 * 1024;
 }
 
+export interface RateWindow {
+  /** 一个窗口内允许的次数。 */
+  perWindow: number;
+  /** 窗口长度（毫秒），设置里以秒存。 */
+  windowMs: number;
+}
+
+export interface RateLimitRules {
+  upload: RateWindow;
+  follow: RateWindow;
+  report: RateWindow;
+}
+
+/**
+ * 频率限制参数（V3 §203：业务参数不再写成模块级 env 常量）。
+ *
+ * 每个调用点在请求开始时读一次；同一请求内的多项限制共用这一次 readSettings，
+ * 走同一份 15 秒缓存。`limits.login.*` 不在返回里：登录路由当前没有任何限流，
+ * 为它新造一套属于本任务明确排除的范围。
+ */
+export async function readRateLimitRules(): Promise<RateLimitRules> {
+  const map = await readGroupValues([
+    'limits.upload.perWindow', 'limits.upload.windowSeconds',
+    'limits.follow.perWindow', 'limits.follow.windowSeconds',
+    'limits.report.perWindow', 'limits.report.windowSeconds',
+  ]);
+  const window = (scope: string, fallbackPerWindow: number, fallbackSeconds: number): RateWindow => ({
+    perWindow: num(map, `limits.${scope}.perWindow`, fallbackPerWindow),
+    windowMs: num(map, `limits.${scope}.windowSeconds`, fallbackSeconds) * 1000,
+  });
+  return {
+    upload: window('upload', 20, 60),
+    follow: window('follow', 60, 60),
+    report: window('report', 20, 60),
+  };
+}
+
 export interface RegistrationRules {
   passwordMinLength: number;
   signupBonusCoins: number;

@@ -65,6 +65,7 @@ export const API = {
     detail: (id: string) => `/api/conversations/${e(id)}`,
     messages: (id: string) => `/api/conversations/${e(id)}/messages`,
     message: (id: string, mid: string) => `/api/conversations/${e(id)}/messages/${e(mid)}`,
+    share: (id: string) => `/api/conversations/${e(id)}/share`,
     like: (id: string, mid: string) => `/api/conversations/${e(id)}/messages/${e(mid)}/like`,
     regenerate: (id: string, mid: string) => `/api/conversations/${e(id)}/messages/${e(mid)}/regenerate`,
     export: (id: string, format: 'json' | 'txt' = 'json') => `/api/conversations/${e(id)}/export?format=${format}`,

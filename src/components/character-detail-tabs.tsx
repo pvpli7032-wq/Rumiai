@@ -13,6 +13,7 @@ export function AboutTab({
   sendingGift,
   token,
   onSendGift,
+  replyPlan,
 }: {
   character: DetailCharacter;
   scene?: SceneConfig;
@@ -20,6 +21,8 @@ export function AboutTab({
   sendingGift: string | null;
   token: string | null;
   onSendGift: (gift: GiftOption) => void;
+  /** 可用模型与费用（V3 表 15）；由详情弹窗注入，人设/开场之后、礼物之前。 */
+  replyPlan?: React.ReactNode;
 }) {
   return (
     <div className="space-y-4">
@@ -28,6 +31,7 @@ export function AboutTab({
       {character.scenario && <Section title={"场景"}>{character.scenario}</Section>}
       {character.copyrightStatement && <Section title="版权声明">{character.copyrightStatement}</Section>}
       {character.background && <Section title={"故事"}>{character.background}</Section>}
+      {replyPlan}
       {giftOptions.length>0&&<section className="space-y-2"><h3 className="text-xs font-bold text-zinc-500">赠送礼物</h3><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{giftOptions.map(gift=><button key={gift.id} onClick={()=>onSendGift(gift)} disabled={!token||!!sendingGift} className="flex min-h-14 items-center gap-2 rounded-xl border border-white/10 bg-zinc-800/50 px-3 text-left hover:border-brand-strong/50 disabled:opacity-50"><span className="text-xl">{gift.emoji}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm">{gift.name}</span><span className="text-xs text-amber-400">{gift.coinPrice} 金币</span></span></button>)}</div>{!token&&<p className="text-xs text-zinc-500">登录后可赠送礼物</p>}</section>}
       {character.greeting && <Section title={"开场白"}>{character.greeting}</Section>}
       {character.emojis.length > 0 && (

@@ -7,9 +7,38 @@ import { eraseAccountCommunityContent } from '@/lib/community/privacy';
 import { finishClosureFileCleanup } from '@/lib/uploads/privacy';
 import { listOwnedUploadFiles } from '@/lib/uploads/storage-service';
 import {closeAdminIdentity, AdminManagementError} from '@/lib/admin/management-service';
+import {markCaseHidden} from '@/lib/disputes/visibility-service';
+import type {Prisma} from '@prisma/client';
 
 export class AccountClosureError extends Error {
   constructor(message: string, public status = 400) { super(message); }
+}
+
+/**
+ * 注销时清理 Mirror、评理与记忆（V3 §79「新增对象纳入账号删除」）。
+ *
+ * 注销是匿名化而不是删 user 行，所以 schema 上挂 onDelete: Cascade 的 MirrorResult /
+ * DisputeCase / DisputeVote / MemoryFact 一条都不会被级联触发，必须显式处理：
+ *
+ * - MirrorResult：作者注销后结果不该继续公开，按 deleteMirrorResult 的语义把 READY 置 HIDDEN
+ *   （删除一律写在 status 上，不物理删，账与费用单还挂着 shareId）。
+ * - DisputeCase：已公开的案例是社区内容，删掉会让投票与评论悬空。帖子一律置 HIDDEN，
+ *   读侧「帖子非 VISIBLE 且不是作者」直接 404，所以公开访问在结案前后都停得住。
+ *   还没结案的再置 WITHDRAWN：结案入口只认 OPEN，否则会给一个已注销的作者写兜底判词。
+ *   已结案的保留 CLOSED——后台隐藏也拒绝 CLOSED，结案结果不该因为作者注销而被抹掉。
+ * - DisputeVote：投票行与 userId 都不动。票数是社区计数，删行会让票数对不上；
+ *   而 user 行已被匿名化，这条关联不再指向任何可识别的人。
+ * - ConversationMemory 随会话级联删除（eraseAccountConversations 删会话即带走）；
+ *   MemoryFact 没有 conversation 外键，级联捞不到，必须单独删。
+ */
+async function eraseAccountNewObjects(tx: Prisma.TransactionClient, userId: string) {
+  const cases = await tx.disputeCase.findMany({where: {authorId: userId}, select: {id: true, postId: true, closeStatus: true}});
+  for (const row of cases) {
+    if (row.closeStatus === 'CLOSED') await tx.post.updateMany({where: {id: row.postId}, data: {status: 'HIDDEN'}});
+    else await markCaseHidden(tx, {caseId: row.id, postId: row.postId});
+  }
+  await tx.mirrorResult.updateMany({where: {userId, status: 'READY'}, data: {status: 'HIDDEN'}});
+  await tx.memoryFact.deleteMany({where: {userId}});
 }
 
 export async function closeAccount(userId: string, input: unknown) {
@@ -39,6 +68,8 @@ export async function closeAccount(userId: string, input: unknown) {
       ...await eraseAccountConversations(tx, userId),
       ...await withdrawAccountCharacters(tx, userId),
       ...await eraseAccountCommunityContent(tx, userId)];
+    // Mirror / 评理 / 记忆：注销是匿名化，级联不触发，这里显式停公开访问并删私人记忆。
+    await eraseAccountNewObjects(tx, userId);
     // Accounting/usage and report evidence stay linked to an anonymous identity.
     await tx.report.updateMany({ where: { reporterId: userId }, data: { contactType: null, contactValue: null } });
     await tx.user.update({ where: { id: userId }, data: {

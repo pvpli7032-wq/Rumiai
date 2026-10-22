@@ -70,7 +70,7 @@ export function MirrorResultView({view, locale}: {view: MirrorView; locale: stri
         </div>
       </header>
 
-      <MirrorResultCard fields={result} />
+      <MirrorResultCard fields={result} layout={result.layout} />
 
       <MirrorActions characterId={result.characterId} canShare onShare={share} />
       {shareState === 'copied' && <Badge variant="success">分享链接已复制</Badge>}

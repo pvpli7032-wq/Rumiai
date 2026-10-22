@@ -62,8 +62,13 @@ try{
   await page.getByLabel('按订单号或渠道单号查找').fill('OPS-TRADE-007');
   await page.getByRole('button',{name:'查询',exact:true}).click();
   await page.locator('tbody').getByText('OPSORDER-007',{exact:false}).waitFor({state:'visible'});
-  await page.locator('tbody').getByText('入账 · OPS-TRADE-007',{exact:false}).waitFor({state:'visible'});
-  await page.locator('tbody').getByText('业务校验拒绝 · amount_mismatch',{exact:false}).waitFor({state:'visible'});
+  // 验签回调时间线随 V3 表 14 收进订单详情抽屉，列表行不再显示；这里打开详情确认两条事件都在。
+  await page.getByRole('button',{name:'查看订单 OPSORDER-007'}).click();
+  const drawer=page.getByRole('dialog').filter({hasText:'OPSORDER-007'});
+  await drawer.getByText('入账 · OPS-TRADE-007',{exact:false}).waitFor({state:'visible'});
+  await drawer.getByText('业务校验拒绝 · amount_mismatch',{exact:false}).waitFor({state:'visible'});
+  // 抽屉的关闭是头部图标按钮（aria-label="关闭"），底部的「关闭」文案按钮在 footer 里但不在 dialog 节点内。
+  await page.getByRole('button',{name:'关闭',exact:true}).first().click();
   assert.equal((await context.request.get(base+'/api/admin/finance/orders/all?q=OPS-TRADE-007',{headers:{Authorization:'Bearer '+token}})).status(),200);
   const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:/导出 CSV/}).click()]);
   const csv=await readFile(await download.path(),'utf8');assert(csv.includes('OPSORDER-007'));assert(csv.includes('OPS-TRADE-007'));assert.equal(csv.includes('providerPayInfo'),false);
@@ -77,9 +82,11 @@ try{
   await page.getByRole('heading',{name:'充值订单',exact:true}).waitFor();
   await page.getByLabel('按订单号或渠道单号查找').fill('OPS-TRADE-007');
   await page.getByRole('button',{name:'查询',exact:true}).click();
-  // 回调异常面板只按服务端原因标号渲染中文标签，不回显订单号。
+  // 回调异常面板只按服务端原因标号渲染中文标签，不回显订单号；它现在在「对账」标签下。
+  await page.getByRole('tab',{name:'对账',exact:true}).click();
   await page.getByRole('region',{name:'支付回调异常（聚合）'}).getByText('订单金额不匹配',{exact:true}).waitFor({state:'visible'});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.getByRole('tab',{name:'订单',exact:true}).click();
   await page.getByRole('heading',{name:'充值订单',exact:true}).scrollIntoViewIfNeeded();
   await page.screenshot({path:path.join(out,'payment-orders-mobile.png')});
   assert.deepEqual(errors,[]);

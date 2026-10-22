@@ -8,6 +8,9 @@ import {SignedInRedirect} from './signed-in-redirect';
 import {readPublicSiteContent} from '@/lib/site-content/public-service';
 import {listCharacters} from '@/lib/characters/catalog-service';
 import {compactNumber} from '@/lib/i18n/format';
+import {readSettingValue} from '@/lib/settings/service';
+import {readHomeCopyOverrides} from '@/lib/site-content/home-copy';
+import type {LandingCopy} from '@/lib/i18n/landing-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +35,14 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
   const {locale: raw} = await params;
   const locale = (isLocale(raw) ? raw : DEFAULT_LOCALE) as Locale;
   const dict = getDictionary(locale);
-  const copy = dict.landing;
-  const [site, characters] = await Promise.all([readPublicSiteContent(), listCharacters({sort: 'popular'})]);
+  // 后台站点内容（slug=home）覆盖标题、副标题、两个按钮与「他眼中的你」卡片；没配就用字典。
+  const copy: LandingCopy = {...dict.landing, ...(await readHomeCopyOverrides())};
+  const [site, characters, mirrorEnabled] = await Promise.all([
+    readPublicSiteContent(),
+    listCharacters({sort: 'popular'}),
+    // 玩法开关关闭时入口整块不出现（V3 表 15 只列当前开放的玩法）。
+    readSettingValue<boolean>('mirror.enabled'),
+  ]);
   const featured = characters.slice(0, 6);
   const banners = site.banners.hero as HeroBanner[];
 
@@ -114,7 +123,25 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
         </section>
       )}
 
-      {/* 3. 三步玩法 */}
+      {/* 3. 他眼中的你：表 15 要求的独立入口，落在玩法说明之前 */}
+      {mirrorEnabled && (
+        <section className="mx-auto w-full max-w-5xl px-6 py-4">
+          <Link
+            href={`/${locale}/mirror`}
+            className="group flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/25"
+          >
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-white">{copy.mirrorTitle}</h2>
+              <p className="mt-1 max-w-xl text-sm leading-relaxed text-zinc-400">{copy.mirrorBody}</p>
+            </div>
+            <span className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-white/20 px-5 text-sm font-semibold text-zinc-100 transition-colors group-hover:border-white/40 group-hover:text-white">
+              {copy.mirrorCta}
+            </span>
+          </Link>
+        </section>
+      )}
+
+      {/* 4. 三步玩法 */}
       <section className="mx-auto w-full max-w-5xl px-6 py-8">
         <h2 className="text-xl font-bold text-white desktop:text-2xl">{copy.stepsTitle}</h2>
         <ol className="mt-5 grid gap-4 desktop:grid-cols-3">

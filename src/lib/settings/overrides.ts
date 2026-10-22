@@ -21,7 +21,11 @@ export async function readUserQuota(userId: string, settings: SettingValue[]): P
     if (!def) return setting;
     let value: JsonValue;
     try { value = JSON.parse(row.value) as JsonValue; } catch { return setting; }
-    return {...setting, value, source: 'USER' as const, version: row.version, expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null};
+    return {
+      ...setting, value, source: 'USER' as const, version: row.version,
+      expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
+      updatedAt: row.updatedAt.toISOString(),
+    };
   });
 }
 

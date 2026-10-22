@@ -10,7 +10,8 @@ import {Select} from '@/components/ui/select';
 import {Textarea} from '@/components/ui/textarea';
 import {cn} from '@/components/ui/cn';
 import type {JsonValue, SettingDefinition, SettingSource} from '@/lib/settings/types';
-import {SOURCE_LABELS, formatSettingValue, rangeHint} from './format';
+import {formatDateTime} from '@/lib/format/date-time';
+import {SOURCE_LABELS, formatSettingValue, rangeHint, rangeText} from './format';
 
 /**
  * 一行设置：中文名称 + 控件 + 单位 + 一行说明（V3 §16）。
@@ -23,6 +24,8 @@ export interface SettingFieldProps {
   value: JsonValue;
   source: SettingSource;
   version: number;
+  /** 这一项的最近保存时间；登记默认值没有时间。 */
+  updatedAt?: string | null;
   dirty: boolean;
   error?: string;
   disabled?: boolean;
@@ -38,6 +41,7 @@ export function SettingField({
   value,
   source,
   version,
+  updatedAt,
   dirty,
   error,
   disabled = false,
@@ -115,6 +119,14 @@ export function SettingField({
             <div className="flex min-w-0 gap-2">
               <dt className="shrink-0 text-muted-foreground">版本</dt>
               <dd className="min-w-0 text-foreground">{version}</dd>
+            </div>
+            <div className="flex min-w-0 gap-2">
+              <dt className="shrink-0 text-muted-foreground">更新时间</dt>
+              <dd className="min-w-0 text-foreground">{formatDateTime(updatedAt)}</dd>
+            </div>
+            <div className="flex min-w-0 gap-2">
+              <dt className="shrink-0 text-muted-foreground">可输入范围</dt>
+              <dd className="min-w-0 break-words text-foreground">{rangeText(definition)}</dd>
             </div>
             <div className="flex min-w-0 gap-2 sm:col-span-2">
               <dt className="shrink-0 text-muted-foreground">使用位置</dt>

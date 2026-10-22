@@ -22,7 +22,3 @@ export function isReportCategory(value: unknown): value is ReportCategory {
 export function isReportTargetType(value: unknown): value is ReportTargetType {
   return typeof value === 'string' && (REPORT_TARGET_TYPES as readonly string[]).includes(value);
 }
-
-/** Filing reports stays easy to reach; repeated filings are updated, not multiplied. */
-export const REPORT_RATE_LIMIT = Number(process.env.REPORT_RATE_LIMIT) || 20;
-export const REPORT_RATE_WINDOW_MS = Number(process.env.REPORT_RATE_WINDOW_MS) || 3_600_000;

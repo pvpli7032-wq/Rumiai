@@ -4,11 +4,12 @@ import {useEffect,useState} from 'react';
 import {MaintenanceSettings} from './maintenance-settings';
 import {CertificateStatus} from './certificate-status';
 import {BackupCatalog} from './backup-catalog';
+import {TaskLogPanel} from './task-log-panel';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
 import {Badge} from '@/components/ui/badge';
 import {formatNumber} from '@/lib/format/number';
 
-type Report={generatedAt:string;runtime:{installation:string;environment:string;nodeVersion:string;uptimeSeconds:number};database:{connected:boolean;migrations:{appliedCount:number;availableCount:number|null;pendingCount:number|null;unexpectedCount:number|null;failedCount:number;lastMigration:string|null;lastAppliedAt:string|null}};backups:{directoryPresent:boolean;singleFileBackups:number;stateBundles:number;newestAt:string|null};alerts:Array<{code:string;severity:'error'|'warning';title:string;detail:string}>;capabilities:{backupCreation:string;restore:string;certificateRenewal:string;externalAlerts:string}};
+type Report={generatedAt:string;runtime:{installation:string;environment:string;nodeVersion:string;uptimeSeconds:number};database:{connected:boolean;engine:string;migrations:{appliedCount:number;availableCount:number|null;pendingCount:number|null;unexpectedCount:number|null;failedCount:number;lastMigration:string|null;lastAppliedAt:string|null}};backups:{directoryPresent:boolean;singleFileBackups:number;stateBundles:number;newestAt:string|null};alerts:Array<{code:string;severity:'error'|'warning';title:string;detail:string}>;capabilities:{backupCreation:string;restore:string;certificateRenewal:string;externalAlerts:string}};
 const time=(value:string|null)=>value?new Date(value).toLocaleString('zh-CN'):'暂无记录';
 
 export function OperationsOverview({token}:{token:string}){
@@ -28,7 +29,7 @@ export function OperationsOverview({token}:{token:string}){
       </AdminPanel>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <article className="rounded-xl border border-border bg-card p-4"><h2 className="text-sm font-semibold text-foreground">应用进程</h2><p className="mt-2 text-sm">状态：<strong className="text-emerald-600">正常</strong></p><p className="mt-1 break-words text-sm text-muted-foreground">运行单元 {report.runtime.installation}</p><p className="mt-1 text-sm text-muted-foreground">环境 {report.runtime.environment} · {report.runtime.nodeVersion} · 运行 {formatNumber(report.runtime.uptimeSeconds)} 秒</p></article>
-        <article className="rounded-xl border border-border bg-card p-4"><h2 className="text-sm font-semibold text-foreground">数据库</h2><p className="mt-2 text-sm">连接：<strong className={report.database.connected?'text-emerald-600':'text-destructive'}>{report.database.connected?'正常':'异常'}</strong></p><p className="mt-1 text-sm text-muted-foreground">已应用迁移 {formatNumber(report.database.migrations.appliedCount)}{report.database.migrations.availableCount===null?'':` / ${formatNumber(report.database.migrations.availableCount)}`} · 待应用 {report.database.migrations.pendingCount===null?'未知':formatNumber(report.database.migrations.pendingCount)} · 未完成 {formatNumber(report.database.migrations.failedCount)} · 目录外已应用 {report.database.migrations.unexpectedCount===null?'未知':formatNumber(report.database.migrations.unexpectedCount)}</p><p className="mt-1 break-all text-xs text-muted-foreground">最近迁移：{report.database.migrations.lastMigration??'暂无记录'} · {time(report.database.migrations.lastAppliedAt)}</p></article>
+        <article className="rounded-xl border border-border bg-card p-4"><h2 className="text-sm font-semibold text-foreground">数据库</h2><p className="mt-2 text-sm">类型：<strong className="text-foreground">{report.database.engine}</strong></p><p className="mt-1 text-sm">连接：<strong className={report.database.connected?'text-emerald-600':'text-destructive'}>{report.database.connected?'正常':'异常'}</strong></p><p className="mt-1 text-sm text-muted-foreground">已应用迁移 {formatNumber(report.database.migrations.appliedCount)}{report.database.migrations.availableCount===null?'':` / ${formatNumber(report.database.migrations.availableCount)}`} · 待应用 {report.database.migrations.pendingCount===null?'未知':formatNumber(report.database.migrations.pendingCount)} · 未完成 {formatNumber(report.database.migrations.failedCount)} · 目录外已应用 {report.database.migrations.unexpectedCount===null?'未知':formatNumber(report.database.migrations.unexpectedCount)}</p><p className="mt-1 break-all text-xs text-muted-foreground">最近迁移：{report.database.migrations.lastMigration??'暂无记录'} · {time(report.database.migrations.lastAppliedAt)}</p></article>
         <article className="rounded-xl border border-border bg-card p-4"><h2 className="text-sm font-semibold text-foreground">本机备份清单</h2><p className="mt-2 text-sm text-foreground">数据库文件 {formatNumber(report.backups.singleFileBackups)} 份 · 带清单状态目录 {formatNumber(report.backups.stateBundles)} 个</p><p className="mt-1 text-sm text-muted-foreground">目录 {report.backups.directoryPresent?'可用':'尚未创建'} · 最近修改 {time(report.backups.newestAt)}</p></article>
       </div>
       <AdminPanel title="运维动作边界" description="页面只展示状态，不含备份文件名、目录路径或密钥。">
@@ -38,6 +39,7 @@ export function OperationsOverview({token}:{token:string}){
           <p className="text-xs text-muted-foreground">状态读取时间：{time(report.generatedAt)}。连接检查成功仅说明当前应用进程能访问数据库，不代表异地备份、证书续签或告警送达已通过。</p>
         </div>
       </AdminPanel>
+      <TaskLogPanel token={token}/>
     </>}
     <BackupCatalog token={token}/>
   </AdminPage>;

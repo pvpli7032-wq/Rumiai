@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type {ReactNode} from 'react';
 import {AdminNotice, AdminPanel, AdminPanelGroup} from '@/components/admin/admin-page';
 import {Badge} from '@/components/ui/badge';
-import {MIRROR_SOURCE_LABELS, mirrorQuestionState, type MirrorConfigPayload} from './types';
+import {MIRROR_LAYOUT_LABELS, MIRROR_SOURCE_LABELS, mirrorQuestionState, type MirrorConfigPayload} from './types';
 
 /**
  * 配置标签：只读展示当前生效的推广角色、题目、示例结果与版式，并给出去哪儿改。
@@ -143,23 +143,30 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
       </AdminPanel>
 
       <AdminPanel
-        title="版式与保留"
-        description="结果页的四段式版式（称号、三条观察、金句、两个娱乐指数）由前台组件决定；字数上限与保留天数在设置中心调整。"
+        title="观察风格、版式与保留"
+        description="观察风格直接拼进提示词；版式决定结果页怎么排，生成时写进结果，改它只影响新结果。两项都在设置中心编辑。"
         actions={<JumpLink href="/admin/settings">去设置中心</JumpLink>}
       >
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-xs text-muted-foreground">三条观察的写法（mirror.observationStyle）</p>
+          <p className="mt-1 break-words text-sm text-foreground">
+            {rules.observationStyle || '未配置：提示词里不加风格要求，按内置的那一句写。'}
+          </p>
+        </div>
         <div className="divide-y divide-border">
           <RuleRow label="题目数量" value={`${rules.questionCount} 题`} hint="mirror.questionCount" />
           <RuleRow label="每题字数上限" value={`${rules.answerMaxChars} 字`} hint="mirror.answerMaxChars" />
           <RuleRow label="称号字数" value={`${rules.titleMaxChars} 字`} hint="mirror.titleMaxChars" />
           <RuleRow label="每条观察字数" value={`${rules.observationMaxChars} 字`} hint="mirror.observationMaxChars" />
           <RuleRow label="金句字数" value={`${rules.quoteMaxChars} 字`} hint="mirror.quoteMaxChars" />
+          <RuleRow label="结果版式" value={MIRROR_LAYOUT_LABELS[rules.resultLayout]} hint="mirror.resultLayout，只影响新结果" />
           <RuleRow label="对比角色数量" value={`${rules.compareLimit} 个`} hint="mirror.compareLimit" />
           <RuleRow label="结果保留天数" value={`${rules.resultRetentionDays} 天`} hint="mirror.resultRetentionDays，只影响新结果" />
           <RuleRow label="额度时区" value={rules.timezone} hint="billing.dayTimezone" />
         </div>
         <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
           <Sparkles aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          提示词模板在设置中心「提示词」分类，与本页的版式参数分开保存。
+          提示词模板在设置中心「提示词」分类；观察风格与版式在「增长与玩法」分类，与本页展示的这些参数一一对应。
         </p>
       </AdminPanel>
     </AdminPanelGroup>

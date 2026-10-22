@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, Search } from 'lucide-react';
+import { Download, Eye, Search } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AdminNotice, AdminPanel, AdminToolbar } from '@/components/admin/admin-page';
 import { Badge } from '@/components/ui/badge';
@@ -8,20 +8,10 @@ import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { OrderDetailDrawer } from './order-detail-drawer';
+import { STATUS_LABEL, type OrderRow } from './order-types';
 
-type Refund = { refundNo: string; status: string; errorCode: string | null; completedAt: string | null };
-type CallbackEvent = { provider: string; providerTradeNo: string; outcome: string; reasonCode: string | null; receivedAt: string };
-type Order = {
-  orderNo: string; status: string; provider: string; providerTradeNo: string | null; currency: string;
-  amountCnyCents: number; packageCoins: number; packageBonus: number; coinAmount: number;
-  createdAt: string; paidAt: string | null; refund: Refund | null; callbackEvents: CallbackEvent[];
-};
-type OrderPage = { page: number; pageSize: number; total: number; items: Order[] };
-
-const statusLabel: Record<string, string> = {
-  PENDING: '待支付', PAID: '已支付', REFUND_PENDING: '退款处理中', REFUNDED: '已退款', FAILED: '支付失败',
-  PROCESSING: '渠道处理中', UNKNOWN: '结果待核对', SUCCEEDED: '退款成功',
-};
+type OrderPage = { page: number; pageSize: number; total: number; items: OrderRow[] };
 
 const STATUS_FILTERS = [
   { value: 'ALL', label: '全部状态' },
@@ -32,50 +22,26 @@ const STATUS_FILTERS = [
   { value: 'FAILED', label: '支付失败' },
 ];
 
-function money(order: Order) {
+function money(order: OrderRow) {
   if (order.currency === 'CNY') return '¥' + (order.amountCnyCents / 100).toFixed(2);
   return order.currency + ' ' + (order.amountCnyCents / 100).toFixed(2);
 }
 
-function callbackText(event: CallbackEvent) {
-  const outcome = event.outcome === 'SETTLED' ? '入账' : event.outcome === 'DUPLICATE' ? '重复' : '业务校验拒绝' + (event.reasonCode ? ' · ' + event.reasonCode : '');
-  return `${outcome} · ${event.providerTradeNo}`;
-}
-
-const columns: DataTableColumn<Order>[] = [
-  { id: 'order', header: '订单', width: '260px', cell: order => (
-    <div className="min-w-0">
-      <p className="break-all font-medium">{order.orderNo}</p>
-      <p className="mt-1 break-all text-xs text-muted-foreground">渠道单号：{order.providerTradeNo ?? '未返回'}</p>
-    </div>
-  ) },
-  { id: 'status', header: '状态', width: '120px', cell: order => (
-    <Badge variant={order.status === 'PAID' ? 'success' : ['REFUNDED', 'REFUND_PENDING', 'FAILED', 'UNKNOWN'].includes(order.status) ? 'warning' : 'neutral'}>
-      {statusLabel[order.status] ?? order.status}
-    </Badge>
-  ) },
-  { id: 'amount', header: '金额与金币', width: '200px', cell: order => (
-    <div>
-      <p className="whitespace-nowrap tabular-nums">{money(order)}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{order.coinAmount} 枚（基础 {order.packageCoins} + 赠送 {order.packageBonus}）</p>
-    </div>
-  ) },
-  { id: 'provider', header: '支付渠道', width: '120px', cell: order => order.provider },
-  { id: 'refund', header: '退款', width: '220px', cell: order => order.refund
-    ? <span className="break-all text-xs">{(statusLabel[order.refund.status] ?? order.refund.status)} · {order.refund.refundNo}{order.refund.errorCode ? ' · ' + order.refund.errorCode : ''}</span>
-    : <span className="text-xs text-muted-foreground">无</span> },
-  { id: 'callback', header: '验签回调', width: '280px', cell: order => order.callbackEvents.length
-    ? <div className="space-y-1 break-all">{order.callbackEvents.map((event, index) => <p className="text-xs" key={event.receivedAt + '-' + index}>{callbackText(event)} · {new Date(event.receivedAt).toLocaleString('zh-CN')}</p>)}</div>
-    : <span className="text-xs text-muted-foreground">暂无记录</span> },
-  { id: 'time', header: '时间', width: '200px', cell: order => (
-    <div className="whitespace-nowrap">
-      <p className="text-xs">创建 {new Date(order.createdAt).toLocaleString('zh-CN')}</p>
-      <p className="mt-1 text-xs text-muted-foreground">支付 {order.paidAt ? new Date(order.paidAt).toLocaleString('zh-CN') : '—'}</p>
-    </div>
-  ) },
-];
-
-export function PaymentOrderManagement({ token }: { token: string }) {
+/**
+ * 充值订单列表（V3 表 14：订单为默认页）。
+ *
+ * 列表只留可扫读的列；验签回调时间线与退款处理都在订单详情抽屉里，
+ * 列表本身不再放退款表单。
+ */
+export function PaymentOrderManagement({ token, canRequest, canApprove, canExecute, focusOrderNo, onFocusHandled }: {
+  token: string;
+  canRequest: boolean;
+  canApprove: boolean;
+  canExecute: boolean;
+  /** 从退款台账跳过来时要直接打开的订单号；打开后由调用方清空。 */
+  focusOrderNo?: string;
+  onFocusHandled?: () => void;
+}) {
   const [result, setResult] = useState<OrderPage | null>(null);
   const [status, setStatus] = useState('ALL');
   const [query, setQuery] = useState('');
@@ -86,6 +52,7 @@ export function PaymentOrderManagement({ token }: { token: string }) {
    * 用 window.location 而不是 useSearchParams，理由同 account-management.tsx。
    */
   const [created, setCreated] = useState<{from: string; until: string} | null>(null);
+  const [selected, setSelected] = useState<OrderRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
@@ -123,6 +90,27 @@ export function PaymentOrderManagement({ token }: { token: string }) {
     return () => controller.abort();
   }, [load]);
 
+  /** 退款台账点「在订单详情处理」后，按订单号取一次完整行并直接打开抽屉。 */
+  useEffect(() => {
+    if (!focusOrderNo) return;
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch('/api/admin/finance/orders?orderNo=' + encodeURIComponent(focusOrderNo), { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw Error(data.error);
+        const found = (data as OrderRow[])[0];
+        if (!active) return;
+        if (found) setSelected(found); else setError('这笔订单不在可退款范围内。');
+      } catch (focusError) {
+        if (active) setError(focusError instanceof Error ? focusError.message : '订单详情加载失败。');
+      } finally {
+        if (active) onFocusHandled?.();
+      }
+    })();
+    return () => { active = false; };
+  }, [focusOrderNo, token, onFocusHandled]);
+
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (page !== 1) setPage(1);
@@ -147,52 +135,97 @@ export function PaymentOrderManagement({ token }: { token: string }) {
     finally { setExporting(false); }
   }
 
+  const columns: DataTableColumn<OrderRow>[] = [
+    { id: 'order', header: '订单', width: '260px', cell: order => (
+      <div className="min-w-0">
+        <p className="break-all font-medium">{order.orderNo}</p>
+        <p className="mt-1 break-all text-xs text-muted-foreground">渠道单号：{order.providerTradeNo ?? '未返回'}</p>
+      </div>
+    ) },
+    { id: 'status', header: '状态', width: '120px', cell: order => (
+      <Badge variant={order.status === 'PAID' ? 'success' : ['REFUNDED', 'REFUND_PENDING', 'FAILED', 'UNKNOWN'].includes(order.status) ? 'warning' : 'neutral'}>
+        {STATUS_LABEL[order.status] ?? order.status}
+      </Badge>
+    ) },
+    { id: 'amount', header: '金额与金币', width: '200px', cell: order => (
+      <div>
+        <p className="whitespace-nowrap tabular-nums">{money(order)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{order.coinAmount} 枚（基础 {order.packageCoins} + 赠送 {order.packageBonus}）</p>
+      </div>
+    ) },
+    { id: 'provider', header: '支付渠道', width: '120px', cell: order => order.provider },
+    { id: 'refund', header: '退款', width: '220px', cell: order => order.refund
+      ? <span className="break-all text-xs">{(STATUS_LABEL[order.refund.status] ?? order.refund.status)} · {order.refund.refundNo}{order.refund.errorCode ? ' · ' + order.refund.errorCode : ''}</span>
+      : <span className="text-xs text-muted-foreground">无</span> },
+    { id: 'time', header: '时间', width: '200px', cell: order => (
+      <div className="whitespace-nowrap">
+        <p className="text-xs">创建 {order.createdAt ? new Date(order.createdAt).toLocaleString('zh-CN') : '未返回'}</p>
+        <p className="mt-1 text-xs text-muted-foreground">支付 {order.paidAt ? new Date(order.paidAt).toLocaleString('zh-CN') : '—'}</p>
+      </div>
+    ) },
+    { id: 'actions', header: '操作', align: 'right' as const, width: '110px', cell: order => (
+      <Button variant="outline" size="sm" leadingIcon={<Eye className="h-3.5 w-3.5" />} aria-label={`查看订单 ${order.orderNo}`} onClick={() => setSelected(order)}>详情</Button>
+    ) },
+  ];
+
   const pageSize = result?.pageSize ?? 25;
   const pages = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
 
   return (
-    <AdminPanel title="充值订单" description="只读订单快照与退款状态；退款执行在下方独立工作区。日期按下单时间筛，UTC 日边界并包含截止日当天。">
-      <div className="space-y-4">
-        <form onSubmit={search}>
-          <AdminToolbar>
-            <label className="min-w-64 flex-1 space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">按订单号或渠道单号查找</span>
-              <Input maxLength={80} value={query} onChange={event => setQuery(event.target.value)} />
-            </label>
-            <label className="w-40 space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">订单状态</span>
-              <Select aria-label="订单状态" value={status} onChange={event => changeStatus(event.target.value)}>
-                {STATUS_FILTERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </Select>
-            </label>
-            <label className="w-40 space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">下单起始日（UTC）</span>
-              <Input type="date" aria-label="下单起始日" max={created?.until || undefined} value={created?.from ?? ''} onChange={event => {setCreated(current => ({from: event.target.value, until: current?.until ?? ''})); setPage(1);}} />
-            </label>
-            <label className="w-40 space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">下单截止日（UTC）</span>
-              <Input type="date" aria-label="下单截止日" min={created?.from || undefined} value={created?.until ?? ''} onChange={event => {setCreated(current => ({from: current?.from ?? '', until: event.target.value})); setPage(1);}} />
-            </label>
-            <Button type="submit" size="sm" variant="outline" leadingIcon={<Search className="h-4 w-4" />} disabled={busy}>查询</Button>
-            <Button type="button" size="sm" variant="outline" leadingIcon={<Download className="h-4 w-4" />} loading={exporting} onClick={() => void exportCsv()}>{exporting ? '正在导出…' : '导出 CSV（最多 5000 笔）'}</Button>
-          </AdminToolbar>
-        </form>
-        {error && <AdminNotice tone="error" title={error} />}
-        <DataTable
-          columns={columns}
-          rows={result?.items ?? []}
-          getRowId={order => order.orderNo}
-          loading={busy && !result}
-          loadingRows={6}
-          empty="没有匹配的充值订单。"
-          pagination={result && result.total > 0 ? {
-            page: result.page,
-            pageCount: pages,
-            onPageChange: setPage,
-            summary: `共 ${result.total} 笔 · 第 ${result.page} / ${pages} 页`,
-          } : undefined}
-        />
-      </div>
-    </AdminPanel>
+    <>
+      <AdminPanel title="充值订单" description="只读订单快照与退款状态；时间线与退款处理在订单详情里。日期按下单时间筛，UTC 日边界并包含截止日当天。">
+        <div className="space-y-4">
+          <form onSubmit={search}>
+            <AdminToolbar>
+              <label className="min-w-64 flex-1 space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">按订单号或渠道单号查找</span>
+                <Input maxLength={80} value={query} onChange={event => setQuery(event.target.value)} />
+              </label>
+              <label className="w-40 space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">订单状态</span>
+                <Select aria-label="订单状态" value={status} onChange={event => changeStatus(event.target.value)}>
+                  {STATUS_FILTERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </Select>
+              </label>
+              <label className="w-40 space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">下单起始日（UTC）</span>
+                <Input type="date" aria-label="下单起始日" max={created?.until || undefined} value={created?.from ?? ''} onChange={event => {setCreated(current => ({from: event.target.value, until: current?.until ?? ''})); setPage(1);}} />
+              </label>
+              <label className="w-40 space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">下单截止日（UTC）</span>
+                <Input type="date" aria-label="下单截止日" min={created?.from || undefined} value={created?.until ?? ''} onChange={event => {setCreated(current => ({from: current?.from ?? '', until: event.target.value})); setPage(1);}} />
+              </label>
+              <Button type="submit" size="sm" variant="outline" leadingIcon={<Search className="h-4 w-4" />} disabled={busy}>查询</Button>
+              <Button type="button" size="sm" variant="outline" leadingIcon={<Download className="h-4 w-4" />} loading={exporting} onClick={() => void exportCsv()}>{exporting ? '正在导出…' : '导出 CSV（最多 5000 笔）'}</Button>
+            </AdminToolbar>
+          </form>
+          {error && <AdminNotice tone="error" title={error} />}
+          <DataTable
+            columns={columns}
+            rows={result?.items ?? []}
+            getRowId={order => order.orderNo}
+            loading={busy && !result}
+            loadingRows={6}
+            empty={focusOrderNo ? '暂无可退款订单。' : '没有匹配的充值订单。'}
+            pagination={result && result.total > 0 ? {
+              page: result.page,
+              pageCount: pages,
+              onPageChange: setPage,
+              summary: `共 ${result.total} 笔 · 第 ${result.page} / ${pages} 页`,
+            } : undefined}
+          />
+        </div>
+      </AdminPanel>
+
+      <OrderDetailDrawer
+        order={selected}
+        token={token}
+        canRequest={canRequest}
+        canApprove={canApprove}
+        canExecute={canExecute}
+        onClose={() => setSelected(null)}
+        onChanged={() => void load()}
+      />
+    </>
   );
 }

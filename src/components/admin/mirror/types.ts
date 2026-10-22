@@ -36,8 +36,17 @@ export interface MirrorRulesView {
   quoteMaxChars: number;
   compareLimit: number;
   resultRetentionDays: number;
+  /** 三条观察的写作风格说明（mirror.observationStyle），拼进提示词。 */
+  observationStyle: string;
+  /** 新结果使用的版式（mirror.resultLayout）。 */
+  resultLayout: 'FOUR_SECTION' | 'HERO_QUOTE';
   timezone: string;
 }
+
+export const MIRROR_LAYOUT_LABELS: Record<MirrorRulesView['resultLayout'], string> = {
+  FOUR_SECTION: '四段式：称号／观察／金句／指数',
+  HERO_QUOTE: '金句优先：金句在最前，其余在下方',
+};
 
 export type MirrorFeaturedSource = 'CONFIGURED' | 'AUTO';
 
