@@ -8,6 +8,7 @@ import { loginWithNext } from '@/lib/next-path';
 import { Coins, ShoppingBag, Loader2, CheckCircle2, ReceiptText } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { API } from '@/lib/api-paths';
+import { formatCny as formatCnyAmount } from '@/lib/format/number';
 import type { CoinLedgerPage } from '@/lib/api-types/coins';
 
 interface CoinPackage {
@@ -18,9 +19,9 @@ interface CoinPackage {
   label: string;
 }
 
+/** 未配价时给运营看的说明；配了价就用全局的 formatCny，别在页面里再实现一次。 */
 function formatCny(cents: number | null): string {
-  if (!cents) return '人民币价格待配置';
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(cents / 100);
+  return cents ? formatCnyAmount(cents) : '人民币价格待配置';
 }
 
 export default function ShopPage() {

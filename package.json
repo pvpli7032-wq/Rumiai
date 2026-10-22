@@ -32,6 +32,8 @@
     "state:restore": "node scripts/restore-state.mjs",
     "tasks:run": "node scripts/run-tasks.mjs",
     "release:check": "node --import tsx scripts/check-release.mjs",
+    "release:pack": "node scripts/pack-release.mjs",
+    "migrate:rehearse": "node --import tsx scripts/rehearse-migration.mjs",
     "test:m5:state-backup": "node --import tsx --test tests/state-backup.test.mjs tests/upload-storage-location.test.mjs",
     "test:m5:recovery-runtime": "node --import tsx --test tests/state-recovery-runtime.test.mjs",
     "ops:closure-files": "node --import tsx scripts/retry-closure-files.mjs",
@@ -127,6 +129,10 @@
     "test:production:guards": "node scripts/run-production-guards.mjs",
     "test:story:browser": "node scripts/verify-story-browser.mjs",
     "test:chat:paging:browser": "node scripts/verify-chat-pagination-browser.mjs",
+    "test:admin:nav:pins:browser": "node --import tsx scripts/verify-admin-nav-pins-browser.mjs",
+    "test:growth:onboarding:browser": "node --import tsx scripts/verify-growth-onboarding-browser.mjs",
+    "test:discover:story:browser": "node scripts/verify-v0-story-browser.mjs",
+    "test:story:eval": "node scripts/verify-story-eval.mjs validate",
     "verify:admin:responsive": "node scripts/verify-admin-responsive-browser.mjs"
   },
   "prisma": {

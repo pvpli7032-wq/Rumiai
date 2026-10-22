@@ -194,7 +194,11 @@ try {
   await page.getByRole('button', {name: '复制链接'}).click();
   await page.getByRole('status').filter({hasText: '分享链接已复制。'}).waitFor();
   const link = (await page.evaluate(() => navigator.clipboard.readText())).trim();
-  assert.match(link, new RegExp('/register\\?invite=' + codeText + '$'));
+  // 分享链接走 /api/growth/invite/visit?code=… 落地口：访问这一环由服务端记录，再 302 到注册页带邀请码。
+  assert.match(link, new RegExp('/api/growth/invite/visit\\?code=' + codeText + '$'));
+  const landed = await page.request.get(link, {maxRedirects: 0});
+  assert.equal(landed.status(), 302);
+  assert.match(landed.headers()['location'] ?? '', new RegExp('/register\\?invite=' + codeText + '$'));
   checks.push('邀请卡片展示邀请码与分享链接，复制成功并写入剪贴板，奖励文案按「发给邀请人」口径');
 
   // ---- 开关关闭：不展示入口 ----

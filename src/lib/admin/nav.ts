@@ -129,10 +129,6 @@ export function visibleEntries(permissions: readonly AdminPermission[]): AdminNa
   return visibleGroups(permissions).flatMap(group => group.entries);
 }
 
-export function hasAnyAdminEntry(permissions: readonly AdminPermission[]): boolean {
-  return visibleEntries(permissions).some(entry => entry.permission !== null);
-}
-
 /** Longest matching href wins, so /admin/community/posts beats /admin. */
 export function findEntry(pathname: string, permissions: readonly AdminPermission[]): {group: AdminNavGroup; entry: AdminNavEntry} | null {
   let best: {group: AdminNavGroup; entry: AdminNavEntry} | null = null;

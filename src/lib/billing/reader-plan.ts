@@ -1,4 +1,3 @@
-import {db} from '@/lib/db';
 import {readAiModelCatalog} from '@/lib/ai/models/runtime-service';
 import {readSettingValue} from '@/lib/settings/service';
 import {quoteReplyPrice} from './price';
@@ -62,9 +61,4 @@ export async function readReplyPlan(characterId: string): Promise<ReplyPlan> {
     defaultLine: lines.find(line => line.modelKey === defaultModelKey) ?? lines[0] ?? null,
     chargingEnabled: charging === true,
   };
-}
-
-/** 还有没有生效中的模型币价；后台据此提示「已开收费但没有价」。 */
-export async function hasCoinPriceRows(): Promise<boolean> {
-  return (await db.modelCoinPrice.count()) > 0;
 }

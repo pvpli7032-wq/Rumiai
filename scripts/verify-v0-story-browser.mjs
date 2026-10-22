@@ -14,6 +14,14 @@ page.on('pageerror', error => errors.push(error.message));
 const check = label => { checks.push(label); console.log('PASS', label); };
 
 try {
+  // 精选场景绑在 seed 出来的 xingban-original-3/4/5 上；库没 seed 过就一个都列不出来，
+  // 先明确报前置缺失，别让后面那条「应有三个」的断言看起来像功能坏了。
+  const seeded = await context.request.get(base + '/api/characters?page=1&pageSize=100');
+  assert.equal(seeded.status(), 200);
+  // 这个端点直接返回数组，不是 {items}。
+  const seededIds = (await seeded.json()).map(item => item.id);
+  assert(seededIds.includes('xingban-original-3') && seededIds.includes('xingban-original-4') && seededIds.includes('xingban-original-5'),
+    '此脚本需要已执行 prisma/seed.ts（基础 6 位）与 prisma/seed-community.ts 的库，缺 xingban-original-3/4/5');
   const stamp = Date.now();
   const registration = await context.request.post(base + '/api/auth/register', {
     data: {name: '场景验收', email: 'v0story' + stamp + '@example.com', password: 'Password123!'},
