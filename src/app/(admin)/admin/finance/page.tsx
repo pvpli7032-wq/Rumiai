@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/lib/auth-context';
+import {useAdminAccess} from '@/components/admin/use-admin-access';
 import type { FinanceReport } from '@/lib/payments/reconciliation-service';
-import { useAdminAccess } from '@/components/admin/use-admin-access';
 import { AdminNotice, AdminPage, AdminPageHeader } from '@/components/admin/admin-page';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -32,7 +31,7 @@ const TABS = [
 type TabValue = (typeof TABS)[number]['value'];
 
 export default function FinancePage() {
-  const { token, isLoading } = useAuth();
+  const { sessionActive, loading: accessLoading } = useAdminAccess();
   const { permissions } = useAdminAccess();
   const [tab, setTab] = useState<TabValue>('orders');
   const [days, setDays] = useState(7);
@@ -46,17 +45,17 @@ export default function FinancePage() {
   useEffect(() => {
     const controller = new AbortController();
     setReport(null); setError(''); setLoading(false);
-    if (!token) { if (!isLoading) setError('请先登录财务管理员账号。'); return; }
+    if (!sessionActive) { if (!accessLoading) setError('请先登录财务管理员账号。'); return; }
     setLoading(true);
-    fetch(`/api/admin/finance/report?days=${days}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal })
+    fetch(`/api/admin/finance/report?days=${days}`, {credentials: 'include', cache: 'no-store', signal: controller.signal })
       .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.error); return data; })
       .then(data => setReport(data))
       .catch(e => { if (!controller.signal.aborted) setError(e.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [token, isLoading, days, refresh]);
+  }, [sessionActive, accessLoading, days, refresh]);
 
-  const canReadFinance = Boolean(token) && permissions.includes('finance.read');
+  const canReadFinance = Boolean(sessionActive) && permissions.includes('finance.read');
   // 费用单接口要 billing.read；财务查看员只有 finance.read，没权限时给明确提示而不是让它报错。
   const canReadBilling = permissions.includes('billing.read');
 
@@ -73,7 +72,7 @@ export default function FinancePage() {
                 {[1, 7, 30, 90].map(value => <option key={value} value={value}>近 {value} 天</option>)}
               </Select>
             </div>
-            <Button variant="outline" disabled={!token || loading} onClick={() => setRefresh(n => n + 1)}>刷新</Button>
+            <Button variant="outline" disabled={!sessionActive || loading} onClick={() => setRefresh(n => n + 1)}>刷新</Button>
           </>
         ) : undefined}
       />
@@ -87,7 +86,7 @@ export default function FinancePage() {
             ? <>
                 <FinanceOverview report={report} loading={loading} error={error} />
                 <PaymentOrderManagement
-                  token={token!}
+                  sessionActive={sessionActive!}
                   canRequest={permissions.includes('finance.refunds.request')}
                   canApprove={permissions.includes('finance.refunds.approve')}
                   canExecute={permissions.includes('finance.refunds.execute')}
@@ -100,26 +99,26 @@ export default function FinancePage() {
 
         <TabsContent value="refunds" className="flex flex-col gap-6">
           {canReadFinance
-            ? <FinanceRefunds token={token!} onOpenOrder={orderNo => { setFocusOrderNo(orderNo); setTab('orders'); }} />
+            ? <FinanceRefunds sessionActive={sessionActive!} onOpenOrder={orderNo => { setFocusOrderNo(orderNo); setTab('orders'); }} />
             : <AdminNotice tone="denied" title="当前账号没有财务查看权限。" />}
         </TabsContent>
 
         <TabsContent value="packages" className="flex flex-col gap-6">
-          {token && !error
-            ? <FinancePackages token={token} canEdit={permissions.includes('finance.packages.write')} />
+          {sessionActive && !error
+            ? <FinancePackages sessionActive={sessionActive} canEdit={permissions.includes('finance.packages.write')} />
             : <AdminNotice tone="denied" title={error || '请先登录财务管理员账号。'} />}
         </TabsContent>
 
         <TabsContent value="reconcile" className="flex flex-col gap-6">
-          {canReadFinance && <ChannelReconciliation token={token!} canImport={permissions.includes('finance.reconciliation.import')} />}
-          {canReadFinance && <CallbackAlerts token={token!} />}
+          {canReadFinance && <ChannelReconciliation sessionActive={sessionActive!} canImport={permissions.includes('finance.reconciliation.import')} />}
+          {canReadFinance && <CallbackAlerts sessionActive={sessionActive!} />}
           {canReadBilling
-            ? <ChargeReconciliationPanel token={token} canRun={permissions.includes('tasks.manage')} />
+            ? <ChargeReconciliationPanel sessionActive={sessionActive} canRun={permissions.includes('tasks.manage')} />
             : <AdminNotice tone="denied" title="当前账号没有计费查看权限，无法查看费用单。" />}
         </TabsContent>
 
         <TabsContent value="merchants" className="flex flex-col gap-6">
-          {token ? <FinanceMerchants token={token} permissions={permissions} /> : <AdminNotice tone="denied" title="请先登录财务管理员账号。" />}
+          {sessionActive ? <FinanceMerchants sessionActive={sessionActive} permissions={permissions} /> : <AdminNotice tone="denied" title="请先登录财务管理员账号。" />}
         </TabsContent>
       </Tabs>
     </AdminPage>

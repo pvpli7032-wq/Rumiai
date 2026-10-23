@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {useAdminAccess} from '@/components/admin/use-admin-access';
-import { useAuth } from '@/lib/auth-context';
 import {AdminNotice, AdminPanel} from '@/components/admin/admin-page';
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
@@ -18,7 +17,7 @@ type AuditRow = { id: string; targetType: string; targetId: string; action: stri
 type Tab = 'reports' | 'appeals' | 'audit';
 
 export function CommunityModeration() {
-  const { token, isLoading } = useAuth();
+  const { sessionActive, loading } = useAdminAccess();
   const {permissions} = useAdminAccess();
   const canModerate = permissions.includes('moderation.write');
   const [tab, setTab] = useState<Tab>('reports');
@@ -32,26 +31,26 @@ export function CommunityModeration() {
   const [busy, setBusy] = useState('');
 
   const load = useCallback(async () => {
-    if (!token) return;
+    if (!sessionActive) return;
     setError('');
     const path = tab === 'reports' ? `/api/admin/moderation/reports?status=${reportStatus}` : tab === 'appeals' ? '/api/admin/moderation/appeals?status=OPEN' : '/api/admin/moderation/audit';
     try {
-      const response = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch(path, { credentials: 'include' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '加载失败。');
       if (tab === 'reports') setReports(data);
       else if (tab === 'appeals') setAppeals(data);
       else setAudit(data);
     } catch (value) { setError(value instanceof Error ? value.message : '加载失败。'); }
-  }, [tab, token, reportStatus]);
-  useEffect(() => { if (!isLoading) void load(); }, [isLoading, load]);
+  }, [tab, sessionActive, reportStatus]);
+  useEffect(() => { if (!loading) void load(); }, [loading, load]);
 
   async function moderateReport(report: ReportRow, action: string) {
     if (!canModerate || busy) return;
     const reason = reasons[report.id]?.trim() || (action === 'REVIEWING' ? '开始核查' : '根据举报完成复核');
     setBusy(report.id); setError('');
     try {
-      const response = await fetch(`/api/admin/moderation/reports/${report.id}`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action, reason }) });
+      const response = await fetch(`/api/admin/moderation/reports/${report.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, reason }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || '处置失败。');
       await load();
     } catch (value) { setError(value instanceof Error ? value.message : '处置失败。'); }
@@ -63,7 +62,7 @@ export function CommunityModeration() {
     if (!resolution) { setError('请先填写申诉复核说明。'); return; }
     setBusy(appeal.id); setError('');
     try {
-      const response = await fetch(`/api/admin/moderation/appeals/${appeal.id}`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ status, resolution }) });
+      const response = await fetch(`/api/admin/moderation/appeals/${appeal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, resolution }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || '复核失败。');
       await load();
     } catch (value) { setError(value instanceof Error ? value.message : '复核失败。'); }

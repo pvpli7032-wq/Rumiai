@@ -1,6 +1,6 @@
 'use client';
 import {useCallback,useEffect,useState} from 'react';
-import {useAuth} from '@/lib/auth-context';
+import {useAdminAccess} from '@/components/admin/use-admin-access';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
@@ -8,10 +8,10 @@ import {Input} from '@/components/ui/input';
 type Policy={ageGateEnabled:boolean;minimumAge:number|null;agePolicyVersion:string|null;termsVersion:string|null;privacyVersion:string|null;version:number};
 const empty:Policy={ageGateEnabled:false,minimumAge:null,agePolicyVersion:null,termsVersion:null,privacyVersion:null,version:0};
 export function ComplianceSettings({canManage=true}:{canManage?:boolean}){
-  const {token}=useAuth();const [policy,setPolicy]=useState(empty);const [counts,setCounts]=useState<{policyType:string;policyVersion:string;count:number}[]>([]);const [reason,setReason]=useState('');const [error,setError]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);
-  const load=useCallback(async()=>{if(!token)return;const response=await fetch('/api/admin/compliance',{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});const data=await response.json();if(!response.ok)throw Error(data.error??'读取失败');setPolicy(data.policy??empty);setCounts(data.consentCounts??[]);},[token]);
+  const {sessionActive}=useAdminAccess();const [policy,setPolicy]=useState(empty);const [counts,setCounts]=useState<{policyType:string;policyVersion:string;count:number}[]>([]);const [reason,setReason]=useState('');const [error,setError]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);
+  const load=useCallback(async()=>{if(!sessionActive)return;const response=await fetch('/api/admin/compliance',{credentials: 'include',cache:'no-store'});const data=await response.json();if(!response.ok)throw Error(data.error??'读取失败');setPolicy(data.policy??empty);setCounts(data.consentCounts??[]);},[sessionActive]);
   useEffect(()=>{void load().catch(value=>setError(value.message));},[load]);
-  async function save(event:React.FormEvent){event.preventDefault();if(!token||busy)return;setBusy(true);setError('');setMessage('');try{const response=await fetch('/api/admin/compliance',{method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({...policy,minimumAge:policy.minimumAge===null?null:Number(policy.minimumAge),reason})});const data=await response.json();if(!response.ok)throw Error(data.error??'保存失败');setPolicy(data.policy);setReason('');setMessage('合规要求已保存并写入管理审计。');await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
+  async function save(event:React.FormEvent){event.preventDefault();if(!sessionActive||busy)return;setBusy(true);setError('');setMessage('');try{const response=await fetch('/api/admin/compliance',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({...policy,minimumAge:policy.minimumAge===null?null:Number(policy.minimumAge),reason})});const data=await response.json();if(!response.ok)throw Error(data.error??'保存失败');setPolicy(data.policy);setReason('');setMessage('合规要求已保存并写入管理审计。');await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
   const numberValue=(value:number|null)=>value===null?'':String(value);
   return (
     <AdminPage width="narrow">

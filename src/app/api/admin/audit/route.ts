@@ -1,11 +1,11 @@
 import {NextResponse} from 'next/server';
-import {getAuthUser} from '@/lib/auth';
+import {getAdminRequestUser} from '@/lib/admin-auth/request';
 import {readAdminAudit} from '@/lib/admin/management-service';
 import {adminErrorResponse, privateHeaders} from '../_response';
 
 export async function GET(request: Request) {
   try {
-    const user = await getAuthUser(request);
+    const user = await getAdminRequestUser(request);
     if (!user) return NextResponse.json({error: '请先登录。'}, {status: 401, headers: privateHeaders});
     const params=new URL(request.url).searchParams;
     const filters=Object.fromEntries(['actorId','targetId','action','from','until'].map(key=>[key,params.get(key)??'']));

@@ -24,8 +24,8 @@ type BillingSettingRow = {key: string; value: unknown};
  * 三个接口各管一件事：收费币价（含换算口径）、供应商成本价、已计量成本；
  * 费用单与计费设置各有独立权限，缺权限就置空，不把「没权限」显示成「没有数据」。
  */
-export function usePriceCostData(options: {token: string | null; canRead: boolean; canReadBilling: boolean; canReadSettings: boolean}) {
-  const {token, canRead, canReadBilling, canReadSettings} = options;
+export function usePriceCostData(options: {sessionActive: boolean; canRead: boolean; canReadBilling: boolean; canReadSettings: boolean}) {
+  const {sessionActive, canRead, canReadBilling, canReadSettings} = options;
   // 工作台指标卡会带 ?days= 进来，初值从 URL 读；非法值退回 7 天。
   const [days, setDays] = useState(() => {
     if (typeof window === 'undefined') return 7;
@@ -44,14 +44,14 @@ export function usePriceCostData(options: {token: string | null; canRead: boolea
   const refresh = useCallback(() => setRefreshKey(value => value + 1), []);
 
   const load = useCallback(async () => {
-    if (!token) return;
+    if (!sessionActive) return;
     setLoading(true);
     setError('');
     try {
       const [coins, prices, costs] = await Promise.all([
-        apiFetch<CoinPriceView>(API.admin.coinPrices, {token, cache: 'no-store'}),
-        apiFetch<CostPriceView>(API.admin.ai.prices, {token, cache: 'no-store'}),
-        apiFetch<CostDashboard>(API.admin.ai.costs + `?days=${days}`, {token, cache: 'no-store'}),
+        apiFetch<CoinPriceView>(API.admin.coinPrices, {credentials: 'same-origin', cache: 'no-store'}),
+        apiFetch<CostPriceView>(API.admin.ai.prices, {credentials: 'same-origin', cache: 'no-store'}),
+        apiFetch<CostDashboard>(API.admin.ai.costs + `?days=${days}`, {credentials: 'same-origin', cache: 'no-store'}),
       ]);
       setCoinView(coins);
       setCostView(prices);
@@ -61,34 +61,34 @@ export function usePriceCostData(options: {token: string | null; canRead: boolea
     } finally {
       setLoading(false);
     }
-  }, [token, days]);
+  }, [sessionActive, days]);
 
   useEffect(() => {
     setCoinView(null);
     setCostView(null);
     setDashboard(null);
-    if (token && canRead) void load();
-  }, [token, canRead, days, refreshKey, load]);
+    if (sessionActive && canRead) void load();
+  }, [sessionActive, canRead, days, refreshKey, load]);
 
   // 收入估算：只取已结算费用单的币数样本，不把币硬折成币种金额。
   useEffect(() => {
-    if (!token || !canReadBilling) { setCharges(null); return; }
+    if (!sessionActive || !canReadBilling) { setCharges(null); return; }
     const controller = new AbortController();
     void apiFetch<ChargePage>(API.admin.billingCharges(new URLSearchParams({status: 'SETTLED', limit: '50'}).toString()), {
-      token,
+      credentials: 'same-origin',
       cache: 'no-store',
       signal: controller.signal,
     })
       .then(data => { if (!controller.signal.aborted) setCharges(data); })
       .catch(() => { if (!controller.signal.aborted) setCharges(null); });
     return () => controller.abort();
-  }, [token, canReadBilling, refreshKey]);
+  }, [sessionActive, canReadBilling, refreshKey]);
 
   // 免费额度与收费开关：只读摘要 + 跳转，设置中心是唯一编辑位置。
   useEffect(() => {
-    if (!token || !canReadSettings) { setBillingValues(null); return; }
+    if (!sessionActive || !canReadSettings) { setBillingValues(null); return; }
     const controller = new AbortController();
-    void apiFetch<{values: BillingSettingRow[]}>(API.admin.settings + '?group=billing', {token, cache: 'no-store', signal: controller.signal})
+    void apiFetch<{values: BillingSettingRow[]}>(API.admin.settings + '?group=billing', {credentials: 'same-origin', cache: 'no-store', signal: controller.signal})
       .then(data => {
         if (controller.signal.aborted) return;
         const picked: Partial<Record<string, unknown>> = {};
@@ -100,7 +100,7 @@ export function usePriceCostData(options: {token: string | null; canRead: boolea
       })
       .catch(() => { if (!controller.signal.aborted) setBillingValues(null); });
     return () => controller.abort();
-  }, [token, canReadSettings, refreshKey]);
+  }, [sessionActive, canReadSettings, refreshKey]);
 
   const rows = useMemo<ModelPriceRow[]>(() => {
     if (!costView) return [];

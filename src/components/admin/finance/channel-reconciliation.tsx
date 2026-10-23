@@ -13,26 +13,26 @@ type Batch = { id: string; provider: string; importedById: string; importReason:
 type Entry = { entrySource: string; lineNumber: number | null; providerTradeNo: string | null; orderNo: string; grossCnyCents: number | null; feeCnyCents: number | null; netCnyCents: number | null; paidAt: string; matchStatus: string; matchLabel: string; exceptionCode: string | null; internalAmountCnyCents: number | null; internalOrderStatus: string | null };
 type Detail = { batch: Batch; page: number; pageSize: number; total: number; entries: Entry[] };
 
-export function ChannelReconciliation({ token, canImport }: { token: string; canImport: boolean }) {
+export function ChannelReconciliation({ sessionActive, canImport }: { sessionActive: boolean; canImport: boolean }) {
   const [batches, setBatches] = useState<Batch[]>([]), [selected, setSelected] = useState(''), [detail, setDetail] = useState<Detail | null>(null), [page, setPage] = useState(1);
   const [file, setFile] = useState<File | null>(null), [reason, setReason] = useState(''), [periodStart, setPeriodStart] = useState(''), [periodEnd, setPeriodEnd] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const loadBatches = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/finance/reconciliation', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+      const response = await fetch('/api/admin/finance/reconciliation', {credentials: 'include', cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setBatches(data.batches); setSelected(current => current || data.batches[0]?.id || '');
     } catch (e) { setError(e instanceof Error ? e.message : '对账批次读取失败。'); }
-  }, [token]);
+  }, [sessionActive]);
   const loadDetail = useCallback(async (id: string, currentPage: number) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/finance/reconciliation/${encodeURIComponent(id)}?page=${currentPage}&pageSize=25`, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+      const response = await fetch(`/api/admin/finance/reconciliation/${encodeURIComponent(id)}?page=${currentPage}&pageSize=25`, {credentials: 'include', cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setDetail(data);
     } catch (e) { setDetail(null); setError(e instanceof Error ? e.message : '对账明细读取失败。'); } finally { setLoading(false); }
-  }, [token]);
+  }, [sessionActive]);
   useEffect(() => { void loadBatches(); }, [loadBatches]);
   useEffect(() => { if (selected) void loadDetail(selected, page); else setDetail(null); }, [loadDetail, page, selected]);
 
@@ -41,7 +41,7 @@ export function ChannelReconciliation({ token, canImport }: { token: string; can
     setBusy(true); setError(''); setMessage('');
     try {
       const csv = await file.text();
-      const response = await fetch('/api/admin/finance/reconciliation', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ csv, reason, periodStart: new Date(periodStart).toISOString(), periodEnd: new Date(periodEnd).toISOString() }) });
+      const response = await fetch('/api/admin/finance/reconciliation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csv, reason, periodStart: new Date(periodStart).toISOString(), periodEnd: new Date(periodEnd).toISOString() }) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setMessage(data.duplicate ? '该文件已导入，已显示原批次。' : `匹配 ${data.matchedRowCount} 笔，差异 ${data.exceptionRowCount} 笔。`);

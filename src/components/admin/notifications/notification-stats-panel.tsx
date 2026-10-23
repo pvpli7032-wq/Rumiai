@@ -18,7 +18,7 @@ const percent = (value: number | null) => (value === null ? '—' : (value * 100
  * 通知统计（V3 第 17 章）。日期范围沿用工作台的 RANGE_OPTIONS，
  * 与运营分析共用同一套 days 参数。类型中文名由服务端给出，这里不再二次映射。
  */
-export function NotificationStatsPanel({token}: {token: string}) {
+export function NotificationStatsPanel({sessionActive}: {sessionActive: boolean}) {
   const [days, setDays] = useState<RangeDays>(7);
   const [report, setReport] = useState<NotificationStats | null>(null);
   const [error, setError] = useState('');
@@ -26,13 +26,13 @@ export function NotificationStatsPanel({token}: {token: string}) {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(''); setReport(null);
-    void fetch(API.admin.notificationStats('days=' + days), {headers: {Authorization: 'Bearer ' + token}, cache: 'no-store', signal: controller.signal})
+    void fetch(API.admin.notificationStats('days=' + days), {credentials: 'include', cache: 'no-store', signal: controller.signal})
       .then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error); return data as NotificationStats; })
       .then(setReport)
       .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '通知统计读取失败。'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [days, token]);
+  }, [days, sessionActive]);
 
   return <AdminPage>
     <AdminPageHeader

@@ -23,9 +23,10 @@ try {
   if (Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES) throw new Error('密码过长。');
   const user = await db.user.findUnique({where: {email: email.trim().toLowerCase()}, select: {id: true, deletedAt: true}});
   if (!user || user.deletedAt) throw new Error('未找到该邮箱对应的有效账号。');
-  await db.user.update({
-    where: {id: user.id},
-    data: {passwordHash: await bcrypt.hash(password, 10), tokenVersion: {increment: 1}},
+  const passwordHash = await bcrypt.hash(password, 10);
+  await db.$transaction(async tx => {
+    await tx.user.update({where: {id: user.id}, data: {passwordHash, tokenVersion: {increment: 1}}});
+    await tx.adminSession.deleteMany({where: {userId: user.id}});
   });
   console.log(JSON.stringify({passwordUpdated: true, userId: user.id}));
 } catch (error) {

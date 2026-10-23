@@ -28,7 +28,7 @@ import {usePriceCostData} from './use-price-cost-data';
  * 缺成本价写「待配置」，样本不够写「样本不足」，没登记汇率时不编毛利、不给建议价。
  */
 export function PriceCostAdmin() {
-  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('ai.costs.read');
   const canManage = permissions.includes('ai.costs.manage');
   // 币价写入属于计费（billing.manage），预算与熔断属于 AI 成本（ai.costs.manage）；两个开关各自独立，
@@ -38,7 +38,7 @@ export function PriceCostAdmin() {
   const canReadSettings = permissions.includes('settings.read');
   const canWriteSettings = permissions.includes('settings.write');
 
-  const data = usePriceCostData({token, canRead, canReadBilling, canReadSettings});
+  const data = usePriceCostData({sessionActive, canRead, canReadBilling, canReadSettings});
   const {days, setDays, coinView, costView, dashboard, billingValues, loading, error, setError, refresh, rows, summary} = data;
   const [notice, setNotice] = useState('');
   const [editing, setEditing] = useState<ModelPriceRow | null>(null);
@@ -52,7 +52,7 @@ export function PriceCostAdmin() {
     : '毛利口径：预计收入以「币」计，供应商成本以「币种金额」计；在没有登记换算口径前只并列展示，不推算毛利。真正的现金充值、退款与对账留在财务页。';
 
   async function savePrice(row: ModelPriceRow, draft: PriceDraft) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     const effective = new Date(draft.effectiveAt);
     if (Number.isNaN(effective.getTime())) { setError('生效时间格式不正确。'); return; }
     const effectiveAt = effective.toISOString();
@@ -78,7 +78,7 @@ export function PriceCostAdmin() {
     const saved: string[] = [];
     if (coinChanged) {
       try {
-        await apiFetch(API.admin.coinPrices, {token, method: 'POST', body: {modelId: row.id, coinsPerReply: coins, effectiveAt}});
+        await apiFetch(API.admin.coinPrices, {credentials: 'same-origin', method: 'POST', body: {modelId: row.id, coinsPerReply: coins, effectiveAt}});
         saved.push('收费币价');
       } catch (cause) {
         problems.push(`收费币价：${cause instanceof Error ? cause.message : '保存失败。'}`);
@@ -88,7 +88,7 @@ export function PriceCostAdmin() {
       try {
         // 成本价接口是 POST /api/admin/ai/prices，路径表登记为 API.admin.ai.prices。
         await apiFetch(API.admin.ai.prices, {
-          token,
+          credentials: 'same-origin',
           method: 'POST',
           body: {
             modelId: row.id,
@@ -115,13 +115,13 @@ export function PriceCostAdmin() {
   }
 
   async function saveBudget(draft: BudgetDraft) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     setBusy(true);
     setError('');
     setNotice('');
     try {
       await apiFetch(API.admin.ai.costs, {
-        token,
+        credentials: 'same-origin',
         method: 'POST',
         body: {
           type: 'budget',
@@ -145,12 +145,12 @@ export function PriceCostAdmin() {
   }
 
   async function saveBreaker(enabled: boolean, reason: string, version: number) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      await apiFetch(API.admin.ai.costs, {token, method: 'POST', body: {type: 'circuit-breaker', value: {enabled, version, reason}}});
+      await apiFetch(API.admin.ai.costs, {credentials: 'same-origin', method: 'POST', body: {type: 'circuit-breaker', value: {enabled, version, reason}}});
       setNotice(enabled ? '预算熔断已启用并写入操作审计。' : '预算熔断已关闭并写入操作审计。');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '熔断策略保存失败，请稍后重试。');
@@ -161,7 +161,7 @@ export function PriceCostAdmin() {
   }
 
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在验证管理权限…" /></AdminPage>;
-  if (!token || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有「价格与成本」查看权限。'} /></AdminPage>;
+  if (!sessionActive || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有「价格与成本」查看权限。'} /></AdminPage>;
 
   const costValue = summary.costRows.length === 0
     ? '暂无调用'
@@ -250,7 +250,7 @@ export function PriceCostAdmin() {
         )}
       </AdminPanel>
 
-      {coinView && <TaskModelPanel view={coinView} token={token} canWrite={canWriteSettings} onSaved={refresh} />}
+      {coinView && <TaskModelPanel view={coinView} sessionActive={sessionActive} canWrite={canWriteSettings} onSaved={refresh} />}
 
       <BillingSummaryPanel values={billingValues} />
 

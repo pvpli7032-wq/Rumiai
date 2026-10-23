@@ -4,6 +4,6 @@
  * administration routes already implemented ten times over.
  */
 export {privateHeaders, apiError, unauthorized, forbidden, badRequest, jsonError, type ApiErrorBody} from './errors';
-export {requireUser, requireAdmin, type AdminAccess, type AuthenticatedUser} from './auth';
+export {requireUser, requireAdminUser, requireAdmin, type AdminAccess, type AuthenticatedUser} from './auth';
 export {readJsonBody, type JsonBodyOptions, type JsonBodyResult} from './body';
 export {clientIp} from './client-ip';

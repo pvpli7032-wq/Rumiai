@@ -15,20 +15,20 @@ import {Input} from '@/components/ui/input';
 import {Select} from '@/components/ui/select';
 
 export function CircleManagement() {
-  const {token, permissions, loading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading, error: accessError} = useAdminAccess();
   const allowed = permissions.includes('community.read'), canEdit = permissions.includes('community.write'), canManageMembers = permissions.includes('community.members.manage');
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [ownership, setOwnership] = useState('ALL'), [featured, setFeatured] = useState('ALL'), [page, setPage] = useState(1), [revision, setRevision] = useState(0);
   const [list, setList] = useState<CircleList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<ManagedCircle | null>(null), [creating, setCreating] = useState(false);
   const [reading, setReading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
-  const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET') => apiFetch<T>(url, {method, token, body, signal, cache: 'no-store'}), [token]);
-  useEffect(() => {setList(null); setSelected(null); setDetail(null); setCreating(false); setError(''); setMessage('');}, [token]);
+  const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET') => apiFetch<T>(url, {method, credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
+  useEffect(() => {setList(null); setSelected(null); setDetail(null); setCreating(false); setError(''); setMessage('');}, [sessionActive]);
   useEffect(() => {
-    setList(null); if (!token || !allowed) return;
+    setList(null); if (!sessionActive || !allowed) return;
     const controller = new AbortController(); setReading(true);
     const params = new URLSearchParams({q: query, status, ownership, featured, page: String(page)});
     void request<CircleList>(`/api/admin/circles?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
-  }, [request, token, allowed, query, status, ownership, featured, page, revision]);
+  }, [request, sessionActive, allowed, query, status, ownership, featured, page, revision]);
   useEffect(() => {
     setDetail(null); if (!selected || !allowed) return;
     const controller = new AbortController();
@@ -52,7 +52,7 @@ export function CircleManagement() {
   }
   function search(event: FormEvent) {event.preventDefault(); setPage(1); setQuery(q); setRevision(value => value + 1); setError('');}
   if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取社区管理权限…" /></AdminPage>;
-  if (!token || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有社区管理查看权限。'} /></AdminPage>;
+  if (!sessionActive || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有社区管理查看权限。'} /></AdminPage>;
   return <AdminPage>
     <AdminPageHeader
       eyebrow="内容与社区"
@@ -111,6 +111,6 @@ export function CircleManagement() {
       pagination={{page, pageCount: Math.max(1, Math.ceil(list.total / list.pageSize)), onPageChange: value => setPage(value), summary: `共 ${list.total} 个`}}
     />}
     {(creating || detail) && <CircleEditor key={creating ? 'new-circle' : `${detail!.id}:${detail!.updatedAt}`} circle={creating ? null : detail} canEdit={canEdit} busy={busy} onApply={apply} onRefresh={() => {if (detail) void request<ManagedCircle>(`/api/admin/circles/${encodeURIComponent(detail.id)}`).then(data => {setDetail(data); setError(''); setMessage('详情已重新读取。');}).catch(value => setError(value.message));}} onClose={() => {setCreating(false); setSelected(null); setDetail(null);}} />}
-    {detail && !creating && <CircleMembers key={detail.id} circleId={detail.id} token={token} canManage={canManageMembers} onChanged={membersChanged} />}
+    {detail && !creating && <CircleMembers key={detail.id} circleId={detail.id} sessionActive={sessionActive} canManage={canManageMembers} onChanged={membersChanged} />}
   </AdminPage>;
 }

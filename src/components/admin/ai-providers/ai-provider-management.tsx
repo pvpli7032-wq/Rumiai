@@ -15,16 +15,16 @@ type Draft={id?:string;name:string;baseUrl:string;protocol:string;isActive:boole
 const blank=():Draft=>({name:'',baseUrl:'https://api.openai.com/v1',protocol:'OPENAI_COMPATIBLE',isActive:false,sortOrder:0,version:0,apiKey:'',clearSecret:false,reason:''});
 
 export function AiProviderManagement(){
-  const {token,permissions,loading}=useAdminAccess(),[rows,setRows]=useState<Provider[]>([]),[draft,setDraft]=useState<Draft|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const {sessionActive,permissions,loading}=useAdminAccess(),[rows,setRows]=useState<Provider[]>([]),[draft,setDraft]=useState<Draft|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const canManage=permissions.includes('ai.providers.manage'),canSecrets=permissions.includes('ai.providers.secrets.manage'),canTest=permissions.includes('ai.providers.test');
-  const request=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetch(url,{...init,cache:'no-store',headers:{Authorization:`Bearer ${token}`,...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});const data=await response.json();if(!response.ok)throw Error(data.error||'AI供应商请求失败。');return data;},[token]);
-  const load=useCallback(async()=>{if(!token)return;try{setRows(await request(API.admin.ai.providers));setError('');}catch(value){setError((value as Error).message);}},[request,token]);
+  const request=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetch(url,{...init,cache:'no-store',headers:{...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});const data=await response.json();if(!response.ok)throw Error(data.error||'AI供应商请求失败。');return data;},[sessionActive]);
+  const load=useCallback(async()=>{if(!sessionActive)return;try{setRows(await request(API.admin.ai.providers));setError('');}catch(value){setError((value as Error).message);}},[request,sessionActive]);
   useEffect(()=>{void load();},[load]);
   function set<K extends keyof Draft>(key:K,value:Draft[K]){setDraft(old=>old?{...old,[key]:value}:old);}
   async function save(event:React.FormEvent){event.preventDefault();if(!draft||busy)return;setBusy(true);setError('');setNotice('');try{const body={...draft,sortOrder:Number(draft.sortOrder)};const saved=await request(draft.id?`${API.admin.ai.providers}/${encodeURIComponent(draft.id)}`:API.admin.ai.providers,{method:draft.id?'PATCH':'POST',body:JSON.stringify(body)});setDraft(null);setNotice('供应商配置已保存。');await load();if(!saved.hasSecret&&draft.isActive)setNotice('配置已保存；启用前需要配置密钥。');}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
   async function test(provider:Provider){if(busy)return;setBusy(true);setError('');setNotice('');try{const result=await request(`${API.admin.ai.providers}/${encodeURIComponent(provider.id)}/test`,{method:'POST'});setNotice(result.reachable?`连接可达（HTTP ${result.status}，${result.latencyMs}ms）；${result.authorized?'认证成功':'服务端未接受当前密钥'}`:`连接失败（${result.latencyMs}ms），请检查地址、密钥及服务端网络。`);}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
   if(loading)return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
-  if(!token||!permissions.includes('ai.providers.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有 AI 供应商查看权限。" /></AdminPage>;
+  if(!sessionActive||!permissions.includes('ai.providers.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有 AI 供应商查看权限。" /></AdminPage>;
   return <AdminPage>
     <AdminPageHeader eyebrow="AI 与成本" title="AI 供应商" description="维护 OpenAI 兼容接口地址与连接密钥。密钥以 AES-256-GCM 加密保存在数据库，只显示配置状态；服务器需设置 64 位十六进制 AI_PROVIDER_ENCRYPTION_KEY。连接测试仅请求供应商模型列表，不发送聊天内容。" />
     {error&&<AdminNotice tone="error" title={error} className="break-words py-6" />}{notice&&<AdminNotice tone="success" title={notice} className="break-words py-6" />}

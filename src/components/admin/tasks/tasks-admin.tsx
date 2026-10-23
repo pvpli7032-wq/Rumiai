@@ -31,7 +31,7 @@ type SettingValueRow = {key: string; value: unknown};
  * 手动执行只处理当前已到期的行，不改任何开关。
  */
 export function TasksAdmin() {
-  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('tasks.read');
   const canManage = permissions.includes('tasks.manage');
   const canReadSettings = permissions.includes('settings.read');
@@ -47,31 +47,31 @@ export function TasksAdmin() {
   const [settingLoading, setSettingLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!token) return;
+    if (!sessionActive) return;
     setLoading(true);
     setError('');
     try {
-      const data = await apiFetch<TaskListResponse>(API.admin.tasks, {token, cache: 'no-store'});
+      const data = await apiFetch<TaskListResponse>(API.admin.tasks, {credentials: 'same-origin', cache: 'no-store'});
       setItems(data.items);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '任务列表加载失败。');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [sessionActive]);
 
   useEffect(() => {
     setItems(null);
     setNotice('');
-    if (token && canRead) void load();
-  }, [token, canRead, refreshKey, load]);
+    if (sessionActive && canRead) void load();
+  }, [sessionActive, canRead, refreshKey, load]);
 
   useEffect(() => {
-    if (!token || !canReadSettings) { setSettingValues(null); return; }
+    if (!sessionActive || !canReadSettings) { setSettingValues(null); return; }
     const controller = new AbortController();
     setSettingLoading(true);
     setSettingError('');
-    void apiFetch<{values: SettingValueRow[]}>(API.admin.settings + '?group=growth', {token, cache: 'no-store', signal: controller.signal})
+    void apiFetch<{values: SettingValueRow[]}>(API.admin.settings + '?group=growth', {credentials: 'same-origin', cache: 'no-store', signal: controller.signal})
       .then(data => {
         if (controller.signal.aborted) return;
         const picked: Partial<Record<TaskSettingKey, unknown>> = {};
@@ -84,7 +84,7 @@ export function TasksAdmin() {
       .catch(cause => { if (!controller.signal.aborted) setSettingError(cause instanceof Error ? cause.message : '任务参数读取失败。'); })
       .finally(() => { if (!controller.signal.aborted) setSettingLoading(false); });
     return () => controller.abort();
-  }, [token, canReadSettings, refreshKey]);
+  }, [sessionActive, canReadSettings, refreshKey]);
 
   const stats = useMemo(() => {
     const list = items ?? [];
@@ -97,13 +97,13 @@ export function TasksAdmin() {
   }, [items]);
 
   async function runOnce(item: TaskItem) {
-    if (!token || running) return;
+    if (!sessionActive || running) return;
     if (!window.confirm(`立即执行「${item.name}」？只处理当前已到期的任务，不修改开关。`)) return;
     setRunning(item.kind);
     setError('');
     setNotice('');
     try {
-      const result = await apiFetch<TaskRunResult>(API.admin.taskRun(item.kind), {token, method: 'POST'});
+      const result = await apiFetch<TaskRunResult>(API.admin.taskRun(item.kind), {credentials: 'same-origin', method: 'POST'});
       const suffix = result.failed > 0 ? `，${result.failed} 个失败` : '';
       setNotice(`${item.name}：${result.detail}（完成 ${result.affected} 个${suffix}）`);
       setRefreshKey(value => value + 1);
@@ -115,7 +115,7 @@ export function TasksAdmin() {
   }
 
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在验证管理权限…" /></AdminPage>;
-  if (!token || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有后台任务查看权限。'} /></AdminPage>;
+  if (!sessionActive || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有后台任务查看权限。'} /></AdminPage>;
 
   return (
     <AdminPage>

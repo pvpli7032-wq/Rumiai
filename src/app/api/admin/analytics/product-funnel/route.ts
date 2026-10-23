@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {getAuthUser} from '@/lib/auth';
+import {getAdminRequestUser} from '@/lib/admin-auth/request';
 import {ProductFunnelReportError, readProductFunnelReport} from '@/lib/analytics/product-funnel-report-service';
 import {logRouteError} from '@/lib/logger';
 
@@ -8,7 +8,7 @@ const headers = {'Cache-Control': 'private, no-store'};
 
 /** 玩法漏斗（他眼中的你 / 评理 / 邀请）：与运营分析同权限、同统计周期上限。 */
 export async function GET(request: Request) {
-  const auth = await getAuthUser(request);
+  const auth = await getAdminRequestUser(request);
   if (!auth) return NextResponse.json({error: '请先登录。'}, {status: 401, headers});
   const daysText = new URL(request.url).searchParams.get('days') ?? '7';
   if (!/^(?:[1-9]|[1-8][0-9]|90)$/.test(daysText)) return NextResponse.json({error: '统计天数必须为 1–90 的整数。'}, {status: 400, headers});

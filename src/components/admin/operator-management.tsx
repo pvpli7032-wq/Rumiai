@@ -20,7 +20,7 @@ type LookupUser = {id: string; username: string; email: string; adminOperator: {
 type Selection = {userId: string; username: string; email: string; enabled: boolean; version: number; roleIds: string[]};
 
 export function OperatorManagement() {
-  const {token, access, loading, error: accessError, refreshAccess} = useAdminAccess();
+  const {sessionActive, access, loading, error: accessError, refreshAccess} = useAdminAccess();
   const [report, setReport] = useState<Report | null>(null);
   const [query, setQuery] = useState(''), [search, setSearch] = useState(''), [page, setPage] = useState(1);
   const [lookup, setLookup] = useState(''), [selection, setSelection] = useState<Selection | null>(null);
@@ -28,15 +28,15 @@ export function OperatorManagement() {
   const [staffReason, setStaffReason] = useState(''), [roleReason, setRoleReason] = useState('');
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [reading, setReading] = useState(false);
 
-  const request = useCallback(<T,>(url: string, body?: object, signal?: AbortSignal) => apiFetch<T>(url, {method: body ? 'POST' : 'GET', token, body, signal, cache: 'no-store'}), [token]);
+  const request = useCallback(<T,>(url: string, body?: object, signal?: AbortSignal) => apiFetch<T>(url, {method: body ? 'POST' : 'GET', credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   const load = useCallback(async (signal?: AbortSignal) => {
-    if (!token || !access?.staff) return;
+    if (!sessionActive || !access?.staff) return;
     setReading(true); setError('');
     try {const data = await request<Report>(`/api/admin/operators?q=${encodeURIComponent(search)}&page=${page}`, undefined, signal); if (!signal?.aborted) setReport(data);}
     catch (value) {if (!signal?.aborted) {setReport(null); setError((value as Error).message);}}
     finally {if (!signal?.aborted) setReading(false);}
-  }, [token, access?.staff, request, search, page]);
-  useEffect(() => {setSelection(null); setReport(null);}, [token]);
+  }, [sessionActive, access?.staff, request, search, page]);
+  useEffect(() => {setSelection(null); setReport(null);}, [sessionActive]);
   useEffect(() => {const controller = new AbortController(); void load(controller.signal); return () => controller.abort();}, [load]);
 
   async function findUser(event: FormEvent) {
@@ -62,7 +62,7 @@ export function OperatorManagement() {
     catch (value) {setError((value as Error).message);} finally {setBusy(false);}
   }
   if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
-  if (!token || !access?.staff) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有权限查看管理人员。'} /></AdminPage>;
+  if (!sessionActive || !access?.staff) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有权限查看管理人员。'} /></AdminPage>;
   return <AdminPage width="default">
     <AdminPageHeader eyebrow="系统与安全" title="管理员与角色" description="为已有账号分配管理身份，按职责授予权限。" />
     {error && <AdminNotice tone="error" title={error} className="py-6" />}

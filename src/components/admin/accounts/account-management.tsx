@@ -13,7 +13,7 @@ import {Input} from '@/components/ui/input';
 import {Select} from '@/components/ui/select';
 
 export function AccountManagement() {
-  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const allowed = permissions.includes('accounts.read');
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [community, setCommunity] = useState('ALL'), [sort, setSort] = useState('NEWEST'), [page, setPage] = useState(1);
   /**
@@ -25,20 +25,20 @@ export function AccountManagement() {
   const [registered, setRegistered] = useState<{from: string; until: string} | null>(null);
   const [list, setList] = useState<AccountList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<AccountDetail | null>(null);
   const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0);
-  const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, {method: body ? 'PATCH' : 'GET', token, body, signal, cache: 'no-store'}), [token]);
-  useEffect(() => {setList(null); setSelected(null); setDetail(null); setMessage('');}, [token]);
+  const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, {method: body ? 'PATCH' : 'GET', credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
+  useEffect(() => {setList(null); setSelected(null); setDetail(null); setMessage('');}, [sessionActive]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setRegistered({from: params.get('from') ?? '', until: params.get('until') ?? ''});
   }, []);
   useEffect(() => {
     if (!registered) return;
-    setList(null); if (!token || !allowed) return;
+    setList(null); if (!sessionActive || !allowed) return;
     const controller = new AbortController(); setReading(true);
     const params = new URLSearchParams({q: query, status, community, sort, page: String(page), from: registered.from, until: registered.until});
     void request<AccountList>(`/api/admin/accounts?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
-  }, [token, allowed, request, query, status, community, sort, page, refresh, registered]);
+  }, [sessionActive, allowed, request, query, status, community, sort, page, refresh, registered]);
   useEffect(() => {
     setDetail(null); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
@@ -53,7 +53,7 @@ export function AccountManagement() {
   }
   function search(event: FormEvent) {event.preventDefault(); setError(''); setPage(1); setQuery(q); setRefresh(value => value + 1);}
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
-  if (!token || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有用户管理查看权限。'} /></AdminPage>;
+  if (!sessionActive || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有用户管理查看权限。'} /></AdminPage>;
   return <AdminPage>
     <AdminPageHeader eyebrow="用户与客服" title="用户管理" description="查询用户、管理账号状态和社区权限，查看关联业务记录。" />
     {error && <AdminNotice tone="error" title={error} className="py-6" />}
@@ -97,6 +97,6 @@ export function AccountManagement() {
       </AdminPanel>
     )}
     {detailLoading && <AdminNotice tone="loading" title="正在读取用户详情…" />}
-    {detail && <ManagedAccountDetail key={detail.user.id} detail={detail} token={token} permissions={permissions} busy={busy} onAction={applyAction} onClose={() => setSelected(null)} />}
+    {detail && <ManagedAccountDetail key={detail.user.id} detail={detail} sessionActive={sessionActive} permissions={permissions} busy={busy} onAction={applyAction} onProfileSaved={() => setRefresh(value => value + 1)} onClose={() => setSelected(null)} />}
   </AdminPage>;
 }

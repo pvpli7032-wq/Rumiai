@@ -13,24 +13,24 @@ import {Input} from '@/components/ui/input';
 type Audit = {id: string; actorId: string; action: string; targetId: string; reason: string; changes: string; createdAt: string};
 const actionNames: Record<string, string> = {...auditLabels, BOOTSTRAP_OWNER: '初始化所有者', SAVE_OPERATOR: '修改管理身份', CREATE_ROLE: '新增角色', UPDATE_ROLE: '修改角色', ACCOUNT_CLOSED: '注销管理账号', CHARACTER_CREATED: '新增角色', CHARACTER_EDITED: '修改角色内容', CHARACTER_APPROVED: '角色审核通过', CHARACTER_REJECTED: '角色退回或下架', CIRCLE_CREATED: '新增站点圈子', CIRCLE_SAVE: '修改圈子内容', CIRCLE_HIDE: '隐藏圈子', CIRCLE_RESTORE: '恢复圈子公开', CIRCLE_FEATURE: '推荐圈子', CIRCLE_UNFEATURE: '取消圈子推荐', CIRCLE_MEMBER_REMOVE: '移除圈子成员', CIRCLE_MEMBER_BLOCK: '限制圈子加入', CIRCLE_MEMBER_UNBLOCK: '解除圈子加入限制'};
 export function AdminAudit() {
-  const {token, access, loading, error: accessError} = useAdminAccess();
+  const {sessionActive, access, loading, error: accessError} = useAdminAccess();
   const [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
   const emptyFilters={actorId:'',targetId:'',action:'',from:'',until:''};
   const [draft,setDraft]=useState(emptyFilters),[filters,setFilters]=useState(emptyFilters);
   const [result, setResult] = useState<{items: Audit[]; total: number; pageSize: number} | null>(null);
   const [error, setError] = useState(''), [reading, setReading] = useState(false);
   useEffect(() => {
-    setResult(null); setError(''); if (!token || !access?.audit) return;
+    setResult(null); setError(''); if (!sessionActive || !access?.audit) return;
     const controller = new AbortController(); setReading(true);
     void (async () => {
-      try {const params=new URLSearchParams({...filters,page:String(page)});const response = await fetch(`/api/admin/audit?${params}`, {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store', signal: controller.signal}); const data = await response.json(); if (!response.ok) throw Error(data.error || '读取审计失败。'); if (!controller.signal.aborted) setResult(data);}
+      try {const params=new URLSearchParams({...filters,page:String(page)});const response = await fetch(`/api/admin/audit?${params}`, {credentials: 'include', cache: 'no-store', signal: controller.signal}); const data = await response.json(); if (!response.ok) throw Error(data.error || '读取审计失败。'); if (!controller.signal.aborted) setResult(data);}
       catch (value) {if (!controller.signal.aborted) setError((value as Error).message);}
       finally {if (!controller.signal.aborted) setReading(false);}
     })();
     return () => controller.abort();
-  }, [token, access?.audit, page, refresh,filters]);
+  }, [sessionActive, access?.audit, page, refresh,filters]);
   if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
-  if (!token || !access?.audit) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有管理审计权限。'} /></AdminPage>;
+  if (!sessionActive || !access?.audit) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有管理审计权限。'} /></AdminPage>;
   const pageCount = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
   return (
     <AdminPage>

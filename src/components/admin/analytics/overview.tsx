@@ -20,7 +20,7 @@ type Report={
 
 import {formatCny, formatNumber} from '@/lib/format/number';
 
-export function AnalyticsOverview({token}:{token:string}){
+export function AnalyticsOverview({sessionActive}:{sessionActive: boolean}){
   // 工作台指标卡会带 ?days= 进来（V3 §14「点击指标进入对应列表并保留筛选日期」），
   // 初值就从 URL 读，否则跳过来看到的还是默认 7 天。
   const [days,setDays]=useState(()=>{
@@ -31,13 +31,13 @@ export function AnalyticsOverview({token}:{token:string}){
   const [report,setReport]=useState<Report|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true);
   useEffect(()=>{
     const controller=new AbortController();setLoading(true);setError('');setReport(null);
-    void fetch('/api/admin/analytics?days='+days,{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:controller.signal})
+    void fetch('/api/admin/analytics?days='+days,{credentials: 'include',cache:'no-store',signal:controller.signal})
       .then(async response=>{const data=await response.json();if(!response.ok)throw Error(data.error);return data as Report;})
       .then(setReport)
       .catch(reason=>{if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:'运营分析读取失败。');})
       .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return()=>controller.abort();
-  },[days,token]);
+  },[days,sessionActive]);
 
   const cards=report?[
     ['新注册用户',formatNumber(report.users.registered)],['活跃账号',formatNumber(report.users.active)],['付费用户',formatNumber(report.users.payingUsers)],
@@ -87,9 +87,9 @@ export function AnalyticsOverview({token}:{token:string}){
             : <p className="text-sm text-muted-foreground">此周期没有 AI 调用记录。</p>}
         </AdminPanel>
       </div>
-      <OpsMetricsPanel token={token} days={days} />
-      <ProductFunnelPanel token={token} days={days} />
-      <SceneFunnelPanel token={token} days={days} />
+      <OpsMetricsPanel sessionActive={sessionActive} days={days} />
+      <ProductFunnelPanel sessionActive={sessionActive} days={days} />
+      <SceneFunnelPanel sessionActive={sessionActive} days={days} />
       <AdminPanel title="注册 cohort 留存" description={`按 UTC 注册日统计在第 1、7、30 天再次认证的账号比例；仅展示汇总，不含用户标识。新采集数据从 ${report.retention.dataFrom?new Date(report.retention.dataFrom).toLocaleDateString('zh-CN'):'今天'} 起，历史日期不会回填。`}>
         {!report.retention.cohorts.length
           ? <p className="text-sm text-muted-foreground">暂无可展示的注册 cohort。</p>

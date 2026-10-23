@@ -39,7 +39,7 @@ const PAGE_LIMIT = 20;
  * 列表每行只保留「查看详情」。
  */
 export function MirrorAdmin() {
-  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('mirror.read');
   const canManage = permissions.includes('mirror.manage');
 
@@ -56,32 +56,32 @@ export function MirrorAdmin() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadList = useCallback(async (cursor: string | null, append: boolean) => {
-    if (!token) return;
+    if (!sessionActive) return;
     setLoadingList(true);
     setError('');
     try {
       const query = new URLSearchParams({limit: String(PAGE_LIMIT)});
       if (status !== 'ALL') query.set('status', status);
       if (cursor) query.set('cursor', cursor);
-      const data = await apiFetch<MirrorResultPage>(API.admin.mirrorResults(query.toString()), {token, cache: 'no-store'});
+      const data = await apiFetch<MirrorResultPage>(API.admin.mirrorResults(query.toString()), {credentials: 'same-origin', cache: 'no-store'});
       setPage(current => (append && current ? {items: [...current.items, ...data.items], nextCursor: data.nextCursor} : data));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '结果列表加载失败。');
     } finally {
       setLoadingList(false);
     }
-  }, [token, status]);
+  }, [sessionActive, status]);
 
   useEffect(() => {
     setPage(null);
     setSelected(null);
     setNotice('');
-    if (token && canRead) void loadList(null, false);
-  }, [token, canRead, status, refreshKey, loadList]);
+    if (sessionActive && canRead) void loadList(null, false);
+  }, [sessionActive, canRead, status, refreshKey, loadList]);
 
   // 配置标签只读：角色候选、题目文本、示例结果与规则都来自公开初始化接口，编辑入口在设置中心与角色管理。
   useEffect(() => {
-    if (!token || !canRead) return;
+    if (!sessionActive || !canRead) return;
     const controller = new AbortController();
     setConfig(null);
     setConfigError('');
@@ -98,7 +98,7 @@ export function MirrorAdmin() {
       })
       .catch(cause => { if (!controller.signal.aborted) setConfigError(cause instanceof Error ? cause.message : '配置读取失败。'); });
     return () => controller.abort();
-  }, [token, canRead, refreshKey]);
+  }, [sessionActive, canRead, refreshKey]);
 
   // 只统计「当前已加载的这一页」，与分页游标一致；比例类指标不在这里算。
   const loaded = useMemo(() => {
@@ -107,13 +107,13 @@ export function MirrorAdmin() {
   }, [page]);
 
   async function hideResult(item: MirrorResultItem) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     if (!window.confirm(`隐藏结果 ${item.shareId}？分享码会立即失效，记录保留以便与费用单对账。`)) return;
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      await apiFetch(API.admin.mirrorResult(item.id), {token, method: 'DELETE'});
+      await apiFetch(API.admin.mirrorResult(item.id), {credentials: 'same-origin', method: 'DELETE'});
       setNotice(`结果 ${item.shareId} 已隐藏，分享页不再可访问。`);
       setSelected(null);
       setRefreshKey(value => value + 1);
@@ -125,12 +125,12 @@ export function MirrorAdmin() {
   }
 
   async function restoreResult(item: MirrorResultItem) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      const data = await apiFetch<{status: MirrorStatus; changed: boolean}>(API.admin.mirrorResult(item.id), {token, method: 'PATCH'});
+      const data = await apiFetch<{status: MirrorStatus; changed: boolean}>(API.admin.mirrorResult(item.id), {credentials: 'same-origin', method: 'PATCH'});
       setNotice(
         data.changed
           ? `结果 ${item.shareId} 已恢复为「${MIRROR_STATUS_LABELS[data.status]}」。`
@@ -146,7 +146,7 @@ export function MirrorAdmin() {
   }
 
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在验证管理权限…" /></AdminPage>;
-  if (!token || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有「他眼中的你」查看权限。'} /></AdminPage>;
+  if (!sessionActive || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有「他眼中的你」查看权限。'} /></AdminPage>;
 
   return (
     <AdminPage>
@@ -269,7 +269,7 @@ export function MirrorAdmin() {
         </TabsContent>
 
         <TabsContent value="stats">
-          <MirrorStatsPanel token={token} />
+          <MirrorStatsPanel sessionActive={sessionActive} />
         </TabsContent>
       </Tabs>
 

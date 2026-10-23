@@ -14,9 +14,9 @@ import type {SettingDefinition} from '@/lib/settings/types';
  * 草稿要先保存才会生效，这一点在按钮下方写清楚，避免误以为试跑的就是新模板。
  * 失败时直接显示失败原因，不拿占位文本冒充结果。
  */
-export function PromptPreview({definition, token, saved}: {
+export function PromptPreview({definition, sessionActive, saved}: {
   definition: SettingDefinition;
-  token: string;
+  sessionActive: boolean;
   /** 当前已保存的模板内容；草稿不同则提示先保存。 */
   saved: string;
 }) {
@@ -31,7 +31,7 @@ export function PromptPreview({definition, token, saved}: {
     try {
       const response = await fetch(API.admin.settingsPromptPreview, {
         method: 'POST',
-        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({key: definition.key, sample}),
       });
       const payload = await response.json().catch(() => null) as {result?: string; model?: string | null; error?: string} | null;

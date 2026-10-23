@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {getAuthUser} from '@/lib/auth';
+import {getAdminRequestUser} from '@/lib/admin-auth/request';
 import {logRouteError} from '@/lib/logger';
 import {CheckoutPolicyError, readCheckoutPolicy, saveCheckoutPolicy} from '@/lib/payments/checkout-policy-service';
 
@@ -12,14 +12,14 @@ function failure(error: unknown) {
 }
 export async function GET(request: Request) {
   try {
-    const auth = await getAuthUser(request);
+    const auth = await getAdminRequestUser(request);
     if (!auth) return NextResponse.json({error: '请先登录。'}, {status: 401, headers});
     return NextResponse.json(await readCheckoutPolicy(auth.userId), {headers});
   } catch (error) {return failure(error);}
 }
 export async function PUT(request: Request) {
   try {
-    const auth = await getAuthUser(request);
+    const auth = await getAdminRequestUser(request);
     if (!auth) return NextResponse.json({error: '请先登录。'}, {status: 401, headers});
     let input: unknown;
     try {input = await request.json();} catch {return NextResponse.json({error: '请求数据格式不正确。'}, {status: 400, headers});}

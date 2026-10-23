@@ -4,7 +4,7 @@ export const PERMISSIONS = {
   'admin.roles.manage': '编辑自定义角色',
   'admin.audit.read': '查看管理操作审计',
   'accounts.read': '查看用户资料与关联记录',
-  'accounts.manage': '停用和恢复网站账号',
+  'accounts.manage': '修改用户公开资料、停用和恢复网站账号',
   'accounts.sessions.revoke': '撤销用户登录会话',
   'accounts.community.manage': '管理用户社区禁言',
   'characters.read': '查看全部角色与管理预览',

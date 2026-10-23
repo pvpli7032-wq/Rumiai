@@ -104,7 +104,9 @@ export async function saveOperator(actorId: string, input: unknown) {
     const saved = await tx.adminOperator.upsert({where: {userId}, update: {enabled, version: {increment: 1}}, create: {userId, enabled, version: 1}});
     await tx.adminRoleAssignment.deleteMany({where: {userId}});
     if (roleIds.length) await tx.adminRoleAssignment.createMany({data: roleIds.map(roleId => ({userId, roleId}))});
+    const rolesChanged = !before || before.assignments.length !== roleIds.length || before.assignments.some(item => !roleIds.includes(item.roleId));
     if (before?.enabled && !enabled) await tx.user.update({where: {id: userId}, data: {tokenVersion: {increment: 1}}});
+    if (before && (rolesChanged || before.enabled !== enabled)) await tx.adminSession.deleteMany({where: {userId}});
     await recordAdminAudit(tx, actorId, 'SAVE_OPERATOR', userId, explanation, {before: before ? {enabled: before.enabled, roleIds: before.assignments.map(item => item.roleId), version: before.version} : null, after: {enabled, roleIds, version: saved.version}});
     return {userId, enabled, version: saved.version};
   });
@@ -133,9 +135,11 @@ export async function saveRole(actorId: string, input: unknown) {
     if (id && !before) throw new AdminManagementError('角色不存在。', 404);
     if (before?.system) throw new AdminManagementError('系统角色不可修改。', 409);
     if (before && before.version !== expected) throw new AdminManagementError('角色已被其他人修改，请刷新。', 409);
+    const assignedUsers = before ? await tx.adminRoleAssignment.findMany({where: {roleId: before.id}, select: {userId: true}}) : [];
     const saved = before ? await tx.adminRole.update({where: {id: before.id}, data: {name, version: {increment: 1}}}) : await tx.adminRole.create({data: {code: `CUSTOM_${randomUUID().replaceAll('-', '')}`, name, version: 1}});
     await tx.adminRolePermission.deleteMany({where: {roleId: saved.id}});
     if (permissions.length) await tx.adminRolePermission.createMany({data: permissions.map(permission => ({roleId: saved.id, permission}))});
+    if (assignedUsers.length) await tx.adminSession.deleteMany({where: {userId: {in: assignedUsers.map(item => item.userId)}}});
     await recordAdminAudit(tx, actorId, before ? 'UPDATE_ROLE' : 'CREATE_ROLE', saved.id, explanation, {before: before ? {name: before.name, permissions: before.permissions.map(item => item.permission), version: before.version} : null, after: {name, permissions, version: saved.version}});
     return {id: saved.id, version: saved.version};
   });
@@ -189,6 +193,7 @@ export async function closeAdminIdentity(tx: Prisma.TransactionClient, userId: s
   if (authorization.owner && !await ownerCount(tx, userId)) throw new AdminManagementError('请先添加另一位所有者，再注销当前账号。', 409);
   if (authorization.managed) {
     await tx.adminOperator.update({where: {userId}, data: {enabled: false, version: {increment: 1}}});
+    await tx.adminSession.deleteMany({where: {userId}});
     await recordAdminAudit(tx, userId, 'ACCOUNT_CLOSED', userId, '账号注销停用管理身份', {enabled: false});
   }
 }

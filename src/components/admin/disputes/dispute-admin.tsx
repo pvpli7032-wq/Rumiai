@@ -34,7 +34,7 @@ const PAGE_LIMIT = 20;
  * 这里给一个跳转，不在每行放参数输入框。
  */
 export function DisputeAdmin() {
-  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('disputes.read');
   const canManage = permissions.includes('disputes.manage');
   const canReadSettings = permissions.includes('settings.read');
@@ -49,28 +49,28 @@ export function DisputeAdmin() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadList = useCallback(async (cursor: string | null, append: boolean) => {
-    if (!token) return;
+    if (!sessionActive) return;
     setLoadingList(true);
     setError('');
     try {
       const query = new URLSearchParams({limit: String(PAGE_LIMIT)});
       if (status !== 'ALL') query.set('status', status);
       if (cursor) query.set('cursor', cursor);
-      const data = await apiFetch<DisputeCasePage>(API.admin.disputeCases(query.toString()), {token, cache: 'no-store'});
+      const data = await apiFetch<DisputeCasePage>(API.admin.disputeCases(query.toString()), {credentials: 'same-origin', cache: 'no-store'});
       setPage(current => (append && current ? {items: [...current.items, ...data.items], nextCursor: data.nextCursor} : data));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '评理案例加载失败。');
     } finally {
       setLoadingList(false);
     }
-  }, [token, status]);
+  }, [sessionActive, status]);
 
   useEffect(() => {
     setPage(null);
     setSelected(null);
     setNotice('');
-    if (token && canRead) void loadList(null, false);
-  }, [token, canRead, status, refreshKey, loadList]);
+    if (sessionActive && canRead) void loadList(null, false);
+  }, [sessionActive, canRead, status, refreshKey, loadList]);
 
   const stats = useMemo(() => {
     const items = page?.items ?? [];
@@ -83,7 +83,7 @@ export function DisputeAdmin() {
   }, [page]);
 
   async function hideCase(item: DisputeCaseItem) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     // 一次对话框同时确认动作与原因：隐藏必须留下原因，二次确认也在这里完成。
     const reason = window.prompt(`隐藏案例 ${item.id}？\n隐藏后停止公开访问、停止投票，也不再进入结案任务。请填写原因（1–300 字）：`, '');
     if (reason === null) return;
@@ -94,7 +94,7 @@ export function DisputeAdmin() {
     try {
       const result = await apiFetch<{caseId: string; hidden: boolean; alreadyHidden: boolean}>(
         API.admin.disputeCaseHide(item.id),
-        {token, method: 'POST', body: {reason: reason.trim()}},
+        {credentials: 'same-origin', method: 'POST', body: {reason: reason.trim()}},
       );
       setNotice(result.alreadyHidden ? `案例 ${result.caseId} 之前已停止公开，这次隐藏已记录。` : `案例 ${result.caseId} 已隐藏。`);
       setSelected(null);
@@ -107,7 +107,7 @@ export function DisputeAdmin() {
   }
 
   async function closeCase(item: DisputeCaseItem) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     if (!window.confirm(`立即结案案例 ${item.id}？不等截止时间与票数，仍会生成一次角色回应。`)) return;
     setBusy(true);
     setError('');
@@ -115,7 +115,7 @@ export function DisputeAdmin() {
     try {
       const result = await apiFetch<{caseId: string; status: string; alreadyClosed: boolean}>(
         API.admin.disputeCaseClose(item.id),
-        {token, method: 'POST'},
+        {credentials: 'same-origin', method: 'POST'},
       );
       setNotice(result.alreadyClosed ? `案例 ${result.caseId} 已经结案，未重复生成回应。` : `案例 ${result.caseId} 已结案。`);
       setSelected(null);
@@ -128,7 +128,7 @@ export function DisputeAdmin() {
   }
 
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在验证管理权限…" /></AdminPage>;
-  if (!token || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有评理广场查看权限。'} /></AdminPage>;
+  if (!sessionActive || !canRead) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有评理广场查看权限。'} /></AdminPage>;
 
   return (
     <AdminPage>
@@ -274,7 +274,7 @@ export function DisputeAdmin() {
         </div>
       </AdminPanel>
 
-      <DisputeRewardPanel token={token} canReadSettings={canReadSettings} refreshKey={refreshKey} />
+      <DisputeRewardPanel sessionActive={sessionActive} canReadSettings={canReadSettings} refreshKey={refreshKey} />
 
       <DisputeCaseDrawer item={selected} canManage={canManage} busy={busy} onClose={() => setSelected(null)} onCloseCase={item => void closeCase(item)} onHide={item => void hideCase(item)} />
     </AdminPage>

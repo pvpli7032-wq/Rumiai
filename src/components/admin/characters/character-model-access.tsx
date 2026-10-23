@@ -10,26 +10,26 @@ import { Input } from '@/components/ui/input';
 type Scope = { restricted: boolean; version: number; modelKeys: string[]; options: { key: string; displayName: string; available: boolean }[] };
 
 export function CharacterModelAccess({ characterId, deleted = false }: { characterId: string; deleted?: boolean }) {
-  const { token, permissions } = useAdminAccess();
+  const { sessionActive, permissions } = useAdminAccess();
   const canEdit = permissions.includes('characters.write') && !deleted;
   const [scope, setScope] = useState<Scope | null>(null), [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const endpoint = `/api/admin/characters/${encodeURIComponent(characterId)}/models`;
   useEffect(() => {
     setScope(null); setError(''); setMessage(''); setReason('');
-    if (!token) return;
+    if (!sessionActive) return;
     const controller = new AbortController();
-    void fetch(endpoint, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal })
+    void fetch(endpoint, {credentials: 'include', cache: 'no-store', signal: controller.signal })
       .then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error ?? '模型范围读取失败。'); if (!controller.signal.aborted) setScope(data); })
       .catch(value => { if (!controller.signal.aborted) setError(value.message); });
     return () => controller.abort();
-  }, [endpoint, token]);
+  }, [endpoint, sessionActive]);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!scope || !canEdit || busy) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      const response = await fetch(endpoint, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ restricted: scope.restricted, modelKeys: scope.modelKeys, version: scope.version, reason }) });
+      const response = await fetch(endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ restricted: scope.restricted, modelKeys: scope.modelKeys, version: scope.version, reason }) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error ?? '模型范围保存失败。');
       setScope({ ...scope, ...data }); setReason('');

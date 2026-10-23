@@ -18,7 +18,7 @@ import {TASK_STATUS_LABELS, TASK_STATUS_VARIANTS, describeNextRun, formatDateTim
  * - 立即运行调用 runAdminTaskOnce()，与后台任务页是同一个服务函数、同一套租约与重试。
  * 进程日志只写到 stdout，没有可读的日志文件，所以这里不伪造一个「系统日志」。
  */
-export function TaskLogPanel({token}:{token:string}){
+export function TaskLogPanel({sessionActive}:{sessionActive: boolean}){
   const [items,setItems]=useState<TaskItem[]|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
@@ -27,10 +27,10 @@ export function TaskLogPanel({token}:{token:string}){
   const [openLog,setOpenLog]=useState('');
 
   const load=useCallback(async(signal?:AbortSignal)=>{
-    try{const data=await apiFetch<TaskListResponse>(API.admin.tasks,{token,cache:'no-store',signal});if(!signal?.aborted)setItems(data.items);}
+    try{const data=await apiFetch<TaskListResponse>(API.admin.tasks,{credentials: 'same-origin',cache:'no-store',signal});if(!signal?.aborted)setItems(data.items);}
     catch(cause){if(!signal?.aborted)setError(cause instanceof Error?cause.message:'任务状态读取失败。');}
     finally{if(!signal?.aborted)setLoading(false);}
-  },[token]);
+  },[sessionActive]);
 
   useEffect(()=>{const controller=new AbortController();setItems(null);setError('');setLoading(true);void load(controller.signal);return()=>controller.abort();},[load]);
 
@@ -38,7 +38,7 @@ export function TaskLogPanel({token}:{token:string}){
     if(running)return;
     setRunning(item.kind);setError('');setNotice('');
     try{
-      const result=await apiFetch<TaskRunResult>(API.admin.taskRun(item.kind),{token,method:'POST'});
+      const result=await apiFetch<TaskRunResult>(API.admin.taskRun(item.kind),{credentials: 'same-origin',method:'POST'});
       const failed=result.failed>0?`，${result.failed} 个失败`:'';
       setNotice(`${item.name}：${result.detail}（完成 ${result.affected} 个${failed}）`);
       setOpenLog(item.kind);

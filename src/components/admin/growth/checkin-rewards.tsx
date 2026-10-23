@@ -7,23 +7,23 @@ import { Input } from '@/components/ui/input';
 
 type Rule = { streakDay: number; rewardCoins: number; version: number };
 
-export function CheckinRewards({ token, canManage, onSaved }: { token: string; canManage: boolean; onSaved: () => void }) {
+export function CheckinRewards({ sessionActive, canManage, onSaved }: { sessionActive: boolean; canManage: boolean; onSaved: () => void }) {
   const [rules, setRules] = useState<Rule[]>([]), [reason, setReason] = useState(''), [error, setError] = useState(''), [saving, setSaving] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    void fetch('/api/admin/growth/checkins', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store', signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error); setRules(data.rules); }).catch(e => { if (!controller.signal.aborted) setError(e.message); });
+    void fetch('/api/admin/growth/checkins', {credentials: 'include', cache: 'no-store', signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error); setRules(data.rules); }).catch(e => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
-  }, [token]);
+  }, [sessionActive]);
 
   function change(day: number, value: string) { setRules(rows => rows.map(row => row.streakDay === day ? { ...row, rewardCoins: Number(value) } : row)); }
 
   async function save() {
     setSaving(true); setError('');
     try {
-      const response = await fetch('/api/admin/growth/checkins', { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ rules, reason }) });
+      const response = await fetch('/api/admin/growth/checkins', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules, reason }) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
-      const refreshed = await fetch('/api/admin/growth/checkins', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+      const refreshed = await fetch('/api/admin/growth/checkins', {credentials: 'include', cache: 'no-store' });
       const updated = await refreshed.json();
       if (!refreshed.ok) throw Error(updated.error);
       setRules(updated.rules); setReason(''); onSaved();

@@ -15,7 +15,7 @@ import {formatStoredValue, type SettingRevision} from './history';
  */
 export interface SettingsHistoryDialogProps {
   open: boolean;
-  token: string;
+  sessionActive: boolean;
   group: string;
   canWrite: boolean;
   definitions: {key: string; label: string}[];
@@ -23,7 +23,7 @@ export interface SettingsHistoryDialogProps {
   onRestored: () => void;
 }
 
-export function SettingsHistoryDialog({open, token, group, canWrite, definitions, onClose, onRestored}: SettingsHistoryDialogProps) {
+export function SettingsHistoryDialog({open, sessionActive, group, canWrite, definitions, onClose, onRestored}: SettingsHistoryDialogProps) {
   const [items, setItems] = useState<SettingRevision[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,7 +40,7 @@ export function SettingsHistoryDialog({open, token, group, canWrite, definitions
       const url = API.admin.settingsHistory(
         new URLSearchParams({group, ...(filterKey ? {key: filterKey} : {}), ...(cursor ? {cursor} : {})}).toString(),
       );
-      const response = await fetch(url, {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store'});
+      const response = await fetch(url, {credentials: 'include', cache: 'no-store'});
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error || '修改历史读取失败，请稍后重试。');
       setItems(current => (cursor ? [...current, ...payload.items] : payload.items));
@@ -50,7 +50,7 @@ export function SettingsHistoryDialog({open, token, group, canWrite, definitions
     } finally {
       setLoading(false);
     }
-  }, [token, group, filterKey]);
+  }, [sessionActive, group, filterKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +68,7 @@ export function SettingsHistoryDialog({open, token, group, canWrite, definitions
     try {
       const response = await fetch(API.admin.settingsRestore, {
         method: 'POST',
-        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({key: revision.key, revisionId: revision.id}),
       });
       const payload = await response.json().catch(() => null);

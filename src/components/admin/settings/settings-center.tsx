@@ -26,13 +26,13 @@ import {useUnsavedGuard} from './use-unsaved-guard';
  * 字段与小节在 settings-panel.tsx。
  */
 export function SettingsCenter() {
-  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const [activeGroup, setActiveGroup] = useState<SettingsGroupId>('chat');
   const [transferOpen, setTransferOpen] = useState(false);
 
   const canRead = permissions.includes('settings.read');
   const canWrite = permissions.includes('settings.write');
-  const controller = useSettingsGroup(token ?? undefined, activeGroup, Boolean(token && canRead));
+  const controller = useSettingsGroup(sessionActive ?? undefined, activeGroup, Boolean(sessionActive && canRead));
   const {definitions, dirtyKeys, loading, loadError, saving, saveError} = controller;
 
   useUnsavedGuard(dirtyKeys.length > 0);
@@ -80,7 +80,7 @@ export function SettingsCenter() {
       </AdminPage>
     );
   }
-  if (!token) {
+  if (!sessionActive) {
     return (
       <AdminPage width="narrow">
         <AdminPageHeader eyebrow="系统设置" title="设置中心" />
@@ -88,7 +88,7 @@ export function SettingsCenter() {
           tone="warning"
           title="请先登录管理员账号"
           description="设置中心只对拥有管理身份的账号开放。"
-          action={<Link href="/login?next=%2Fadmin%2Fsettings"><Button>前往登录</Button></Link>}
+          action={<Link href="/admin/login?next=%2Fadmin%2Fsettings"><Button>前往登录</Button></Link>}
         />
       </AdminPage>
     );
@@ -133,10 +133,10 @@ export function SettingsCenter() {
 
       {tabs}
 
-      <SettingsPanel activeGroup={activeGroup} token={token} canWrite={canWrite} controller={controller} />
+      <SettingsPanel activeGroup={activeGroup} sessionActive={sessionActive} canWrite={canWrite} controller={controller} />
 
       {transferOpen && (
-        <ExportImportDialog open token={token} canWrite={canWrite} onClose={() => setTransferOpen(false)} onImported={() => controller.reload()} />
+        <ExportImportDialog open sessionActive={sessionActive} canWrite={canWrite} onClose={() => setTransferOpen(false)} onImported={() => controller.reload()} />
       )}
 
       <SaveBar

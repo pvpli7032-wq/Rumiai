@@ -11,22 +11,22 @@ import { Textarea } from '@/components/ui/textarea';
 
 type Policy = { enabled: boolean; message: string; retryAfterSeconds: number; version: number };
 
-export function MaintenanceSettings({ token }: { token: string }) {
+export function MaintenanceSettings({ sessionActive }: { sessionActive: boolean }) {
   const { permissions } = useAdminAccess();
   const canManage = permissions.includes('operations.maintenance.manage');
   const [policy, setPolicy] = useState<Policy | null>(null), [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [revision, setRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController(); setPolicy(null); setError('');
-    void fetch('/api/admin/operations/maintenance', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error ?? '维护设置读取失败。'); if (!controller.signal.aborted) setPolicy(data); }).catch(value => { if (!controller.signal.aborted) setError(value.message); });
+    void fetch('/api/admin/operations/maintenance', {credentials: 'include', cache: 'no-store', signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error ?? '维护设置读取失败。'); if (!controller.signal.aborted) setPolicy(data); }).catch(value => { if (!controller.signal.aborted) setError(value.message); });
     return () => controller.abort();
-  }, [token, revision]);
+  }, [sessionActive, revision]);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!policy || !canManage || busy) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      const response = await fetch('/api/admin/operations/maintenance', { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...policy, reason }) });
+      const response = await fetch('/api/admin/operations/maintenance', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...policy, reason }) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error ?? '维护设置保存失败。');
       setPolicy(data); setReason('');

@@ -15,20 +15,20 @@ type Change = { id: string; packageId: string; actorId: string; createdAt: strin
 type Form = { label: string; coins: string; bonus: string; price: string; sortOrder: string; isActive: boolean; start: string; end: string };
 const empty: Form = { label: '', coins: '60', bonus: '0', price: '6', sortOrder: '0', isActive: true, start: '', end: '' };
 
-export function FinancePackages({ token, canEdit }: { token: string; canEdit: boolean }) {
+export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boolean; canEdit: boolean }) {
   const [packages, setPackages] = useState<Package[]>([]), [changes, setChanges] = useState<Change[]>([]);
   const [editing, setEditing] = useState<Package | null>(null), [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(''), [message, setMessage] = useState('');
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/finance/packages', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal });
+      const response = await fetch('/api/admin/finance/packages', {credentials: 'include', cache: 'no-store', signal });
       const data = await response.json();
       if (!response.ok) throw Error(data.error || '套餐加载失败。');
       if (!signal?.aborted) { setPackages(data.packages); setChanges(data.changes); }
     } catch (e) { if (!signal?.aborted) { setPackages([]); setChanges([]); setError((e as Error).message); } }
     finally { if (!signal?.aborted) setLoading(false); }
-  }, [token]);
+  }, [sessionActive]);
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load]);
 
   function edit(pkg: Package) {
@@ -42,7 +42,7 @@ export function FinancePackages({ token, canEdit }: { token: string; canEdit: bo
     try {
       if (!/^\d+(?:\.\d{1,2})?$/.test(form.price)) throw Error('人民币价格最多两位小数。');
       const body = { label: form.label, coins: Number(form.coins), bonus: Number(form.bonus), priceCnyCents: Math.round(Number(form.price) * 100), sortOrder: Number(form.sortOrder), isActive: form.isActive, bonusStartsAt: form.start ? new Date(form.start).toISOString() : null, bonusEndsAt: form.end ? new Date(form.end).toISOString() : null, ...(editing ? { version: editing.version } : {}) };
-      const response = await fetch(editing ? `/api/admin/finance/packages/${encodeURIComponent(editing.id)}` : '/api/admin/finance/packages', { method: editing ? 'PUT' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const response = await fetch(editing ? `/api/admin/finance/packages/${encodeURIComponent(editing.id)}` : '/api/admin/finance/packages', { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
       if (!response.ok) { if (response.status === 409) await load(); throw Error(data.error || '保存失败。'); }
       setEditing(null); setForm(empty); setMessage('套餐已保存，新订单使用最新配置。'); await load();

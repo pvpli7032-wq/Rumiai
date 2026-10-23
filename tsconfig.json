@@ -27,22 +27,18 @@
         "./src/*"
       ]
     },
-    "tsBuildInfoFile": "./artifacts/typecheck.tsbuildinfo"
+    "tsBuildInfoFile": "./.next/cache/typecheck.tsbuildinfo"
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".next-*/types/**/*.ts",
-    ".next/types/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "prisma/**/*.ts",
+    "tailwind.config.ts",
     "next-env.d.ts",
-    ".next-validation-build/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next-build/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "artifacts",
-    ".next",
-    ".next-build",
-    ".next-validation-build",
-    ".temp"
+    "node_modules"
   ]
 }

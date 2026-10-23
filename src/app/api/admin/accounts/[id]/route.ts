@@ -1,12 +1,12 @@
 import {NextResponse} from 'next/server';
 import {readManagedAccount, updateManagedAccount} from '@/lib/accounts/management-service';
-import {jsonError, privateHeaders, requireUser, unauthorized} from '@/lib/http';
+import {jsonError, privateHeaders, requireAdminUser, unauthorized} from '@/lib/http';
 
 type Context = {params: Promise<{id: string}>};
 
 export async function GET(request: Request, context: Context) {
   try {
-    const actor = await requireUser(request);
+    const actor = await requireAdminUser(request);
     if (!actor) return unauthorized();
     return NextResponse.json(await readManagedAccount(actor.userId, (await context.params).id), {headers: privateHeaders});
   } catch (error) {
@@ -16,7 +16,7 @@ export async function GET(request: Request, context: Context) {
 
 export async function PATCH(request: Request, context: Context) {
   try {
-    const actor = await requireUser(request);
+    const actor = await requireAdminUser(request);
     if (!actor) return unauthorized();
     return NextResponse.json(await updateManagedAccount(actor.userId, (await context.params).id, await request.json().catch(() => null)), {headers: privateHeaders});
   } catch (error) {

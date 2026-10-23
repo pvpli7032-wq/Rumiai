@@ -22,7 +22,7 @@ const PERIOD_LABELS = { ONCE: '一次', DAILY: '每日', WEEKLY: '每周' } as R
 
 const newDraft = (sortOrder: number): Draft => ({ version: 0, title: '', description: '', rewardCoins: 0, category: 'DAILY', conditionType: 'CHECKIN_COUNT', conditionTarget: 1, period: 'DAILY', isActive: false, sortOrder, startsAt: '', endsAt: '', reason: '' });
 
-export function MissionManagement({ token, canManage, missions, onSaved }: { token: string; canManage: boolean; missions: Mission[]; onSaved: () => void }) {
+export function MissionManagement({ sessionActive, canManage, missions, onSaved }: { sessionActive: boolean; canManage: boolean; missions: Mission[]; onSaved: () => void }) {
   const [draft, setDraft] = useState<Draft | null>(null), [saving, setSaving] = useState(false), [error, setError] = useState('');
   const change = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft(current => current ? { ...current, [key]: value } : current);
   function edit(mission: Mission) {
@@ -34,7 +34,7 @@ export function MissionManagement({ token, canManage, missions, onSaved }: { tok
     setSaving(true); setError('');
     const body = { ...draft, startsAt: draft.startsAt ? new Date(draft.startsAt).toISOString() : null, endsAt: draft.endsAt ? new Date(draft.endsAt).toISOString() : null };
     try {
-      const response = await fetch(draft.id ? `${API.admin.growth.missions}/${draft.id}` : API.admin.growth.missions, { method: draft.id ? 'PATCH' : 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const response = await fetch(draft.id ? `${API.admin.growth.missions}/${draft.id}` : API.admin.growth.missions, { method: draft.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setDraft(null); onSaved();

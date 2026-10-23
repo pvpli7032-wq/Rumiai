@@ -40,9 +40,9 @@ function showValue(key: string, value: JsonValue | null): string {
   return formatSettingValue(definition, value);
 }
 
-export function ExportImportDialog({open, token, canWrite, onClose, onImported}: {
+export function ExportImportDialog({open, sessionActive, canWrite, onClose, onImported}: {
   open: boolean;
-  token: string;
+  sessionActive: boolean;
   canWrite: boolean;
   onClose: () => void;
   /** 导入成功后通知设置中心重新读取，避免页面还显示旧值。 */
@@ -64,7 +64,7 @@ export function ExportImportDialog({open, token, canWrite, onClose, onImported}:
   async function exportFile() {
     setExporting(true); setError('');
     try {
-      const response = await fetch(API.admin.settingsExport, {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store'});
+      const response = await fetch(API.admin.settingsExport, {credentials: 'include', cache: 'no-store'});
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as {error?: string} | null;
         throw new Error(payload?.error || '导出失败，请稍后重试。');
@@ -91,7 +91,7 @@ export function ExportImportDialog({open, token, canWrite, onClose, onImported}:
       const values = parsed && typeof parsed === 'object' && parsed.values && typeof parsed.values === 'object' ? parsed.values : parsed;
       const response = await fetch(API.admin.settingsImport, {
         method: 'POST',
-        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({values}),
       });
       const payload = await response.json().catch(() => null) as {items?: DiffRow[]; error?: string} | null;
@@ -115,7 +115,7 @@ export function ExportImportDialog({open, token, canWrite, onClose, onImported}:
       const expectedVersions = Object.fromEntries(rows.map(row => [row.key, row.version]));
       const response = await fetch(API.admin.settingsImportConfirm, {
         method: 'POST',
-        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({values, expectedVersions}),
       });
       const payload = await response.json().catch(() => null) as {saved?: string[]; skipped?: number; error?: string} | null;

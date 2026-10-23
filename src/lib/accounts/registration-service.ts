@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { ensureAuthSigningConfiguration } from '@/lib/auth';
-import { allocateHandle, isUniqueViolation } from '@/lib/user-identity';
+import { allocateHandle, isUniqueViolation, validateUsername } from '@/lib/user-identity';
 import { recordRegistrationConsents, RegistrationConsentError } from '@/lib/compliance/policy-service';
 import { readRegistrationRules } from '@/lib/settings';
 import { readInviteSettings, resolveInviterId } from '@/lib/growth/invite-service';
@@ -36,6 +36,8 @@ export async function registerAccount(input: unknown) {
 
   let username: string;
   if (requestedHandle) {
+    const usernameError = validateUsername(requestedHandle);
+    if (usernameError) throw new AccountRegistrationError(usernameError, 400);
     if (await db.user.findUnique({ where: { username: requestedHandle }, select: { id: true } })) throw new AccountRegistrationError('Username already in use', 409);
     username = requestedHandle;
   } else {

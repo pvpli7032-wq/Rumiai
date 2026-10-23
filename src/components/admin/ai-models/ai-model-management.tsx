@@ -18,16 +18,16 @@ const blank=(providers:Provider[]):Draft=>({key:'',displayName:'',modelCode:'',p
 const checkStatus:Record<string,string>={AVAILABLE:'可用',NOT_LISTED:'接口可达，模型未列出',REJECTED:'服务端拒绝认证',UNAVAILABLE:'连接失败'};
 
 export function AiModelManagement(){
-  const {token,permissions,loading}=useAdminAccess(),[rows,setRows]=useState<Model[]>([]),[providers,setProviders]=useState<Provider[]>([]),[draft,setDraft]=useState<Draft|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const {sessionActive,permissions,loading}=useAdminAccess(),[rows,setRows]=useState<Model[]>([]),[providers,setProviders]=useState<Provider[]>([]),[draft,setDraft]=useState<Draft|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const canManage=permissions.includes('ai.models.manage'),canTest=permissions.includes('ai.models.test');
-  const request=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetch(url,{...init,cache:'no-store',headers:{Authorization:`Bearer ${token}`,...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});const data=await response.json();if(!response.ok)throw Error(data.error||'AI模型请求失败。');return data;},[token]);
-  const load=useCallback(async()=>{if(!token)return;try{const [models,sources]=await Promise.all([request('/api/admin/ai/models'),request(API.admin.ai.providers)]);setRows(models);setProviders(sources);setError('');}catch(value){setError((value as Error).message);}},[request,token]);
+  const request=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetch(url,{...init,cache:'no-store',headers:{...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});const data=await response.json();if(!response.ok)throw Error(data.error||'AI模型请求失败。');return data;},[sessionActive]);
+  const load=useCallback(async()=>{if(!sessionActive)return;try{const [models,sources]=await Promise.all([request('/api/admin/ai/models'),request(API.admin.ai.providers)]);setRows(models);setProviders(sources);setError('');}catch(value){setError((value as Error).message);}},[request,sessionActive]);
   useEffect(()=>{void load();},[load]);
   function set<K extends keyof Draft>(key:K,value:Draft[K]){setDraft(old=>old?{...old,[key]:value}:old);}
   async function save(event:React.FormEvent){event.preventDefault();if(!draft||busy)return;setBusy(true);setError('');setNotice('');try{const body={...draft,sortOrder:Number(draft.sortOrder),timeoutMs:Number(draft.timeoutMs),maxRetries:Number(draft.maxRetries),maxOutputTokens:Number(draft.maxOutputTokens)};await request(draft.id?`/api/admin/ai/models/${encodeURIComponent(draft.id)}`:'/api/admin/ai/models',{method:draft.id?'PATCH':'POST',body:JSON.stringify(body)});setDraft(null);setNotice('模型与路由配置已保存。');await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
   async function test(model:Model){if(busy)return;setBusy(true);setError('');setNotice('');try{const result=await request(`/api/admin/ai/models/${encodeURIComponent(model.id)}/test`,{method:'POST'});setNotice(`${checkStatus[result.reachable?(result.authorized?(result.modelListed===false?'NOT_LISTED':'AVAILABLE'):'REJECTED'):'UNAVAILABLE']} · ${result.latencyMs}ms${result.status?` · HTTP ${result.status}`:''}`);await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
   if(loading)return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
-  if(!token||!permissions.includes('ai.models.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有 AI 模型查看权限。" /></AdminPage>;
+  if(!sessionActive||!permissions.includes('ai.models.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有 AI 模型查看权限。" /></AdminPage>;
   return <AdminPage>
     <AdminPageHeader eyebrow="AI 与成本" title="模型与路由" description="将逻辑模型标识绑定到供应商实际模型代码。启用模型须绑定已启用且密钥可用的供应商；全站只能有一个默认模型，备用模型按排序依次尝试。聊天选择会保存逻辑标识，不会向客户端暴露供应商密钥。" />
     {error&&<AdminNotice tone="error" title={error} className="break-words py-6" />}{notice&&<AdminNotice tone="success" title={notice} className="break-words py-6" />}

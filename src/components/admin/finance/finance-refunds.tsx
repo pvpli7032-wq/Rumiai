@@ -16,7 +16,7 @@ import {STATUS_LABEL, type OrderRow} from './order-types';
  * 这里只做「哪些订单有退款、处在什么状态、谁批的」的清点，
  * 申请／批准／驳回／重试全部在订单详情抽屉内完成，列表不放动作表单。
  */
-export function FinanceRefunds({token, onOpenOrder}: {token: string; onOpenOrder: (orderNo: string) => void}) {
+export function FinanceRefunds({sessionActive, onOpenOrder}: {sessionActive: boolean; onOpenOrder: (orderNo: string) => void}) {
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,7 +25,7 @@ export function FinanceRefunds({token, onOpenOrder}: {token: string; onOpenOrder
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true); setError('');
     try {
-      const response = await fetch('/api/admin/finance/orders', {headers: {Authorization: 'Bearer ' + token}, cache: 'no-store', signal});
+      const response = await fetch('/api/admin/finance/orders', {credentials: 'include', cache: 'no-store', signal});
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       if (!signal?.aborted) setRows((data as OrderRow[]).filter(row => row.refund));
@@ -34,7 +34,7 @@ export function FinanceRefunds({token, onOpenOrder}: {token: string; onOpenOrder
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [token]);
+  }, [sessionActive]);
 
   useEffect(() => {
     const controller = new AbortController();

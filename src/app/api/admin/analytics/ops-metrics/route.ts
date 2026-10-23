@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {getAuthUser} from '@/lib/auth';
+import {getAdminRequestUser} from '@/lib/admin-auth/request';
 import {db, pragmasReady} from '@/lib/db';
 import {hasAdminPermission} from '@/lib/admin/authorization';
 import {ProductFunnelReportError} from '@/lib/analytics/product-funnel-report-service';
@@ -11,7 +11,7 @@ const headers = {'Cache-Control': 'private, no-store'};
 
 /** 运营统计首轮五项指标；免费/付费按 tier 筛选，天数与 overview 同一上限。 */
 export async function GET(request: Request) {
-  const auth = await getAuthUser(request);
+  const auth = await getAdminRequestUser(request);
   if (!auth) return NextResponse.json({error: '请先登录。'}, {status: 401, headers});
   const params = new URL(request.url).searchParams;
   const daysText = params.get('days') ?? '7';

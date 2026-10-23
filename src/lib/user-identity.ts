@@ -18,6 +18,13 @@ export function slugifyHandle(input: string): string {
   return base || 'user';
 }
 
+/** Handles are URL path segments; keep registration and profile edits aligned. */
+export function validateUsername(value: string): string | null {
+  if (!value || value.length > 100) return '用户名不能为空且不能超过 100 字。';
+  if (value === '.' || value === '..' || /\s|[\\/%?#\u0000-\u001f\u007f]/u.test(value)) return '用户名不能包含空格、斜杠或 URL 保留字符。';
+  return null;
+}
+
 /**
  * Find a free handle near `preferred`, appending a numeric suffix on collision.
  * Only use this for handles the app derived itself — when a user explicitly asks

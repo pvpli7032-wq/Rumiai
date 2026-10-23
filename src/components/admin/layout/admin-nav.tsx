@@ -7,7 +7,7 @@ import {
   Landmark, LayoutDashboard, LayoutTemplate, MessageSquare, Pin, PinOff, RefreshCw, Scale, ScrollText, Settings,
   ShieldCheck, Sparkles, UserCog, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
-import {findEntry, type AdminNavEntry, type AdminNavGroup, type AdminNavIcon} from '@/lib/admin/nav';
+import {findEntry, isEntryActive, type AdminNavEntry, type AdminNavGroup, type AdminNavIcon} from '@/lib/admin/nav';
 import type {AdminPermission} from '@/lib/admin/permissions';
 import {cn} from '@/components/ui/cn';
 import {pinnedEntries} from '../nav-pins';
@@ -121,7 +121,7 @@ export function AdminNav({pathname, groups, permissions, pins, onTogglePin, pinN
   }, [current?.group.id]);
 
   const pinned = pinnedEntries(pins, permissions);
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+  const isActive = (href: string) => isEntryActive(pathname, href);
 
   if (rail) {
     const rest = groups.flatMap(group => group.entries).filter(entry => !pinned.some(item => item.href === entry.href));
@@ -197,7 +197,7 @@ export function AdminNav({pathname, groups, permissions, pins, onTogglePin, pinN
       )}
 
       {groups.map(group => {
-        const open = openGroups.includes(group.id) || current?.group.id === group.id;
+        const open = openGroups.includes(group.id);
         return (
           <div key={group.id}>
             <button

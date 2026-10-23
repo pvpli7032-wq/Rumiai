@@ -18,19 +18,19 @@ const percent=(rate:number|null)=>rate===null?'样本不足':(rate*100).toFixed(
  * V0 场景漏斗面板。与运营分析共用统计周期选择，数据只来自
  * scene_funnel_events 的事实计数，不展示用户或会话标识。
  */
-export function SceneFunnelPanel({token,days}:{token:string;days:number}){
+export function SceneFunnelPanel({sessionActive,days}:{sessionActive: boolean;days:number}){
   const [report,setReport]=useState<SceneFunnelReport|null>(null);
   const [error,setError]=useState('');
   const [loading,setLoading]=useState(true);
   useEffect(()=>{
     const controller=new AbortController();setLoading(true);setError('');setReport(null);
-    void fetch(API.admin.analyticsFunnel+'?days='+days,{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:controller.signal})
+    void fetch(API.admin.analyticsFunnel+'?days='+days,{credentials: 'include',cache:'no-store',signal:controller.signal})
       .then(async response=>{const data=await response.json();if(!response.ok)throw Error(data.error);return data as SceneFunnelReport;})
       .then(setReport)
       .catch(reason=>{if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:'场景漏斗读取失败。');})
       .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return()=>controller.abort();
-  },[days,token]);
+  },[days,sessionActive]);
 
   return <AdminPanel title="V0 场景漏斗" description="按场景会话聚合的四节点漏斗；比率分母为 0 时显示样本不足，不当作 0%。">
     {loading&&<p className="text-sm text-muted-foreground">正在读取场景漏斗…</p>}

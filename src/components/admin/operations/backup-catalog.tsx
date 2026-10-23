@@ -38,13 +38,13 @@ const columns: DataTableColumn<BackupInventoryItem>[] = [
   ) },
 ];
 
-export function BackupCatalog({ token }: { token: string }) {
+export function BackupCatalog({ sessionActive }: { sessionActive: boolean }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null), [page, setPage] = useState(1), [revision, setRevision] = useState(0), [loading, setLoading] = useState(false), [error, setError] = useState('');
   useEffect(() => {
     const controller = new AbortController(); setCatalog(null); setError(''); setLoading(true);
-    void fetch(`/api/admin/operations/backups?page=${page}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error ?? '备份记录读取失败。'); if (!controller.signal.aborted) setCatalog(data); }).catch(value => { if (!controller.signal.aborted) setError(value.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    void fetch(`/api/admin/operations/backups?page=${page}`, {credentials: 'include', cache: 'no-store', signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error ?? '备份记录读取失败。'); if (!controller.signal.aborted) setCatalog(data); }).catch(value => { if (!controller.signal.aborted) setError(value.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [token, page, revision]);
+  }, [sessionActive, page, revision]);
 
   return (
     <AdminPanel

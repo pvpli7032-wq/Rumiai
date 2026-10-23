@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {getAuthUser} from '@/lib/auth';
+import {getAdminRequestUser} from '@/lib/admin-auth/request';
 import {readRewardBudgetReport,RewardBudgetReportError} from '@/lib/growth/reward-budget-service';
 import {logRouteError} from '@/lib/logger';
 
@@ -7,7 +7,7 @@ export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store'};
 
 export async function GET(request:Request){
-  const auth=await getAuthUser(request);
+  const auth=await getAdminRequestUser(request);
   if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers});
   const days=Number(new URL(request.url).searchParams.get('days')??7);
   try{return NextResponse.json(await readRewardBudgetReport(auth.userId,days),{headers});}

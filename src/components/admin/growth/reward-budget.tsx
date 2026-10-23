@@ -13,16 +13,16 @@ const dailyColumns: DataTableColumn<Report['daily'][number]>[] = [
   { id: 'claims', header: '领取笔数', align: 'right', width: '140px', cell: row => <span className="tabular-nums">{formatNumber(row.claims)}</span> },
 ];
 
-export function RewardBudget({ token }: { token: string }) {
+export function RewardBudget({ sessionActive }: { sessionActive: boolean }) {
   const [days, setDays] = useState(7), [report, setReport] = useState<Report | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState('');
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError('');
-    void fetch(`/api/admin/growth/rewards?days=${days}`, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store', signal: controller.signal })
+    void fetch(`/api/admin/growth/rewards?days=${days}`, {credentials: 'include', cache: 'no-store', signal: controller.signal })
       .then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error); return data as Report; })
       .then(setReport).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '奖励发放统计读取失败。'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [days, token]);
+  }, [days, sessionActive]);
 
   return (
     <AdminPanel

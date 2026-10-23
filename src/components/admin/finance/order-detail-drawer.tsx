@@ -24,9 +24,9 @@ const CONFIRM: Partial<Record<Action, (order: OrderRow) => string>> = {
   reject: () => '驳回退款申请并释放已暂扣金币？',
 };
 
-export function OrderDetailDrawer({order, token, canRequest, canApprove, canExecute, onClose, onChanged}: {
+export function OrderDetailDrawer({order, sessionActive, canRequest, canApprove, canExecute, onClose, onChanged}: {
   order: OrderRow | null;
-  token: string;
+  sessionActive: boolean;
   canRequest: boolean;
   canApprove: boolean;
   canExecute: boolean;
@@ -46,7 +46,7 @@ export function OrderDetailDrawer({order, token, canRequest, canApprove, canExec
     if (!orderNo) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/finance/orders?orderNo=${encodeURIComponent(orderNo)}`, {headers: {Authorization: 'Bearer ' + token}, cache: 'no-store', signal});
+      const response = await fetch(`/api/admin/finance/orders?orderNo=${encodeURIComponent(orderNo)}`, {credentials: 'include', cache: 'no-store', signal});
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       if (!signal?.aborted) setRefund((data as Array<{refund: RefundDetail | null}>)[0]?.refund ?? null);
@@ -55,7 +55,7 @@ export function OrderDetailDrawer({order, token, canRequest, canApprove, canExec
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [orderNo, token]);
+  }, [orderNo, sessionActive]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -70,7 +70,7 @@ export function OrderDetailDrawer({order, token, canRequest, canApprove, canExec
     try {
       const response = await fetch(`/api/admin/finance/orders/${encodeURIComponent(orderNo)}/refund`, {
         method: 'POST',
-        headers: {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({action, reason: reason.trim() || (action === 'retry' ? '按原退款单号重试' : '')}),
       });
       const data = await response.json();

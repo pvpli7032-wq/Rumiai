@@ -15,7 +15,7 @@ import {REWARD_SETTING_KEYS, REWARD_SETTING_LABELS, type RewardSettingKey} from 
  * 这里不出现第二套输入框，只给数值与跳转。金额为 0 就是不发奖。
  */
 export interface DisputeRewardPanelProps {
-  token: string | null;
+  sessionActive: boolean;
   canReadSettings: boolean;
   /** 案例列表刷新时一起重读，避免和列表数据不同步。 */
   refreshKey: number;
@@ -31,18 +31,18 @@ function isNoPayout(key: RewardSettingKey, text: string): boolean {
   return text === '0' && (key === 'dispute.participateRewardCoins' || key === 'dispute.hotRewardCoins' || key === 'dispute.rewardDailyCapCoins');
 }
 
-export function DisputeRewardPanel({token, canReadSettings, refreshKey}: DisputeRewardPanelProps) {
+export function DisputeRewardPanel({sessionActive, canReadSettings, refreshKey}: DisputeRewardPanelProps) {
   const [values, setValues] = useState<Partial<Record<RewardSettingKey, unknown>> | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   // 只读读取：没有设置查看权限就完全不发请求，也不显示猜测值。
   useEffect(() => {
-    if (!token || !canReadSettings) { setValues(null); return; }
+    if (!sessionActive || !canReadSettings) { setValues(null); return; }
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    void apiFetch<{values: {key: string; value: unknown}[]}>(API.admin.settings + '?group=growth', {token, cache: 'no-store', signal: controller.signal})
+    void apiFetch<{values: {key: string; value: unknown}[]}>(API.admin.settings + '?group=growth', {credentials: 'same-origin', cache: 'no-store', signal: controller.signal})
       .then(data => {
         if (controller.signal.aborted) return;
         const picked: Partial<Record<RewardSettingKey, unknown>> = {};
@@ -55,7 +55,7 @@ export function DisputeRewardPanel({token, canReadSettings, refreshKey}: Dispute
       .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '奖励参数读取失败。'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [token, canReadSettings, refreshKey]);
+  }, [sessionActive, canReadSettings, refreshKey]);
 
   return (
     <AdminPanel

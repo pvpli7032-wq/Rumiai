@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 
 type Policy = { enabled: boolean; version: number };
 
-export function CheckoutSettings({ token, canManage }: { token: string; canManage: boolean }) {
+export function CheckoutSettings({ sessionActive, canManage }: { sessionActive: boolean; canManage: boolean }) {
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [reason, setReason] = useState('');
@@ -18,21 +18,21 @@ export function CheckoutSettings({ token, canManage }: { token: string; canManag
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await fetch('/api/admin/payments/checkout', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal });
+        const response = await fetch('/api/admin/payments/checkout', {credentials: 'include', cache: 'no-store', signal: controller.signal });
         const data = await response.json();
         if (!response.ok) throw Error(data.error);
         if (!controller.signal.aborted) { setPolicy(data); setEnabled(data.enabled); }
       } catch (error) { if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : '无法读取充值设置。'); }
     })();
     return () => controller.abort();
-  }, [token]);
+  }, [sessionActive]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!policy) return;
     setBusy(true); setMessage('');
     try {
-      const response = await fetch('/api/admin/payments/checkout', { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled, version: policy.version, reason }) });
+      const response = await fetch('/api/admin/payments/checkout', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled, version: policy.version, reason }) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setPolicy(data); setEnabled(data.enabled); setReason(''); setMessage('充值设置已保存，立即对新订单生效。');

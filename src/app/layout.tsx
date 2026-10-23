@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { PwaController } from '@/components/pwa-controller';
 import { Providers } from './providers';
 import { DEFAULT_LOCALE, HTML_LANG, SITE_URL, getDictionary } from '@/lib/i18n';
 import './globals.css';
@@ -34,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang={HTML_LANG[DEFAULT_LOCALE]} suppressHydrationWarning>
 <body className="font-sans antialiased">
-        <Providers>{children}<PwaController /></Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

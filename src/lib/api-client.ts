@@ -5,8 +5,7 @@ import {statusCode} from './http/status-codes';
  * 前端唯一的 HTTP 入口。这里只做四件事：拼认证头、序列化 body、把非 2xx
  * 统一抛成 `ApiError`、按需解析响应。业务判断留在调用方。
  *
- * 服务端只认 `Authorization: Bearer`，全仓库没有 cookie 鉴权，所以这里不发
- * `credentials: 'include'`。
+ * 前台使用 Bearer；后台使用浏览器同源 HttpOnly Cookie，不传 token。
  */
 
 export class ApiError extends Error {
@@ -25,13 +24,14 @@ export class ApiError extends Error {
 
 export type ApiRequest = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  /** 登录态由 `useAuth()` 提供；匿名请求留空。 */
+  /** 仅前台请求使用 Bearer；后台不传此字段。 */
   token?: string | null;
   /** 普通对象自动 JSON 序列化；FormData/Blob/string 原样发送。 */
   body?: unknown;
   headers?: HeadersInit;
   signal?: AbortSignal;
   cache?: RequestCache;
+  credentials?: RequestCredentials;
 };
 
 /** 请求失败时的文案：优先用服务端返回的中文，其次给一个带状态码的兜底。 */

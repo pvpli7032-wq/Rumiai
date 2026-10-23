@@ -24,9 +24,9 @@ import {useWorkbenchData} from './use-workbench-data';
  * 不再铺满所有后台入口卡片——入口由侧栏六组导航承担。
  */
 export function Workbench() {
-  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const [range, setRange] = useState<RangeDays>(7);
-  const {data, loading, error, refresh} = useWorkbenchData(token ?? undefined, permissions, range);
+  const {data, loading, error, refresh} = useWorkbenchData(sessionActive ?? undefined, permissions, range);
 
   // 刷新后给一次轻提示，让运营知道看到的是刚取回的数据。
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function Workbench() {
       </AdminPage>
     );
   }
-  if (!token) {
+  if (!sessionActive) {
     return (
       <AdminPage width="narrow">
         <AdminPageHeader eyebrow="工作台" title="管理中心" />
@@ -49,7 +49,7 @@ export function Workbench() {
           tone="warning"
           title="请先登录管理员账号"
           description="管理中心只对拥有管理身份的账号开放。"
-          action={<Link href="/login?next=%2Fadmin"><Button>前往登录</Button></Link>}
+          action={<Link href="/admin/login?next=%2Fadmin"><Button>前往登录</Button></Link>}
         />
       </AdminPage>
     );

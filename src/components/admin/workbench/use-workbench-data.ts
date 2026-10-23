@@ -19,7 +19,7 @@ import {todoItems} from './workbench-todos';
  * workbench-metrics.ts（四张指标卡与趋势）、workbench-todos.ts（待办）、
  * workbench-statuses.ts（系统状态）。
  */
-export function useWorkbenchData(token: string | undefined, permissions: readonly AdminPermission[], days: RangeDays) {
+export function useWorkbenchData(sessionActive: boolean | undefined, permissions: readonly AdminPermission[], days: RangeDays) {
   const [data, setData] = useState<WorkbenchData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,18 +28,18 @@ export function useWorkbenchData(token: string | undefined, permissions: readonl
   const refresh = useCallback(() => setRefreshKey(value => value + 1), []);
 
   useEffect(() => {
-    if (!token) {
+    if (!sessionActive) {
       setLoading(false);
       return;
     }
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    const headers = {Authorization: `Bearer ${token}`};
+    const headers = undefined;
     const has = (permission: AdminPermission) => permissions.includes(permission);
 
     async function getJson(url: string): Promise<unknown> {
-      const response = await fetch(url, {headers, cache: 'no-store', signal: controller.signal});
+      const response = await fetch(url, {credentials: 'include', cache: 'no-store', signal: controller.signal});
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error((payload as {error?: string} | null)?.error || '数据读取失败。');
       return payload;
@@ -67,7 +67,7 @@ export function useWorkbenchData(token: string | undefined, permissions: readonl
     })();
 
     return () => controller.abort();
-  }, [token, permissions, days, refreshKey]);
+  }, [sessionActive, permissions, days, refreshKey]);
 
   return {data, loading, error, refresh};
 }

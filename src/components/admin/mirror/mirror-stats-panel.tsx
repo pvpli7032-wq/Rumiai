@@ -71,9 +71,9 @@ function MissingRatioCard({label, reason}: {label: string; reason: string}) {
 }
 
 /** 拉一份报告；403 单独提示，因为「他眼中的你」权限与运营分析权限是分开的。 */
-async function readReport<T>(url: string, token: string, signal: AbortSignal): Promise<{data: T | null; error: string; denied: boolean}> {
+async function readReport<T>(url: string, sessionActive: boolean, signal: AbortSignal): Promise<{data: T | null; error: string; denied: boolean}> {
   try {
-    const response = await fetch(url, {headers: {Authorization: 'Bearer ' + token}, cache: 'no-store', signal});
+    const response = await fetch(url, {credentials: 'include', cache: 'no-store', signal});
     const payload = await response.json().catch(() => null) as {error?: string} | null;
     if (response.status === 403) return {data: null, error: payload?.error || '当前账号没有运营分析权限。', denied: true};
     if (!response.ok) return {data: null, error: payload?.error || '统计读取失败，请稍后重试。', denied: false};
@@ -84,7 +84,7 @@ async function readReport<T>(url: string, token: string, signal: AbortSignal): P
   }
 }
 
-export function MirrorStatsPanel({token}: {token: string}) {
+export function MirrorStatsPanel({sessionActive}: {sessionActive: boolean}) {
   const [days, setDays] = useState(7);
   const [ops, setOps] = useState<OpsReport | null>(null);
   const [funnelReport, setFunnelReport] = useState<FunnelReport | null>(null);
@@ -98,8 +98,8 @@ export function MirrorStatsPanel({token}: {token: string}) {
     setError('');
     setDenied(false);
     void Promise.all([
-      readReport<OpsReport>(API.admin.analyticsOpsMetrics + '?days=' + days + '&tier=all', token, controller.signal),
-      readReport<FunnelReport>(API.admin.analyticsProductFunnel + '?days=' + days, token, controller.signal),
+      readReport<OpsReport>(API.admin.analyticsOpsMetrics + '?days=' + days + '&tier=all', sessionActive, controller.signal),
+      readReport<FunnelReport>(API.admin.analyticsProductFunnel + '?days=' + days, sessionActive, controller.signal),
     ]).then(([opsResult, funnelResult]) => {
       if (controller.signal.aborted) return;
       setOps(opsResult.data);
@@ -108,7 +108,7 @@ export function MirrorStatsPanel({token}: {token: string}) {
       setError(opsResult.error || funnelResult.error);
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [days, token]);
+  }, [days, sessionActive]);
 
   const ratios = useMemo(() => ops?.metrics.ratios ?? [], [ops]);
   const mirrorFunnel = useMemo(() => funnelReport?.funnels.find(item => item.key === 'mirror') ?? null, [funnelReport]);

@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {getAuthUser} from '@/lib/auth';
+import {getAdminRequestUser} from '@/lib/admin-auth/request';
 import {logRouteError} from '@/lib/logger';
 import {CertificateStatusError,readSiteCertificateStatus,checkSiteCertificate} from '@/lib/operations/certificate-service';
 
@@ -11,10 +11,10 @@ function failure(error:unknown,method:string){
   return NextResponse.json({error:'证书检查状态暂不可用。'},{status:503,headers});
 }
 export async function GET(request:Request){
-  const auth=await getAuthUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers});
+  const auth=await getAdminRequestUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers});
   try{return NextResponse.json(await readSiteCertificateStatus(auth.userId),{headers});}catch(error){return failure(error,'GET');}
 }
 export async function POST(request:Request){
-  const auth=await getAuthUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers});
+  const auth=await getAdminRequestUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers});
   try{return NextResponse.json(await checkSiteCertificate(auth.userId),{headers});}catch(error){return failure(error,'POST');}
 }

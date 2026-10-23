@@ -1,11 +1,11 @@
 import {NextResponse} from 'next/server';
 import {CircleError} from '@/lib/circles/errors';
 import {manageCircleMember} from '@/lib/circles/membership-management';
-import {jsonError, privateHeaders, requireUser, unauthorized} from '@/lib/http';
+import {jsonError, privateHeaders, requireAdminUser, unauthorized} from '@/lib/http';
 
 export async function PATCH(request: Request, {params}: {params: Promise<{id: string; userId: string}>}) {
   try {
-    const actor = await requireUser(request);
+    const actor = await requireAdminUser(request);
     if (!actor) return unauthorized();
     let input: unknown;
     try { input = await request.json(); } catch { throw new CircleError('成员管理数据格式错误。'); }

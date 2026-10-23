@@ -16,9 +16,9 @@ import type {CoinPriceView} from './types';
  * 任务只是「这个任务优先用哪个已登记的模型」。选「沿用默认」= 保存空串，
  * 也就是回到未配置状态，行为与引入这个功能之前完全一致。
  */
-export function TaskModelPanel({view, token, canWrite, onSaved}: {
+export function TaskModelPanel({view, sessionActive, canWrite, onSaved}: {
   view: CoinPriceView;
-  token: string;
+  sessionActive: boolean;
   canWrite: boolean;
   onSaved: () => void;
 }) {
@@ -39,7 +39,7 @@ export function TaskModelPanel({view, token, canWrite, onSaved}: {
     setNotice('');
     try {
       await apiFetch(API.admin.settings, {
-        token,
+        credentials: 'same-origin',
         method: 'PATCH',
         body: {
           group: 'billing',

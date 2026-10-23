@@ -12,14 +12,14 @@ type GiftItem = { id: string; code: string; name: string; description: string | 
 type Draft = ReturnType<typeof blank>;
 const blank = () => ({ code: '', name: '', description: '', emoji: '🎁', coinPrice: 10, isActive: true, sortOrder: 0, reason: '' });
 
-export function GiftCatalogManagement({ token, canManage }: { token: string; canManage: boolean }) {
+export function GiftCatalogManagement({ sessionActive, canManage }: { sessionActive: boolean; canManage: boolean }) {
   const [items, setItems] = useState<GiftItem[]>([]), [draft, setDraft] = useState<Draft>(blank), [editing, setEditing] = useState<GiftItem | null>(null), [error, setError] = useState(''), [saving, setSaving] = useState(false), [loaded, setLoaded] = useState(false);
   const refresh = useCallback(async () => {
-    const response = await fetch('/api/admin/growth/gifts', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+    const response = await fetch('/api/admin/growth/gifts', {credentials: 'include', cache: 'no-store' });
     const data = await response.json();
     if (!response.ok) throw Error(data.error);
     setItems(data.gifts); setLoaded(true);
-  }, [token]);
+  }, [sessionActive]);
   useEffect(() => { void refresh().catch(e => setError(e.message)); }, [refresh]);
 
   function startEdit(item: GiftItem) { setEditing(item); setDraft({ ...item, description: item.description ?? '', reason: '' }); }
@@ -28,7 +28,7 @@ export function GiftCatalogManagement({ token, canManage }: { token: string; can
     setSaving(true); setError('');
     try {
       const url = editing ? `/api/admin/growth/gifts/${editing.id}` : '/api/admin/growth/gifts';
-      const response = await fetch(url, { method: editing ? 'PATCH' : 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...draft, ...(editing ? { id: editing.id, version: editing.version } : {}) }) });
+      const response = await fetch(url, { method: editing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...draft, ...(editing ? { id: editing.id, version: editing.version } : {}) }) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       await refresh(); setEditing(null); setDraft(blank());

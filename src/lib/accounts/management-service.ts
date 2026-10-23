@@ -14,6 +14,19 @@ async function requirePermission(actorId: string, permission: AdminPermission, t
 }
 function id(value: string) {if (!/^[A-Za-z0-9_-]{1,100}$/.test(value)) throw new AccountManagementError('用户编号无效。'); return value;}
 
+/**
+ * Resolve the active account reference for account-owned subdomains.
+ *
+ * The settings routes used to repeat this lookup (and its deleted-account
+ * rule) in each HTTP handler. The route owns URL decoding; this domain function
+ * owns the account lookup and the rule that deleted accounts are not active.
+ */
+export async function readActiveAccountReference(userId: string) {
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(userId)) return null;
+  const user = await db.user.findUnique({where: {id: userId}, select: {id: true, deletedAt: true}});
+  return user && !user.deletedAt ? {id: user.id} : null;
+}
+
 /** from / until 按注册日期（createdAt）筛，UTC 日边界，含结束日期当天。 */
 export async function listManagedAccounts(actorId: string, params: {q?: string; status?: string; community?: string; page?: number; sort?: string; from?: string; until?: string}) {
   await requirePermission(actorId, 'accounts.read');
@@ -64,6 +77,7 @@ export async function updateManagedAccount(actorId: string, userId: string, inpu
       try {await assertAccountSuspensionAllowed(tx, actorId, userId);} catch (error) {if (error instanceof AdminManagementError) throw new AccountManagementError(error.message, error.status); throw error;}
       if (actorId === userId) throw new AccountManagementError('不能在当前会话中停用自己的账号。', 409);
       await tx.user.update({where: {id: userId}, data: {suspendedAt: new Date(), suspensionReason: reason, tokenVersion: {increment: 1}, accountVersion: {increment: 1}}});
+      await tx.adminSession.deleteMany({where: {userId}});
     } else if (action === 'RESTORE') {
       if (!before.suspendedAt) throw new AccountManagementError('账号当前未停用。', 409);
       try {await assertAdministrativeAccountManagementAllowed(tx, actorId, userId);} catch (error) {if (error instanceof AdminManagementError) throw new AccountManagementError(error.message, error.status); throw error;}
@@ -71,6 +85,9 @@ export async function updateManagedAccount(actorId: string, userId: string, inpu
     } else if (action === 'REVOKE_SESSIONS') {
       try {await assertAdministrativeAccountManagementAllowed(tx, actorId, userId);} catch (error) {if (error instanceof AdminManagementError) throw new AccountManagementError(error.message, error.status); throw error;}
       await tx.user.update({where: {id: userId}, data: {tokenVersion: {increment: 1}, accountVersion: {increment: 1}}});
+      // Frontend JWTs are invalidated by tokenVersion; admin sessions are
+      // opaque rows and must be revoked explicitly in the same transaction.
+      await tx.adminSession.deleteMany({where: {userId}});
     } else {
       if ((action === 'BAN_COMMUNITY') === Boolean(before.communityBannedAt)) throw new AccountManagementError(action === 'BAN_COMMUNITY' ? '用户已经被社区禁言。' : '用户当前未被社区禁言。', 409);
       await setCommunityRestriction(tx, userId, action === 'BAN_COMMUNITY', reason);

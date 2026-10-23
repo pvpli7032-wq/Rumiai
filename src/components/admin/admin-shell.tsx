@@ -1,30 +1,33 @@
 'use client';
 import {useCallback, useEffect, useState, type ReactNode} from 'react';
 import Link from 'next/link';
-import {usePathname} from 'next/navigation';
+import {usePathname, useRouter} from 'next/navigation';
 import {
   ArrowLeft, ChevronDown, ChevronRight, ExternalLink, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserCog, X,
 } from 'lucide-react';
-import {useAuth} from '@/lib/auth-context';
 import {useAdminAccess} from './use-admin-access';
 import {findEntry, visibleGroups} from '@/lib/admin/nav';
 import {cn} from '@/components/ui/cn';
 import {AdminNav} from './layout/admin-nav';
 import {useNavPins} from './nav-pins';
 import {ThemeToggle} from '@/components/theme-toggle';
+import {useOverlayDismiss} from '@/components/ui/overlay';
 
 const SIDEBAR_STATE_KEY = 'admin.sidebar.collapsed';
 
 export function AdminShell({children}: {children: ReactNode}) {
   const pathname = usePathname();
-  const {user, logout} = useAuth();
-  const {permissions, session} = useAdminAccess();
+  const router = useRouter();
+  const {permissions, session, loading: accessLoading, refreshAccess} = useAdminAccess();
+  const user = session?.user;
   const groups = visibleGroups(permissions);
   const current = findEntry(pathname, permissions);
   const {pins, notice: pinNotice, toggle: togglePin} = useNavPins(user?.id ?? null);
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
+  useOverlayDismiss(drawer, () => setDrawer(false));
 
   // 侧栏折叠状态记在本地，刷新后保持；首次渲染统一展开，避免服务端/客户端不一致。
   useEffect(() => {
@@ -54,6 +57,18 @@ export function AdminShell({children}: {children: ReactNode}) {
 
   const initial = (user?.username ?? '管').trim().charAt(0).toUpperCase();
   const roleLabel = session?.owner ? '站点所有者' : session?.managed ? '管理员' : session?.enabled ? '运营人员' : '未登录';
+  useEffect(() => {
+    if (!accessLoading && !session) router.replace(`/admin/login?next=${encodeURIComponent(pathname.startsWith('/admin') ? pathname : '/admin')}`);
+  }, [accessLoading, pathname, router, session]);
+  async function logout() {
+    setLogoutError('');
+    try {
+      const response = await fetch('/api/admin/auth/logout', {method: 'POST', credentials: 'same-origin'});
+      if (!response.ok) throw new Error('退出后台失败，请重试。');
+      refreshAccess();
+      router.replace('/admin/login');
+    } catch { setLogoutError('退出后台失败，请重试。'); }
+  }
 
   const brand = (
     <Link
@@ -193,8 +208,9 @@ export function AdminShell({children}: {children: ReactNode}) {
           </div>
         </header>
 
-        <div role="region" aria-label="后台工作区" className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-muted/40 [&>main]:mx-auto [&>main]:w-full [&>main]:max-w-[1440px] [&>main]:p-0">
-          {children}
+        <div role="region" aria-label="后台工作区" className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-muted/40">
+          {logoutError && <p role="alert" className="p-4 text-destructive">{logoutError}</p>}
+          {session ? children : <p role="status" className="p-6">正在验证后台会话…</p>}
         </div>
       </div>
 

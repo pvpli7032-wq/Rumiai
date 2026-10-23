@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { formatUser, isUniqueViolation } from '@/lib/user-identity';
+import { formatUser, isUniqueViolation, validateUsername } from '@/lib/user-identity';
 
 const USER_PROFILE_SELECT = {
   id: true, username: true, displayName: true, email: true, avatarUrl: true, tier: true, coins: true,
@@ -39,12 +39,14 @@ export async function updateOwnProfile(userId: string, input: unknown) {
   }
 
   if (username !== undefined && username.length === 0) throw new AccountProfileError('Username cannot be empty', 400);
+  if (username !== undefined) { const usernameError = validateUsername(username); if (usernameError) throw new AccountProfileError(usernameError, 400); }
   if (displayName !== undefined && displayName.length === 0) throw new AccountProfileError('Name cannot be empty', 400);
 
   try {
     const user = await db.user.update({
       where: {id: userId},
       data: {
+        accountVersion: {increment: 1},
         ...(username !== undefined && {username}),
         ...(displayName !== undefined && {displayName}),
         ...(avatarUrl !== undefined && {avatarUrl: avatarUrl as string | null}),

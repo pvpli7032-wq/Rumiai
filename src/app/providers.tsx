@@ -1,6 +1,8 @@
 'use client';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/lib/auth-context';
+import {usePathname} from 'next/navigation';
+import {PwaController} from '@/components/pwa-controller';
 
 /**
  * 主题：默认仍是深色，但打开了 enableSystem，用户可以自己切浅色 / 深色 / 跟随系统。
@@ -10,9 +12,11 @@ import { AuthProvider } from '@/lib/auth-context';
  * 直接看不清。等那些组件补上浅色分支再切默认值。切换入口在后台顶栏（ThemeToggle）。
  */
 export function Providers({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const admin = pathname === '/admin' || pathname.startsWith('/admin/');
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <AuthProvider>{children}</AuthProvider>
+      {admin ? children : <AuthProvider>{children}<PwaController /></AuthProvider>}
     </ThemeProvider>
   );
 }

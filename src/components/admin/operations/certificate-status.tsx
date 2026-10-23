@@ -12,21 +12,21 @@ const labels: Record<string, string> = { VALID: '有效', EXPIRING: '30 天内�
 const tone = (status?: string) => status === 'VALID' ? 'success' : status === 'EXPIRING' ? 'warning' : 'danger';
 const time = (value: string | null) => value ? new Date(value).toLocaleString('zh-CN') : '未知';
 
-export function CertificateStatus({ token }: { token: string }) {
+export function CertificateStatus({ sessionActive }: { sessionActive: boolean }) {
   const { permissions } = useAdminAccess();
   const canCheck = permissions.includes('operations.certificates.check');
   const [status, setStatus] = useState<Status | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   useEffect(() => {
     const controller = new AbortController(); setStatus(null); setError('');
-    void fetch('/api/admin/operations/certificate', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error ?? '证书状态读取失败。'); if (!controller.signal.aborted) setStatus(data); }).catch(value => { if (!controller.signal.aborted) setError(value.message); });
+    void fetch('/api/admin/operations/certificate', {credentials: 'include', cache: 'no-store', signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error ?? '证书状态读取失败。'); if (!controller.signal.aborted) setStatus(data); }).catch(value => { if (!controller.signal.aborted) setError(value.message); });
     return () => controller.abort();
-  }, [token]);
+  }, [sessionActive]);
 
   async function check() {
     if (!canCheck || busy) return;
     setBusy(true); setError('');
     try {
-      const response = await fetch('/api/admin/operations/certificate', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      const response = await fetch('/api/admin/operations/certificate', { method: 'POST', credentials: 'include', cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw Error(data.error ?? '证书检查失败。');
       setStatus(data);

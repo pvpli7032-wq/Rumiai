@@ -13,8 +13,8 @@ import { Input } from '@/components/ui/input';
 /**
  * 站点登录界面（PC 优先）。
  *
- * 管理员从 /login?next=/admin 进入后台，走的也是这个页面，所以这里不使用
- * 临时配色：左侧品牌主视觉、右侧表单卡，颜色全部取自 globals.css 的品牌令牌。
+ * 前台账号登录；后台使用 /admin/login 与独立 Cookie 会话。
+ * 左侧品牌主视觉、右侧表单卡，颜色取自 globals.css 的品牌令牌。
  */
 const HIGHLIGHTS = [
   { icon: Sparkles, title: '角色扮演', text: '数千个角色设定与世界观，随时开聊。' },
@@ -65,7 +65,7 @@ export default function LoginPage() {
           <div className="max-w-md">
             <h2 className="text-3xl font-bold leading-tight text-white xl:text-4xl">和喜欢的角色，聊到天亮</h2>
             <p className="mt-4 text-sm leading-7 text-white/85">
-              登录后可继续对话、管理自己的角色与钱包；运营人员从这里进入管理中心。
+              登录后可继续对话、管理自己的角色与钱包。
             </p>
             <ul className="mt-8 space-y-5">
               {HIGHLIGHTS.map(item => (

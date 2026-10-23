@@ -11,6 +11,8 @@ import { Dialog } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/lib/api-client';
 import { AccountQuotaTab } from './account-quota-tab';
 import { accountState, formatTime, actionLabels, auditLabels, type AccountAction, type AccountDetail } from './types';
 
@@ -37,9 +39,14 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
  * 用户详情（V3 §15）：默认只看头像、昵称、状态与余额；额度特例放单独标签，
  * 默认「继承公共值」。只改一个用户时不用跳到全局特例列表。
  */
-export function ManagedAccountDetail({ detail, token, permissions, busy, onAction, onClose }: { detail: AccountDetail; token: string | null; permissions: AdminPermission[]; busy: boolean; onAction: (action: AccountAction, reason: string) => Promise<boolean>; onClose: () => void }) {
+export function ManagedAccountDetail({ detail, sessionActive, permissions, busy, onAction, onProfileSaved, onClose }: { detail: AccountDetail; sessionActive: boolean; permissions: AdminPermission[]; busy: boolean; onAction: (action: AccountAction, reason: string) => Promise<boolean>; onProfileSaved: () => void; onClose: () => void }) {
   const { user } = detail;
   const [reason, setReason] = useState('');
+  const [profileReason, setProfileReason] = useState('');
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileMessage, setProfileMessage] = useState('');
+  const [profile, setProfile] = useState({username: user.username, displayName: user.displayName ?? '', avatarUrl: user.avatarUrl ?? ''});
   const [confirming, setConfirming] = useState<AccountAction | null>(null);
   const [tab, setTab] = useState('basic');
   const actions: AccountAction[] = user.deletedAt ? [] : [...(permissions.includes('accounts.manage') ? [user.suspendedAt ? 'RESTORE' as const : 'SUSPEND' as const] : []), ...(permissions.includes('accounts.community.manage') ? [user.communityBannedAt ? 'UNBAN_COMMUNITY' as const : 'BAN_COMMUNITY' as const] : []), ...(permissions.includes('accounts.sessions.revoke') ? ['REVOKE_SESSIONS' as const] : [])];
@@ -53,6 +60,16 @@ export function ManagedAccountDetail({ detail, token, permissions, busy, onActio
     if (!selectedAction || busy) return;
     if (selectedAction === 'SUSPEND' || selectedAction === 'REVOKE_SESSIONS') { setConfirming(selectedAction); return; }
     await run(selectedAction);
+  }
+  async function saveProfile(event: FormEvent) {
+    event.preventDefault();
+    if (profileBusy || !sessionActive || user.deletedAt) return;
+    setProfileBusy(true); setProfileError(''); setProfileMessage('');
+    try {
+      await apiFetch(`/api/admin/accounts/${encodeURIComponent(user.id)}/profile`, {method: 'PATCH', credentials: 'same-origin', body: {...profile, avatarUrl: profile.avatarUrl || null, reason: profileReason, version: user.accountVersion}});
+      setProfileReason(''); setProfileMessage('用户资料已保存，前台关联数据会按新资料读取。'); onProfileSaved();
+    } catch (error) { setProfileError(error instanceof Error ? error.message : '用户资料保存失败。'); }
+    finally { setProfileBusy(false); }
   }
   const displayName = user.displayName?.trim() || user.username;
 
@@ -93,6 +110,31 @@ export function ManagedAccountDetail({ detail, token, permissions, busy, onActio
             <Field label="最近登录" value={formatTime(user.lastLoginAt)} />
             <Field label="最近认证活动" value={formatTime(user.lastActiveAt)} />
           </dl>
+          {!user.deletedAt && permissions.includes('accounts.manage') && (
+            <form onSubmit={saveProfile} className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
+              <div>
+                <h3 className="text-sm font-semibold">修改公开资料</h3>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">可修改用户名、昵称和头像。本页不提供邮箱改绑、等级调整或余额调整。</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-1.5 text-sm font-medium">用户名
+                  <Input required maxLength={100} value={profile.username} onChange={event => setProfile(current => ({...current, username: event.target.value}))} />
+                </label>
+                <label className="space-y-1.5 text-sm font-medium">昵称
+                  <Input required maxLength={100} value={profile.displayName} onChange={event => setProfile(current => ({...current, displayName: event.target.value}))} />
+                </label>
+                <label className="space-y-1.5 text-sm font-medium sm:col-span-2">头像地址
+                  <Input maxLength={2048} value={profile.avatarUrl} onChange={event => setProfile(current => ({...current, avatarUrl: event.target.value}))} placeholder="/brand/icon.svg、/uploads/... 或 HTTPS 图片地址" />
+                </label>
+                <label className="space-y-1.5 text-sm font-medium sm:col-span-2">操作理由
+                  <Textarea required maxLength={300} rows={2} value={profileReason} onChange={event => setProfileReason(event.target.value)} placeholder="说明为什么需要修改资料" />
+                </label>
+              </div>
+              {profileError && <p role="alert" className="text-sm text-destructive">{profileError}</p>}
+              {profileMessage && <p role="status" className="text-sm text-emerald-600">{profileMessage}</p>}
+              <Button type="submit" loading={profileBusy} disabled={profileBusy || !profileReason.trim()}>保存公开资料</Button>
+            </form>
+          )}
           {user.suspensionReason && <p className="break-words rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">停用理由：{user.suspensionReason}</p>}
           {user.communityBanReason && <p className="break-words rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">禁言理由：{user.communityBanReason}</p>}
           <AdminStatGrid className="sm:grid-cols-2 xl:grid-cols-4">
@@ -152,7 +194,7 @@ export function ManagedAccountDetail({ detail, token, permissions, busy, onActio
         </TabsContent>
 
         <TabsContent value="quota">
-          <AccountQuotaTab userId={user.id} token={token} permissions={permissions} />
+          <AccountQuotaTab userId={user.id} sessionActive={sessionActive} permissions={permissions} />
         </TabsContent>
       </Tabs>
 

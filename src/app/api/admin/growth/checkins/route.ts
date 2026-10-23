@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {getAuthUser} from '@/lib/auth';
+import {getAdminRequestUser} from '@/lib/admin-auth/request';
 import {CheckinManagementError,readCheckinRules,saveCheckinRules} from '@/lib/checkins/management-service';
 import {logRouteError} from '@/lib/logger';
 
@@ -7,7 +7,7 @@ export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store'};
 
 export async function GET(request:Request){
-  const auth=await getAuthUser(request);
+  const auth=await getAdminRequestUser(request);
   if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers});
   try{return NextResponse.json(await readCheckinRules(auth.userId),{headers});}
   catch(error){
@@ -17,7 +17,7 @@ export async function GET(request:Request){
 }
 
 export async function PUT(request:Request){
-  const auth=await getAuthUser(request);
+  const auth=await getAdminRequestUser(request);
   if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers});
   try{return NextResponse.json(await saveCheckinRules(auth.userId,await request.json()),{headers});}
   catch(error){

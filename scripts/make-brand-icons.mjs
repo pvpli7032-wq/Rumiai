@@ -1,2 +1,0 @@
-import {chromium} from 'playwright';import {readFile,writeFile} from 'node:fs/promises';
-const browser=await chromium.launch();for(const n of [192,512]){const page=await browser.newPage({viewport:{width:n,height:n},deviceScaleFactor:1});const svg=await readFile('public/brand/icon.svg','utf8');await page.setContent('<style>body{margin:0}svg{width:100vw;height:100vh}</style>'+svg);await page.screenshot({path:'public/brand/icon-'+n+'.png'});await page.close()}await browser.close();console.log('原创安装图标已生成');

@@ -1,10 +1,10 @@
 import {NextResponse} from 'next/server';
 import {listManagedAccounts} from '@/lib/accounts/management-service';
-import {jsonError, privateHeaders, requireUser, unauthorized} from '@/lib/http';
+import {jsonError, privateHeaders, requireAdminUser, unauthorized} from '@/lib/http';
 
 export async function GET(request: Request) {
   try {
-    const actor = await requireUser(request);
+    const actor = await requireAdminUser(request);
     if (!actor) return unauthorized();
     const params = new URL(request.url).searchParams;
     return NextResponse.json(await listManagedAccounts(actor.userId, {q: params.get('q') ?? '', status: params.get('status') ?? 'ALL', community: params.get('community') ?? 'ALL', sort: params.get('sort') ?? 'NEWEST', page: Number(params.get('page') ?? 1), from: params.get('from') ?? '', until: params.get('until') ?? ''}), {headers: privateHeaders});

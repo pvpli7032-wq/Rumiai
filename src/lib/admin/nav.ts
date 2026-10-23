@@ -129,12 +129,23 @@ export function visibleEntries(permissions: readonly AdminPermission[]): AdminNa
   return visibleGroups(permissions).flatMap(group => group.entries);
 }
 
+/**
+ * Return whether a navigation entry owns the current URL.
+ *
+ * The dashboard lives at `/admin`, which is also the prefix of every admin
+ * route.  Treating it like an ordinary prefix would leave the overview marked
+ * active on every child page, so the root entry must match exactly.
+ */
+export function isEntryActive(pathname: string, href: string): boolean {
+  return href === '/admin' ? pathname === href : pathname === href || pathname.startsWith(href + '/');
+}
+
 /** Longest matching href wins, so /admin/community/posts beats /admin. */
 export function findEntry(pathname: string, permissions: readonly AdminPermission[]): {group: AdminNavGroup; entry: AdminNavEntry} | null {
   let best: {group: AdminNavGroup; entry: AdminNavEntry} | null = null;
   for (const group of visibleGroups(permissions)) {
     for (const entry of group.entries) {
-      const matches = pathname === entry.href || pathname.startsWith(entry.href + '/');
+      const matches = isEntryActive(pathname, entry.href);
       if (matches && (!best || entry.href.length > best.entry.href.length)) best = {group, entry};
     }
   }

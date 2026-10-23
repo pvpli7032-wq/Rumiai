@@ -13,7 +13,7 @@ type ReviewStatus = 'APPROVED' | 'REJECTED';
 /** 单次批量上限，与后端 `/api/admin/moderation/characters/batch` 一致。 */
 const BATCH_LIMIT = 25;
 
-export function BulkCharacterReview({selected, token, disabled, onStart, onFinish, onSaved}: {selected: ReviewCharacter[]; token: string; disabled: boolean; onStart: () => void; onFinish: () => void; onSaved: () => Promise<void>}) {
+export function BulkCharacterReview({selected, sessionActive, disabled, onStart, onFinish, onSaved}: {selected: ReviewCharacter[]; sessionActive: boolean; disabled: boolean; onStart: () => void; onFinish: () => void; onSaved: () => Promise<void>}) {
   const [reason, setReason] = useState(''), [error, setError] = useState('');
   const [pending, setPending] = useState<ReviewStatus | null>(null);
   const tooMany = selected.length > BATCH_LIMIT;
@@ -25,7 +25,7 @@ export function BulkCharacterReview({selected, token, disabled, onStart, onFinis
     if (status === 'REJECTED' && !reason.trim()) {setError('批量退回须填写理由。'); return;}
     onStart(); setError('');
     try {
-      const response = await fetch('/api/admin/moderation/characters/batch', {method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify({status, reason, items: selected.map(character => ({id: character.id, updatedAt: character.updatedAt}))})});
+      const response = await fetch('/api/admin/moderation/characters/batch', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status, reason, items: selected.map(character => ({id: character.id, updatedAt: character.updatedAt}))})});
       const data = await response.json(); if (!response.ok) throw Error(data.error || '批量审核失败。');
       setReason(''); await onSaved();
     } catch (value) {setError((value as Error).message);} finally {onFinish();}

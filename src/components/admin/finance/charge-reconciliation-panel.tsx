@@ -66,7 +66,7 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('zh-CN', {month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false});
 }
 
-export function ChargeReconciliationPanel({token, canRun}: {token: string | null; canRun: boolean}) {
+export function ChargeReconciliationPanel({sessionActive, canRun}: {sessionActive: boolean; canRun: boolean}) {
   const [status, setStatus] = useState('HELD,UNKNOWN');
   const [items, setItems] = useState<AdminChargeItem[]>([]);
   const [summary, setSummary] = useState<AdminChargePage['summary'] | null>(null);
@@ -90,10 +90,10 @@ export function ChargeReconciliationPanel({token, canRun}: {token: string | null
     setCursor(null);
     setSummary(null);
     setError('');
-    if (!token) return;
+    if (!sessionActive) return;
     const controller = new AbortController();
     setLoading(true);
-    apiFetch<AdminChargePage>(API.admin.billingCharges(query(null)), {token, signal: controller.signal, cache: 'no-store'})
+    apiFetch<AdminChargePage>(API.admin.billingCharges(query(null)), {credentials: 'same-origin', signal: controller.signal, cache: 'no-store'})
       .then(data => {
         if (controller.signal.aborted) return;
         setItems(data.items);
@@ -103,14 +103,14 @@ export function ChargeReconciliationPanel({token, canRun}: {token: string | null
       .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '费用单加载失败，请稍后重试。'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [token, query, refreshKey]);
+  }, [sessionActive, query, refreshKey]);
 
   async function loadMore() {
-    if (!token || !cursor || loadingMore) return;
+    if (!sessionActive || !cursor || loadingMore) return;
     setLoadingMore(true);
     setError('');
     try {
-      const data = await apiFetch<AdminChargePage>(API.admin.billingCharges(query(cursor)), {token, cache: 'no-store'});
+      const data = await apiFetch<AdminChargePage>(API.admin.billingCharges(query(cursor)), {credentials: 'same-origin', cache: 'no-store'});
       setItems(current => [...current, ...data.items]);
       setSummary(data.summary);
       setCursor(data.nextCursor);
@@ -123,12 +123,12 @@ export function ChargeReconciliationPanel({token, canRun}: {token: string | null
 
   /** 恢复动作只调用既有后台任务，不在页面里另写结算/释放。 */
   async function runRecovery() {
-    if (!token || running) return;
+    if (!sessionActive || running) return;
     setRunning(true);
     setError('');
     setNotice('');
     try {
-      const result = await apiFetch<TaskRunResult>(API.admin.taskRun('charge-recovery'), {token, method: 'POST'});
+      const result = await apiFetch<TaskRunResult>(API.admin.taskRun('charge-recovery'), {credentials: 'same-origin', method: 'POST'});
       const failed = result.failed > 0 ? '，失败 ' + result.failed + ' 笔' : '';
       setNotice('计费核对已执行：' + result.detail + '（处理 ' + result.affected + ' 笔' + failed + '）。');
       setRefreshKey(value => value + 1);
@@ -139,7 +139,7 @@ export function ChargeReconciliationPanel({token, canRun}: {token: string | null
     }
   }
 
-  if (!token) return <AdminNotice tone="denied" title="请先登录财务管理员账号。" />;
+  if (!sessionActive) return <AdminNotice tone="denied" title="请先登录财务管理员账号。" />;
 
   const emptyCopy = status === 'HELD,UNKNOWN' ? '当前没有需要人工核对的费用单' : '该状态下没有费用单';
 

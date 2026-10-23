@@ -55,7 +55,7 @@ export interface SettingsGroupController {
   save: () => Promise<boolean>;
 }
 
-export function useSettingsGroup(token: string | undefined, group: SettingGroup, enabled: boolean): SettingsGroupController {
+export function useSettingsGroup(sessionActive: boolean | undefined, group: SettingGroup, enabled: boolean): SettingsGroupController {
   // 只取设置中心展示的项：hidden 的键有专属编辑位置，草稿、常用项计数与搜索都不含它们。
   const definitions = useMemo(() => visibleDefinitionsOfGroup(group), [group]);
   const [values, setValues] = useState<Record<string, SettingValue>>({});
@@ -69,7 +69,7 @@ export function useSettingsGroup(token: string | undefined, group: SettingGroup,
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    if (!token || !enabled) {
+    if (!sessionActive || !enabled) {
       setLoading(false);
       return;
     }
@@ -78,8 +78,7 @@ export function useSettingsGroup(token: string | undefined, group: SettingGroup,
     setLoadError('');
     void (async () => {
       try {
-        const response = await fetch(`${API.admin.settings}?group=${encodeURIComponent(group)}`, {
-          headers: {Authorization: `Bearer ${token}`},
+        const response = await fetch(`${API.admin.settings}?group=${encodeURIComponent(group)}`, {credentials: 'include',
           cache: 'no-store',
           signal: controller.signal,
         });
@@ -104,7 +103,7 @@ export function useSettingsGroup(token: string | undefined, group: SettingGroup,
       }
     })();
     return () => controller.abort();
-  }, [token, enabled, group, reloadToken, definitions]);
+  }, [sessionActive, enabled, group, reloadToken, definitions]);
 
   const dirtyKeys = useMemo(
     () => definitions.filter(definition => {
@@ -129,7 +128,7 @@ export function useSettingsGroup(token: string | undefined, group: SettingGroup,
   const reload = useCallback(() => setReloadToken(value => value + 1), []);
 
   const save = useCallback(async () => {
-    if (!token || !dirtyKeys.length || saving) return false;
+    if (!sessionActive || !dirtyKeys.length || saving) return false;
     // 先在本地按服务端同一套规则查一遍，字段级错误不必等一次往返。
     const invalid: Record<string, string> = {};
     for (const key of dirtyKeys) {
@@ -151,7 +150,7 @@ export function useSettingsGroup(token: string | undefined, group: SettingGroup,
       const expectedVersions = Object.fromEntries(dirtyKeys.map(key => [key, values[key]?.version ?? 0]));
       const response = await fetch(API.admin.settings, {
         method: 'PATCH',
-        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({group, changes, expectedVersions}),
       });
       const payload = await response.json().catch(() => null) as {error?: string; key?: string; versions?: Record<string, number>} | null;
@@ -188,7 +187,7 @@ export function useSettingsGroup(token: string | undefined, group: SettingGroup,
     } finally {
       setSaving(false);
     }
-  }, [token, dirtyKeys, saving, draft, values, group, definitions]);
+  }, [sessionActive, dirtyKeys, saving, draft, values, group, definitions]);
 
   return {
     definitions, values, draft, dirtyKeys, fieldErrors,

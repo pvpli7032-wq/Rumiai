@@ -9,17 +9,17 @@ import { Select } from '@/components/ui/select';
 type Reason = { reasonCode: string; label: string; sampledMinutes: number; firstSeenAt: string; lastSeenAt: string };
 type Summary = { hours: number; generatedAt: string; since: string; retentionDays: number; sampling: string; sampledMinutes: number; reasons: Reason[] };
 
-export function CallbackAlerts({ token }: { token: string }) {
+export function CallbackAlerts({ sessionActive }: { sessionActive: boolean }) {
   const [hours, setHours] = useState(24), [summary, setSummary] = useState<Summary | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
   const load = useCallback(async (range: number) => {
     setLoading(true); setError('');
     try {
-      const response = await fetch(`/api/admin/finance/callback-alerts?hours=${range}`, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+      const response = await fetch(`/api/admin/finance/callback-alerts?hours=${range}`, {credentials: 'include', cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setSummary(data);
     } catch (e) { setError(e instanceof Error ? e.message : '支付回调告警读取失败。'); } finally { setLoading(false); }
-  }, [token]);
+  }, [sessionActive]);
   useEffect(() => { void load(hours); }, [hours, load]);
 
   return (

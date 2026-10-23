@@ -28,7 +28,7 @@ import {formatNumber, formatPercent} from '@/lib/format/number';
  * 运营统计首轮五项指标（V3 §26）。每项都带计算口径；
  * 免费/付费可筛，测试/正式按账号表实际能力只给一档并注明原因。
  */
-export function OpsMetricsPanel({token, days}: {token: string; days: number}) {
+export function OpsMetricsPanel({sessionActive, days}: {sessionActive: boolean; days: number}) {
   const [tier, setTier] = useState('all');
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState('');
@@ -36,13 +36,13 @@ export function OpsMetricsPanel({token, days}: {token: string; days: number}) {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(''); setReport(null);
-    void fetch(API.admin.analyticsOpsMetrics + '?days=' + days + '&tier=' + tier, {headers: {Authorization: 'Bearer ' + token}, cache: 'no-store', signal: controller.signal})
+    void fetch(API.admin.analyticsOpsMetrics + '?days=' + days + '&tier=' + tier, {credentials: 'include', cache: 'no-store', signal: controller.signal})
       .then(async response => { const data = await response.json(); if (!response.ok) throw Error(data.error); return data as Report; })
       .then(setReport)
       .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '运营统计读取失败。'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [days, tier, token]);
+  }, [days, tier, sessionActive]);
 
   const metrics = report?.metrics;
   return <AdminPanel title="首轮运营指标" description="生成成功率、分享后的访问、注册到首次聊天、七日回访、免费占比与收费回复数（同一分母的两面），以及每个有效回复成本。分母为 0 一律显示「样本不足」。">

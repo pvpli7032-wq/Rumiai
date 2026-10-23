@@ -40,7 +40,7 @@ function formatExpiry(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString('zh-CN') : '长期有效';
 }
 
-export function AccountQuotaTab({userId, token, permissions}: {userId: string; token: string | null; permissions: AdminPermission[]}) {
+export function AccountQuotaTab({userId, sessionActive, permissions}: {userId: string; sessionActive: boolean; permissions: AdminPermission[]}) {
   const allowed = permissions.includes('accounts.settings.manage');
   const [payload, setPayload] = useState<QuotaPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,13 +54,13 @@ export function AccountQuotaTab({userId, token, permissions}: {userId: string; t
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    if (!token || !allowed) { setLoading(false); return; }
+    if (!sessionActive || !allowed) { setLoading(false); return; }
     const controller = new AbortController();
     setLoading(true);
     setLoadError('');
     void (async () => {
       try {
-        const data = await apiFetch<QuotaPayload>(API.admin.accountSettings(userId), {token, signal: controller.signal, cache: 'no-store'});
+        const data = await apiFetch<QuotaPayload>(API.admin.accountSettings(userId), {credentials: 'same-origin', signal: controller.signal, cache: 'no-store'});
         if (!controller.signal.aborted) setPayload(data);
       } catch (cause) {
         if (controller.signal.aborted) return;
@@ -70,7 +70,7 @@ export function AccountQuotaTab({userId, token, permissions}: {userId: string; t
       }
     })();
     return () => controller.abort();
-  }, [userId, token, allowed, reloadToken]);
+  }, [userId, sessionActive, allowed, reloadToken]);
 
   // 保存/清除后只重新读这个标签的数据，不整页重载。
   const refresh = useCallback(() => setReloadToken(value => value + 1), []);
@@ -100,7 +100,7 @@ export function AccountQuotaTab({userId, token, permissions}: {userId: string; t
   }
 
   async function save(definition: SettingDefinition) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     const raw = draftValue.trim();
     const value: JsonValue = raw === '' ? null : Number(raw);
     const invalid = validateSettingValue(definition, value);
@@ -111,7 +111,7 @@ export function AccountQuotaTab({userId, token, permissions}: {userId: string; t
     try {
       await apiFetch(API.admin.accountSettings(userId), {
         method: 'PUT',
-        token,
+        credentials: 'same-origin',
         body: {changes: [{key: definition.key, value, expiresAt}]},
       });
       setEditing(null);
@@ -125,11 +125,11 @@ export function AccountQuotaTab({userId, token, permissions}: {userId: string; t
   }
 
   async function clear(definition: SettingDefinition) {
-    if (!token || busy) return;
+    if (!sessionActive || busy) return;
     setBusy(definition.key);
     setRowErrors(list => ({...list, [definition.key]: ''}));
     try {
-      await apiFetch(API.admin.accountSetting(userId, definition.key), {method: 'DELETE', token});
+      await apiFetch(API.admin.accountSetting(userId, definition.key), {method: 'DELETE', credentials: 'same-origin'});
       setNotice(`已清除「${definition.label}」的用户特例，回到公共值。`);
       refresh();
     } catch (cause) {

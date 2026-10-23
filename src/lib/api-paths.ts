@@ -135,10 +135,12 @@ export const API = {
   },
 
   admin: {
-    session: '/api/admin/session',
-    access: '/api/admin/access',
+    authLogin: '/api/admin/auth/login',
+    authSession: '/api/admin/auth/session',
+    authLogout: '/api/admin/auth/logout',
     accounts: (query?: string) => `/api/admin/accounts${query ? `?${query}` : ''}`,
     account: (id: string) => `/api/admin/accounts/${e(id)}`,
+    accountProfile: (id: string) => `/api/admin/accounts/${e(id)}/profile`,
     characters: (query?: string) => `/api/admin/characters${query ? `?${query}` : ''}`,
     character: (id: string) => `/api/admin/characters/${e(id)}`,
     characterModels: (id: string) => `/api/admin/characters/${e(id)}/models`,

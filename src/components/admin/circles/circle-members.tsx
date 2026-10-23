@@ -13,12 +13,12 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
-export function CircleMembers({ circleId, token, canManage, onChanged }: { circleId: string; token: string; canManage: boolean; onChanged: () => void }) {
+export function CircleMembers({ circleId, sessionActive, canManage, onChanged }: { circleId: string; sessionActive: boolean; canManage: boolean; onChanged: () => void }) {
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('MEMBER'), [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
   const [list, setList] = useState<MemberList | null>(null), [reading, setReading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const [selected, setSelected] = useState<{ member: ManagedCircleMember; action: MemberAction } | null>(null), [reason, setReason] = useState('');
-  const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, { method: body ? 'PATCH' : 'GET', token, body, signal, cache: 'no-store' }), [token]);
-  useEffect(() => { setSelected(null); setReason(''); setError(''); setMessage(''); }, [token, circleId, status]);
+  const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, { method: body ? 'PATCH' : 'GET', credentials: 'same-origin', body, signal, cache: 'no-store' }), [sessionActive]);
+  useEffect(() => { setSelected(null); setReason(''); setError(''); setMessage(''); }, [sessionActive, circleId, status]);
   useEffect(() => {
     const controller = new AbortController(); setList(null); setReading(true);
     const params = new URLSearchParams({ q: query, status, page: String(page) });

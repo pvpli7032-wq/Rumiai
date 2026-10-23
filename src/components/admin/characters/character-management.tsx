@@ -16,21 +16,21 @@ import {Input} from '@/components/ui/input';
 import {Select} from '@/components/ui/select';
 
 export function CharacterManagement() {
-  const {token, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const allowed = permissions.includes('characters.read'), canEdit = permissions.includes('characters.write'), canPublish = permissions.includes('characters.publish');
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [tag, setTag] = useState(''), [creator, setCreator] = useState(''), [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
   const [list, setList] = useState<{items: CharacterSummary[]; total: number; pageSize: number} | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<ManagedCharacter | null>(null), [creating, setCreating] = useState(false);
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false);
-  const request = useCallback(<T,>(url: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET', body?: object, signal?: AbortSignal) => apiFetch<T>(url, {method, token, body, signal, cache: 'no-store'}), [token]);
-  useEffect(() => {setList(null); setDetail(null); setSelected(null); setCreating(false);}, [token]);
+  const request = useCallback(<T,>(url: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET', body?: object, signal?: AbortSignal) => apiFetch<T>(url, {method, credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
+  useEffect(() => {setList(null); setDetail(null); setSelected(null); setCreating(false);}, [sessionActive]);
   useEffect(() => {
-    setList(null); setSelectedRows({}); if (!token || !allowed) return;
+    setList(null); setSelectedRows({}); if (!sessionActive || !allowed) return;
     const controller = new AbortController(); setReading(true);
     const params = new URLSearchParams({q: query, status, tag, creatorId: creator, page: String(page)});
     void request<{items: CharacterSummary[]; total: number; pageSize: number}>(`/api/admin/characters?${params}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
-  }, [token, allowed, request, query, status, tag, creator, page, refresh]);
+  }, [sessionActive, allowed, request, query, status, tag, creator, page, refresh]);
   useEffect(() => {
     setDetail(null); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
@@ -56,7 +56,7 @@ export function CharacterManagement() {
     catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
   }
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在读取角色管理权限…" /></AdminPage>;
-  if (!token || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有角色管理查看权限。'} /></AdminPage>;
+  if (!sessionActive || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有角色管理查看权限。'} /></AdminPage>;
   return <AdminPage>
     <AdminPageHeader
       eyebrow="内容与社区"

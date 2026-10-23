@@ -1,5 +1,6 @@
 import {readCharacterContentLimits} from '@/lib/settings';
 import {CHARACTER_FIELDS, CHARACTER_LABELS, buildCharacterLimits, type CharacterLimits} from './limits';
+import {validateAvatarUrl} from '@/lib/uploads/url-validation';
 
 /**
  * 角色字段校验。
@@ -42,9 +43,8 @@ export async function validateCharacter(body: unknown, creating: boolean): Promi
     if (required && !text) return { data: {}, error: `请填写${CHARACTER_LABELS[key]}。` };
     if (value.length > limit) return { data: {}, error: `${CHARACTER_LABELS[key]}不能超过 ${limit} 字。` };
     if (key === 'avatarUrl' && text) {
-      let valid = /^\/(?:uploads|brand)\/[a-zA-Z0-9_./-]+$/.test(text) && !text.includes('..');
-      try { valid ||= ['http:', 'https:'].includes(new URL(text).protocol); } catch {}
-      if (!valid) return { data: {}, error: '头像地址须为 HTTP/HTTPS 图片地址或本地上传素材。' };
+      const avatarError = validateAvatarUrl(text);
+      if (avatarError) return { data: {}, error: avatarError };
     }
     data[key] = text;
   }

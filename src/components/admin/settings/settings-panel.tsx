@@ -40,9 +40,9 @@ function searchableText(definition: SettingDefinition): string {
   return [definition.label, definition.key, definition.description].join(' ').toLowerCase();
 }
 
-export function SettingsPanel({activeGroup, token, canWrite, controller}: {
+export function SettingsPanel({activeGroup, sessionActive, canWrite, controller}: {
   activeGroup: SettingsGroupId;
-  token: string | null;
+  sessionActive: boolean;
   canWrite: boolean;
   controller: ReturnType<typeof useSettingsGroup>;
 }) {
@@ -105,8 +105,8 @@ export function SettingsPanel({activeGroup, token, canWrite, controller}: {
           onResetToDefault={() => openRestore([definition], definition.label)}
           userOverride={values[definition.key]?.source === 'USER'}
         />
-        {activeGroup === 'prompts' && definition.type === 'text' && token && (
-          <PromptPreview definition={definition} token={token} saved={String(values[definition.key]?.value ?? definition.default ?? '')} />
+        {activeGroup === 'prompts' && definition.type === 'text' && sessionActive && (
+          <PromptPreview definition={definition} sessionActive={sessionActive} saved={String(values[definition.key]?.value ?? definition.default ?? '')} />
         )}
       </div>
     );
@@ -130,7 +130,7 @@ export function SettingsPanel({activeGroup, token, canWrite, controller}: {
             <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="在本分类中搜索" aria-label="在本分类中搜索设置" className="pl-9" />
           </div>
-          <Button variant="ghost" onClick={() => setHistoryOpen(true)} disabled={!token} leadingIcon={<HistoryIcon aria-hidden className="h-4 w-4" />}>
+          <Button variant="ghost" onClick={() => setHistoryOpen(true)} disabled={!sessionActive} leadingIcon={<HistoryIcon aria-hidden className="h-4 w-4" />}>
             修改历史
           </Button>
           {canWrite && (
@@ -200,10 +200,10 @@ export function SettingsPanel({activeGroup, token, canWrite, controller}: {
         );
       })}
 
-      {historyOpen && token && (
+      {historyOpen && sessionActive && (
         <SettingsHistoryDialog
           open
-          token={token}
+          sessionActive={sessionActive}
           group={activeGroup}
           canWrite={canWrite}
           // 历史按分类取全量键（含 hidden 的），否则那几项的修改记录在筛选里选不到。
@@ -213,8 +213,8 @@ export function SettingsPanel({activeGroup, token, canWrite, controller}: {
         />
       )}
 
-      {transferOpen && token && (
-        <ExportImportDialog open token={token} canWrite={canWrite} onClose={() => setTransferOpen(false)} onImported={() => controller.reload()} />
+      {transferOpen && sessionActive && (
+        <ExportImportDialog open sessionActive={sessionActive} canWrite={canWrite} onClose={() => setTransferOpen(false)} onImported={() => controller.reload()} />
       )}
 
       {restoreScope && (

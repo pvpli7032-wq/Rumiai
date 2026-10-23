@@ -33,8 +33,8 @@ function money(order: OrderRow) {
  * 列表只留可扫读的列；验签回调时间线与退款处理都在订单详情抽屉里，
  * 列表本身不再放退款表单。
  */
-export function PaymentOrderManagement({ token, canRequest, canApprove, canExecute, focusOrderNo, onFocusHandled }: {
-  token: string;
+export function PaymentOrderManagement({ sessionActive, canRequest, canApprove, canExecute, focusOrderNo, onFocusHandled }: {
+  sessionActive: boolean;
   canRequest: boolean;
   canApprove: boolean;
   canExecute: boolean;
@@ -70,7 +70,7 @@ export function PaymentOrderManagement({ token, canRequest, canApprove, canExecu
       if (query.trim()) params.set('q', query.trim());
       if (created.from) params.set('from', created.from);
       if (created.until) params.set('until', created.until);
-      const response = await fetch('/api/admin/finance/orders/all?' + params, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store', signal });
+      const response = await fetch('/api/admin/finance/orders/all?' + params, {credentials: 'include', cache: 'no-store', signal });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setResult(data);
@@ -82,7 +82,7 @@ export function PaymentOrderManagement({ token, canRequest, canApprove, canExecu
     } finally {
       if (!signal?.aborted) setBusy(false);
     }
-  }, [page, query, status, token, created]);
+  }, [page, query, status, sessionActive, created]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -96,7 +96,7 @@ export function PaymentOrderManagement({ token, canRequest, canApprove, canExecu
     let active = true;
     void (async () => {
       try {
-        const response = await fetch('/api/admin/finance/orders?orderNo=' + encodeURIComponent(focusOrderNo), { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+        const response = await fetch('/api/admin/finance/orders?orderNo=' + encodeURIComponent(focusOrderNo), {credentials: 'include', cache: 'no-store' });
         const data = await response.json();
         if (!response.ok) throw Error(data.error);
         const found = (data as OrderRow[])[0];
@@ -109,7 +109,7 @@ export function PaymentOrderManagement({ token, canRequest, canApprove, canExecu
       }
     })();
     return () => { active = false; };
-  }, [focusOrderNo, token, onFocusHandled]);
+  }, [focusOrderNo, sessionActive, onFocusHandled]);
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -127,7 +127,7 @@ export function PaymentOrderManagement({ token, canRequest, canApprove, canExecu
     try {
       const params = new URLSearchParams({ status });
       if (query.trim()) params.set('q', query.trim());
-      const response = await fetch('/api/admin/finance/orders/export?' + params, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+      const response = await fetch('/api/admin/finance/orders/export?' + params, {credentials: 'include', cache: 'no-store' });
       if (!response.ok) { const data = await response.json(); throw Error(data.error); }
       const blob = await response.blob(), url = URL.createObjectURL(blob), anchor = document.createElement('a');
       anchor.href = url; anchor.download = 'payment-orders.csv'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -219,7 +219,7 @@ export function PaymentOrderManagement({ token, canRequest, canApprove, canExecu
 
       <OrderDetailDrawer
         order={selected}
-        token={token}
+        sessionActive={sessionActive}
         canRequest={canRequest}
         canApprove={canApprove}
         canExecute={canExecute}
