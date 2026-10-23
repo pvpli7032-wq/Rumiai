@@ -62,7 +62,6 @@ export function TasksAdmin() {
 
   useEffect(() => {
     setItems(null);
-    setNotice('');
     if (sessionActive && canRead) void load();
   }, [sessionActive, canRead, refreshKey, load]);
 
