@@ -181,7 +181,7 @@ export async function changeSiteContent(actor: string, rawType: string, rawId: s
       await tx.siteContentRevision.create({data: {contentType: type, contentId: id, version: afterVersion, snapshotJson: JSON.stringify(archived), actorId: actor, reason}});
       await bumpDraft(tx, type, id, actor, currentVersion, null, null);
       await recordAdminAudit(tx, actor, 'SITE_CONTENT_UNPUBLISHED', `${type}:${id}`, reason, {contentType: type, version: afterVersion, isActive: false});
-      return {id, status: 'PUBLISHED', version: afterVersion};
+      return {id, status: 'UNPUBLISHED', version: afterVersion};
     }
     const rawContent = body.content ?? (action === 'PUBLISH' ? parsedDraft(draft?.draftJson ?? null) : null);
     if (!rawContent) throw new SiteContentError('请先填写站点内容。');

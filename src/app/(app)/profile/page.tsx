@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { ReaderPreferences } from '@/components/reader-preferences';
 import { AccountClosure } from '@/components/account-closure';
 import { AdminEntry } from '@/components/admin-entry';
+import { Avatar } from '@/components/ui/avatar';
 import { InviteCard } from '@/components/growth';
 import { loginWithNext } from '@/lib/next-path';
 import { User, Flame, Coins, CheckCircle2, Circle, Gift, Loader2, LogOut, Download } from 'lucide-react';
@@ -99,6 +100,7 @@ export default function ProfilePage() {
   if (!user) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center"><Loader2 className="w-8 h-8 text-purple-400 animate-spin" /></div>;
 
   const tierColor = TIER_COLORS[user.tier] || TIER_COLORS.ROOKIE;
+  const displayName = user.displayName?.trim() || user.username;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white px-4 py-8">
@@ -117,11 +119,10 @@ export default function ProfilePage() {
         {/* Profile Card */}
         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6">
           <div className="flex items-center gap-4">
-            <div className={`w-16 h-16 rounded-full bg-linear-to-br/srgb ${tierColor} flex items-center justify-center text-2xl font-bold text-white shadow-xl`}>
-              {user.username[0]?.toUpperCase()}
-            </div>
+            <Avatar src={user.avatarUrl} name={displayName} alt={displayName} size="xl" />
             <div>
-              <h1 className="text-xl font-bold text-white">{user.username}</h1>
+              <h1 className="text-xl font-bold text-white">{displayName}</h1>
+              <p className="text-zinc-400 text-sm">@{user.username}</p>
               <p className="text-zinc-400 text-sm">{user.email}</p>
               <div className={`inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full bg-linear-to-r/srgb ${tierColor} text-white text-xs font-bold`}>
                 ⭐ {user.tier}
@@ -142,7 +143,7 @@ export default function ProfilePage() {
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 text-purple-400 mb-1"><User className="w-4 h-4" /></div>
-              <p className="text-xl font-bold text-white">1</p>
+              <p className="text-xl font-bold text-white">{user.characterCount ?? '—'}</p>
               <p className="text-xs text-zinc-500">{"角色"}</p>
             </div>
           </div>

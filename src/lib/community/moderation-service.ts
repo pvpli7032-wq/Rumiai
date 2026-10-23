@@ -28,13 +28,18 @@ export async function moderateCommunityReport(actorId: string, reportId: string,
     await claimModerator(tx, actorId);
     const report = await tx.report.findUnique({where: {id: reportId}, select: {id: true, targetType: true, targetId: true, status: true}});
     if (!report) throw new CommunityModerationError('举报记录不存在。', 404);
-    if (['ACTIONED', 'DISMISSED'].includes(report.status) && !['REVIEWING', 'UNBAN'].includes(action)) throw new CommunityModerationError('该举报已结案，请查看审计记录。', 409);
-    if (['HIDE', 'RESTORE'].includes(action) && !['POST', 'POST_COMMENT'].includes(report.targetType)) throw new CommunityModerationError('当前举报目标不支持此内容处置。');
+    if (['ACTIONED', 'DISMISSED'].includes(report.status) && !['REVIEWING', 'UNBAN', 'RESTORE'].includes(action)) throw new CommunityModerationError('该举报已结案，请查看审计记录。', 409);
+    if (['HIDE', 'RESTORE'].includes(action) && !['POST', 'POST_COMMENT', 'COMMENT'].includes(report.targetType)) throw new CommunityModerationError('当前举报目标不支持此内容处置。');
     if (['BAN', 'UNBAN'].includes(action) && report.targetType !== 'USER') throw new CommunityModerationError('封禁操作仅适用于用户举报。');
     const status = action === 'REVIEWING' ? 'REVIEWING' : action === 'DISMISS' ? 'DISMISSED' : 'ACTIONED';
     if (['OPEN', 'REVIEWING'].includes(report.status)) await tx.report.update({where: {id: report.id}, data: {status}});
     if (action === 'HIDE' || action === 'RESTORE') {
-      const saved = await setContentVisibilityFromReport(tx, report.targetType === 'POST' ? 'POST' : 'COMMENT', report.targetId, action === 'RESTORE');
+      const saved = report.targetType === 'COMMENT'
+        ? await tx.comment.updateMany({
+          where: {id: report.targetId, hiddenAt: action === 'HIDE' ? null : {not: null}},
+          data: {hiddenAt: action === 'HIDE' ? new Date() : null},
+        })
+        : await setContentVisibilityFromReport(tx, report.targetType === 'POST' ? 'POST' : 'COMMENT', report.targetId, action === 'RESTORE');
       if (!saved.count) throw new CommunityModerationError('举报目标已不存在，未执行处置。', 404);
     } else if (action === 'BAN' || action === 'UNBAN') {
       try {await setCommunityRestriction(tx, report.targetId, action === 'BAN', reason, action === 'UNBAN');}

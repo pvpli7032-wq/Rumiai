@@ -49,7 +49,8 @@ const CHECK_LABELS: Record<string, string> = {
 export function statusItems(input: StatusInput): SystemStatusItem[] {
   const operations = input.operations as OperationsPayload | null;
   const models = Array.isArray(input.models) ? input.models as ModelRow[] : null;
-  const tasks = Array.isArray(input.tasks) ? input.tasks as TaskRow[] : null;
+  const taskItems = (input.tasks as {items?: unknown} | null)?.items;
+  const tasks = Array.isArray(taskItems) ? taskItems as TaskRow[] : null;
   const statuses: SystemStatusItem[] = [];
 
   if (models === null) {

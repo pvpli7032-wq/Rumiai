@@ -4,6 +4,7 @@ import { formatUser, isUniqueViolation, validateUsername } from '@/lib/user-iden
 const USER_PROFILE_SELECT = {
   id: true, username: true, displayName: true, email: true, avatarUrl: true, tier: true, coins: true,
   streakCount: true, lastCheckin: true, bannedWords: true, readingMode: true, shortcuts: true, createdAt: true,
+  _count: {select: {characters: {where: {reviewStatus: {not: 'DELETED'}}}}},
 } as const;
 
 export class AccountProfileError extends Error {
@@ -16,7 +17,8 @@ export class AccountProfileError extends Error {
 export async function readOwnProfile(userId: string) {
   const user = await db.user.findUnique({where: {id: userId}, select: USER_PROFILE_SELECT});
   if (!user) throw new AccountProfileError('User not found', 404);
-  return formatUser(user);
+  const {_count, ...profile} = user;
+  return formatUser({...profile, characterCount: _count.characters});
 }
 
 export async function updateOwnProfile(userId: string, input: unknown) {
@@ -56,7 +58,8 @@ export async function updateOwnProfile(userId: string, input: unknown) {
       },
       select: USER_PROFILE_SELECT,
     });
-    return formatUser(user);
+    const {_count, ...profile} = user;
+    return formatUser({...profile, characterCount: _count.characters});
   } catch (error) {
     if (isUniqueViolation(error)) throw new AccountProfileError('Username already in use', 409);
     throw error;

@@ -11,7 +11,7 @@ import {AdminOpsError, idParam} from './ops-error';
  * 与巡检走完全相同的租约、重试与上限。
  */
 
-export const ADMIN_TASK_KINDS = ['story-state', 'memory-summary', 'dispute-close', 'mirror-expire', 'charge-recovery', 'backup-cleanup', 'daily-backup', 'event-cleanup'] as const;
+export const ADMIN_TASK_KINDS = ['story-state', 'memory-summary', 'dispute-sweep', 'dispute-close', 'mirror-expire', 'charge-recovery', 'backup-cleanup', 'daily-backup', 'event-cleanup'] as const;
 export type AdminTaskKind = typeof ADMIN_TASK_KINDS[number];
 
 interface TaskDefinition {
@@ -25,6 +25,7 @@ interface TaskDefinition {
 const DEFINITIONS: readonly TaskDefinition[] = [
   {kind: 'story-state', name: '剧情状态抽取', description: '把已保存的故事回合抽成事件与状态检查点', switchKey: null},
   {kind: 'memory-summary', name: '聊天记忆摘要', description: '普通聊天滚动摘要与事实清单', switchKey: 'memory.enabled'},
+  {kind: 'dispute-sweep', name: '到期评理扫描', description: '扫描到期或达到票数的案例并登记结案任务', switchKey: 'dispute.enabled'},
   {kind: 'dispute-close', name: '评理结案', description: '到期或票数先到的案例生成角色回应', switchKey: 'dispute.enabled'},
   {kind: 'mirror-expire', name: '他眼中的你过期', description: '把超过保留天数的结果标记为过期', switchKey: 'mirror.enabled'},
   {kind: 'charge-recovery', name: '计费冻结核对', description: '核对超时仍处于冻结的费用单', switchKey: 'billing.chargingEnabled'},
@@ -104,6 +105,7 @@ export async function runAdminTaskOnce(rawKind: string): Promise<AdminTaskRunRes
   try {
     report = await runKindNow(kind);
   } catch (error) {
+    if (error instanceof AdminOpsError) throw error;
     throw new AdminOpsError(error instanceof Error ? error.message : '任务执行失败，请稍后重试。', 500, 'INTERNAL');
   }
   const detail = report.results.length

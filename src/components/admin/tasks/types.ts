@@ -5,7 +5,7 @@
  * 不维护第二份 kind → 处理器 的对应关系。
  */
 
-export type TaskKind = 'story-state' | 'memory-summary' | 'dispute-close' | 'mirror-expire' | 'charge-recovery' | 'backup-cleanup' | 'daily-backup' | 'event-cleanup';
+export type TaskKind = 'story-state' | 'memory-summary' | 'dispute-sweep' | 'dispute-close' | 'mirror-expire' | 'charge-recovery' | 'backup-cleanup' | 'daily-backup' | 'event-cleanup';
 
 export interface TaskItem {
   kind: TaskKind;

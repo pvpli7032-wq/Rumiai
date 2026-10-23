@@ -5,6 +5,7 @@ import {readSettingValue} from '@/lib/settings';
 import {readBillingTimezone, resolveBillingDay} from '@/lib/billing/allowance';
 import {pruneProductEvents} from '@/lib/analytics/product-events';
 import {backupSqliteDatabase, resolveSqliteSource} from '@/lib/operations/sqlite-backup.mjs';
+import {backupDirectory} from '@/lib/operations/backup-directory.mjs';
 import {runMemorySummaryTask} from '@/lib/memory/summary-service';
 import {runDisputeCloseTask, scheduleDueDisputes} from '@/lib/disputes/close-service';
 import {expireMirrorResults} from '@/lib/mirror/repository';
@@ -18,8 +19,6 @@ import type {TaskHandler, TaskKind, TaskOutcome} from './types';
  * 这里只做「一次调用做一件事」：幂等、可重跑，不自己安排下一次。
  * 重试、租约、上限由 runner 统一处理，处理器只抛错表示「还需要再来一次」。
  */
-
-const backupDirectory = () => path.resolve('prisma', 'backups');
 
 /** 备份清理：只按修改时间保留最新 tasks.backupRetention 份，目录与 .db 文件都算一份。 */
 async function pruneBackups(): Promise<{outcome: string; detail?: string}> {

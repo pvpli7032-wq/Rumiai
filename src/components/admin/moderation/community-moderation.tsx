@@ -10,7 +10,7 @@ import {Select} from '@/components/ui/select';
 import {Textarea} from '@/components/ui/textarea';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 
-type ReportTarget = { content?: string | null; name?: string | null; username?: string | null; communityBannedAt?: string | null; communityBanReason?: string | null } | null;
+type ReportTarget = { content?: string | null; name?: string | null; username?: string | null; hiddenAt?: string | null; communityBannedAt?: string | null; communityBanReason?: string | null } | null;
 type ReportRow = { id: string; targetType: string; targetId: string; category: string; details: string; evidenceContent: string | null; status: string; target: ReportTarget; reporter: { username: string } };
 type AppealRow = { id: string; userId: string; reason: string; status: string; user: { username: string; communityBanReason: string | null } };
 type AuditRow = { id: string; targetType: string; targetId: string; action: string; reason: string; createdAt: string; actor: { username: string } };
@@ -124,10 +124,11 @@ export function CommunityModeration() {
                       <>
                         <Button size="sm" variant="outline" disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'REVIEWING')}>标记处理中</Button>
                         <Button size="sm" variant="outline" disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'DISMISS')}>驳回举报</Button>
-                        {(report.targetType === 'POST' || report.targetType === 'POST_COMMENT') && <Button size="sm" disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'HIDE')}>隐藏内容</Button>}
+                        {(report.targetType === 'POST' || report.targetType === 'POST_COMMENT' || report.targetType === 'COMMENT') && !report.target?.hiddenAt && <Button size="sm" disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'HIDE')}>隐藏内容</Button>}
                         {report.targetType === 'USER' && !report.target?.communityBannedAt && <Button size="sm" variant="danger" disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'BAN')}>封禁社区发言</Button>}
                       </>
                     )}
+                    {report.targetType === 'COMMENT' && report.target?.hiddenAt && <Button size="sm" variant="outline" disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'RESTORE')}>恢复内容</Button>}
                     {report.targetType === 'USER' && report.target?.communityBannedAt && <Button size="sm" variant="outline" disabled={!!busy || !canModerate} onClick={() => void moderateReport(report, 'UNBAN')}>解除封禁</Button>}
                   </div>
                 </article>

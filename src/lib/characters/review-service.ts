@@ -64,7 +64,9 @@ export async function reviewCharacter(actorId: string, characterId: string, inpu
 export async function readCharacterReviewQueue(actorId: string) {
   return db.$transaction(async tx => {
     if (!await hasAdminPermission(actorId, 'moderation.read', tx)) throw new CharacterReviewError('此页面仅限审核人员访问。', 403);
-    const characters = await tx.character.findMany({where: {publicationRequested: true, reviewStatus: {in: ['PENDING', 'APPROVED']}}, orderBy: [{reviewStatus: 'desc'}, {updatedAt: 'desc'}], take: 100, include: {creator: {select: {username: true}}}});
+    // 公开角色仍保留 publicationRequested=true 作为发布历史；只有 PENDING 才是真正待审核。
+    // 把 APPROVED 混入这里会让已公开角色重复出现在「待审角色」列表中。
+    const characters = await tx.character.findMany({where: {publicationRequested: true, reviewStatus: 'PENDING'}, orderBy: [{updatedAt: 'desc'}, {id: 'asc'}], take: 100, include: {creator: {select: {username: true}}}});
     const reports = await countOpenCharacterReports(tx, characters.map(character => character.id));
     return characters.map(character => ({...character, openReportCount: reports.get(character.id) ?? 0}));
   });

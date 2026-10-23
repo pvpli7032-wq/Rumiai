@@ -4,6 +4,7 @@ import {logWarning} from '@/lib/logger';
 import {readSettingValue} from '@/lib/settings';
 import {handlerFor} from './handlers';
 import {FAIL_ON_EXHAUSTED_KINDS, SWEEP_SUBJECT, SWEEP_TASK_KINDS, type TaskRunReport} from './types';
+import {AdminOpsError} from '@/lib/admin/ops-error';
 
 /**
  * 统一后台任务入口（V3 第 24 章）。
@@ -148,11 +149,36 @@ export async function runDueTasks(options: {limit?: number; now?: Date; kinds?: 
 export async function runKindNow(kind: string): Promise<TaskRunReport> {
   if (!handlerFor(kind)) throw new Error('没有这个后台任务。');
   if ((SWEEP_TASK_KINDS as readonly string[]).includes(kind)) {
-    await db.backgroundTask.upsert({
+    const now = new Date();
+    const existing = await db.backgroundTask.findUnique({
       where: {kind_subjectId: {kind, subjectId: SWEEP_SUBJECT}},
-      create: {kind, subjectId: SWEEP_SUBJECT, status: 'PENDING', attempts: 0, nextRunAt: new Date()},
-      update: {status: 'PENDING', nextRunAt: new Date()},
+      select: {id: true, status: true, leaseUntil: true},
     });
+    if (!existing) {
+      try {
+        await db.backgroundTask.create({data: {kind, subjectId: SWEEP_SUBJECT, status: 'PENDING', attempts: 0, nextRunAt: now}});
+      } catch (error) {
+        // Another runner may have created the sweep row between find and create.
+        if ((error as {code?: unknown})?.code === 'P2002') throw new AdminOpsError('该任务刚刚被其他执行器创建，请稍后再试。', 409, 'TASK_RUNNING');
+        throw error;
+      }
+    } else {
+      const live = existing.status === 'RUNNING' && existing.leaseUntil !== null && existing.leaseUntil > now;
+      if (live) throw new AdminOpsError('该任务正在运行，请稍后再试。', 409, 'TASK_RUNNING');
+      const released = await db.backgroundTask.updateMany({
+        where: {
+          id: existing.id,
+          OR: [
+            {status: 'PENDING'},
+            {status: 'DONE'},
+            {status: 'FAILED'},
+            {status: 'RUNNING', OR: [{leaseUntil: null}, {leaseUntil: {lt: now}}]},
+          ],
+        },
+        data: {status: 'PENDING', attempts: 0, nextRunAt: now, leaseOwner: null, leaseUntil: null, lastError: null},
+      });
+      if (released.count !== 1) throw new AdminOpsError('该任务刚刚被其他执行器领取，请稍后再试。', 409, 'TASK_RUNNING');
+    }
   }
   return runDueTasks({kinds: [kind]});
 }

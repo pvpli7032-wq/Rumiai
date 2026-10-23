@@ -76,7 +76,7 @@ export function SiteContentManagement() {
           {id: 'version', header: '版本/时间', width: '180px', cell: row => (
             <span className="block whitespace-nowrap">
               <span className="block text-xs text-muted-foreground">v{row.version}</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">{new Date(row.updatedAt).toLocaleString('zh-CN')}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{row.updatedAt ? new Date(row.updatedAt).toLocaleString('zh-CN') : '暂无修改记录'}</span>
             </span>
           )},
           {id: 'actions', header: '操作', width: '130px', cell: row => (

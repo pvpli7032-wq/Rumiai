@@ -3,8 +3,9 @@ import {createHash} from 'node:crypto';
 import type {Stats} from 'node:fs';
 import path from 'node:path';
 import {validateStateBackupManifest,validateStateRestoreRecord} from './state-backup.mjs';
+import {backupDirectory} from './backup-directory.mjs';
 
-const defaultDirectory=()=>path.resolve('prisma','backups');
+const defaultDirectory=backupDirectory;
 const MAX_METADATA_BYTES=8*1024*1024;
 const PAGE_SIZE=20;
 type FileInfo=Stats;

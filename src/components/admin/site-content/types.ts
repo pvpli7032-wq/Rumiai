@@ -2,7 +2,7 @@ import {DEFAULT_ACCENT_FROM, DEFAULT_ACCENT_TO, DEFAULT_BRAND_LOGO, DEFAULT_BRAN
 
 export type ContentType = 'BANNER' | 'TAG' | 'BADGE' | 'SECTION' | 'NAVIGATION' | 'PAGE' | 'BRANDING';
 export type ContentStatus = 'PUBLISHED' | 'UNPUBLISHED' | 'DRAFT' | 'SCHEDULED';
-export type SiteContentRow = {id: string; content: Record<string, unknown> | null; status: ContentStatus; isPublished: boolean; scheduledAt: string | null; version: number; updatedAt: string};
+export type SiteContentRow = {id: string; content: Record<string, unknown> | null; status: ContentStatus; isPublished: boolean; scheduledAt: string | null; version: number; updatedAt: string | null};
 export type Revision = {id: string; version: number; snapshot: Record<string, unknown>; reason: string; createdAt: string; actor: {username: string}};
 export type ManagedSiteContent = Record<ContentType, {items: SiteContentRow[]}>;
 

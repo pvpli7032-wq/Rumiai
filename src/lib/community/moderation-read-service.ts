@@ -25,6 +25,7 @@ export async function listModerationReports(status: string, take: number) {
     let target: unknown = null;
     if (report.targetType === 'POST') target = await db.post.findUnique({where: {id: report.targetId}, select: {id: true, content: true, status: true, author: {select: {id: true, username: true}}, circle: {select: {id: true, name: true, status: true}}}});
     else if (report.targetType === 'POST_COMMENT') target = await db.postComment.findUnique({where: {id: report.targetId}, select: {id: true, content: true, imageUrl: true, status: true, author: {select: {id: true, username: true}}, post: {select: {id: true, content: true, circle: {select: {id: true, name: true}}}}}});
+    else if (report.targetType === 'COMMENT') target = await db.comment.findUnique({where: {id: report.targetId}, select: {id: true, body: true, hiddenAt: true, author: {select: {id: true, username: true}}, character: {select: {id: true, name: true}}}}).then(comment => comment ? {...comment, content: comment.body} : null);
     else if (report.targetType === 'USER') target = await db.user.findUnique({where: {id: report.targetId}, select: {id: true, username: true, displayName: true, communityBannedAt: true, communityBanReason: true}});
     else if (report.targetType === 'CHARACTER') target = await db.character.findUnique({where: {id: report.targetId}, select: {id: true, name: true, isPublic: true, reviewStatus: true, creator: {select: {id: true, username: true}}}});
     return {...report, target};

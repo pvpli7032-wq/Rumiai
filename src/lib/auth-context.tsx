@@ -6,6 +6,8 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 interface User {
   id: string;
   username: string;
+  displayName?: string | null;
+  characterCount?: number;
   email: string;
   avatarUrl?: string | null;
   tier: string;
@@ -54,6 +56,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setIsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => {
+      const current = sessionToken.current;
+      if (current && document.visibilityState === 'visible') void fetchMe(current);
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, []);
 
   async function fetchMe(t: string) {

@@ -35,26 +35,25 @@ export function useWorkbenchData(sessionActive: boolean | undefined, permissions
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    const headers = undefined;
     const has = (permission: AdminPermission) => permissions.includes(permission);
 
     async function getJson(url: string): Promise<unknown> {
       const response = await fetch(url, {credentials: 'include', cache: 'no-store', signal: controller.signal});
       const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error((payload as {error?: string} | null)?.error || '数据读取失败。');
+      if (!response.ok) return null;
       return payload;
     }
 
     void (async () => {
       try {
         const [analytics, characters, reports, refunds, operations, models, tasks] = await Promise.all([
-          has('analytics.read') ? getJson(`${API.admin.analytics}?days=${days}`) : Promise.resolve(null),
-          has('moderation.read') ? getJson(API.admin.moderation.characters) : Promise.resolve(null),
-          has('moderation.read') ? getJson(`${API.admin.moderation.reports}?status=OPEN&limit=50`) : Promise.resolve(null),
-          has('finance.read') ? getJson(API.admin.finance.orders()) : Promise.resolve(null),
-          has('operations.read') ? getJson(API.admin.operations) : Promise.resolve(null),
-          has('ai.models.read') ? getJson(API.admin.ai.models) : Promise.resolve(null),
-          has('tasks.read') ? getJson(API.admin.tasks) : Promise.resolve(null),
+          has('analytics.read') ? getJson(`${API.admin.analytics}?days=${days}`).catch(() => null) : Promise.resolve(null),
+          has('moderation.read') ? getJson(API.admin.moderation.characters).catch(() => null) : Promise.resolve(null),
+          has('moderation.read') ? getJson(`${API.admin.moderation.reports}?status=OPEN&limit=50`).catch(() => null) : Promise.resolve(null),
+          has('finance.read') ? getJson(API.admin.finance.orders()).catch(() => null) : Promise.resolve(null),
+          has('operations.read') ? getJson(API.admin.operations).catch(() => null) : Promise.resolve(null),
+          has('ai.models.read') ? getJson(API.admin.ai.models).catch(() => null) : Promise.resolve(null),
+          has('tasks.read') ? getJson(API.admin.tasks).catch(() => null) : Promise.resolve(null),
         ]);
         if (controller.signal.aborted) return;
         setData(buildWorkbenchData({days, analytics, characters, reports, refunds, operations, models, tasks, permissions}));

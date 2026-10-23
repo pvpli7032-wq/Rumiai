@@ -63,6 +63,10 @@ export async function submitReport(reporterId: string, input: unknown) {
     const comment = await db.postComment.findUnique({ where: { id: targetId }, select: { content: true, imageUrl: true } });
     if (!comment) throw new CommunityReportError('评论不存在。', 404);
     evidenceContent = comment.content + (comment.imageUrl ? '\n\n图片：\n' + comment.imageUrl : '');
+  } else if (targetType === 'COMMENT') {
+    const comment = await db.comment.findUnique({ where: { id: targetId }, select: { body: true } });
+    if (!comment) throw new CommunityReportError('评论不存在。', 404);
+    evidenceContent = comment.body;
   }
 
   const rules = await readRateLimitRules();

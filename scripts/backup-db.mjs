@@ -10,13 +10,14 @@
 import nextEnv from '@next/env';
 import path from 'node:path';
 import { backupSqliteDatabase, resolveSqliteSource } from '../src/lib/operations/sqlite-backup.mjs';
+import {backupDirectory} from '../src/lib/operations/backup-directory.mjs';
 
 nextEnv.loadEnvConfig(process.cwd());
 try {
   const label = process.argv[2] || new Date().toISOString().replace(/[:.]/g, '-');
   if (process.argv.length > 3 || !/^[A-Za-z0-9_-]{1,80}$/.test(label)) throw Error('备份标签仅支持 1–80 位字母、数字、下划线和连字符。');
   const source = resolveSqliteSource(process.env.DATABASE_URL);
-  const target = path.resolve('prisma', 'backups', `${path.basename(source, path.extname(source))}-${label}.db`);
+  const target = path.join(backupDirectory(), `${path.basename(source, path.extname(source))}-${label}.db`);
   const report = await backupSqliteDatabase(source, target);
   console.log(`备份完成：${report.target}`);
   console.log(JSON.stringify({ integrity: report.integrity, foreignKeys: report.foreignKeys, counts: report.counts }));
