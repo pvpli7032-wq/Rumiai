@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "status": "in-progress",
+  "status": "completed-development-and-authorized-verification",
   "target": "single-repository-multiple-applications-modular-backend",
   "applications": {
     "apps/web": "User-facing pages, feature UI and site layouts",
@@ -21,11 +21,11 @@
   },
   "stages": [
     {"id": "S1", "scope": "Inventory ownership and establish workspace contracts", "status": "completed", "evidence": "docs/validation-architecture.json; docs/route-inventory.json"},
-    {"id": "S2", "scope": "Extract backend modules, infrastructure and public interfaces without rewriting working business rules", "status": "validated-local", "evidence": "845-file dependency check; 28 real SQLite membership integration tests including real route handlers and finance projections; docs/validation-architecture.json; docs/validation-memberships.json", "limitation": "Not a claim that every pre-existing business operation has been manually exercised"},
+    {"id": "S2", "scope": "Extract backend modules, infrastructure and public interfaces without rewriting working business rules", "status": "completed", "evidence": "847-file dependency check; 29 real SQLite membership integration tests plus account asset test; docs/validation-architecture.json; docs/validation-memberships.json; docs/validation-account-assets.json", "limitation": "Not a claim that every pre-existing business operation has been manually exercised"},
     {"id": "S3", "scope": "Extract independent admin application and verify session/permission isolation", "status": "validated-local", "evidence": "Independent login, ordinary user rejected, both-direction session isolation, sidebar persistence, actual profile and membership form saves; docs/validation-admin-browser.md"},
     {"id": "S4", "scope": "Extract web and API applications while preserving URLs and callbacks", "status": "validated-local", "evidence": "All 248 baseline route entries preserved; three production builds; web/API projections and membership frontend rendering verified; docs/validation-build.json; docs/validation-admin-browser.md"},
     {"id": "S5", "scope": "Extract worker and remove old duplicate execution entry", "status": "validated-local", "evidence": "docs/validation-worker.json; Windows IPC shutdown and Linux SIGTERM; no web/API timer owner"},
-    {"id": "S6", "scope": "Integrated validation, release and rollback verification", "status": "in-progress", "evidence": "docs/validation-build.json; docs/validation-admin-browser.md; docs/validation-release.json; docs/validation-server-candidate.json; docs/validation-server-public.json", "completedIncrement": "Actual shared database upgraded to 53 migrations, new version cutover, four root-owned children with one worker, public HTTP and actual-account browser workflows verified", "remaining": "Formal membership price/benefit configuration and real merchant acceptance remain unverified; real collection stays disabled. Additional backup and copy-based restoration waived by explicit user instruction; no old-version rollback claimed."}
+    {"id": "S6", "scope": "Integrated validation, release and rollback verification", "status": "completed-under-user-instructions", "evidence": "docs/validation-build.json; docs/validation-release.json; docs/validation-server-candidate.json; docs/validation-server-public.json; docs/validation-server-membership-config.json; docs/validation-user-detail-live.json", "completedIncrement": "Actual shared database upgraded to 53 migrations, new version cutover, four root-owned children with one worker, actual UI configuration and existing-user asset drawer workflows verified", "deferredNotClaimed": "Real merchant funds acceptance remains deferred because user explicitly requires collection disabled. Operator commercial price decisions are not invented. Production backup/old-version rollback not claimed: user required direct shared DB use and removal of old releases; isolated restore evidence remains valid."}
   ],
   "membershipOwnership": {
     "rules": "packages/backend/src/modules/memberships",
@@ -50,6 +50,20 @@
     "Dependency boundary checks",
     "Affected domain integration tests",
     "Applicable browser workflows and frontend/backend data association",
-    "Single task execution ownership and rollback readiness"
-  ]
+    "Single task execution ownership; isolated recovery verified; production old-version rollback superseded by explicit user instruction to use only the new version and remove old releases"
+  ],
+  "completionAudit": {
+    "date": "2026-10-23",
+    "sourceCommitBeforeThisDocumentation": "016fd28a29f9ee6dc986bd9289ea7331ad174609",
+    "requirements": {
+      "modularOwnership": "Actual applications and backend/contracts/ui packages; 847 source boundary check; old src tree removed",
+      "configurablePlans": "Monthly 30 complete 24-hour days, quarter/year defaults 90/365; actual server UI price and benefit writes verified and restored",
+      "entitlementConsumption": "Daily free replies, chat multiplier, character total cap wired into actual billing/creator transactions; membership-benefits, billing and character integration suites",
+      "paymentAndRenewal": "Server-priced immutable order snapshots, signed callback fulfillment and duplicate prevention; renewal and expired renewal exact-duration tests; paid frontend browser workflow",
+      "refunds": "Unused full refund, used one configurable 24-hour period charge, window expiry, reserved/released usage, uncertainty/rejection/retry and idempotency verified by real SQLite and signed provider test server",
+      "liveRelease": "Actual 53-migration shared DB, four children and one worker; public canonical/assets/API and existing-user browser checks passed",
+      "handoff": "Private GitHub main synchronized, code/docs and explicitly authorized runtime snapshot delivered; old releases removed; checkout database master policy disabled"
+    },
+    "notClaimed": ["Real merchant funds have been accepted or refunded", "Every unrelated administration operation has been manually verified", "Old-release production rollback has been exercised", "Test prices are final commercial prices"]
+  }
 }
