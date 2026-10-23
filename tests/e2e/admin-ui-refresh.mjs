@@ -297,10 +297,43 @@ try {
   await front.getByRole('button', {name: '跳过引导'}).click();
   assert.equal((await onboardingResponse).status(), 200);
   await front.waitForURL('**/discover');
-  const invitedAccount = await fixture.db.user.findUnique({where: {email: 'e2e-invited-user@example.test'}, select: {invitedByUserId: true, onboardedAt: true}});
+  const invitedAccount = await fixture.db.user.findUnique({where: {email: 'e2e-invited-user@example.test'}, select: {id: true, invitedByUserId: true, onboardedAt: true}});
   assert.equal(invitedAccount?.invitedByUserId, fixture.user.id);
   assert.ok(invitedAccount?.onboardedAt);
   report.interactions.inviteRegistrationOnboarding = {inviteCodeVisible: true, registration: true, attributionPersisted: true, onboardingEntered: true, skipPersisted: true, returnedToNext: true};
+
+  // Media messages use the existing authenticated upload path but never invoke the
+  // model in this test. Exercise the actual composer controls, persistence and reload.
+  await front.goto(`${webOrigin}/chat?character=${encodeURIComponent(seededContent.character.id)}&new=1`, {waitUntil: 'domcontentloaded'});
+  await front.getByLabel('选择 emoji').waitFor({state: 'visible'});
+  await front.getByLabel('选择 emoji').click();
+  await front.getByRole('button', {name: '😀'}).click();
+  assert.equal(await front.locator('form input[type="text"]').inputValue(), '😀');
+  await front.locator('form input[type="text"]').fill('');
+  await front.getByLabel('选择表情包').click();
+  const stickerWrites = [];
+  const countSticker = request => { if (request.url().includes('/messages/attachments') && request.method() === 'POST') stickerWrites.push(request); };
+  front.on('request', countSticker);
+  const stickerResponse = front.waitForResponse(response => response.url().includes('/messages/attachments') && response.request().method() === 'POST');
+  await front.getByRole('button', {name: '挥手'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await stickerResponse).status(), 201);
+  await front.waitForTimeout(200);
+  front.off('request', countSticker);
+  assert.equal(stickerWrites.length, 1);
+  const mediaConversation = await fixture.db.conversation.findFirstOrThrow({where: {userId: invitedAccount.id}, orderBy: {updatedAt: 'desc'}});
+  await front.goto(`${webOrigin}/chat?conversation=${encodeURIComponent(mediaConversation.id)}`, {waitUntil: 'domcontentloaded'});
+  await front.getByText('👋', {exact: true}).waitFor({state: 'visible'});
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  await front.locator('input[type="file"]').setInputFiles({name: 'e2e-chat.png', mimeType: 'image/png', buffer: png});
+  const imageResponse = front.waitForResponse(response => response.url().includes('/messages/attachments') && response.request().method() === 'POST');
+  await front.getByRole('button', {name: '发送'}).click();
+  assert.equal((await imageResponse).status(), 201);
+  await front.getByRole('img', {name: '用户发送的图片'}).waitFor({state: 'visible'});
+  await front.reload();
+  await front.getByText('👋', {exact: true}).waitFor({state: 'visible'});
+  await front.getByRole('img', {name: '用户发送的图片'}).waitFor({state: 'visible'});
+  assert.equal(await fixture.db.messageAttachment.count({where: {message: {conversation: {userId: invitedAccount.id}}}}), 2);
+  report.interactions.chatMedia = {emojiInserted: true, stickerPersisted: true, imageUploadedAndPersisted: true, duplicateStickerSuppressed: true, modelInvoked: false};
 
   // Login is independent from the authenticated 25-entry business navigation.
   for (const viewport of [{width: 1440, height: 1000}, {width: 390, height: 844}]) {
