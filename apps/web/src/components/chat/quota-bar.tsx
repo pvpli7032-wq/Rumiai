@@ -56,7 +56,8 @@ export function QuotaBar({quota, loading, error, insufficient, onRetry}: QuotaBa
     );
   }
 
-  const free = quota.coinsPerReply === 0;
+  const missingPrice = quota.pricing === 'NO_PRICE';
+  const free = !missingPrice && quota.coinsPerReply === 0;
   const shortOfCoins = quota.coinsPerReply > 0 && quota.freeRemaining === 0 && quota.balance < quota.coinsPerReply;
   const warnBalance = insufficient || shortOfCoins;
 
@@ -66,8 +67,8 @@ export function QuotaBar({quota, loading, error, insufficient, onRetry}: QuotaBa
         <span className="inline-flex items-center gap-1 text-zinc-300">
           <Coins aria-hidden className="h-3.5 w-3.5" />
           每条
-          <strong className={free ? 'text-emerald-300' : 'text-white'}>
-            {free ? '免费' : `${quota.coinsPerReply} 币`}
+          <strong className={missingPrice ? 'text-amber-300' : free ? 'text-emerald-300' : 'text-white'}>
+            {missingPrice ? '价格未配置，暂不可用' : free ? '免费' : `${quota.coinsPerReply} 币`}
           </strong>
         </span>
         <Dot />
@@ -90,6 +91,7 @@ export function QuotaBar({quota, loading, error, insufficient, onRetry}: QuotaBa
           </Link>
         )}
       </div>
+      {missingPrice && <p role="alert" className="mt-1 text-xs text-amber-300/90">收费已开启，但当前模型没有有效币价；系统会在调用模型前停止，不会按免费请求处理。</p>}
     </div>
   );
 }

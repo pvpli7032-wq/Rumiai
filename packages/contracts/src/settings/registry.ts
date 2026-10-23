@@ -42,7 +42,7 @@ const defs: SettingDefinition[] = [
   // ---------- 计费额度 ----------
   {key: 'billing.chargingEnabled', group: 'billing', label: '聊天收费', type: 'boolean', default: false, description: '开启后新请求按条预扣金币；关闭只停止新预扣，已预扣的按实际结果结算。', userOverridable: false, advanced: false},
   {key: 'billing.freeDailyMessages', group: 'billing', label: '每日免费回复条数', type: 'number', unit: '条', default: 0, min: 0, max: 1000, description: '每天免扣币的回复条数。0 表示没有额外免费条数。', userOverridable: true, advanced: false},
-  {key: 'billing.priceMultiplier', group: 'billing', label: '用户收费倍率', type: 'number', unit: '千分比', default: 1000, min: 0, max: 10000, description: '按千分比放大模型币价；0 表示该用户免费。只在用户特例里改。', userOverridable: true, advanced: false},
+  {key: 'billing.priceMultiplier', group: 'billing', label: '聊天价格系数（1000=原价）', type: 'number', unit: '系数', default: 1000, min: 0, max: 10000, description: '1000 是原价，800 是八折，1200 是原价的 1.2 倍，0 是明确免费。最终每条币价 = 基础币价 × 系数 ÷ 1000，并向上取整。', userOverridable: true, advanced: false},
   {key: 'billing.holdTimeoutMinutes', group: 'billing', label: '冻结检查时间', type: 'number', unit: '分钟', default: 10, min: 1, max: 1440, description: '预扣超过这个时长进入核对；触发检查不代表到时无条件退款。', userOverridable: false, advanced: true},
   {key: 'billing.targetMarginPercent', group: 'billing', label: '目标毛利', type: 'number', unit: '%', default: null, min: 0, max: 95, description: '空表示不生成建议售价；允许负责人自行定价。', userOverridable: false, advanced: true},
   {key: 'billing.marginAlertPercent', group: 'billing', label: '毛利提示线', type: 'number', unit: '%', default: 0, min: 0, max: 100, description: '低于该毛利只在后台提示，不自动停止聊天。', userOverridable: false, advanced: true},

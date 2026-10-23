@@ -91,8 +91,8 @@ export async function grantInviteRewardIfDue(invitedUserId: string): Promise<boo
 /**
  * 把注册账号归属到邀请码对应的邀请人。
  *
- * 返回邀请人 id 或 null。自己邀请自己、邀请码不存在、邀请人已注销都不记录归属，
- * 也不报错 —— 注册不能因为邀请码写错而失败。
+ * 返回邀请人 id 或 null。调用方决定是否允许无效码；注册服务把显式邀请码视为
+ * 用户要求的归属并返回可见错误，访问埋点则可安全忽略不存在或已注销的邀请码。
  */
 export async function resolveInviterId(inviteCode: string | null | undefined, newUserId: string): Promise<string | null> {
   const code = typeof inviteCode === 'string' ? inviteCode.trim().toUpperCase() : '';

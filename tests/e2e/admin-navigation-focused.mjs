@@ -15,7 +15,7 @@ mkdirSync(artifactDir, {recursive: true});
 const report = {
   scope: 'navigation-state-focused',
   buildIds: {api: process.env.API_BUILD_ID || null, admin: process.env.ADMIN_BUILD_ID || null},
-  expectedNavigationLeaves: 47,
+  expectedNavigationLeaves: 25,
   checks: [],
   dialogs: [],
   historyDebug: [],
@@ -57,15 +57,12 @@ async function waitSettings(page, tab, section) {
   assert.ok(handle);
   await page.waitForFunction(element => element.getAttribute('aria-selected') === 'true', handle);
 }
-async function waitNavBranch(page, groupLabel, entryLabel, groupExpanded, entryExpanded = groupExpanded) {
-  await page.waitForFunction(({groupLabel: groupName, entryLabel: entryName, expectedGroup, expectedEntry}) => {
+async function waitNavGroup(page, groupLabel, groupExpanded) {
+  await page.waitForFunction(({groupLabel: groupName, expectedGroup}) => {
     const group = [...document.querySelectorAll('button.admin-nav-group')]
       .find(element => element.textContent?.includes(groupName));
-    const parent = [...document.querySelectorAll('button')]
-      .find(element => element.textContent?.trim() === entryName);
-    return group?.getAttribute('aria-expanded') === expectedGroup
-      && parent?.getAttribute('aria-expanded') === expectedEntry;
-  }, {groupLabel, entryLabel, expectedGroup: groupExpanded, expectedEntry: entryExpanded}, {timeout: 5000});
+    return group?.getAttribute('aria-expanded') === expectedGroup;
+  }, {groupLabel, expectedGroup: groupExpanded}, {timeout: 5000});
 }
 
 async function newTrackedPage(name) {
@@ -196,16 +193,11 @@ try {
     await page.reload({waitUntil: 'networkidle'});
     const nav = page.locator('nav[aria-label="后台导航"]:visible').first();
     const financeGroup = nav.locator('button.admin-nav-group').filter({hasText: '财务与支付'});
-    const financeParent = nav.getByRole('button', {name: '财务工作台', exact: true});
     assert.equal(await financeGroup.getAttribute('aria-expanded'), 'true');
-    assert.equal(await financeParent.getAttribute('aria-expanded'), 'true');
-    await financeParent.click();
     await financeGroup.click();
     await page.waitForTimeout(100);
     await page.reload({waitUntil: 'networkidle'});
     assert.equal(await financeGroup.getAttribute('aria-expanded'), 'false');
-    await financeGroup.click();
-    assert.equal(await financeParent.getAttribute('aria-expanded'), 'false');
     await financeGroup.click();
     await page.getByRole('tab', {name: '退款', exact: true}).click();
     await page.waitForURL('**/admin/finance?tab=refunds');
@@ -214,35 +206,35 @@ try {
       return key ? JSON.parse(localStorage.getItem(key) || '{}') : null;
     });
     assert.ok(saved);
-    assert.equal(saved.groups.includes('finance'), false);
-    assert.equal(saved.entries.includes('/admin/finance'), false);
+    assert.equal(saved.groups.includes('finance'), true);
     await page.getByRole('button', {name: '搜索后台栏目'}).click();
     const search = page.getByRole('region', {name: '栏目快捷搜索'});
     await search.getByLabel('输入栏目名称').fill('分类标签');
     await search.getByRole('link', {name: /站点内容 · 分类标签/}).click();
     await page.waitForURL('**/admin/site-content?tab=tag');
     const contentGroup = nav.locator('button.admin-nav-group').filter({hasText: '内容与社区'});
-    const contentParent = nav.getByRole('button', {name: '站点内容', exact: true});
+    const contentParent = nav.getByRole('link', {name: '站点内容', exact: true});
     report.historyDebug.push({
       at: 'site-content-after-url-before-wait',
       groupExpanded: await contentGroup.getAttribute('aria-expanded'),
-      parentExpanded: await contentParent.getAttribute('aria-expanded'),
+      parentActive: await contentParent.getAttribute('aria-current'),
     });
     await page.waitForFunction(() => {
       const group = [...document.querySelectorAll('button.admin-nav-group')]
         .find(element => element.textContent?.includes('内容与社区'));
-      const parent = [...document.querySelectorAll('button')]
+      const parent = [...document.querySelectorAll('a')]
         .find(element => element.textContent?.trim() === '站点内容');
       return group?.getAttribute('aria-expanded') === 'true'
-        && parent?.getAttribute('aria-expanded') === 'true';
+        && parent?.getAttribute('aria-current') === 'page';
     }, undefined, {timeout: 5000});
     report.historyDebug.push({
       at: 'site-content-after-url-after-wait',
       groupExpanded: await contentGroup.getAttribute('aria-expanded'),
-      parentExpanded: await contentParent.getAttribute('aria-expanded'),
+      parentActive: await contentParent.getAttribute('aria-current'),
     });
     assert.equal(await contentGroup.getAttribute('aria-expanded'), 'true');
-    assert.equal(await contentParent.getAttribute('aria-expanded'), 'true');
+    assert.equal(await contentParent.getAttribute('aria-current'), 'page');
+    assert.equal(await nav.getByRole('link', {name: '分类标签', exact: true}).count(), 0);
     await page.screenshot({path: `${artifactDir}/nav-state-sidebar.png`, fullPage: true});
     report.checks.push({name: 'sidebar manual collapse reload/same-branch persists; different branch opens', passed: true});
     await page.close();
@@ -255,29 +247,30 @@ try {
     assert.ok(storageKey);
     await page.evaluate(key => localStorage.removeItem(key), storageKey);
 
-    // No saved preference: first entry opens both the group and its nested parent.
+    // No saved preference: first entry opens its global group, but secondary tabs stay in main.
     await page.goto(origin + '/admin/operations?tab=maintenance', {waitUntil: 'networkidle'});
-    await waitNavBranch(page, '系统与安全', '系统运行', 'true');
+    await waitNavGroup(page, '系统与安全', 'true');
     let saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key) || '{}'), storageKey);
     assert.equal(saved.lastActiveBranch, 'system:/admin/operations');
-    const operationsParent = page.getByRole('button', {name: '系统运行', exact: true});
-    await operationsParent.click();
+    const nav = page.locator('nav[aria-label="后台导航"]:visible').first();
+    assert.equal(await nav.getByRole('link', {name: '维护与证书', exact: true}).count(), 0);
+    assert.equal(await page.getByRole('tab', {name: '维护与证书', exact: true}).count(), 1);
+    await nav.locator('button.admin-nav-group').filter({hasText: '系统与安全'}).click();
     await page.reload({waitUntil: 'networkidle'});
-    await waitNavBranch(page, '系统与安全', '系统运行', 'true', 'false');
+    await waitNavGroup(page, '系统与安全', 'false');
 
     // Legacy state without lastActiveBranch migrates once, then a client branch change opens its parent.
     await page.evaluate(key => localStorage.setItem(key, JSON.stringify({groups: ['system'], entries: ['/admin/settings']})), storageKey);
     await page.goto(origin + '/admin/settings?section=chat-input', {waitUntil: 'networkidle'});
-    await waitNavBranch(page, '系统与安全', '平台设置', 'true');
+    await waitNavGroup(page, '系统与安全', 'true');
     saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key) || '{}'), storageKey);
     assert.equal(saved.lastActiveBranch, 'system:/admin/settings');
-    const nav = page.locator('nav[aria-label="后台导航"]:visible').first();
-    await nav.getByRole('button', {name: '系统运行', exact: true}).click();
-    await nav.getByRole('link', {name: '维护与证书', exact: true}).click();
+    await nav.getByRole('link', {name: '系统运行', exact: true}).click();
+    await page.getByRole('tab', {name: '维护与证书', exact: true}).click();
     await page.waitForURL('**/admin/operations?tab=maintenance');
-    await waitNavBranch(page, '系统与安全', '系统运行', 'true');
+    await waitNavGroup(page, '系统与安全', 'true');
     await page.screenshot({path: `${artifactDir}/nav-state-last-active.png`, fullPage: true});
-    report.checks.push({name: 'sidebar lastActiveBranch migration, same-branch collapse reload, and client branch auto-open', passed: true});
+    report.checks.push({name: 'sidebar group persistence, main-area secondary tabs, and client branch auto-open', passed: true});
     await page.close();
   }
 

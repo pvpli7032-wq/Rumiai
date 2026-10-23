@@ -74,6 +74,15 @@ export class InsufficientCoinsError extends Error {
   }
 }
 
+/** Charging is enabled but the selected model has no effective per-reply price. */
+export class MissingModelPriceError extends Error {
+  readonly code = 'MODEL_PRICE_NOT_CONFIGURED';
+  constructor(readonly modelKey: string | null) {
+    super(modelKey ? `模型 ${modelKey} 尚未配置每条回复币价，暂时无法生成。` : '当前模型尚未配置每条回复币价，暂时无法生成。');
+    this.name = 'MissingModelPriceError';
+  }
+}
+
 /** 报价：价格快照 + 当前业务日；/api/me/quota 与后台价格页都读这一份。 */
 export async function quote(input: {userId: string; operation: ChargeOperation; modelKey?: string | null; now?: Date}) {
   const now = input.now ?? new Date();
@@ -83,8 +92,8 @@ export async function quote(input: {userId: string; operation: ChargeOperation; 
 }
 
 /**
- * 预扣。chargingEnabled 关闭、倍率为 0 或没有可用币价时不建费用单、不动余额，
- * 返回 held=false 的回执（调用方照常生成，只记 AiCall 成本）。
+ * 预扣。chargingEnabled 关闭或倍率为 0 时不建费用单、不动余额；收费已开启但
+ * 没有币价属于配置错误，必须在调用供应商前停止，不能悄悄降级成免费生成。
  */
 export async function holdCharge(input: HoldInput): Promise<ChargeHoldResult> {
   const now = input.now ?? new Date();
@@ -96,6 +105,7 @@ export async function holdCharge(input: HoldInput): Promise<ChargeHoldResult> {
     assertSameRequest(existingRow, input, digest);
     return {...toHoldResult(existingRow, true), debited: 0};
   }
+  if (quoted.pricing === 'NO_PRICE') throw new MissingModelPriceError(quoted.modelKey);
   if (!quoted.charged) {
     const boundary = resolveBillingDayBoundary(now, quoted.timezone);
     return {

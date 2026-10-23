@@ -200,7 +200,7 @@ export function SettingsCenter() {
         }
       />
 
-      <div className="rounded-xl border border-border bg-card p-1.5 shadow-sm">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-sm">
         {tabs}
       </div>
 

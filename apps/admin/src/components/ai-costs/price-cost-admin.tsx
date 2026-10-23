@@ -182,7 +182,7 @@ export function PriceCostAdmin() {
   return (
     <AdminPage>
       <AdminPageHeader
-        eyebrow="AI 与商业"
+        eyebrow="AI 平台"
         title="价格与成本"
         description="用户付多少币、平台花多少钱、有没有收益，三个问题分开回答；收费币价与供应商成本价分列，互不覆盖。"
         actions={

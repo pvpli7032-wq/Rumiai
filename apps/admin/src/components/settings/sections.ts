@@ -31,7 +31,7 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
     {id: 'chat-frequency', title: '其他频率限制', description: '关注、举报和登录等操作的窗口与次数。', matches: starts('limits.upload.', 'limits.follow.', 'limits.report.', 'limits.login.')},
   ],
   billing: [
-    {id: 'billing-base', title: '计费基础', description: '聊天收费、免费回复、用户倍率与取消策略。', matches: exact('billing.chargingEnabled', 'billing.freeDailyMessages', 'billing.priceMultiplier', 'billing.cancelPolicy', 'billing.freeCancelPerDay')},
+    {id: 'billing-base', title: '计费基础', description: '聊天收费、免费回复、价格系数与取消策略。', matches: exact('billing.chargingEnabled', 'billing.freeDailyMessages', 'billing.priceMultiplier', 'billing.cancelPolicy', 'billing.freeCancelPerDay')},
     {id: 'billing-settlement', title: '结算与额度', description: '预扣核对、毛利提示、业务日和其他结算口径。', matches: exact('billing.holdTimeoutMinutes', 'billing.targetMarginPercent', 'billing.marginAlertPercent', 'billing.dayTimezone')},
     {id: 'billing-story', title: '故事入口与收费', description: '故事入口、故事回合收费和故事币价。', matches: exact('story.enabled', 'story.chargingEnabled', 'story.coinPrice')},
     {id: 'billing-story-runtime', title: '故事运行参数', description: '故事模板、动作建议、状态批处理和重试参数。', matches: starts('story.enabledTemplates', 'story.actionSuggestions', 'story.stateBatchSize', 'story.stateMaxAttempts')},

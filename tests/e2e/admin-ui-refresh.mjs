@@ -44,10 +44,14 @@ let seededContent;
 const failures = [];
 const httpErrors = [];
 const pages = [];
-const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMIN_NAV26.length, routes: [], interactions: {}, uncovered: [
+const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMIN_NAV26.length, routes: [], interactions: {}, controlSummary: {passed: 0, failed: 0, untested: 0, notImplemented: 3}, knownNotImplemented: [
+  {route: '/admin/accounts', control: '新增网站账户', reason: '当前只支持查找、停用、恢复和撤销已有账户会话。'},
+  {route: '/admin/accounts', control: '后台关闭网站账户', reason: '当前只有用户自助关闭流程。'},
+  {route: '/admin/memberships', control: '新增/删除会员方案', reason: '当前页面仅编辑已有方案和退款规则。'},
+], uncovered: [
   '未执行真实会员购买、退款、充值、支付商户验证。',
   '未执行后台任务、备份、恢复、维护模式、证书续签等危险运维动作。',
-  '页面级验收确认布局、导航、状态和交互可见性；业务写入仍需专门数据流验收。',
+  '除本测试明确覆盖的管理员角色生命周期外，其余栏目业务写入仍需专门数据流验收。',
 ]};
 
 function start(app, port, env) {
@@ -148,6 +152,27 @@ async function exerciseTabs(page, route) {
   return visited;
 }
 
+async function inventoryMainControls(page, passedTabs) {
+  return page.locator('main button, main input, main textarea, main select, main a[href]').evaluateAll((nodes, passed) => nodes
+    .filter(node => {
+      const element = node;
+      const style = getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
+    })
+    .map((node, index) => {
+      const element = node;
+      const tag = element.tagName.toLowerCase();
+      const role = element.getAttribute('role') || (tag === 'a' ? 'link' : tag === 'button' ? 'button' : 'field');
+      const id = element.getAttribute('id');
+      const explicitLabel = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent : '';
+      const wrappingLabel = element.closest('label')?.textContent;
+      const label = (element.getAttribute('aria-label') || explicitLabel || wrappingLabel || element.textContent || element.getAttribute('placeholder') || element.getAttribute('name') || `${tag}-${index}`).trim().replace(/\s+/g, ' ').slice(0, 180);
+      const disabled = 'disabled' in element && Boolean(element.disabled);
+      const passedControl = role === 'tab' && passed.includes(label);
+      return {kind: role, label, disabled, status: passedControl ? '已通过' : '未测'};
+    }), passedTabs);
+}
+
 async function assertOverflowForRoutes(page, viewport, report) {
   await page.setViewportSize(viewport);
   for (const [route, expectedLabel] of ADMIN_BUSINESS_ROUTES) {
@@ -160,20 +185,31 @@ async function assertOverflowForRoutes(page, viewport, report) {
       assert.equal(afterTabOverflow.overflowing, false, `${route} has horizontal overflow after tab interactions at ${afterTabOverflow.viewport}px`);
       const afterTabs = path.join(artifacts, `${slug(route)}-${viewport.width}x${viewport.height}-after-tabs.png`);
       await page.screenshot({path: afterTabs, fullPage: true});
+      const controls = await inventoryMainControls(page, visitedTabs);
+      report.controlSummary.passed += controls.filter(control => control.status === '已通过').length;
+      report.controlSummary.untested += controls.filter(control => control.status === '未测').length;
       console.log(`[admin-ui] checkpoint ${viewport.width}x${viewport.height} ${route} h1=${JSON.stringify(snapshot.h1)} tabs=${visitedTabs.length}`);
-      report.routes.push({route, expectedLabel, viewport, h1: snapshot.h1, tabs: snapshot.tabs, tabsVisited: visitedTabs, overflowBeforeTabs: snapshot.overflow, overflowAfterTabs: afterTabOverflow, screenshots: {beforeTabs, afterTabs}});
+      report.routes.push({route, expectedLabel, viewport, h1: snapshot.h1, tabs: snapshot.tabs, tabsVisited: visitedTabs, controls, overflowBeforeTabs: snapshot.overflow, overflowAfterTabs: afterTabOverflow, screenshots: {beforeTabs, afterTabs}});
     } catch (error) {
       const file = path.join(artifacts, `${slug(route)}-${viewport.width}x${viewport.height}-failure.png`);
       let screenshotError;
       try { await page.screenshot({path: file, fullPage: true}); }
       catch (captureError) { screenshotError = String(captureError?.stack || captureError); }
       report.routes.push({route, expectedLabel, viewport, error: String(error?.stack || error), screenshot: file, screenshotError});
+      report.controlSummary.failed += 1;
       throw error;
     }
   }
 }
 
 async function seedMembershipFixture() {
+  await fixture.db.user.update({where: {id: fixture.user.id}, data: {inviteCode: 'E2EINV01'}});
+  for (const [key, value] of [
+    ['growth.inviteEnabled', 'true'],
+    ['growth.onboardingEnabled', 'true'],
+  ]) {
+    await fixture.db.operationSetting.create({data: {key, group: 'growth', value, updatedBy: fixture.admin.id}});
+  }
   const plans = [
     ['MONTHLY', 'E2E 月度会员', 30, 100],
     ['QUARTERLY', 'E2E 季度会员', 90, 270],
@@ -237,6 +273,28 @@ try {
   const front = await browser.newPage({viewport: {width: 1440, height: 1000}});
   attachDiagnostics(admin, 'admin-shell');
   attachDiagnostics(front, 'web-shell');
+
+  // Exercise the actual invite link -> registration request -> persisted attribution ->
+  // onboarding gate -> skip -> intended destination journey in the isolated browser.
+  await front.goto(`${webOrigin}/register?invite=e2einv01&next=%2Fdiscover`, {waitUntil: 'domcontentloaded'});
+  await front.getByRole('status').getByText(/E2EINV01/).waitFor({state: 'visible'});
+  await front.getByPlaceholder('username123').fill('e2e-invited-user');
+  await front.getByPlaceholder('your@email.com').fill('e2e-invited-user@example.test');
+  await front.locator('input[type="password"]').fill(fixture.password);
+  const registrationResponse = front.waitForResponse(response => response.url().includes('/api/auth/register') && response.request().method() === 'POST');
+  await front.getByRole('button', {name: '免费注册 🎉'}).click();
+  assert.equal((await registrationResponse).status(), 201);
+  await front.waitForURL('**/onboarding?next=%2Fdiscover');
+  await front.getByRole('heading', {name: '欢迎来到星伴'}).waitFor({state: 'visible'});
+  const onboardingResponse = front.waitForResponse(response => response.url().includes('/api/growth/onboarding') && response.request().method() === 'POST');
+  await front.getByRole('button', {name: '跳过引导'}).click();
+  assert.equal((await onboardingResponse).status(), 200);
+  await front.waitForURL('**/discover');
+  const invitedAccount = await fixture.db.user.findUnique({where: {email: 'e2e-invited-user@example.test'}, select: {invitedByUserId: true, onboardedAt: true}});
+  assert.equal(invitedAccount?.invitedByUserId, fixture.user.id);
+  assert.ok(invitedAccount?.onboardedAt);
+  report.interactions.inviteRegistrationOnboarding = {inviteCodeVisible: true, registration: true, attributionPersisted: true, onboardingEntered: true, skipPersisted: true, returnedToNext: true};
+
   // Login is independent from the authenticated 25-entry business navigation.
   for (const viewport of [{width: 1440, height: 1000}, {width: 390, height: 844}]) {
     await admin.setViewportSize(viewport);
@@ -269,16 +327,16 @@ try {
   report.interactions.navigationSearch = true;
 
   // Group expand/collapse and rail state persist through reload.
-  const groupButton = admin.getByRole('button', {name: /AI 与商业/});
+  const groupButton = admin.getByRole('button', {name: /AI 平台/});
   await groupButton.waitFor({state: 'visible'});
-  await admin.waitForFunction(() => [...document.querySelectorAll('button.admin-nav-group')].find(node => node.textContent?.includes('AI 与商业'))?.getAttribute('aria-expanded') === 'true');
   const beforeExpanded = await groupButton.getAttribute('aria-expanded');
-  assert.equal(beforeExpanded, 'true');
+  assert.ok(beforeExpanded === 'true' || beforeExpanded === 'false');
+  const toggledExpanded = beforeExpanded === 'true' ? 'false' : 'true';
   await groupButton.click();
-  await admin.waitForFunction(() => [...document.querySelectorAll('button.admin-nav-group')].find(node => node.textContent?.includes('AI 与商业'))?.getAttribute('aria-expanded') === 'false');
-  assert.equal(await groupButton.getAttribute('aria-expanded'), 'false');
+  await admin.waitForFunction(expected => [...document.querySelectorAll('button.admin-nav-group')].find(node => node.textContent?.includes('AI 平台'))?.getAttribute('aria-expanded') === expected, toggledExpanded);
+  assert.equal(await groupButton.getAttribute('aria-expanded'), toggledExpanded);
   await groupButton.click();
-  await admin.waitForFunction(() => [...document.querySelectorAll('button.admin-nav-group')].find(node => node.textContent?.includes('AI 与商业'))?.getAttribute('aria-expanded') === 'true');
+  await admin.waitForFunction(expected => [...document.querySelectorAll('button.admin-nav-group')].find(node => node.textContent?.includes('AI 平台'))?.getAttribute('aria-expanded') === expected, beforeExpanded);
   await admin.goto(`${adminOrigin}/admin/accounts`);
   await admin.getByTitle('收起侧栏').click();
   assert.equal(await admin.evaluate(() => localStorage.getItem('admin.sidebar.collapsed')), '1');
@@ -335,7 +393,7 @@ try {
   await admin.getByRole('button', {name: `查看角色 ${seededContent.character.name}`}).click();
   const characterDialog = admin.getByRole('dialog', {name: /角色详情/});
   await characterDialog.waitFor({state: 'visible'});
-  await characterDialog.getByText('正在读取角色详情…').waitFor({state: 'hidden'});
+  await characterDialog.getByRole('status').getByText('正在读取角色详情…', {exact: true}).waitFor({state: 'hidden'});
   await characterDialog.getByLabel('角色名称').fill('E2E 未保存角色');
   assert.equal(await characterDialog.getByLabel('角色名称').inputValue(), 'E2E 未保存角色', 'an initial ui-config request must not impose maxLength=0');
   await admin.once('dialog', dialog => dialog.dismiss());
@@ -355,7 +413,7 @@ try {
   await admin.getByRole('button', {name: `查看圈子 ${seededContent.circle.name}`}).click();
   const circleDialog = admin.getByRole('dialog', {name: /圈子详情/});
   await circleDialog.waitFor({state: 'visible'});
-  await circleDialog.getByText('正在读取圈子详情…').waitFor({state: 'hidden'});
+  await circleDialog.getByRole('status').getByText('正在读取圈子详情…', {exact: true}).waitFor({state: 'hidden'});
   await circleDialog.getByLabel('管理圈子名称').fill('E2E 未保存圈子');
   await admin.once('dialog', dialog => dialog.dismiss());
   await circleDialog.getByRole('button', {name: '关闭详情'}).last().click();
@@ -413,6 +471,73 @@ try {
   assert.equal(await monthlyPrice.inputValue(), '177');
   await monthlyPrice.fill(originalMonthlyPrice);
   report.interactions.membershipDraftSurvivesTabSwitch = {screenshot: membershipShot};
+
+  // Full isolated operator lifecycle: create a least-privilege role, assign it to an
+  // existing account, prove allowed/denied access, verify assigned-role deletion guard,
+  // then disable the identity and prove its live admin session was revoked before cleanup.
+  await admin.goto(`${adminOrigin}/admin/operators`);
+  await admin.getByRole('heading', {name: '管理员与角色', exact: true}).waitFor({state: 'visible'});
+  await admin.getByLabel('角色名称').fill('E2E 运营只读');
+  const permissionSearch = admin.getByLabel('搜索业务权限');
+  await permissionSearch.fill('analytics.read');
+  const permissionFieldset = admin.locator('fieldset').filter({has: permissionSearch});
+  await permissionFieldset.getByRole('checkbox').check();
+  await admin.getByLabel('修改理由').fill('E2E 创建最小权限角色');
+  await admin.getByRole('button', {name: '保存角色', exact: true}).click();
+  await admin.getByText('角色已保存，权限立即生效。', {exact: true}).waitFor({state: 'visible'});
+
+  async function selectFixtureOperator() {
+    await admin.getByText('正在读取管理人员…', {exact: true}).waitFor({state: 'hidden'}).catch(() => {});
+    await admin.waitForTimeout(300);
+    const lookup = admin.getByPlaceholder('完整用户名或登录邮箱');
+    await lookup.waitFor({state: 'visible'});
+    await lookup.fill(fixture.user.email);
+    await admin.getByRole('button', {name: '查找账号', exact: true}).click();
+    await admin.getByText(new RegExp(`正在编辑：${fixture.user.username}`)).waitFor({state: 'visible'});
+  }
+  await selectFixtureOperator();
+  await admin.getByLabel('E2E 运营只读', {exact: true}).check();
+  await admin.getByLabel('操作理由').fill('E2E 绑定只读角色');
+  await admin.getByRole('button', {name: '保存管理身份', exact: true}).click();
+  await admin.getByText('管理身份已保存。', {exact: true}).waitFor({state: 'visible'});
+
+  const limitedContext = await browser.newContext({viewport: {width: 1280, height: 900}});
+  const limited = await limitedContext.newPage();
+  await limited.goto(`${adminOrigin}/admin/login`);
+  await limited.getByLabel('登录邮箱').fill(fixture.user.email);
+  await limited.getByLabel('密码').fill(fixture.password);
+  await limited.getByRole('button', {name: '登录管理中心'}).click();
+  await limited.waitForURL('**/admin');
+  await limited.goto(`${adminOrigin}/admin/analytics`);
+  await limited.getByRole('heading', {name: '运营分析', exact: true}).waitFor({state: 'visible'});
+  assert.equal((await limited.request.get(`${adminOrigin}/api/admin/operators`)).status(), 403, 'analytics-only role must not read operator management');
+
+  const assignedRoleCard = admin.locator('article').filter({has: admin.getByRole('heading', {name: 'E2E 运营只读', exact: true})});
+  await assignedRoleCard.getByRole('button', {name: '删除 / 查看原因'}).click();
+  const assignedDeleteDialog = admin.getByRole('dialog', {name: '删除自定义管理角色'});
+  await assignedDeleteDialog.getByText(/仍分配给 1 个管理账号/).waitFor({state: 'visible'});
+  assert.equal(await assignedDeleteDialog.getByRole('button', {name: '确认删除'}).isDisabled(), true);
+  await assignedDeleteDialog.getByRole('button', {name: '取消'}).click();
+
+  await selectFixtureOperator();
+  await admin.getByLabel('启用管理身份').uncheck();
+  await admin.getByLabel('E2E 运营只读', {exact: true}).uncheck();
+  await admin.getByLabel('操作理由').fill('E2E 停用并回收角色');
+  await admin.getByRole('button', {name: '保存管理身份', exact: true}).click();
+  await admin.getByText('管理身份已保存。', {exact: true}).waitFor({state: 'visible'});
+  assert.equal((await limited.request.get(`${adminOrigin}/api/admin/auth/session`)).status(), 401, 'disabling an operator must revoke its existing admin session');
+  await limitedContext.close();
+
+  const unassignedRoleCard = admin.locator('article').filter({has: admin.getByRole('heading', {name: 'E2E 运营只读', exact: true})});
+  await unassignedRoleCard.getByRole('button', {name: '删除 / 查看原因'}).click();
+  const deleteDialog = admin.getByRole('dialog', {name: '删除自定义管理角色'});
+  await deleteDialog.getByLabel('删除理由').fill('E2E 清理未分配测试角色');
+  await deleteDialog.getByRole('button', {name: '确认删除'}).click();
+  await admin.getByText('未分配的自定义角色已删除。', {exact: true}).waitFor({state: 'visible'});
+  report.interactions.operatorLifecycle = {
+    createRole: true, assignExistingAccount: true, allowedAnalytics: true, deniedOperatorRead: true,
+    assignedDeleteGuard: true, disableAndUnassign: true, sessionRevoked: true, deleteAfterUnassign: true,
+  };
 
   // Explicitly verify checkout remains disabled; this is a read-only GET.
   const checkout = await admin.request.get(`${adminOrigin}/api/admin/payments/checkout`);

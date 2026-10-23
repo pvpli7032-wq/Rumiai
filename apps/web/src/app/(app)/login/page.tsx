@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@web/lib/auth-context';
-import { afterLoginTarget } from '@web/lib/next-path';
+import { afterLoginTarget, onboardingTarget } from '@web/lib/next-path';
 import { AlertCircle, ArrowRight, Bot, Eye, EyeOff, MessagesSquare, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from '@rumiai/ui/button';
 import { Input } from '@rumiai/ui/input';
@@ -43,7 +43,7 @@ export default function LoginPage() {
     const result = await login(email, password);
     setLoading(false);
     if (result.success) {
-      router.push(afterLoginTarget());
+      router.push(result.onboardingRequired ? onboardingTarget(afterLoginTarget()) : afterLoginTarget());
     } else {
       setError(zhError(result.error || '') || "登录失败");
     }

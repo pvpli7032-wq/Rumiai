@@ -6,7 +6,7 @@ import {api, ApiError} from '@web/lib/api-client';
 import {API} from '@rumiai/contracts/api-paths';
 import {useAuth} from '@web/lib/auth-context';
 import {Button, Card, ErrorState, Skeleton} from '@rumiai/ui';
-import {DEFAULT_AFTER_LOGIN, loginWithNext} from '@web/lib/next-path';
+import {afterOnboardingTarget, loginWithNext} from '@web/lib/next-path';
 import {InterestStep, RecommendedStep, StartStep, StepProgress} from './onboarding-steps';
 import type {OnboardingPayload} from './types';
 
@@ -43,7 +43,7 @@ export function OnboardingFlow() {
         if (controller.signal.aborted) return;
         // 开关关闭或已经引导过：不拦人，直接放行到发现页。
         if (!data.enabled || data.completed) {
-          router.replace(DEFAULT_AFTER_LOGIN);
+          router.replace(afterOnboardingTarget());
           return;
         }
         setPayload(data);
@@ -71,7 +71,7 @@ export function OnboardingFlow() {
     try {
       await api.post(API.growth.onboarding, {interests, ...(skipped ? {skipped: true} : {})}, {token});
       // 成功后保持 busy，页面随即跳走，避免重复提交。
-      if (skipped || !characterId) router.replace(DEFAULT_AFTER_LOGIN);
+      if (skipped || !characterId) router.replace(afterOnboardingTarget());
       else router.push(`/chat?character=${encodeURIComponent(characterId)}`);
     } catch (cause) {
       setSubmitError(cause instanceof ApiError ? cause.message : '保存失败，请稍后重试。');

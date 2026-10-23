@@ -1,5 +1,5 @@
 import {db} from '@rumiai/backend/infrastructure/database/client';
-import {holdCharge, InsufficientCoinsError, ChargeRequestConflictError, readCharge, releaseCharge, settleCharge} from '@rumiai/backend/modules/billing/charge-service';
+import {holdCharge, InsufficientCoinsError, MissingModelPriceError, ChargeRequestConflictError, readCharge, releaseCharge, settleCharge} from '@rumiai/backend/modules/billing/charge-service';
 import {settleCancellation} from '@rumiai/backend/modules/billing/cancel';
 import type {ChargeHoldResult, ChargeOperation} from '@rumiai/contracts/billing/types';
 
@@ -53,6 +53,9 @@ export function toChargeError(error: unknown): ChargeErrorLike | null {
   }
   if (error instanceof ChargeRequestConflictError) {
     return {status: 409, message: error.message, body: {code: 'REQUEST_CONFLICT', error: error.message}};
+  }
+  if (error instanceof MissingModelPriceError) {
+    return {status: 503, message: error.message, body: {code: error.code, error: error.message, modelKey: error.modelKey}};
   }
   return null;
 }

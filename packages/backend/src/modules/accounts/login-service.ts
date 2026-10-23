@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import {db} from '@rumiai/backend/infrastructure/database/client';
 import {signToken, ensureAuthSigningConfiguration} from '@rumiai/backend/infrastructure/auth/auth';
 import {formatUser} from '@rumiai/backend/infrastructure/auth/user-identity';
+import {shouldStartOnboarding} from '@rumiai/backend/modules/growth/onboarding-service';
 
 export class AccountLoginError extends Error {
   constructor(message: string, public status: number) {super(message);}
@@ -19,5 +20,9 @@ export async function loginWithPassword(input: unknown) {
   const saved = await db.user.updateMany({where: {id: user.id, tokenVersion: user.tokenVersion, deletedAt: null, suspendedAt: null}, data: {lastLoginAt: now, lastActiveAt: now}});
   if (!saved.count) throw new AccountLoginError('账号状态已变化，请重新登录。', 409);
   const token = await signToken({userId: user.id, email: user.email, tokenVersion: user.tokenVersion});
-  return {token, user: formatUser({id: user.id, username: user.username, displayName: user.displayName, email: user.email, avatarUrl: user.avatarUrl, tier: user.tier, coins: user.coins, readingMode: user.readingMode, bannedWords: user.bannedWords, shortcuts: user.shortcuts, streakCount: user.streakCount, lastCheckin: user.lastCheckin, createdAt: user.createdAt})};
+  return {
+    token,
+    user: formatUser({id: user.id, username: user.username, displayName: user.displayName, email: user.email, avatarUrl: user.avatarUrl, tier: user.tier, coins: user.coins, readingMode: user.readingMode, bannedWords: user.bannedWords, shortcuts: user.shortcuts, streakCount: user.streakCount, lastCheckin: user.lastCheckin, createdAt: user.createdAt}),
+    onboardingRequired: await shouldStartOnboarding(user.onboardedAt),
+  };
 }

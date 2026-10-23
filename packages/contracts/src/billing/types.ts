@@ -57,7 +57,7 @@ export interface ChargePriceSnapshot {
   modelKey: string | null;
   /** 模型每条基础价（model_coin_prices.coins_per_reply），故事价来自 story.coinPrice。 */
   baseCoins: number;
-  /** 用户收费倍率（千分比），billing.priceMultiplier 的用户特例或公共值。 */
+  /** 聊天价格系数（1000=原价），billing.priceMultiplier 的用户特例或公共值。 */
   multiplier: number;
   membershipMultiplierOrderNo?: string | null;
   membershipDailyOrderNo?: string | null;

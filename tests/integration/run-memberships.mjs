@@ -45,7 +45,7 @@ for (const relative of tests) {
   try {
     migrate(dbPath);
     const env = {...process.env, DATABASE_URL: `file:${dbPath}`, MEMBERSHIP_INTEGRATION_DB: `file:${dbPath}`, NODE_ENV: 'test'};
-    const run = spawnSync(process.execPath, ['--experimental-default-type=module', '--test', '--test-reporter=tap', '--import', 'tsx', relative], {cwd: root, env, encoding: 'utf8'});
+    const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', '--import', 'tsx', relative], {cwd: root, env, encoding: 'utf8'});
     const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
     const parsed = counts(output);
     const summary = parsed ?? {tests: 0, pass: 0, fail: 1, cancelled: 0, skipped: 0, source: 'missing node:test TAP summary'};

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@web/lib/auth-context';
-import { afterLoginTarget } from '@web/lib/next-path';
+import { afterLoginTarget, onboardingTarget } from '@web/lib/next-path';
 
 export interface AuthCopy {
   heading: string;
@@ -47,7 +47,7 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
     const result =
       mode === 'signIn' ? await login(email, password) : await register(name, email, password);
     setLoading(false);
-    if (result.success) router.push(afterLoginTarget());
+    if (result.success) router.push(result.onboardingRequired ? onboardingTarget(afterLoginTarget()) : afterLoginTarget());
     else setError(zhError(result.error || '') || copy.genericError);
   }
 

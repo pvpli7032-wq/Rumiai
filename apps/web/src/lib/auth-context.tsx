@@ -27,8 +27,8 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (displayName: string, email: string, password: string, consents?: {ageConfirmed?:boolean;termsAccepted?:boolean;privacyAccepted?:boolean}) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; onboardingRequired?: boolean }>;
+  register: (displayName: string, email: string, password: string, consents?: {ageConfirmed?:boolean;termsAccepted?:boolean;privacyAccepted?:boolean}, inviteCode?: string) => Promise<{ success: boolean; error?: string; onboardingRequired?: boolean }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
       setToken(data.token);
       setUser(data.user);
-      return { success: true };
+      return { success: true, onboardingRequired: data.onboardingRequired === true };
     } catch {
       return { success: false, error: 'Network error' };
     }
@@ -122,12 +122,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * which is why seeded rows have handles like "张三 爱聊天" that need URL-encoding.
    * Sending `name` lets the server allocate a free handle from the email instead.
    */
-  async function register(displayName: string, email: string, password: string, consents?: {ageConfirmed?:boolean;termsAccepted?:boolean;privacyAccepted?:boolean}) {
+  async function register(displayName: string, email: string, password: string, consents?: {ageConfirmed?:boolean;termsAccepted?:boolean;privacyAccepted?:boolean}, inviteCode?: string) {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: displayName, email, password, consents }),
+          body: JSON.stringify({ name: displayName, email, password, consents, ...(inviteCode ? {inviteCode} : {}) }),
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: zhError(data.error || '') || 'Registration failed' };
@@ -135,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
       setToken(data.token);
       setUser(data.user);
-      return { success: true };
+      return { success: true, onboardingRequired: data.onboardingRequired === true };
     } catch {
       return { success: false, error: 'Network error' };
     }

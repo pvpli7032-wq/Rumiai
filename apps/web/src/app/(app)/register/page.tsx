@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@web/lib/auth-context';
-import { afterLoginTarget } from '@web/lib/next-path';
+import { afterLoginTarget, onboardingTarget } from '@web/lib/next-path';
 import { useUiConfig, readNumber } from '@web/lib/settings/use-ui-config';
 import { UserPlus, Eye, EyeOff } from 'lucide-react';
 
@@ -20,21 +20,25 @@ export default function RegisterPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
   const [policy,setPolicy]=useState<{ageGate:{enabled:boolean;minimumAge:number|null;version:string|null};termsVersion:string|null;privacyVersion:string|null}>({ageGate:{enabled:false,minimumAge:null,version:null},termsVersion:null,privacyVersion:null});
   const [policyReady,setPolicyReady]=useState(false);
   const [policyLoadError,setPolicyLoadError]=useState(false);
   const [ageConfirmed,setAgeConfirmed]=useState(false),[termsAccepted,setTermsAccepted]=useState(false),[privacyAccepted,setPrivacyAccepted]=useState(false);
-  useEffect(()=>{let active=true;void fetch('/api/compliance/registration-policy',{cache:'no-store'}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{if(active){setPolicy(data);setPolicyReady(true);}}).catch(()=>{if(active){setPolicyLoadError(true);setError('无法读取注册确认要求，请刷新页面后重试。');}});return()=>{active=false;};},[]);
+  useEffect(()=>{
+    setInviteCode(new URLSearchParams(window.location.search).get('invite')?.trim().toUpperCase() ?? '');
+    let active=true;void fetch('/api/compliance/registration-policy',{cache:'no-store'}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{if(active){setPolicy(data);setPolicyReady(true);}}).catch(()=>{if(active){setPolicyLoadError(true);setError('无法读取注册确认要求，请刷新页面后重试。');}});return()=>{active=false;};
+  },[]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     if (passwordMinLength !== undefined && password.length < passwordMinLength) { setError(`密码至少需要 ${passwordMinLength} 个字符`); return; }
     setLoading(true);
-    const result = await register(username, email, password, {ageConfirmed,termsAccepted,privacyAccepted});
+    const result = await register(username, email, password, {ageConfirmed,termsAccepted,privacyAccepted}, inviteCode || undefined);
     setLoading(false);
     if (result.success) {
-      router.push(afterLoginTarget());
+      router.push(result.onboardingRequired ? onboardingTarget(afterLoginTarget()) : afterLoginTarget());
     } else {
       setError(zhError(result.error || '') || "注册失败");
     }
@@ -60,6 +64,12 @@ export default function RegisterPage() {
             <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
               {error}
             </div>
+          )}
+
+          {inviteCode && !error && (
+            <p role="status" className="mb-4 rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-3 text-center text-sm text-purple-200">
+              正在使用邀请码 <strong>{inviteCode}</strong> 注册；提交时会验证邀请状态。
+            </p>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">

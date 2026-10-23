@@ -44,9 +44,13 @@ export async function registerAccount(input: unknown) {
     username = await allocateHandle(email.split('@')[0]);
   }
 
-  // 邀请码写错不能让注册失败：解析不出来就当没有邀请人（V3 表 22 记录分享来源）。
+  // 邀请链接是明确的注册归属，不可在失效时静默吞掉：否则页面看似接受了邀请码，
+  // 实际既没有归属也不会发奖励。没有带邀请码的普通注册仍照常进行。
   const invite = await readInviteSettings();
-  const inviterId = invite.enabled ? await resolveInviterId(typeof body.inviteCode === 'string' ? body.inviteCode : null, '') : null;
+  const inviteCode = typeof body.inviteCode === 'string' ? body.inviteCode.trim().toUpperCase() : '';
+  if (inviteCode && !invite.enabled) throw new AccountRegistrationError('邀请活动当前未开启，请移除邀请码后注册。', 409);
+  const inviterId = inviteCode ? await resolveInviterId(inviteCode, '') : null;
+  if (inviteCode && !inviterId) throw new AccountRegistrationError('邀请码无效或邀请账号已失效，请核对后重试。', 400);
 
   const passwordHash = await bcrypt.hash(password, 10);
   try {

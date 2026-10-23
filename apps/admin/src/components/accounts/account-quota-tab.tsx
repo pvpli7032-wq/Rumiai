@@ -33,6 +33,13 @@ const SOURCE_TEXT = {USER: '用户特例', GLOBAL: '继承公共值', DEFAULT: '
 /** 数值写成人话；空值代表「不设上限」，不能用 0 冒充。 */
 function quotaText(definition: SettingDefinition, value: JsonValue | undefined): string {
   if (value === null || value === undefined) return '不设上限';
+  if (definition.key === 'billing.priceMultiplier' && typeof value === 'number') {
+    if (value === 0) return '免费（系数 0；基础 10 币 → 每条 0 币）';
+    const finalExample = value > 0 ? Math.ceil(10 * value / 1000) : 0;
+    if (value === 1000) return `原价（系数 1000；基础 10 币 → 每条 ${finalExample} 币）`;
+    if (value < 1000) return `${Number((value / 100).toFixed(2))} 折（系数 ${value}；基础 10 币 → 每条 ${finalExample} 币）`;
+    return `原价的 ${Number((value / 1000).toFixed(2))} 倍（系数 ${value}；基础 10 币 → 每条 ${finalExample} 币）`;
+  }
   return definition.unit ? `${value} ${definition.unit}` : String(value);
 }
 
@@ -143,7 +150,7 @@ export function AccountQuotaTab({userId, sessionActive, permissions, onDirtyChan
   return (
     <div className="space-y-3">
       <p className="text-sm leading-6 text-muted-foreground">
-        这里只列 V3 允许按用户覆盖的额度、计费模式、折扣倍率与玩法次数。没设特例时按「继承公共值」生效，括号里是继承来的实际数值；设了特例只影响这一个用户。
+        这里只列允许按用户覆盖的额度、计费模式、价格系数与玩法次数。没设特例时按「继承公共值」生效，括号里是继承来的实际数值；设了特例只影响这一个用户。
       </p>
       {notice && <p role="status" className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">{notice}</p>}
 
