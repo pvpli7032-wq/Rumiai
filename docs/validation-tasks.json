@@ -76,6 +76,82 @@
       "isolatedDatabase": true,
       "isolatedStorage": true,
       "sourceState": "local working tree; not deployed"
+    },
+    "linux": {
+      "platform": "linux",
+      "node": "v24.19.0",
+      "passed": true,
+      "first": {
+        "exitCode": 0,
+        "summary": {
+          "rounds": 1,
+          "claimed": 6,
+          "done": 6,
+          "failed": 0,
+          "retried": 0,
+          "results": [
+            {
+              "kind": "story-state",
+              "subjectId": "sweep",
+              "outcome": "故事状态 worker 已按配置停用"
+            },
+            {
+              "kind": "dispute-sweep",
+              "subjectId": "sweep",
+              "outcome": "没有到期的评理案例"
+            },
+            {
+              "kind": "mirror-expire",
+              "subjectId": "sweep",
+              "outcome": "标记过期 0 条结果"
+            },
+            {
+              "kind": "charge-recovery",
+              "subjectId": "sweep",
+              "outcome": "核对 0 张冻结费用单，结算 0，释放 0，保留 0，转待人工核对 0"
+            },
+            {
+              "kind": "backup-cleanup",
+              "subjectId": "sweep",
+              "outcome": "备份共 0 份，未超过保留 7 份"
+            },
+            {
+              "kind": "event-cleanup",
+              "subjectId": "sweep",
+              "outcome": "按保留 180 天清理，删除 0 条玩法事件"
+            }
+          ]
+        },
+        "rows": {
+          "registeredTaskCount": 7,
+          "executedDueCount": 6,
+          "runningCount": 0,
+          "failedCount": 0,
+          "dailyBackupDeferred": true
+        }
+      },
+      "loop": {
+        "exitCode": 0,
+        "summary": {
+          "rounds": 1,
+          "claimed": 0,
+          "done": 0,
+          "failed": 0,
+          "retried": 0,
+          "results": []
+        },
+        "rows": {
+          "registeredTaskCount": 7,
+          "executedDueCount": 6,
+          "runningCount": 0,
+          "failedCount": 0,
+          "dailyBackupDeferred": true
+        }
+      },
+      "externalServicesDisabled": true,
+      "isolatedDatabase": true,
+      "isolatedStorage": true,
+      "sourceState": "local working tree; not deployed"
     }
   }
 }

@@ -36,42 +36,45 @@ database: AccountActionToken、User.emailVerifiedAt
 - email 适配器负责投递；当前仅提供显式开启的开发内存 outbox，生产不记录、不打印原始令牌。接入真实事务邮件供应商后才可把“注册后强制验证邮箱”设为上线门槛。
 - 不在 UI 或路由中复制密码规则；沿用设置中心 `accounts.passwordMinLength`。
 
-## 邀请码与上下级关系（下一批，不能等同于现有奖励链接）
+## 邀请码与上下级关系（本批已交付直接关系）
 
-建议所有者为 `packages/backend/src/modules/referrals`，而不是继续把生命周期塞进单个 `growth/invite-service.ts`：
+所有者为 `packages/backend/src/modules/referrals`；旧 `growth/invite-service.ts` 只保留奖励与兼容转接：
 
 ```text
-modules/referrals/invitation-service.ts       邀请码创建、轮换、撤销、过期
-modules/referrals/relationship-service.ts     一次绑定、自邀/成环校验、查询
+modules/referrals/service.ts                  邀请码状态、原子消费、直接关系与查询
 apps/api/.../referrals                        我的码、校验、关系列表
-apps/admin/.../referrals                      管理与审计（需独立权限）
+apps/admin/.../growth/referral-affiliate      只读关系查询与账本
 database: InviteCode、ReferralRelationship    显式状态和时间，不再只靠 User 两列
 contracts: referral requests/responses        Web/Admin 共用
 ```
 
-注册事务应在创建用户时原子消费有效邀请码并写唯一关系；数据库唯一键保证一个下级只能绑定一次。服务沿祖先链检查自邀和环路，撤销邀请码不追溯破坏既有关系。迁移时将现有 `User.inviteCode/invitedByUserId` 回填后再决定是否移除兼容字段。
+注册事务会原子消费有效邀请码并写唯一关系；数据库唯一键保证一个下级只能绑定一次。服务沿祖先链检查自邀和环路，停用邀请码不追溯破坏既有关系。迁移回填现有 `User.inviteCode/invitedByUserId`，两列暂作旧调用兼容。用户可查看/停用自己的码，并配置截止日与使用上限；后台只能查询关系，不能静默改绑。
 
-待产品确认：邀请码默认有效期、能否轮换、注册后补绑窗口、管理员能否更改已绑定关系及审计/通知规则。未确认前不实现会改变归属的管理动作。
+尚未授权的归属变更保持不实现：注册后补绑、管理员改绑、删除关系与邀请码轮换均会改变商业归属，需要另定审计和通知规则。
 
-## 网站账号创建与关闭（待安全策略确认）
+## 网站账号创建与关闭（本批已交付安全基础流程）
 
-后台目前管理既有账号状态，不应把“新增管理员”误当作“创建网站用户”。最小可逆实现应归 `modules/accounts/admin-lifecycle-service.ts`，由独立的 `accounts.create` / `accounts.close` 权限保护；创建采用一次性激活链接而不是由管理员获知用户密码，关闭沿用现有注销清理与账务保留规则，并要求理由、版本锁、二次确认和审计。
+网站用户创建与状态管理继续归现有 `modules/accounts/management-service.ts`，没有混入管理员角色模块。具备 `accounts.manage` 的操作者只能创建“待激活”账号：随机不可用初始密码、24 小时摘要令牌、用户自行设密、一次性并发消费、激活后邮箱确认。生产邮件未配置时返回明确 503，账号保持停用，不伪装已发送。软关闭要求理由与版本锁，禁止关闭当前操作者，沿用最后一个所有者保护，撤销前后台会话，只标记状态而保留关联业务数据与审计。
 
-实施前须确认：是否允许无邮箱验证创建、邀请归属由谁指定、关闭是否等同用户自助注销、待支付/退款/申诉时如何阻止、被关闭账号能否恢复以及恢复审批人。未确认前不提供会绕过验证或账务守卫的按钮。
+仍待产品确认：待支付/退款/申诉存在时是否额外阻止软关闭、关闭后的恢复审批流程、后台创建时是否允许指定邀请归属。本批没有绕过邮箱激活，也没有删除用户业务数据。
 
-## 分销（规则未定，不伪造佣金）
+## 一级分销（本批已交付账本；真实转账未接入）
 
-建议独立 `modules/affiliate`，只依赖 referrals 的只读关系查询以及订单/退款的已确认领域事件：
+独立 `modules/affiliate` 只读取 referrals 的直接关系，并由订单/退款的已确认事务事件调用：
 
 ```text
-commission-policy-service.ts   版本化层级、比例、上限、适用商品
-commission-accrual-service.ts  订单事件幂等计提、退款冲销
-commission-settlement-service.ts 冻结、可结算、已结算状态机
-withdrawal-service.ts          提现申请与审核（后续支付适配器）
-database: policy/version, accrual, reversal, settlement, withdrawal
+modules/affiliate/service.ts   设置快照、订单幂等计提、按累计退款比例冲回、查询
+settings registry/service      唯一策略编辑入口、版本冲突、历史审计与组合校验
+database                       AffiliateAccrual、AffiliateReversal
 ```
 
-必须先确认层级、每层比例、适用订单、退款等待期、税费/最低提现、结算周期与币种。真实支付/提现不得用测试成功提示代替。
+只计算直接上级，绝不向间接上级计提。公共设置以百分比展示佣金，配套配置订单类别、等待小时与最低人工处理金额；默认全部未配置且关闭，启用时缺任一项会被设置服务拒绝，比例最多两位小数。每笔订单保存基数、比例（基点）、金额、币种、关系和可结算时间快照，后续改设置不追溯旧订单。`sourceType + sourceOrderId` 防重复回调；部分/全额退款以唯一退款键累计比例冲回。
+
+账本支持 PENDING、AVAILABLE、PROCESSED 以及部分/全部冲回的查询口径，但本批没有自动提现、第三方转账或把“标记已处理”冒充真实付款。税费、收款资料、人工打款复核和真实提现供应商仍需单独决策与授权。
+
+## 会员套餐生命周期（本批已补齐）
+
+后台可新增自定义编号套餐，初始可保持未定价/停用；保存与停用沿用版本锁。删除仅允许“已停用且从未产生订单”的套餐，任何订单快照引用都会返回冲突并保留历史。没有自动填价格、权益或退款承诺。
 
 ## 增长玩法插件边界（本批已交付内建模块协议）
 

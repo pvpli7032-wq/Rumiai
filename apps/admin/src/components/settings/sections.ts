@@ -41,6 +41,7 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
   growth: [
     {id: 'growth-grant', title: '赠币', description: '注册赠币与全站、单用户日发币上限。', matches: starts('grant.')},
     {id: 'growth-invite', title: '引导与邀请', description: '新手引导、兴趣标签、邀请入口与奖励。', matches: either(starts('growth.onboardingEnabled', 'growth.interestTags', 'growth.inviteEnabled', 'growth.inviteRewardCoins'), exact('growth.eventRetentionDays'))},
+    {id: 'growth-affiliate', title: '一级分销', description: '直接上级佣金比例、参与订单、结算等待与人工处理门槛；修改仅影响新订单。', matches: starts('affiliate.')},
     {id: 'growth-mirror-entry', title: 'Mirror 使用额度', description: '他眼中的你入口、题目数量、匿名与登录次数。', matches: exact('mirror.enabled', 'mirror.questionCount', 'mirror.answerMaxChars', 'mirror.anonymousDailyLimit', 'mirror.userDailyLimit', 'mirror.compareLimit')},
     {id: 'growth-mirror-purchase', title: 'Mirror 超额与购买', description: '超额处理、购买价格、购买上限和匿名 IP 限制。', matches: exact('mirror.overLimitPolicy', 'mirror.purchaseEnabled', 'mirror.purchaseCoins', 'mirror.purchaseDailyCap', 'mirror.anonymousIpDailyLimit')},
     {id: 'growth-mirror-content', title: 'Mirror 内容与结果', description: '推广角色、问题、观察风格、结果版式与保留规则。', matches: starts('mirror.featuredCharacterIds', 'mirror.observationStyle', 'mirror.resultLayout', 'mirror.questions', 'mirror.exampleResults', 'mirror.resultRetentionDays', 'mirror.titleMaxChars', 'mirror.observationMaxChars', 'mirror.quoteMaxChars')},

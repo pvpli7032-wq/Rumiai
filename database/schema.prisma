@@ -116,6 +116,11 @@ model User {
   membershipOrders   MembershipOrder[]
   membershipUsage    MembershipUsage[]
   accountActionTokens AccountActionToken[]
+  ownedInviteCode     InviteCode?               @relation("InviteCodeOwner")
+  referralParent      ReferralRelationship?     @relation("ReferralInvitee")
+  referralChildren    ReferralRelationship[]    @relation("ReferralInviter")
+  affiliateAccruals   AffiliateAccrual[]        @relation("AffiliateBeneficiary")
+  referredAccruals    AffiliateAccrual[]        @relation("AffiliateReferredUser")
 
   @@index([createdAt, id])
   @@index([suspendedAt, deletedAt])
@@ -136,6 +141,85 @@ model AccountActionToken {
 
   @@index([userId, purpose, expiresAt])
   @@map("account_action_tokens")
+}
+
+/// Revocable, expiring invitation. Legacy User.inviteCode remains as a compatibility alias.
+model InviteCode {
+  id          String    @id @default(cuid())
+  ownerId     String    @unique @map("owner_id")
+  code        String    @unique
+  status      String    @default("ACTIVE")
+  expiresAt   DateTime? @map("expires_at")
+  maxUses     Int?      @map("max_uses")
+  usedCount   Int       @default(0) @map("used_count")
+  version     Int       @default(0)
+  disabledAt  DateTime? @map("disabled_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  owner       User      @relation("InviteCodeOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  relationships ReferralRelationship[]
+
+  @@map("invite_codes")
+}
+
+/// Immutable, direct-only inviter -> invitee attribution. One invitee can bind once.
+model ReferralRelationship {
+  id           String     @id @default(cuid())
+  inviterId    String     @map("inviter_id")
+  inviteeId    String     @unique @map("invitee_id")
+  inviteCodeId String     @map("invite_code_id")
+  boundAt      DateTime   @default(now()) @map("bound_at")
+  inviter      User       @relation("ReferralInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+  invitee      User       @relation("ReferralInvitee", fields: [inviteeId], references: [id], onDelete: Restrict)
+  inviteCode   InviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Restrict)
+  accruals     AffiliateAccrual[]
+
+  @@unique([inviterId, inviteeId])
+  @@index([inviterId, boundAt])
+  @@map("referral_relationships")
+}
+
+/// Immutable commission snapshot for one paid order. sourceType+sourceOrderId is idempotent.
+model AffiliateAccrual {
+  id                 String               @id @default(cuid())
+  sourceType         String               @map("source_type")
+  sourceOrderId      String               @map("source_order_id")
+  beneficiaryUserId String               @map("beneficiary_user_id")
+  referredUserId    String               @map("referred_user_id")
+  relationshipId    String               @map("relationship_id")
+  baseAmountCents    Int                  @map("base_amount_cents")
+  commissionBps      Int                  @map("commission_bps")
+  commissionCents    Int                  @map("commission_cents")
+  currency           String
+  status             String               @default("PENDING")
+  availableAt        DateTime             @map("available_at")
+  processedAt        DateTime?            @map("processed_at")
+  refundedBaseCents  Int                  @default(0) @map("refunded_base_cents")
+  reversedCents      Int                  @default(0) @map("reversed_cents")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  beneficiary        User                 @relation("AffiliateBeneficiary", fields: [beneficiaryUserId], references: [id], onDelete: Restrict)
+  referredUser       User                 @relation("AffiliateReferredUser", fields: [referredUserId], references: [id], onDelete: Restrict)
+  relationship       ReferralRelationship @relation(fields: [relationshipId], references: [id], onDelete: Restrict)
+  reversals          AffiliateReversal[]
+
+  @@unique([sourceType, sourceOrderId])
+  @@index([beneficiaryUserId, status, availableAt])
+  @@index([referredUserId, createdAt])
+  @@map("affiliate_accruals")
+}
+
+model AffiliateReversal {
+  id                      String           @id @default(cuid())
+  accrualId               String           @map("accrual_id")
+  refundKey               String           @unique @map("refund_key")
+  refundBaseAmountCents   Int              @map("refund_base_amount_cents")
+  reversedCommissionCents Int              @map("reversed_commission_cents")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  accrual                 AffiliateAccrual @relation(fields: [accrualId], references: [id], onDelete: Restrict)
+
+  @@index([accrualId, createdAt])
+  @@map("affiliate_reversals")
 }
 
 model AdminOperator {

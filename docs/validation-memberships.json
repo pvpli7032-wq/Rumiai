@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-23T15:24:43.465Z",
+  "generatedAt": "2026-10-23T16:19:52.870Z",
   "platform": "linux",
   "node": "v24.19.0",
-  "migrationCount": 56,
+  "migrationCount": 57,
   "database": "temporary SQLite per test; removed after each run",
   "sourceState": "local working tree; not deployed",
   "results": [

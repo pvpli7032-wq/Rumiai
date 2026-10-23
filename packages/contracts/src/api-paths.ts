@@ -18,6 +18,7 @@ export const API = {
     resetPassword: '/api/auth/password/reset',
     resendVerification: '/api/auth/email/resend',
     verifyEmail: '/api/auth/email/verify',
+    activateAccount: '/api/auth/account/activate',
   },
   site: '/api/site',
   status: '/api/operations/status',
@@ -27,6 +28,7 @@ export const API = {
   growth: {
     onboarding: '/api/growth/onboarding',
     invite: '/api/growth/invite',
+    referrals: '/api/referrals/me',
   },
   me: {
     quota: '/api/me/quota',
@@ -196,6 +198,8 @@ export const API = {
       gifts: '/api/admin/growth/gifts',
       gift: (id: string) => `/api/admin/growth/gifts/${e(id)}`,
       rewards: '/api/admin/growth/rewards',
+      referrals: '/api/admin/growth/referrals',
+      affiliate: '/api/admin/growth/affiliate',
     },
     siteContent: '/api/admin/site-content',
     siteContentType: (type: string) => `/api/admin/site-content/${e(type)}`,

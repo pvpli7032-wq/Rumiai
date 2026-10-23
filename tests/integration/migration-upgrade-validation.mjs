@@ -15,7 +15,7 @@ if (baselineListResult.status !== 0) throw new Error(baselineListResult.stderr |
 const baselineNames = [...new Set(baselineListResult.stdout.trim().split(/\r?\n/).filter(name => name.endsWith('/migration.sql')).map(name => name.split('/')[2]))].sort();
 if (baselineNames.length !== 52) throw new Error(`audited baseline expected 52 migrations, found ${baselineNames.length}`);
 for (const name of baselineNames) if (!migrations.includes(name)) throw new Error(`baseline migration missing from current tree: ${name}`);
-const expectedCurrentMigrations = ['20261023120000_memberships', '20261023170000_account_recovery', '20261023190000_message_media_and_package_benefits', '20261023210000_growth_modules_ai_price_tiers'];
+const expectedCurrentMigrations = ['20261023120000_memberships', '20261023170000_account_recovery', '20261023190000_message_media_and_package_benefits', '20261023210000_growth_modules_ai_price_tiers', '20261023220000_referrals_affiliate'];
 const currentMigrations = migrations.filter(name => !baselineNames.includes(name));
 if (JSON.stringify(currentMigrations) !== JSON.stringify(expectedCurrentMigrations)) throw new Error(`unexpected current migration set: ${currentMigrations.join(', ')}`);
 const dir = mkdtempSync(join(tmpdir(), 'rumiai-migration-upgrade-'));
@@ -61,7 +61,8 @@ try {
   const migrationCount = await prisma.$queryRawUnsafe('SELECT COUNT(*) AS count FROM _prisma_migrations');
   const membershipTables = await prisma.$queryRawUnsafe("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('membership_plans','membership_orders','membership_grants','membership_usage','membership_refunds','membership_policies')");
   const recoveryTables = await prisma.$queryRawUnsafe("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name='account_action_tokens'");
-  result = { platform: process.platform, node: process.version, passed: user.email === 'upgrade@example.test' && user.emailVerifiedAt === null && setting.value === '3' && Number(migrationCount[0].count) === migrations.length && Number(membershipTables[0].count) === 6 && Number(recoveryTables[0].count) === 1, baselineCommit, baselineMigrations: baselineNames.length, currentMigrations, finalMigrations: migrations.length, preservedUser: { id: user.id, email: user.email }, preservedSetting: { key: setting.key, value: setting.value }, membershipTableCount: Number(membershipTables[0].count), recoveryTableCount: Number(recoveryTables[0].count), sourceState: 'local working tree; not deployed' };
+  const referralTables = await prisma.$queryRawUnsafe("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('invite_codes','referral_relationships','affiliate_accruals','affiliate_reversals')");
+  result = { platform: process.platform, node: process.version, passed: user.email === 'upgrade@example.test' && user.emailVerifiedAt === null && setting.value === '3' && Number(migrationCount[0].count) === migrations.length && Number(membershipTables[0].count) === 6 && Number(recoveryTables[0].count) === 1 && Number(referralTables[0].count) === 4, baselineCommit, baselineMigrations: baselineNames.length, currentMigrations, finalMigrations: migrations.length, preservedUser: { id: user.id, email: user.email }, preservedSetting: { key: setting.key, value: setting.value }, membershipTableCount: Number(membershipTables[0].count), recoveryTableCount: Number(recoveryTables[0].count), referralTableCount: Number(referralTables[0].count), sourceState: 'local working tree; not deployed' };
   console.log(JSON.stringify(result));
   if (!result.passed) process.exitCode = 1;
 } catch (error) {

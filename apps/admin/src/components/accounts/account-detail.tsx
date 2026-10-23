@@ -56,7 +56,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   const profileDirty = profile.username !== user.username || profile.displayName !== (user.displayName ?? '') || profile.avatarUrl !== (user.avatarUrl ?? '') || Boolean(profileReason.trim());
   const actionDirty = Boolean(reason.trim());
   useEffect(() => onDirtyChange?.(profileDirty || actionDirty || quotaDirty), [profileDirty, actionDirty, quotaDirty, onDirtyChange]);
-  const actions: AccountAction[] = user.deletedAt ? [] : [...(permissions.includes('accounts.manage') ? [user.suspendedAt ? 'RESTORE' as const : 'SUSPEND' as const] : []), ...(permissions.includes('accounts.community.manage') ? [user.communityBannedAt ? 'UNBAN_COMMUNITY' as const : 'BAN_COMMUNITY' as const] : []), ...(permissions.includes('accounts.sessions.revoke') ? ['REVOKE_SESSIONS' as const] : [])];
+  const actions: AccountAction[] = user.deletedAt ? [] : [...(permissions.includes('accounts.manage') ? [user.suspendedAt ? 'RESTORE' as const : 'SUSPEND' as const, 'CLOSE' as const] : []), ...(permissions.includes('accounts.community.manage') ? [user.communityBannedAt ? 'UNBAN_COMMUNITY' as const : 'BAN_COMMUNITY' as const] : []), ...(permissions.includes('accounts.sessions.revoke') ? ['REVOKE_SESSIONS' as const] : [])];
   const [action, setAction] = useState<AccountAction | ''>(actions[0] ?? '');
   const selectedAction = actions.includes(action as AccountAction) ? action as AccountAction : actions[0];
   async function run(target: AccountAction) {
@@ -65,7 +65,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!selectedAction || busy) return;
-    if (selectedAction === 'SUSPEND' || selectedAction === 'REVOKE_SESSIONS') { setConfirming(selectedAction); return; }
+    if (selectedAction === 'SUSPEND' || selectedAction === 'CLOSE' || selectedAction === 'REVOKE_SESSIONS') { setConfirming(selectedAction); return; }
     await run(selectedAction);
   }
   async function saveProfile(event: FormEvent) {

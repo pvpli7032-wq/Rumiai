@@ -8,9 +8,10 @@
     "20261023120000_memberships",
     "20261023170000_account_recovery",
     "20261023190000_message_media_and_package_benefits",
-    "20261023210000_growth_modules_ai_price_tiers"
+    "20261023210000_growth_modules_ai_price_tiers",
+    "20261023220000_referrals_affiliate"
   ],
-  "finalMigrations": 56,
+  "finalMigrations": 57,
   "preservedUser": {
     "id": "upgrade-user-1",
     "email": "upgrade@example.test"
@@ -21,5 +22,6 @@
   },
   "membershipTableCount": 6,
   "recoveryTableCount": 1,
+  "referralTableCount": 4,
   "sourceState": "local working tree; not deployed"
 }

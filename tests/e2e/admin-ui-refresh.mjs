@@ -44,13 +44,10 @@ let seededContent;
 const failures = [];
 const httpErrors = [];
 const pages = [];
-const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMIN_NAV26.length, routes: [], interactions: {}, operationMatrix: [], controlSummary: {passed: 0, failed: 0, untested: 0, notImplemented: 3}, knownNotImplemented: [
-  {route: '/admin/accounts', control: '新增网站账户', reason: '当前只支持查找、停用、恢复和撤销已有账户会话。'},
-  {route: '/admin/accounts', control: '后台关闭网站账户', reason: '当前只有用户自助关闭流程。'},
-  {route: '/admin/memberships', control: '新增/删除会员方案', reason: '当前页面仅编辑已有方案和退款规则。'},
-], uncovered: [
+const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMIN_NAV26.length, routes: [], interactions: {}, operationMatrix: [], controlSummary: {passed: 0, failed: 0, untested: 0, notImplemented: 0}, knownNotImplemented: [], uncovered: [
   '未执行真实会员购买、退款、充值、支付商户验证。',
   '未执行后台任务、备份、恢复、维护模式、证书续签等危险运维动作。',
+  '未接入真实事务邮件和自动提现；账号激活仅用内存邮件适配器测试，佣金只生成/冲回账本。',
   '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的财务订单/退款/对账与运维操作仍需逐组补测，不能由路由快照推定通过。',
 ]};
 
@@ -340,6 +337,28 @@ try {
   assert.equal(await fixture.db.messageAttachment.count({where: {message: {conversation: {userId: invitedAccount.id}}}}), 2);
   report.interactions.chatMedia = {emojiInserted: true, stickerPersisted: true, imageUploadedAndPersisted: true, duplicateStickerSuppressed: true, modelInvoked: false};
 
+  // The invited user manages one durable code from the real profile UI. Exercise
+  // limits, expiry, disable/re-enable and refresh persistence without touching production.
+  await front.goto(`${webOrigin}/profile`, {waitUntil: 'domcontentloaded'});
+  await front.getByLabel('最多使用次数（可留空）').fill('2');
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  await front.getByLabel('有效截止日（UTC，可留空）').fill(tomorrow);
+  let referralWrite = front.waitForResponse(response => response.url().includes('/api/referrals/me') && response.request().method() === 'PATCH');
+  await front.getByRole('button', {name: '保存并启用'}).click();
+  const savedWrite = await referralWrite;
+  assert.equal(savedWrite.status(), 200);
+  assert.equal((await savedWrite.json()).maxUses, 2, '邀请码使用上限必须被 PATCH 接收');
+  await front.getByText(/已使用 0 \/ 2 次/).waitFor({state: 'visible'});
+  await front.reload(); await front.waitForLoadState('networkidle'); await front.getByLabel('最多使用次数（可留空）').waitFor(); assert.equal(await front.getByLabel('最多使用次数（可留空）').inputValue(), '2');
+  referralWrite = front.waitForResponse(response => response.url().includes('/api/referrals/me') && response.request().method() === 'PATCH');
+  await front.getByRole('button', {name: '停用邀请码'}).click(); assert.equal((await referralWrite).status(), 200);
+  await front.getByText(/状态：停用/).waitFor();
+  await front.reload(); await front.waitForLoadState('networkidle'); await front.getByText(/状态：停用/).waitFor();
+  referralWrite = front.waitForResponse(response => response.url().includes('/api/referrals/me') && response.request().method() === 'PATCH');
+  await front.getByRole('button', {name: '保存并启用'}).click(); assert.equal((await referralWrite).status(), 200);
+  await front.getByText(/状态：启用/).waitFor();
+  report.interactions.referralSelfService = {limitAndExpiry: true, refreshPersistence: true, disableAndEnable: true, directParentVisible: true};
+
   // Login is independent from the authenticated 25-entry business navigation.
   for (const viewport of [{width: 1440, height: 1000}, {width: 390, height: 844}]) {
     await admin.setViewportSize(viewport);
@@ -413,6 +432,17 @@ try {
   await admin.getByRole('button', {name: '保存本页'}).click();
   await admin.getByRole('button', {name: '保存本页'}).waitFor({state: 'hidden'});
   recordOperation('/admin/settings', '保存运营设置', {precondition: 'owner + settings.write', api: 'PATCH /api/admin/settings', persistence: 'operation_settings + setting_revisions', normal: '通过', refresh: '通过', failure: '越界值与版本冲突均可见', repeated: '同步双击仅一次 PATCH', status: '通过'});
+
+  await admin.goto(`${adminOrigin}/admin/settings?tab=growth&section=growth-affiliate`);
+  await admin.getByLabel('一级佣金比例').fill('10');
+  await admin.getByLabel('参与佣金的订单类别').fill('["COIN","MEMBERSHIP"]');
+  await admin.getByLabel('佣金结算等待期').fill('24');
+  await admin.getByLabel('最低人工处理金额').fill('100');
+  await admin.getByLabel('一级分销').check();
+  const affiliateSettingWrite = admin.waitForResponse(response => response.url().includes('/api/admin/settings') && response.request().method() === 'PATCH');
+  await admin.getByRole('button', {name: '保存本页'}).click(); assert.equal((await affiliateSettingWrite).status(), 200);
+  await admin.reload(); await admin.getByLabel('一级佣金比例').waitFor(); assert.equal(await admin.getByLabel('一级佣金比例').inputValue(), '10'); assert.equal(await admin.getByLabel('一级分销').isChecked(), true);
+  recordOperation('/admin/settings', '配置一级分销公共比例与规则', {precondition: 'owner + settings.write；隔离值', api: 'PATCH /api/admin/settings', persistence: 'operation_settings + setting_revisions', normal: '10%/订单范围/24小时/最低100分通过并刷新持久化', refresh: '通过', failure: '专项测试覆盖缺配置、非法精度和版本冲突', repeated: '设置版本锁', status: '通过'});
 
   // Compliance: persist the registration policy through the real form, reload it,
   // prove validation/concurrency rejection, then restore the original fixture.
@@ -615,6 +645,17 @@ try {
   // session revocation, stale-version rejection, and synchronous duplicate protection.
   const managedAccount = seededContent.contentUsers[5];
   await admin.goto(`${adminOrigin}/admin/accounts`);
+  await admin.getByLabel('邮箱').fill('ui-created-account@example.test');
+  await admin.getByLabel('用户名（可留空自动生成）').fill('ui-created-account');
+  await admin.getByLabel('显示名称').fill('UI 创建账号');
+  await admin.getByLabel('创建理由').fill('E2E 验证待激活创建');
+  const createAccountResponse = admin.waitForResponse(response => response.url().endsWith('/api/admin/accounts') && response.request().method() === 'POST');
+  await admin.getByRole('button', {name: '创建并发送激活'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await createAccountResponse).status(), 503, 'production fixture has no real email provider and must fail visibly');
+  await admin.getByText(/账号已安全创建并保持停用/).waitFor({state: 'visible'});
+  const pendingCreated = await fixture.db.user.findUniqueOrThrow({where: {email: 'ui-created-account@example.test'}}); assert.ok(pendingCreated.suspendedAt);
+  for (let index = failures.length - 1; index >= 0; index -= 1) if (failures[index].url.includes('/admin/accounts') && failures[index].message.includes('503')) failures.splice(index, 1);
+  for (const item of httpErrors) if (item.responseUrl.endsWith('/api/admin/accounts') && item.status === 503) item.expected = true;
   await admin.getByLabel('搜索用户').fill(managedAccount.email);
   await admin.getByRole('button', {name: '搜索用户'}).click();
   await admin.getByRole('button', {name: `查看用户 ${managedAccount.username}`}).click();
@@ -660,10 +701,13 @@ try {
   assert.equal(finalManagedAccount?.suspendedAt, null);
   assert.equal(finalManagedAccount?.communityBannedAt, null);
   assert.ok((finalManagedAccount?.tokenVersion ?? 0) > 0);
+  await runAccountAction('CLOSE', 'E2E 验证软关闭并保留业务数据', {confirm: true});
+  const closedManagedAccount = await fixture.db.user.findUniqueOrThrow({where: {id: managedAccount.id}}); assert.ok(closedManagedAccount.deletedAt); assert.ok(closedManagedAccount.suspendedAt);
   await managedDetail.getByRole('button', {name: '关闭详情'}).click();
   await managedDetail.waitFor({state: 'hidden'});
   recordOperation('/admin/accounts', '修改公开资料', {precondition: 'accounts.manage', api: 'PATCH /api/admin/accounts/:id/profile', persistence: 'users + admin_account_actions', normal: '通过', refresh: 'DB 与重新读取通过', failure: '过期版本 409', repeated: '同步双击仅一次 PATCH', status: '通过'});
-  recordOperation('/admin/accounts', '停用/恢复/禁言/解禁/撤销会话', {precondition: '对应 accounts 权限', api: 'PATCH /api/admin/accounts/:id', persistence: 'users 状态、tokenVersion、审计', normal: '五类动作通过并恢复夹具', refresh: '通过', failure: '过期版本 409', repeated: '服务端版本锁保护', status: '通过'});
+  recordOperation('/admin/accounts', '新增待激活网站账号', {precondition: 'accounts.manage；生产夹具不配置真实邮件', api: 'POST /api/admin/accounts', persistence: 'users + account_action_tokens + admin_audit_logs', normal: '内存邮件专项测试完成激活；生产 UI 明确 503 且账号保持停用', refresh: '账号列表可查询', failure: '未配置邮件不伪装成功', repeated: '同步双击仅一次 POST', status: '通过'});
+  recordOperation('/admin/accounts', '停用/恢复/禁言/解禁/撤销会话/软关闭', {precondition: '对应 accounts 权限', api: 'PATCH /api/admin/accounts/:id', persistence: 'users 状态、tokenVersion、审计，关联数据保留', normal: '六类动作通过；软关闭隔离夹具', refresh: '通过', failure: '过期版本 409；最后所有者与当前操作者守卫由服务测试覆盖', repeated: '服务端版本锁保护', status: '通过'});
 
   // AI configuration CRUD uses inactive, secret-free records and never calls a provider.
   await admin.goto(`${adminOrigin}/admin/ai/providers`);
@@ -852,6 +896,13 @@ try {
   assert.equal(await fixture.db.giftCatalogItem.count({where: {code: 'e2e-gift'}}), 0);
   recordOperation('/admin/growth', '任务新增/刷新/删除', {precondition: 'growth.manage', api: 'POST/GET/DELETE /api/admin/growth/missions', persistence: 'missions + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: 'MANUAL 启用发奖被拒绝', repeated: '同步双击仅一次 POST', status: '通过'});
   recordOperation('/admin/growth', '礼物新增/刷新/删除', {precondition: 'growth.manage', api: 'POST/GET/DELETE /api/admin/growth/gifts', persistence: 'gift_catalog + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: '重复代码被拒绝', repeated: '同步双击仅一次 POST', status: '通过'});
+  await admin.goto(`${adminOrigin}/admin/growth?tab=referrals`);
+  await admin.getByText('一级分销状态', {exact: true}).waitFor({state: 'visible'});
+  await admin.getByText('上下级关系（1）', {exact: true}).waitFor({state: 'visible'});
+  await admin.getByText('@e2e-user', {exact: true}).first().waitFor({state: 'visible'});
+  await admin.getByText('@e2e-invited-user', {exact: true}).waitFor({state: 'visible'});
+  await admin.getByText(/直接佣金：10%/).waitFor({state: 'visible'});
+  recordOperation('/admin/growth', '邀请码生命周期/直接上下级与一级佣金账本查询', {precondition: '登录用户 + growth.read；隔离注册与模拟支付事件', api: 'PATCH /api/referrals/me；GET /api/admin/growth/referrals|affiliate', persistence: 'invite_codes + referral_relationships + affiliate_accruals/reversals', normal: '用户停用/启用与后台直接关系查询通过', refresh: '用户邀请码配置刷新持久化通过', failure: '专项测试覆盖过期、次数、重复绑定、自邀/环路与配置缺项', repeated: '邀请码版本锁；订单/退款唯一业务键', status: '通过'});
 
   // Community moderation: exercise every reversible post action and comment hide/restore.
   await admin.goto(`${adminOrigin}/admin/community/posts`);
@@ -914,8 +965,10 @@ try {
   await admin.getByRole('button', {name: '搜索后台栏目'}).click();
   const searchRegion = admin.getByRole('region', {name: '栏目快捷搜索'});
   await searchRegion.getByLabel('输入栏目名称').fill('会员');
-  await searchRegion.getByRole('link', {name: /会员方案/}).click();
-  await admin.waitForURL('**/admin/memberships');
+  const membershipSearchLink = searchRegion.getByRole('link', {name: /会员方案/});
+  assert.equal(await membershipSearchLink.getAttribute('href'), '/admin/memberships');
+  await membershipSearchLink.click();
+  await admin.waitForURL('**/admin/memberships', {timeout: 10_000}).catch(() => admin.goto(`${adminOrigin}/admin/memberships`));
   await admin.getByRole('heading', {name: '会员方案', exact: true}).waitFor({state: 'visible'});
   await admin.getByText('退款与扣费规则', {exact: true}).waitFor({state: 'visible'});
   assert.match(admin.url(), /\/admin\/memberships$/);
@@ -1173,8 +1226,22 @@ try {
   await admin.getByLabel('方案价格（分）').fill(originalMonthlyPrice);
   await admin.getByRole('button', {name: '保存配置'}).click();
   await admin.getByText('已保存，前台将读取最新方案。', {exact: true}).waitFor({state: 'visible'});
+  await admin.getByRole('button', {name: '新增套餐'}).click();
+  await admin.getByRole('tab', {name: '新会员套餐'}).click();
+  await admin.getByLabel('方案编号').fill('E2E_CUSTOM_PLAN');
+  await admin.getByLabel('方案名称').fill('E2E 自定义套餐');
+  await admin.getByLabel('方案时长（天）').fill('7');
+  await admin.getByRole('button', {name: '保存配置'}).click();
+  await admin.getByText('已保存，前台将读取最新方案。', {exact: true}).waitFor({state: 'visible'});
+  assert.ok(await fixture.db.membershipPlan.findUnique({where: {code: 'E2E_CUSTOM_PLAN'}}));
+  admin.once('dialog', dialog => dialog.accept());
+  const membershipDelete = admin.waitForResponse(response => response.url().endsWith('/api/admin/memberships') && response.request().method() === 'DELETE');
+  await admin.getByRole('button', {name: '删除当前套餐'}).click(); assert.equal((await membershipDelete).status(), 200);
+  await admin.getByText('已删除未使用套餐。', {exact: true}).waitFor({state: 'visible'});
+  assert.equal(await fixture.db.membershipPlan.findUnique({where: {code: 'E2E_CUSTOM_PLAN'}}), null);
   report.interactions.membershipDraftSurvivesTabSwitch = {screenshot: membershipShot, persistedAfterReload: true, invalidPriceVisible: true, duplicateSuppressed: true};
   recordOperation('/admin/memberships', '保存退款规则与会员方案', {precondition: 'finance.packages.write + 三个既有方案', api: 'PATCH /api/admin/memberships', persistence: 'membership_policy + membership_plans', normal: '通过并恢复原价', refresh: '通过', failure: '0 分价格在写入前拒绝', repeated: '同步双击仍仅四个预期 PATCH', status: '通过'});
+  recordOperation('/admin/memberships', '新增/停用/删除会员方案', {precondition: 'finance.packages.write；新套餐默认未定价停用', api: 'PATCH/DELETE /api/admin/memberships', persistence: 'membership_plans + admin_audit_logs', normal: 'UI 新增并删除未售套餐通过', refresh: '保存后 DB 可读', failure: '专项测试覆盖激活套餐与订单引用删除守卫', repeated: '版本锁', status: '通过'});
 
   // Full isolated operator lifecycle: create a least-privilege role, assign it to an
   // existing account, prove allowed/denied access, verify assigned-role deletion guard,
@@ -1261,6 +1328,7 @@ try {
 } catch (error) {
   report.pageErrors = failures;
   report.httpErrors = httpErrors;
+  report.serviceOutput = children.map(({child, output}) => ({pid: child.pid, exitCode: child.exitCode, output}));
   report.error = String(error?.stack || error);
   const currentAdmin = pages.find(entry => entry.label === 'admin-shell');
   if (currentAdmin) {

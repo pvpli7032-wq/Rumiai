@@ -20,3 +20,8 @@ export interface InvitePayload {
   link: string | null;
   rewardCoins: number;
 }
+export interface ReferralPayload {
+  code: {id: string; code: string; status: string; expiresAt: string | null; maxUses: number | null; usedCount: number; version: number};
+  parent: {boundAt: string; inviter: {id: string; username: string; displayName: string | null}} | null;
+  children: {boundAt: string; invitee: {id: string; username: string; displayName: string | null}}[];
+}

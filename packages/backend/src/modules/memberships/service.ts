@@ -6,9 +6,9 @@ import {readSettingValue} from '@rumiai/backend/modules/settings/service';
 import {MEMBERSHIP_BENEFIT_RULES, type MembershipBenefit, type MembershipBenefitKey, type MembershipPlanPublic, type MembershipPolicyPublic, type MembershipRefundQuote} from '@rumiai/contracts/memberships';
 import type {MembershipCurrent} from '@rumiai/contracts/memberships';
 import type {AdminAccountMembershipOrder, AdminAccountMembershipUsage} from '@rumiai/contracts/admin/account-assets';
+import {recordAffiliateOrderPaidInTransaction, recordAffiliateRefundInTransaction} from '@rumiai/backend/modules/affiliate/service';
 
 const DEFAULT_POLICY = {refundWindowHours: 24, usageChargePeriodHours: 24};
-const PLAN_CODES = new Set(['MONTHLY', 'QUARTERLY', 'YEARLY']);
 /** Only these codes are executable by the product. Unknown codes are rejected at write time. */
 export const SUPPORTED_BENEFIT_CODES = new Set(Object.keys(MEMBERSHIP_BENEFIT_RULES));
 
@@ -114,7 +114,7 @@ function reason(value: unknown): string {
 }
 
 function validDuration(code: string, days: number) {
-  if (!PLAN_CODES.has(code) || !Number.isSafeInteger(days) || days < 1 || days > 3660) throw new MembershipError('会员套餐编号或时长无效。');
+  if (!/^[A-Z][A-Z0-9_]{1,29}$/.test(code) || !Number.isSafeInteger(days) || days < 1 || days > 3660) throw new MembershipError('会员套餐编号或时长无效。');
   if (code === 'MONTHLY' && days !== 30) throw new MembershipError('月会员时长固定为 30 个 24 小时周期。');
 }
 
@@ -141,6 +141,23 @@ export async function saveMembershipPlan(actorId: string, input: {id?: string; c
     const saved = before ? await tx.membershipPlan.update({where: {id: before.id}, data: {code, name: input.name.trim(), durationDays: input.durationDays, priceCents: input.priceCents, benefitsJson: JSON.stringify(parsedBenefits), isActive: input.isActive, sortOrder: input.sortOrder ?? 0, version: {increment: 1}}}) : await tx.membershipPlan.create({data: {code, name: input.name.trim(), durationDays: input.durationDays, priceCents: input.priceCents, benefitsJson: JSON.stringify(parsedBenefits), isActive: input.isActive, sortOrder: input.sortOrder ?? 0, version: 1}});
     await recordAdminAudit(tx, actorId, before ? 'UPDATE_MEMBERSHIP_PLAN' : 'CREATE_MEMBERSHIP_PLAN', saved.id, explanation, {before: before ? publicPlan(before) : null, after: publicPlan(saved)});
     return publicPlan(saved);
+  });
+}
+
+/** Only an inactive, never-purchased plan can be removed; historical snapshots remain protected. */
+export async function deleteMembershipPlan(actorId: string, input: {id: string; version: number; reason: string}) {
+  const explanation = reason(input.reason);
+  if (!input.id || !Number.isSafeInteger(input.version)) throw new MembershipError('会员套餐删除参数无效。');
+  return db.$transaction(async tx => {
+    await requireFinance(actorId, tx);
+    const plan = await tx.membershipPlan.findUnique({where: {id: input.id}, include: {_count: {select: {orders: true}}}});
+    if (!plan) throw new MembershipError('会员套餐不存在。', 404);
+    if (plan.version !== input.version) throw new MembershipError('会员套餐已被其他人修改，请刷新。', 409, 'VERSION_CONFLICT');
+    if (plan.isActive) throw new MembershipError('请先停用套餐再删除。', 409, 'PLAN_ACTIVE');
+    if (plan._count.orders) throw new MembershipError('该套餐已有订单快照，必须保留历史记录。', 409, 'PLAN_REFERENCED');
+    await tx.membershipPlan.delete({where: {id: plan.id}});
+    await recordAdminAudit(tx, actorId, 'DELETE_MEMBERSHIP_PLAN', plan.id, explanation, {before: publicPlan(plan), orders: plan._count.orders});
+    return {id: plan.id, deleted: true};
   });
 }
 
@@ -180,6 +197,7 @@ export async function markMembershipPaidInTransaction(tx: Prisma.TransactionClie
     const expiresAt = new Date(startsAt.getTime() + order.durationDays * 86_400_000);
     const grant = await tx.membershipGrant.create({data: {orderId: order.id, userId: order.userId, startsAt, expiresAt, benefitsJson: order.benefitsJson}});
     await tx.membershipOrder.update({where: {id: order.id}, data: {status: 'PAID', paidAt}});
+    await recordAffiliateOrderPaidInTransaction(tx, {sourceType: 'MEMBERSHIP', sourceOrderId: order.id, buyerId: order.userId, amountCents: order.amountCents, currency: 'CNY', paidAt});
     return grant;
 }
 
@@ -259,6 +277,7 @@ export async function completeMembershipRefund(orderNo: string, providerRefundNo
     if (order.refund.status === 'COMPLETED') return order.refund;
     const refund = await tx.membershipRefund.update({where: {id: order.refund.id}, data: {status: 'COMPLETED', providerRefundNo, completedAt: new Date()}});
     await tx.membershipOrder.update({where: {id: order.id}, data: {status: 'REFUNDED'}});
+    await recordAffiliateRefundInTransaction(tx, {sourceType: 'MEMBERSHIP', sourceOrderId: order.id, refundKey: `membership:${order.refund.id}`, refundAmountCents: refund.amountCents});
     if (order.paymentOrder && order.paymentOrder.status !== 'REFUNDED') {
       await tx.paymentOrder.update({where: {id: order.paymentOrder.id}, data: {status: 'REFUNDED'}});
     }

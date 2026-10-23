@@ -1,4 +1,4 @@
-export type AccountEmailPurpose = 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+export type AccountEmailPurpose = 'EMAIL_VERIFICATION' | 'PASSWORD_RESET' | 'ACCOUNT_ACTIVATION';
 
 export type AccountEmailMessage = {
   email: string;

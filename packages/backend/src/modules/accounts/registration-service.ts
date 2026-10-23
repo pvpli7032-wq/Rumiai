@@ -4,7 +4,8 @@ import { ensureAuthSigningConfiguration } from '@rumiai/backend/infrastructure/a
 import { allocateHandle, isUniqueViolation, validateUsername } from '@rumiai/backend/infrastructure/auth/user-identity';
 import { recordRegistrationConsents, RegistrationConsentError } from '@rumiai/backend/modules/compliance/policy-service';
 import { readRegistrationRules } from '@rumiai/backend/modules/settings/index';
-import { readInviteSettings, resolveInviterId } from '@rumiai/backend/modules/growth/invite-service';
+import { readInviteSettings } from '@rumiai/backend/modules/growth/invite-service';
+import {bindReferralInTransaction, resolveInvitation, ReferralError} from '@rumiai/backend/modules/referrals/service';
 import { recordProductEvent } from '@rumiai/backend/modules/analytics/product-events';
 
 /** 72 是 bcrypt 的输入上限，属于算法约束，不是运营参数。 */
@@ -49,18 +50,25 @@ export async function registerAccount(input: unknown) {
   const invite = await readInviteSettings();
   const inviteCode = typeof body.inviteCode === 'string' ? body.inviteCode.trim().toUpperCase() : '';
   if (inviteCode && !invite.enabled) throw new AccountRegistrationError('邀请活动当前未开启，请移除邀请码后注册。', 409);
-  const inviterId = inviteCode ? await resolveInviterId(inviteCode, '') : null;
-  if (inviteCode && !inviterId) throw new AccountRegistrationError('邀请码无效或邀请账号已失效，请核对后重试。', 400);
+  let inviterId: string | null = null;
+  if (inviteCode) {
+    try { inviterId = (await resolveInvitation(inviteCode)).ownerId; }
+    catch (error) { if (error instanceof ReferralError) throw new AccountRegistrationError(error.message, error.status); throw error; }
+  }
 
   const passwordHash = await bcrypt.hash(password, 10);
   try {
     return await db.$transaction(async tx => {
       const user = await tx.user.create({
-        data: { username, displayName: displayName || null, email, passwordHash, coins: rules.signupBonusCoins, tier: 'ROOKIE', invitedByUserId: inviterId },
+        data: { username, displayName: displayName || null, email, passwordHash, coins: rules.signupBonusCoins, tier: 'ROOKIE' },
         select: { id: true, username: true, displayName: true, tokenVersion: true, email: true, avatarUrl: true, tier: true, coins: true, streakCount: true, createdAt: true },
       });
       try { await recordRegistrationConsents(tx, user.id, body.consents); }
       catch (error) { if (error instanceof RegistrationConsentError) throw new AccountRegistrationError(error.message, 400); throw error; }
+      if (inviteCode) {
+        try { await bindReferralInTransaction(tx, {inviteCode, inviteeId: user.id}); }
+        catch (error) { if (error instanceof ReferralError) throw new AccountRegistrationError(error.message, error.status); throw error; }
+      }
       // 邀请漏斗：有归属才记一条，埋点失败不影响注册（V3 表 22 邀请与分享）。
       if (inviterId) void recordProductEvent({event: 'invite_registered', userId: user.id, subjectKey: inviterId});
       return user;

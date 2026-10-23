@@ -6,6 +6,7 @@ import {readRegistrationRules} from '@rumiai/backend/modules/settings';
 
 const RESET_TTL_MS = 15 * 60_000;
 const VERIFY_TTL_MS = 24 * 60 * 60_000;
+const ACTIVATE_TTL_MS = 24 * 60 * 60_000;
 const MAX_PASSWORD_BYTES = 72;
 
 export class AccountRecoveryError extends Error {
@@ -74,4 +75,28 @@ export async function verifyEmail(tokenInput: unknown): Promise<void> {
     return true;
   });
   if (!claimed) throw new AccountRecoveryError('验证链接无效或已过期，请重新申请。');
+}
+
+export async function requestAccountActivation(userId: string, delivery = accountEmailDelivery()): Promise<void> {
+  const user = await db.user.findFirst({where: {id: userId, deletedAt: null}, select: {id: true, email: true}});
+  if (!user) throw new AccountRecoveryError('待激活账号不存在。', 404);
+  await issue(user, 'ACCOUNT_ACTIVATION', ACTIVATE_TTL_MS, delivery);
+}
+
+export async function activateAccount(tokenInput: unknown, passwordInput: unknown): Promise<void> {
+  const token = typeof tokenInput === 'string' ? tokenInput.trim() : '';
+  const password = typeof passwordInput === 'string' ? passwordInput : '';
+  const rules = await readRegistrationRules();
+  if (!token || password.length < rules.passwordMinLength || Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES) throw new AccountRecoveryError(`激活链接无效或密码不符合要求（至少 ${rules.passwordMinLength} 位）。`);
+  const passwordHash = await bcrypt.hash(password, 10), now = new Date();
+  const record = await db.accountActionToken.findUnique({where: {tokenHash: digest(token)}});
+  if (!record || record.purpose !== 'ACCOUNT_ACTIVATION' || record.usedAt || record.expiresAt <= now) throw new AccountRecoveryError('激活链接无效或已过期。');
+  const claimed = await db.$transaction(async tx => {
+    const claim = await tx.accountActionToken.updateMany({where: {id: record.id, usedAt: null, expiresAt: {gt: now}}, data: {usedAt: now}});
+    if (claim.count !== 1) return false;
+    await tx.user.update({where: {id: record.userId}, data: {passwordHash, suspendedAt: null, suspensionReason: null, emailVerifiedAt: now, tokenVersion: {increment: 1}, accountVersion: {increment: 1}}});
+    await tx.adminSession.deleteMany({where: {userId: record.userId}});
+    return true;
+  });
+  if (!claimed) throw new AccountRecoveryError('激活链接无效或已过期。');
 }

@@ -5,6 +5,7 @@ import {requestEzfpRefund,verifyEzfpFullRefund,RefundProviderUncertain} from './
 import {resolveOrderPaymentConfiguration} from './merchant-config-service';
 import {notifyCoinsReceived} from '@rumiai/backend/modules/notifications/write';
 import {notifySafely} from '@rumiai/backend/modules/notifications/emit';
+import {recordAffiliateRefundInTransaction} from '@rumiai/backend/modules/affiliate/service';
 
 export class PaymentRefundError extends Error{
   constructor(message:string,readonly status:number){super(message);this.name='PaymentRefundError';}
@@ -42,6 +43,7 @@ async function completeRefund(refundId:string,providerRefundNo:string|null){
     const completed=await tx.paymentRefund.update({where:{id:refund.id},data:{status:'SUCCEEDED',providerRefundNo,errorCode:null,completedAt:new Date()}});
     const changed=await tx.paymentOrder.updateMany({where:{id:refund.paymentOrderId,status:'REFUND_PENDING'},data:{status:'REFUNDED'}});
     if(!changed.count)throw new PaymentRefundError('订单状态与退款记录不一致，请核对账目。',409);
+    await recordAffiliateRefundInTransaction(tx,{sourceType:'COIN',sourceOrderId:refund.paymentOrderId,refundKey:`coin:${refund.id}`,refundAmountCents:refund.amountCnyCents});
     return completed;
   });
 }
