@@ -45,11 +45,13 @@ export function SiteContentManagement() {
     <AdminNotice tone="info" title="首页文案怎么改" description="首页横幅在「首页横幅」里配。首页主标题、副标题、两个行动按钮和「他眼中的你」入口卡片，在「固定页面与公告」里建一个页面路径为 home 的页面：第 1 个段落=主标题、第 2 个段落=副标题、第 1 个按钮=主按钮、第 2 个按钮=次按钮、第 1 张卡片=「他眼中的你」的标题、说明与按钮。没配的部分继续用内置多语言文案；导航与页脚在「导航与页脚」里配。" />
     {error&&<AdminNotice tone="error" title={error} className="py-6" />}
     {message&&<AdminNotice tone="success" title={message} className="py-6" />}
-    <div className="flex flex-wrap gap-2">{contentTypes.map(option=>(
+    <div className="flex flex-wrap gap-2" role="tablist" aria-label="站点内容分类">{contentTypes.map(option=>(
       <button
         key={option.id}
         type="button"
-        aria-pressed={type===option.id}
+        role="tab"
+        aria-label={option.label}
+        aria-selected={type===option.id}
         onClick={()=>selectType(option.id)}
         className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors ${type===option.id?'border-brand/50 bg-brand-soft text-brand':'border-border text-muted-foreground hover:bg-accent hover:text-foreground'}`}
       >

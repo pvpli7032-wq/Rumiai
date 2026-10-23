@@ -12,6 +12,16 @@ assert.equal(originUrl.hash, '', 'ADMIN_ORIGIN must not include a fragment.');
 const artifactDir = process.env.ADMIN_ARTIFACT_DIR || 'artifacts/admin-functional-round2';
 mkdirSync(artifactDir, {recursive: true});
 
+const nestedAreas = [
+  {route:'/admin/site-content', parent:'站点内容', tabs:['首页横幅','分类标签','角色徽章','首页展示区','导航与页脚','固定页面与公告','品牌与主题'], deepHref:'/admin/site-content?tab=tag', deepTab:'分类标签', searchLabel:'分类标签', defaultHref:'/admin/site-content'},
+  {route:'/admin/mirror', parent:'他眼中的你', tabs:['结果列表','配置','统计'], deepHref:'/admin/mirror?tab=config', deepTab:'配置', searchLabel:'玩法配置', defaultHref:'/admin/mirror'},
+  {route:'/admin/growth', parent:'活动奖励', tabs:['玩法模块','任务配置','签到奖励','礼物目录','邀请与分销'], deepHref:'/admin/growth?tab=referrals', deepTab:'邀请与分销', searchLabel:'邀请与分销', defaultHref:'/admin/growth', defaultTab:'任务配置'},
+  {route:'/admin/ai/costs', parent:'价格与成本', tabs:['AI 币价','成本分析','预算控制'], deepHref:'/admin/ai/costs?tab=budget', deepTab:'预算控制', searchLabel:'预算控制', defaultHref:'/admin/ai/costs'},
+  {route:'/admin/finance', parent:'财务工作台', tabs:['订单','经营概览','退款','套餐','对账'], deepHref:'/admin/finance?tab=refunds', deepTab:'退款', searchLabel:'退款台账', defaultHref:'/admin/finance'},
+  {route:'/admin/settings', parent:'平台设置', tabs:['聊天与内容','计费额度','增长玩法','账号运行','提示词'], deepHref:'/admin/settings?tab=billing&section=billing-base', deepTab:'计费额度', searchLabel:'计费额度', defaultHref:'/admin/settings?section=chat-input', unknownHref:'/admin/settings?section=chat-input'},
+  {route:'/admin/operations', parent:'系统运行', tabs:['运行状态','维护与证书','备份与日志'], deepHref:'/admin/operations?tab=maintenance', deepTab:'维护与证书', searchLabel:'维护与证书', defaultHref:'/admin/operations'},
+];
+
 const report = {
   scope: 'navigation-state-focused',
   buildIds: {api: process.env.API_BUILD_ID || null, admin: process.env.ADMIN_BUILD_ID || null},
@@ -43,6 +53,27 @@ await context.route('**/*', async route => {
 
 function pathOf(value) { try { const url = new URL(value); return url.pathname + url.search; } catch { return 'invalid'; } }
 function settingsLocation(page) { const url = new URL(page.url()); return url.pathname + url.search; }
+async function waitLocation(page, href) {
+  const expected = new URL(href, origin);
+  await page.waitForURL(value => value.pathname === expected.pathname && value.search === expected.search);
+}
+async function waitSelected(page, control) {
+  const handle = await control.elementHandle();
+  assert.ok(handle);
+  await page.waitForFunction(element => element.getAttribute('aria-selected') === 'true', handle);
+}
+async function assertGlobalNavOwnsOnlyPrimaryRoutes(nav, spec) {
+  const links = await nav.locator('a[href]').evaluateAll(nodes => nodes.map(node => node.getAttribute('href')).filter(Boolean));
+  assert.equal(links.some(href => new URL(href, origin).search.length > 0), false, `${spec.route} global nav leaked a page-local query link`);
+  assert.equal(links.filter(href => new URL(href, origin).pathname === spec.route).length, 1, `${spec.route} must have exactly one global owner link`);
+  const active = nav.locator(`a[aria-current="page"][href="${spec.route}"]`);
+  assert.equal(await active.count(), 1, `${spec.route} parent must be the sole active global link`);
+}
+async function assertMainTabs(page, spec) {
+  const main = page.locator('main');
+  assert.equal(await main.getByRole('tab').count(), spec.tabs.length, `${spec.route} must expose one complete main-area tab set`);
+  for (const label of spec.tabs) assert.equal(await main.getByRole('tab', {name: label, exact: true}).count(), 1, `${spec.route} duplicated main tab ${label}`);
+}
 async function waitSettings(page, tab, section) {
   try {
     await page.waitForURL(value => value.pathname === '/admin/settings'
@@ -131,8 +162,7 @@ try {
     const {page, pageDialogs, setDialogMode} = await newTrackedPage('settings-dirty-cross-group');
     await page.goto(origin + '/admin/settings?section=chat-input', {waitUntil: 'networkidle'});
     report.historyDebug.push({at: 'chat', position: await page.evaluate(() => history.state?.__rumiaiSettingsPosition ?? null)});
-    const nav = page.locator('nav[aria-label="后台导航"]:visible').first();
-    await nav.getByRole('link', {name: '计费额度', exact: true}).click();
+    await page.getByRole('tab', {name: '计费额度', exact: true}).click();
     await waitSettings(page, 'billing', 'billing-base');
     report.historyDebug.push({at: 'billing', position: await page.evaluate(() => history.state?.__rumiaiSettingsPosition ?? null)});
     const field = page.locator('[data-setting-key="billing.freeDailyMessages"] input');
@@ -272,6 +302,57 @@ try {
     await page.screenshot({path: `${artifactDir}/nav-state-last-active.png`, fullPage: true});
     report.checks.push({name: 'sidebar group persistence, main-area secondary tabs, and client branch auto-open', passed: true});
     await page.close();
+  }
+
+  for (const spec of nestedAreas) {
+    const slug = spec.route.replace(/^\/admin\/?/, '').replaceAll('/', '-') || 'admin';
+    const {page} = await newTrackedPage(`nested-nav-desktop-${slug}`);
+    await page.goto(origin + spec.deepHref, {waitUntil: 'networkidle'});
+    await waitLocation(page, spec.deepHref);
+    await assertMainTabs(page, spec);
+    await waitSelected(page, page.locator('main').getByRole('tab', {name: spec.deepTab, exact: true}));
+    await assertGlobalNavOwnsOnlyPrimaryRoutes(page.locator('nav[aria-label="后台导航"]:visible').first(), spec);
+
+    const defaultLabel = spec.defaultTab ?? spec.tabs[0];
+    const defaultTab = page.locator('main').getByRole('tab', {name: defaultLabel, exact: true});
+    await defaultTab.click();
+    await waitLocation(page, spec.defaultHref);
+    await waitSelected(page, defaultTab);
+    await page.locator('main').getByRole('tab', {name: spec.deepTab, exact: true}).click();
+    await waitLocation(page, spec.deepHref);
+    await page.goBack(); await waitLocation(page, spec.defaultHref);
+    await page.goForward(); await waitLocation(page, spec.deepHref);
+    await page.reload({waitUntil: 'networkidle'});
+    await waitSelected(page, page.locator('main').getByRole('tab', {name: spec.deepTab, exact: true}));
+
+    const unknown = spec.route === '/admin/settings' ? `${spec.route}?tab=unknown&section=unknown` : `${spec.route}?tab=unknown`;
+    await page.goto(origin + unknown, {waitUntil: 'domcontentloaded'});
+    await waitLocation(page, spec.unknownHref ?? spec.defaultHref);
+    await waitSelected(page, page.locator('main').getByRole('tab', {name: defaultLabel, exact: true}));
+
+    await page.getByRole('button', {name: '搜索后台栏目'}).click();
+    const search = page.getByRole('region', {name: '栏目快捷搜索'});
+    await search.getByLabel('输入栏目名称').fill(spec.searchLabel);
+    const result = search.getByRole('link').filter({hasText: `${spec.parent} · ${spec.searchLabel}`});
+    assert.equal(await result.count(), 1, `${spec.route} search must expose one exact deep link`);
+    await result.click();
+    await waitLocation(page, spec.deepHref);
+    await waitSelected(page, page.locator('main').getByRole('tab', {name: spec.deepTab, exact: true}));
+    await page.screenshot({path: `${artifactDir}/nested-${slug}-desktop.png`, fullPage: true});
+    report.checks.push({name: `${spec.parent}: desktop global/main separation, tabs, deep search, invalid fallback, history and refresh`, passed: true});
+    await page.close();
+
+    const {page: mobile} = await newTrackedPage(`nested-nav-mobile-${slug}`);
+    await mobile.setViewportSize({width: 390, height: 844});
+    await mobile.goto(origin + spec.deepHref, {waitUntil: 'networkidle'});
+    await assertMainTabs(mobile, spec);
+    await mobile.getByRole('button', {name: '打开后台菜单'}).click();
+    const dialog = mobile.getByRole('dialog', {name: '后台菜单'});
+    await dialog.waitFor({state: 'visible'});
+    await assertGlobalNavOwnsOnlyPrimaryRoutes(dialog.getByRole('navigation', {name: '后台导航'}), spec);
+    await mobile.screenshot({path: `${artifactDir}/nested-${slug}-mobile-drawer.png`, fullPage: true});
+    report.checks.push({name: `${spec.parent}: mobile drawer owns only primary route and main tabs remain singular`, passed: true});
+    await mobile.close();
   }
 
   assert.equal(report.blockedWrites.length, 0, 'Focused state checks attempted a write request');

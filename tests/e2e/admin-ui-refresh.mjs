@@ -379,6 +379,20 @@ try {
   await admin.locator('h1').filter({hasText: /管理中心|工作台|概览/}).waitFor({state: 'visible'});
   await admin.getByRole('button', {name: '搜索后台栏目'}).waitFor({state: 'visible'});
 
+  // Run the dedicated seven-area navigation contract against the same isolated
+  // production build and authenticated fixture. It proves the desktop sidebar
+  // and mobile drawer own primary routes only, while main tabs retain deep-link,
+  // search, invalid-URL fallback, history and refresh behavior.
+  const sessionCookie = (await admin.context().cookies(adminOrigin)).find(cookie => cookie.name === 'xingban_admin_session');
+  assert.ok(sessionCookie?.value, 'admin navigation acceptance requires the isolated session cookie');
+  const navigationArtifacts = path.join(artifacts, 'nested-navigation');
+  execFileSync(process.execPath, [path.join(root, 'tests/e2e/admin-navigation-focused.mjs')], {
+    cwd: root,
+    env: {...process.env, ADMIN_ORIGIN: adminOrigin, ADMIN_SESSION_TOKEN: sessionCookie.value, ADMIN_ARTIFACT_DIR: navigationArtifacts},
+    stdio: 'inherit',
+  });
+  report.interactions.nestedNavigationFocused = {areas: 7, desktop: true, mobileDrawer: true, deepSearch: true, invalidFallback: true, historyAndRefresh: true, artifacts: navigationArtifacts};
+
   // Settings: normal save, synchronous duplicate click suppression, reload persistence,
   // client-side validation, and an optimistic-concurrency failure caused by another write.
   await admin.goto(`${adminOrigin}/admin/settings?section=chat-input`);
@@ -1282,6 +1296,18 @@ try {
   await limited.goto(`${adminOrigin}/admin/analytics`);
   await limited.getByRole('heading', {name: '运营分析', exact: true}).waitFor({state: 'visible'});
   assert.equal((await limited.request.get(`${adminOrigin}/api/admin/operators`)).status(), 403, 'analytics-only role must not read operator management');
+  const limitedNav = limited.locator('nav[aria-label="后台导航"]:visible').first();
+  assert.deepEqual(
+    (await limitedNav.locator('a[href]').evaluateAll(nodes => nodes.map(node => new URL(node.href).pathname).filter(pathname => pathname.startsWith('/admin')))).sort(),
+    ['/admin', '/admin/analytics'],
+    'analytics-only role must not receive restricted global navigation links',
+  );
+  await limited.getByRole('button', {name: '搜索后台栏目'}).click();
+  const limitedSearch = limited.getByRole('region', {name: '栏目快捷搜索'});
+  await limitedSearch.getByLabel('输入栏目名称').fill('计费额度');
+  await limitedSearch.getByText('未找到可访问的栏目', {exact: true}).waitFor({state: 'visible'});
+  await limitedSearch.getByLabel('输入栏目名称').fill('运营分析');
+  assert.equal(await limitedSearch.getByRole('link', {name: /运营分析/}).count(), 1, 'allowed area must remain searchable');
 
   const assignedRoleCard = admin.locator('article').filter({has: admin.getByRole('heading', {name: 'E2E 运营只读', exact: true})});
   await assignedRoleCard.getByRole('button', {name: '删除 / 查看原因'}).click();
@@ -1307,6 +1333,7 @@ try {
   await admin.getByText('未分配的自定义角色已删除。', {exact: true}).waitFor({state: 'visible'});
   report.interactions.operatorLifecycle = {
     createRole: true, assignExistingAccount: true, allowedAnalytics: true, deniedOperatorRead: true,
+    restrictedNavigationHidden: true, restrictedSearchHidden: true,
     assignedDeleteGuard: true, disableAndUnassign: true, sessionRevoked: true, deleteAfterUnassign: true,
   };
 
