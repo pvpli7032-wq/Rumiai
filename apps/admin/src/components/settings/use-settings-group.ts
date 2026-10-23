@@ -1,6 +1,6 @@
 'use client';
 
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {API} from '@rumiai/contracts/api-paths';
 import type {JsonValue, SettingDefinition, SettingGroup, SettingValue} from '@rumiai/contracts/settings/types';
 import {sameSettingValue, validateSettingValue} from './format';
@@ -64,6 +64,7 @@ export function useSettingsGroup(sessionActive: boolean | undefined, group: Sett
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [saveError, setSaveError] = useState('');
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -128,7 +129,7 @@ export function useSettingsGroup(sessionActive: boolean | undefined, group: Sett
   const reload = useCallback(() => setReloadToken(value => value + 1), []);
 
   const save = useCallback(async () => {
-    if (!sessionActive || !dirtyKeys.length || saving) return false;
+    if (!sessionActive || !dirtyKeys.length || savingRef.current) return false;
     // 先在本地按服务端同一套规则查一遍，字段级错误不必等一次往返。
     const invalid: Record<string, string> = {};
     for (const key of dirtyKeys) {
@@ -143,6 +144,7 @@ export function useSettingsGroup(sessionActive: boolean | undefined, group: Sett
       return false;
     }
     setFieldErrors({});
+    savingRef.current = true;
     setSaving(true);
     setSaveError('');
     try {
@@ -185,6 +187,7 @@ export function useSettingsGroup(sessionActive: boolean | undefined, group: Sett
       setSaveError('保存失败，请检查网络后重试。');
       return false;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }, [sessionActive, dirtyKeys, saving, draft, values, group, definitions]);

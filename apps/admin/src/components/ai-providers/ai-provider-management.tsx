@@ -1,5 +1,5 @@
 'use client';
-import {useCallback,useEffect,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {Plus} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
@@ -19,6 +19,7 @@ const blank=():Draft=>({name:'',baseUrl:'https://api.openai.com/v1',protocol:'OP
 
 export function AiProviderManagement(){
   const {sessionActive,permissions,loading}=useAdminAccess(),[rows,setRows]=useState<Provider[]>([]),[statusFilter,setStatusFilter]=useState('ALL'),[draft,setDraft]=useState<Draft|null>(null),[draftBaseline,setDraftBaseline]=useState(''),[discardOpen,setDiscardOpen]=useState(false),[deleting,setDeleting]=useState<Provider|null>(null),[checkingDelete,setCheckingDelete]=useState(false),[deleteChecked,setDeleteChecked]=useState(false),[deleteReason,setDeleteReason]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const busyRef=useRef(false);
   const canManage=permissions.includes('ai.providers.manage'),canSecrets=permissions.includes('ai.providers.secrets.manage'),canTest=permissions.includes('ai.providers.test');
   const request=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetch(url,{...init,cache:'no-store',headers:{...(init?.body?{'Content-Type':'application/json'}:{}),...init?.headers}});const data=await response.json();if(!response.ok)throw Error(data.error||'AI供应商请求失败。');return data;},[sessionActive]);
   useEffect(()=>{if(draft&&!draftBaseline)setDraftBaseline(JSON.stringify(draft));},[draft,draftBaseline]);
@@ -28,10 +29,10 @@ export function AiProviderManagement(){
   function openDraft(value:Draft){setDraft(value);setDraftBaseline(JSON.stringify(value));setError('');setNotice('');}
   function editProvider(provider:Provider){setDeleting(null);openDraft({id:provider.id,name:provider.name,baseUrl:provider.baseUrl,protocol:provider.protocol,isActive:provider.isActive,sortOrder:provider.sortOrder,version:provider.version,apiKey:'',clearSecret:false,reason:''});}
   function requestClose(){if(!draft)return;if(!draftBaseline||JSON.stringify(draft)!==draftBaseline){setDiscardOpen(true);return;}setDraft(null);setDraftBaseline('');}
-  async function save(event:React.FormEvent){event.preventDefault();if(!draft||busy)return;setBusy(true);setError('');setNotice('');try{const body={...draft,sortOrder:Number(draft.sortOrder)};await request(draft.id?`${API.admin.ai.providers}/${encodeURIComponent(draft.id)}`:API.admin.ai.providers,{method:draft.id?'PATCH':'POST',body:JSON.stringify(body)});setDraft(null);setDraftBaseline('');await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
+  async function save(event:React.FormEvent){event.preventDefault();if(!draft||busyRef.current)return;busyRef.current=true;setBusy(true);setError('');setNotice('');try{const body={...draft,sortOrder:Number(draft.sortOrder)};await request(draft.id?`${API.admin.ai.providers}/${encodeURIComponent(draft.id)}`:API.admin.ai.providers,{method:draft.id?'PATCH':'POST',body:JSON.stringify(body)});setDraft(null);setDraftBaseline('');await load();}catch(value){setError((value as Error).message);}finally{busyRef.current=false;setBusy(false);}}
   async function test(provider:Provider){if(busy)return;setBusy(true);setError('');setNotice('');try{const result=await request(`${API.admin.ai.providers}/${encodeURIComponent(provider.id)}/test`,{method:'POST'});setNotice(result.reachable?`连接可达（HTTP ${result.status}，${result.latencyMs}ms）；${result.authorized?'认证成功':'服务端未接受当前密钥'}`:`连接失败（${result.latencyMs}ms），请检查地址、密钥及服务端网络。`);}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
   async function remove(provider:Provider){if(busy||!canManage)return;setDeleting(provider);setDeleteReason('');setError('');setDeleteChecked(false);setCheckingDelete(true);try{setDeleting(await request(`${API.admin.ai.providers}/${encodeURIComponent(provider.id)}`));setDeleteChecked(true);}catch(value){setError((value as Error).message);}finally{setCheckingDelete(false);}}
-  async function confirmRemove(){if(!deleting||!deleteReason.trim()||busy)return;setBusy(true);setError('');setNotice('');try{await request(`${API.admin.ai.providers}/${encodeURIComponent(deleting.id)}`,{method:'DELETE',body:JSON.stringify({version:deleting.version,reason:deleteReason.trim()})});setDeleting(null);setNotice('供应商已删除。');await load();}catch(value){setError((value as Error).message);}finally{setBusy(false);}}
+  async function confirmRemove(){if(!deleting||!deleteReason.trim()||busyRef.current)return;busyRef.current=true;setBusy(true);setError('');setNotice('');try{await request(`${API.admin.ai.providers}/${encodeURIComponent(deleting.id)}`,{method:'DELETE',body:JSON.stringify({version:deleting.version,reason:deleteReason.trim()})});setDeleting(null);setNotice('供应商已删除。');await load();}catch(value){setError((value as Error).message);}finally{busyRef.current=false;setBusy(false);}}
   if(loading)return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
   if(!sessionActive||!permissions.includes('ai.providers.read'))return <AdminPage><AdminNotice tone="denied" title="当前账号没有 AI 供应商查看权限。" /></AdminPage>;
   const visibleRows=rows.filter(provider=>statusFilter==='ALL'||statusFilter==='ACTIVE'&&provider.isActive||statusFilter==='INACTIVE'&&!provider.isActive);

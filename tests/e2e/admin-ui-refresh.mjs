@@ -44,15 +44,19 @@ let seededContent;
 const failures = [];
 const httpErrors = [];
 const pages = [];
-const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMIN_NAV26.length, routes: [], interactions: {}, controlSummary: {passed: 0, failed: 0, untested: 0, notImplemented: 3}, knownNotImplemented: [
+const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMIN_NAV26.length, routes: [], interactions: {}, operationMatrix: [], controlSummary: {passed: 0, failed: 0, untested: 0, notImplemented: 3}, knownNotImplemented: [
   {route: '/admin/accounts', control: '新增网站账户', reason: '当前只支持查找、停用、恢复和撤销已有账户会话。'},
   {route: '/admin/accounts', control: '后台关闭网站账户', reason: '当前只有用户自助关闭流程。'},
   {route: '/admin/memberships', control: '新增/删除会员方案', reason: '当前页面仅编辑已有方案和退款规则。'},
 ], uncovered: [
   '未执行真实会员购买、退款、充值、支付商户验证。',
   '未执行后台任务、备份、恢复、维护模式、证书续签等危险运维动作。',
-  '除本测试明确覆盖的管理员角色生命周期外，其余栏目业务写入仍需专门数据流验收。',
+  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的字符、圈子、举报申诉、合规、内容与财务操作仍需逐组补测，不能由路由快照推定通过。',
 ]};
+
+function recordOperation(route, operation, details) {
+  report.operationMatrix.push({route, operation, ...details});
+}
 
 function start(app, port, env) {
   const child = spawn(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'start', '-p', String(port)], {
@@ -315,6 +319,300 @@ try {
   await admin.locator('h1').filter({hasText: /管理中心|工作台|概览/}).waitFor({state: 'visible'});
   await admin.getByRole('button', {name: '搜索后台栏目'}).waitFor({state: 'visible'});
 
+  // Settings: normal save, synchronous duplicate click suppression, reload persistence,
+  // client-side validation, and an optimistic-concurrency failure caused by another write.
+  await admin.goto(`${adminOrigin}/admin/settings?section=chat-input`);
+  const maxMessageChars = admin.getByLabel('单条输入字数');
+  await maxMessageChars.waitFor({state: 'visible'});
+  await maxMessageChars.fill('4999');
+  const settingsWrites = [];
+  const countSettingWrite = request => {
+    if (request.url().includes('/api/admin/settings') && request.method() === 'PATCH') settingsWrites.push(request);
+  };
+  admin.on('request', countSettingWrite);
+  const firstSettingSave = admin.waitForResponse(response => response.url().includes('/api/admin/settings') && response.request().method() === 'PATCH');
+  await admin.getByRole('button', {name: '保存本页'}).evaluate(button => { button.click(); button.click(); });
+  assert.equal((await firstSettingSave).status(), 200);
+  await admin.getByRole('button', {name: '保存本页'}).waitFor({state: 'hidden'});
+  await admin.waitForTimeout(250);
+  admin.off('request', countSettingWrite);
+  assert.equal(settingsWrites.length, 1, 'a synchronous duplicate settings click must produce one PATCH');
+  await admin.reload();
+  await admin.getByLabel('单条输入字数').waitFor({state: 'visible'});
+  assert.equal(await admin.getByLabel('单条输入字数').inputValue(), '4999');
+
+  await admin.getByLabel('单条输入字数').fill('0');
+  await admin.getByRole('button', {name: '保存本页'}).click();
+  await admin.getByText('不能小于 1。', {exact: true}).waitFor({state: 'visible'});
+  await admin.getByRole('button', {name: '放弃修改'}).click();
+  assert.equal(await admin.getByLabel('单条输入字数').inputValue(), '4999');
+
+  const settingsRead = await admin.request.get(`${adminOrigin}/api/admin/settings?group=chat`);
+  assert.equal(settingsRead.status(), 200);
+  const settingItems = (await settingsRead.json()).values;
+  const currentSetting = settingItems.find(item => item.key === 'chat.maxMessageChars');
+  const concurrentWrite = await admin.request.patch(`${adminOrigin}/api/admin/settings`, {data: {group: 'chat', changes: [{key: 'chat.maxMessageChars', value: 4998}], expectedVersions: {'chat.maxMessageChars': currentSetting.version}}});
+  assert.equal(concurrentWrite.status(), 200);
+  await admin.getByLabel('单条输入字数').fill('4997');
+  await admin.getByRole('button', {name: '保存本页'}).click();
+  await admin.getByRole('alert').filter({hasText: /其他管理员修改/}).first().waitFor({state: 'visible'});
+  // Chromium logs an expected 409 resource response as console.error. Preserve it in
+  // httpErrors as expected evidence, but do not treat this deliberately exercised branch
+  // as an unexpected browser failure.
+  for (let index = failures.length - 1; index >= 0; index -= 1) {
+    if (failures[index].url.includes('/admin/settings') && failures[index].message.includes('409')) failures.splice(index, 1);
+  }
+  for (const item of httpErrors) {
+    if (item.responseUrl.includes('/api/admin/settings') && item.status === 409) item.expected = true;
+  }
+  await admin.reload();
+  await admin.getByLabel('单条输入字数').waitFor({state: 'visible'});
+  assert.equal(await admin.getByLabel('单条输入字数').inputValue(), '4998');
+  await admin.getByLabel('单条输入字数').fill('5000');
+  await admin.getByRole('button', {name: '保存本页'}).click();
+  await admin.getByRole('button', {name: '保存本页'}).waitFor({state: 'hidden'});
+  recordOperation('/admin/settings', '保存运营设置', {precondition: 'owner + settings.write', api: 'PATCH /api/admin/settings', persistence: 'operation_settings + setting_revisions', normal: '通过', refresh: '通过', failure: '越界值与版本冲突均可见', repeated: '同步双击仅一次 PATCH', status: '通过'});
+
+  // Accounts: edit profile, reload persistence, community ban/unban, suspend/restore,
+  // session revocation, stale-version rejection, and synchronous duplicate protection.
+  const managedAccount = seededContent.contentUsers[5];
+  await admin.goto(`${adminOrigin}/admin/accounts`);
+  await admin.getByLabel('搜索用户').fill(managedAccount.email);
+  await admin.getByRole('button', {name: '搜索用户'}).click();
+  await admin.getByRole('button', {name: `查看用户 ${managedAccount.username}`}).click();
+  let managedDetail = admin.getByRole('dialog', {name: /用户详情/});
+  await managedDetail.waitFor({state: 'visible'});
+  await managedDetail.getByRole('tab', {name: '基本资料'}).click();
+  await managedDetail.getByLabel('昵称').last().fill('内容用户 6 · 已验收');
+  await managedDetail.getByPlaceholder('说明为什么需要修改资料').fill('E2E 验证资料持久化');
+  const profileWrites = [];
+  const countProfileWrite = request => {
+    if (request.url().includes(`/api/admin/accounts/${managedAccount.id}/profile`) && request.method() === 'PATCH') profileWrites.push(request);
+  };
+  admin.on('request', countProfileWrite);
+  const profileResponse = admin.waitForResponse(response => response.url().includes(`/api/admin/accounts/${managedAccount.id}/profile`) && response.request().method() === 'PATCH');
+  await managedDetail.getByRole('button', {name: '保存公开资料'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await profileResponse).status(), 200);
+  await managedDetail.getByRole('status').filter({hasText: /用户资料已保存/}).waitFor({state: 'visible'});
+  await admin.waitForTimeout(250);
+  admin.off('request', countProfileWrite);
+  assert.equal(profileWrites.length, 1, 'duplicate profile click must produce one PATCH');
+  assert.equal((await fixture.db.user.findUnique({where: {id: managedAccount.id}, select: {displayName: true}}))?.displayName, '内容用户 6 · 已验收');
+
+  async function runAccountAction(action, reason, {confirm = false, expectedText} = {}) {
+    const dialog = admin.getByRole('dialog', {name: /用户详情/});
+    await dialog.getByLabel('操作类型').selectOption(action);
+    await dialog.getByLabel('操作理由').last().fill(reason);
+    const response = admin.waitForResponse(item => item.url().endsWith(`/api/admin/accounts/${managedAccount.id}`) && item.request().method() === 'PATCH');
+    await dialog.getByRole('button', {name: '执行账号操作'}).click();
+    if (confirm) await admin.getByRole('dialog', {name: '确认账号操作'}).getByRole('button', {name: '确认执行'}).click();
+    assert.equal((await response).status(), 200);
+    if (expectedText) await dialog.getByText(expectedText, {exact: true}).waitFor({state: 'visible'});
+    await admin.waitForTimeout(250);
+  }
+  await runAccountAction('BAN_COMMUNITY', 'E2E 验证社区禁言', {expectedText: '社区禁言中'});
+  await runAccountAction('UNBAN_COMMUNITY', 'E2E 验证解除禁言');
+  await runAccountAction('SUSPEND', 'E2E 验证停用', {confirm: true});
+  await runAccountAction('RESTORE', 'E2E 验证恢复');
+  await runAccountAction('REVOKE_SESSIONS', 'E2E 验证撤销会话', {confirm: true});
+  const staleAccountWrite = await admin.request.patch(`${adminOrigin}/api/admin/accounts/${managedAccount.id}`, {data: {action: 'BAN_COMMUNITY', reason: 'E2E 过期版本必须失败', version: 0}});
+  assert.equal(staleAccountWrite.status(), 409);
+  const finalManagedAccount = await fixture.db.user.findUnique({where: {id: managedAccount.id}, select: {displayName: true, suspendedAt: true, communityBannedAt: true, tokenVersion: true, accountVersion: true}});
+  assert.equal(finalManagedAccount?.displayName, '内容用户 6 · 已验收');
+  assert.equal(finalManagedAccount?.suspendedAt, null);
+  assert.equal(finalManagedAccount?.communityBannedAt, null);
+  assert.ok((finalManagedAccount?.tokenVersion ?? 0) > 0);
+  await managedDetail.getByRole('button', {name: '关闭详情'}).click();
+  await managedDetail.waitFor({state: 'hidden'});
+  recordOperation('/admin/accounts', '修改公开资料', {precondition: 'accounts.manage', api: 'PATCH /api/admin/accounts/:id/profile', persistence: 'users + admin_account_actions', normal: '通过', refresh: 'DB 与重新读取通过', failure: '过期版本 409', repeated: '同步双击仅一次 PATCH', status: '通过'});
+  recordOperation('/admin/accounts', '停用/恢复/禁言/解禁/撤销会话', {precondition: '对应 accounts 权限', api: 'PATCH /api/admin/accounts/:id', persistence: 'users 状态、tokenVersion、审计', normal: '五类动作通过并恢复夹具', refresh: '通过', failure: '过期版本 409', repeated: '服务端版本锁保护', status: '通过'});
+
+  // AI configuration CRUD uses inactive, secret-free records and never calls a provider.
+  await admin.goto(`${adminOrigin}/admin/ai/providers`);
+  await admin.getByRole('button', {name: '新增供应商'}).click();
+  let providerDialog = admin.getByRole('dialog', {name: '新增供应商'});
+  await providerDialog.getByLabel('供应商名称').fill('E2E 隔离供应商');
+  await providerDialog.getByLabel('API 基础地址').fill('https://example.com/v1');
+  await providerDialog.getByLabel('操作理由').fill('E2E 验证供应商 CRUD');
+  const providerWrites = [];
+  const countProviderWrite = request => {
+    if (request.url().endsWith('/api/admin/ai/providers') && request.method() === 'POST') providerWrites.push(request);
+  };
+  admin.on('request', countProviderWrite);
+  const providerCreate = admin.waitForResponse(response => response.url().endsWith('/api/admin/ai/providers') && response.request().method() === 'POST');
+  await providerDialog.getByRole('button', {name: '保存供应商'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await providerCreate).status(), 201);
+  await admin.getByRole('button', {name: '编辑 E2E 隔离供应商'}).waitFor({state: 'visible'});
+  await admin.waitForTimeout(200);
+  admin.off('request', countProviderWrite);
+  assert.equal(providerWrites.length, 1);
+  await admin.reload();
+  await admin.getByRole('button', {name: '编辑 E2E 隔离供应商'}).waitFor({state: 'visible'});
+  const invalidProvider = await admin.request.post(`${adminOrigin}/api/admin/ai/providers`, {data: {name: 'E2E 非法供应商', baseUrl: 'http://127.0.0.1:9/v1', protocol: 'OPENAI_COMPATIBLE', isActive: false, sortOrder: 0, reason: 'E2E SSRF 拒绝'}});
+  assert.equal(invalidProvider.status(), 400);
+  const savedProvider = await fixture.db.aiProvider.findFirst({where: {name: 'E2E 隔离供应商'}});
+  assert.ok(savedProvider);
+
+  await admin.goto(`${adminOrigin}/admin/ai/models`);
+  await admin.getByRole('button', {name: '新增模型'}).click();
+  let modelDialog = admin.getByRole('dialog', {name: '新增模型路由'});
+  await modelDialog.getByLabel('逻辑模型标识').fill('e2e-isolated-model');
+  await modelDialog.getByLabel('前台显示名称').fill('E2E 隔离模型');
+  await modelDialog.getByLabel('供应商选择').selectOption(savedProvider.id);
+  await modelDialog.getByLabel('供应商模型代码').fill('never-called');
+  await modelDialog.getByLabel('操作理由').fill('E2E 验证模型 CRUD');
+  const modelCreate = admin.waitForResponse(response => response.url().endsWith('/api/admin/ai/models') && response.request().method() === 'POST');
+  await modelDialog.getByRole('button', {name: '保存路由'}).click();
+  assert.equal((await modelCreate).status(), 201);
+  await admin.getByRole('button', {name: '编辑 E2E 隔离模型'}).waitFor({state: 'visible'});
+  await admin.reload();
+  await admin.getByRole('button', {name: '编辑 E2E 隔离模型'}).waitFor({state: 'visible'});
+  await admin.getByRole('button', {name: '删除 / 查看原因'}).click();
+  const deleteModelDialog = admin.getByRole('dialog', {name: '删除 AI 模型'});
+  await deleteModelDialog.getByLabel('删除理由').fill('E2E 清理无引用模型');
+  const modelDelete = admin.waitForResponse(response => response.url().includes('/api/admin/ai/models/') && response.request().method() === 'DELETE');
+  await deleteModelDialog.getByRole('button', {name: '确认删除'}).click();
+  assert.equal((await modelDelete).status(), 200);
+  assert.equal(await fixture.db.aiModel.count({where: {key: 'e2e-isolated-model'}}), 0);
+
+  await admin.goto(`${adminOrigin}/admin/ai/providers`);
+  await admin.getByRole('button', {name: '删除 / 查看原因'}).click();
+  const deleteProviderDialog = admin.getByRole('dialog', {name: '删除 AI 供应商'});
+  await deleteProviderDialog.getByLabel('删除理由').fill('E2E 清理无引用供应商');
+  const providerDelete = admin.waitForResponse(response => response.url().includes('/api/admin/ai/providers/') && response.request().method() === 'DELETE');
+  await deleteProviderDialog.getByRole('button', {name: '确认删除'}).click();
+  assert.equal((await providerDelete).status(), 200);
+  assert.equal(await fixture.db.aiProvider.count({where: {name: 'E2E 隔离供应商'}}), 0);
+  recordOperation('/admin/ai/providers', '供应商新增/刷新/删除', {precondition: 'ai.providers.manage；保持停用且无密钥', api: 'POST/GET/DELETE /api/admin/ai/providers', persistence: 'ai_providers + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: '私网 HTTP 地址 400', repeated: '同步双击仅一次 POST', status: '通过'});
+  recordOperation('/admin/ai/models', '模型新增/刷新/删除', {precondition: 'ai.models.manage + 已有供应商', api: 'POST/GET/DELETE /api/admin/ai/models', persistence: 'ai_models + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: '删除守卫集成测试通过', repeated: '服务端唯一键/版本锁', status: '通过'});
+  recordOperation('/admin/ai/providers', '测试供应商连接', {precondition: '需真实密钥和外部网络', api: 'POST /api/admin/ai/providers/:id/test', persistence: 'lastCheck*', normal: '未执行', refresh: '未执行', failure: '无密钥时 UI 不展示按钮', repeated: '未执行', status: '需外部授权阻塞', blocker: '本轮禁止外部调用和付费服务'});
+
+  // Growth modules: create inactive mission/gift records, prove refresh persistence,
+  // exercise invalid input/duplicate protection, then delete the isolated records.
+  await admin.goto(`${adminOrigin}/admin/growth`);
+  await admin.getByRole('button', {name: '新建任务'}).click();
+  const missionDialog = admin.getByRole('dialog', {name: '新建任务'});
+  await missionDialog.getByLabel('任务名称').fill('E2E 隔离任务');
+  await missionDialog.getByLabel('金币奖励').fill('1');
+  await missionDialog.getByLabel('操作理由').fill('E2E 验证任务 CRUD');
+  const missionWrites = [];
+  const countMissionWrite = request => {
+    if (request.url().endsWith('/api/admin/growth/missions') && request.method() === 'POST') missionWrites.push(request);
+  };
+  admin.on('request', countMissionWrite);
+  const missionCreate = admin.waitForResponse(response => response.url().endsWith('/api/admin/growth/missions') && response.request().method() === 'POST');
+  await missionDialog.getByRole('button', {name: '保存任务'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await missionCreate).status(), 201);
+  await admin.getByRole('heading', {name: 'E2E 隔离任务'}).waitFor({state: 'visible'});
+  await admin.waitForTimeout(200);
+  admin.off('request', countMissionWrite);
+  assert.equal(missionWrites.length, 1);
+  await admin.reload();
+  const missionCard = admin.locator('article').filter({has: admin.getByRole('heading', {name: 'E2E 隔离任务'})});
+  await missionCard.waitFor({state: 'visible'});
+  const invalidMission = await admin.request.post(`${adminOrigin}/api/admin/growth/missions`, {data: {title: 'E2E 非法任务', description: '', rewardCoins: 1, category: 'DAILY', conditionType: 'MANUAL', conditionTarget: 1, period: 'DAILY', isActive: true, sortOrder: 0, startsAt: null, endsAt: null, reason: 'E2E 应拒绝手动自动发奖'}});
+  assert.ok(invalidMission.status() >= 400);
+  await missionCard.getByRole('button', {name: '删除'}).click();
+  const deleteMissionDialog = admin.getByRole('dialog', {name: '删除已停用任务'});
+  await deleteMissionDialog.getByLabel('删除理由').fill('E2E 清理隔离任务');
+  const missionDelete = admin.waitForResponse(response => response.url().includes('/api/admin/growth/missions/') && response.request().method() === 'DELETE');
+  await deleteMissionDialog.getByRole('button', {name: '确认删除'}).click();
+  assert.equal((await missionDelete).status(), 200);
+  assert.equal(await fixture.db.mission.count({where: {title: 'E2E 隔离任务'}}), 0);
+
+  await admin.getByRole('tab', {name: '礼物目录'}).click();
+  const giftPanel = admin.getByRole('region', {name: '礼物目录'});
+  await giftPanel.getByLabel('礼物代码').fill('e2e-gift');
+  await giftPanel.getByLabel('名称').fill('E2E 隔离礼物');
+  await giftPanel.getByLabel('金币价格').fill('7');
+  await giftPanel.getByLabel('启用礼物').uncheck();
+  await giftPanel.getByLabel('操作理由').fill('E2E 验证礼物 CRUD');
+  const giftWrites = [];
+  const countGiftWrite = request => {
+    if (request.url().endsWith('/api/admin/growth/gifts') && request.method() === 'POST') giftWrites.push(request);
+  };
+  admin.on('request', countGiftWrite);
+  const giftCreate = admin.waitForResponse(response => response.url().endsWith('/api/admin/growth/gifts') && response.request().method() === 'POST');
+  await giftPanel.getByRole('button', {name: '新增礼物'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await giftCreate).status(), 201);
+  await giftPanel.getByRole('row').filter({hasText: 'E2E 隔离礼物'}).waitFor({state: 'visible'});
+  await admin.waitForTimeout(200);
+  admin.off('request', countGiftWrite);
+  assert.equal(giftWrites.length, 1);
+  await admin.reload();
+  await admin.getByRole('tab', {name: '礼物目录'}).click();
+  const refreshedGiftPanel = admin.getByRole('region', {name: '礼物目录'});
+  const giftRow = refreshedGiftPanel.getByRole('row').filter({hasText: 'E2E 隔离礼物'});
+  await giftRow.waitFor({state: 'visible'});
+  const duplicateGift = await admin.request.post(`${adminOrigin}/api/admin/growth/gifts`, {data: {code: 'e2e-gift', name: '重复礼物', description: '', emoji: '🎁', coinPrice: 7, isActive: false, sortOrder: 0, reason: 'E2E 重复代码应失败'}});
+  assert.ok(duplicateGift.status() >= 400);
+  await giftRow.getByRole('button', {name: '删除'}).click();
+  const deleteGiftDialog = admin.getByRole('dialog', {name: '删除已停用礼物'});
+  await deleteGiftDialog.getByLabel('删除理由').fill('E2E 清理隔离礼物');
+  const giftDelete = admin.waitForResponse(response => response.url().includes('/api/admin/growth/gifts/') && response.request().method() === 'DELETE');
+  await deleteGiftDialog.getByRole('button', {name: '确认删除'}).click();
+  assert.equal((await giftDelete).status(), 200);
+  assert.equal(await fixture.db.giftCatalogItem.count({where: {code: 'e2e-gift'}}), 0);
+  recordOperation('/admin/growth', '任务新增/刷新/删除', {precondition: 'growth.manage', api: 'POST/GET/DELETE /api/admin/growth/missions', persistence: 'missions + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: 'MANUAL 启用发奖被拒绝', repeated: '同步双击仅一次 POST', status: '通过'});
+  recordOperation('/admin/growth', '礼物新增/刷新/删除', {precondition: 'growth.manage', api: 'POST/GET/DELETE /api/admin/growth/gifts', persistence: 'gift_catalog + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: '重复代码被拒绝', repeated: '同步双击仅一次 POST', status: '通过'});
+
+  // Community moderation: exercise every reversible post action and comment hide/restore.
+  await admin.goto(`${adminOrigin}/admin/community/posts`);
+  await admin.getByPlaceholder('内容、作者、圈子或帖子编号').fill(seededContent.post.content);
+  await admin.getByRole('button', {name: '搜索', exact: true}).click();
+  async function runPostAction(label, {double = false} = {}) {
+    await admin.getByRole('button', {name: label, exact: true}).first().click();
+    const dialog = admin.getByRole('dialog', {name: `确认${label}`});
+    await dialog.getByLabel('操作理由').fill(`E2E 验证帖子${label}`);
+    const writes = [];
+    const countWrite = request => {
+      if (request.url().includes(`/api/admin/community/posts/${seededContent.post.id}`) && request.method() === 'PATCH') writes.push(request);
+    };
+    admin.on('request', countWrite);
+    const response = admin.waitForResponse(item => item.url().includes(`/api/admin/community/posts/${seededContent.post.id}`) && item.request().method() === 'PATCH');
+    const confirm = dialog.getByRole('button', {name: '确认处置'});
+    if (double) await confirm.evaluate(button => {button.click(); button.click();});
+    else await confirm.click();
+    assert.equal((await response).status(), 200);
+    await admin.getByText('处置已记录，列表正在刷新。', {exact: true}).waitFor({state: 'visible'});
+    await admin.waitForTimeout(250);
+    admin.off('request', countWrite);
+    if (double) assert.equal(writes.length, 1);
+  }
+  await runPostAction('置顶', {double: true});
+  await runPostAction('取消置顶');
+  await runPostAction('推荐');
+  await runPostAction('取消推荐');
+  await runPostAction('下架');
+  await runPostAction('恢复');
+  const postAfterActions = await fixture.db.post.findUnique({where: {id: seededContent.post.id}, select: {status: true, isPinned: true, isFeatured: true}});
+  assert.deepEqual(postAfterActions, {status: 'VISIBLE', isPinned: false, isFeatured: false});
+  const stalePostWrite = await admin.request.patch(`${adminOrigin}/api/admin/community/posts/${seededContent.post.id}`, {data: {action: 'PIN', reason: 'E2E 过期内容版本', updatedAt: '2000-01-01T00:00:00.000Z'}});
+  assert.equal(stalePostWrite.status(), 409);
+
+  await admin.goto(`${adminOrigin}/admin/community/comments`);
+  await admin.getByPlaceholder('评论、作者、帖子编号或圈子').fill(seededContent.comment.content);
+  await admin.getByRole('button', {name: '搜索', exact: true}).click();
+  async function runCommentAction(label) {
+    await admin.getByRole('button', {name: label, exact: true}).first().click();
+    const dialog = admin.getByRole('dialog', {name: `确认${label}`});
+    await dialog.getByLabel('操作理由').fill(`E2E 验证评论${label}`);
+    const response = admin.waitForResponse(item => item.url().includes(`/api/admin/community/comments/${seededContent.comment.id}`) && item.request().method() === 'PATCH');
+    await dialog.getByRole('button', {name: '确认处置'}).click();
+    assert.equal((await response).status(), 200);
+    await admin.getByText('评论处置已记录，列表正在刷新。', {exact: true}).waitFor({state: 'visible'});
+    await admin.waitForTimeout(250);
+  }
+  await runCommentAction('下架');
+  await runCommentAction('恢复');
+  assert.equal((await fixture.db.postComment.findUnique({where: {id: seededContent.comment.id}, select: {status: true}}))?.status, 'VISIBLE');
+  const staleCommentWrite = await admin.request.patch(`${adminOrigin}/api/admin/community/comments/${seededContent.comment.id}`, {data: {action: 'HIDE', reason: 'E2E 过期评论版本', updatedAt: '2000-01-01T00:00:00.000Z'}});
+  assert.equal(staleCommentWrite.status(), 409);
+  recordOperation('/admin/community/posts', '帖子下架/恢复/置顶/取消置顶/推荐/取消推荐', {precondition: 'community.write', api: 'PATCH /api/admin/community/posts/:id', persistence: 'posts + admin_audit_logs', normal: '六类可逆动作通过并恢复夹具', refresh: '每次动作后列表刷新通过', failure: '过期 updatedAt 409', repeated: '同步双击仅一次 PATCH', status: '通过'});
+  recordOperation('/admin/community/comments', '评论下架/恢复', {precondition: 'community.write', api: 'PATCH /api/admin/community/comments/:id', persistence: 'post_comments + admin_audit_logs', normal: '通过并恢复夹具', refresh: '通过', failure: '过期 updatedAt 409', repeated: '服务端版本锁', status: '通过'});
+  recordOperation('/admin/community/posts', '清除帖子内容', {precondition: 'community.write', api: 'PATCH ... action DELETE', persistence: '不可逆清空正文/附件 + 审计', normal: '未执行', refresh: '未执行', failure: '版本锁已验证', repeated: '未执行', status: '明确受限', blocker: '属于不可恢复内容删除，本轮仅允许隔离可逆动作'});
+  recordOperation('/admin/community/comments', '清除评论内容', {precondition: 'community.write', api: 'PATCH ... action DELETE', persistence: '不可逆清空正文/附件 + 审计', normal: '未执行', refresh: '未执行', failure: '版本锁已验证', repeated: '未执行', status: '明确受限', blocker: '属于不可恢复内容删除，本轮仅允许隔离可逆动作'});
+
   // Navigation search must return a real route, not just render an inert popup.
   await admin.getByRole('button', {name: '搜索后台栏目'}).click();
   const searchRegion = admin.getByRole('region', {name: '栏目快捷搜索'});
@@ -469,8 +767,27 @@ try {
   await quarterlyTab.click();
   await monthlyTab.click();
   assert.equal(await monthlyPrice.inputValue(), '177');
-  await monthlyPrice.fill(originalMonthlyPrice);
-  report.interactions.membershipDraftSurvivesTabSwitch = {screenshot: membershipShot};
+  const membershipWrites = [];
+  const countMembershipWrite = request => {
+    if (request.url().endsWith('/api/admin/memberships') && request.method() === 'PATCH') membershipWrites.push(request);
+  };
+  admin.on('request', countMembershipWrite);
+  await admin.getByRole('button', {name: '保存配置'}).evaluate(button => {button.click(); button.click();});
+  await admin.getByText('已保存，前台将读取最新方案。', {exact: true}).waitFor({state: 'visible'});
+  await admin.waitForTimeout(200);
+  admin.off('request', countMembershipWrite);
+  assert.equal(membershipWrites.length, 4, 'policy + three plans must be written once each');
+  await admin.reload();
+  await admin.getByRole('tab', {name: /E2E 月度会员/}).click();
+  assert.equal(await admin.getByLabel('方案价格（分）').inputValue(), '177');
+  await admin.getByLabel('方案价格（分）').fill('0');
+  await admin.getByRole('button', {name: '保存配置'}).click();
+  await admin.getByText(/已定价套餐价格必须为正整数分/).waitFor({state: 'visible'});
+  await admin.getByLabel('方案价格（分）').fill(originalMonthlyPrice);
+  await admin.getByRole('button', {name: '保存配置'}).click();
+  await admin.getByText('已保存，前台将读取最新方案。', {exact: true}).waitFor({state: 'visible'});
+  report.interactions.membershipDraftSurvivesTabSwitch = {screenshot: membershipShot, persistedAfterReload: true, invalidPriceVisible: true, duplicateSuppressed: true};
+  recordOperation('/admin/memberships', '保存退款规则与会员方案', {precondition: 'finance.packages.write + 三个既有方案', api: 'PATCH /api/admin/memberships', persistence: 'membership_policy + membership_plans', normal: '通过并恢复原价', refresh: '通过', failure: '0 分价格在写入前拒绝', repeated: '同步双击仍仅四个预期 PATCH', status: '通过'});
 
   // Full isolated operator lifecycle: create a least-privilege role, assign it to an
   // existing account, prove allowed/denied access, verify assigned-role deletion guard,

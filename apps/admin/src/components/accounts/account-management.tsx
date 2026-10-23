@@ -1,5 +1,5 @@
 'use client';
-import {useCallback, useEffect, useState, type FormEvent} from 'react';
+import {useCallback, useEffect, useRef, useState, type FormEvent} from 'react';
 import {RefreshCw, Search} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {AccountTable} from './account-table';
@@ -26,6 +26,7 @@ export function AccountManagement() {
   const [registered, setRegistered] = useState<{from: string; until: string} | null>(null);
   const [list, setList] = useState<AccountList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<AccountDetail | null>(null);
   const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [detailError, setDetailError] = useState(''), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0), [detailDirty, setDetailDirty] = useState(false);
+  const actionBusyRef = useRef(false);
   const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, {method: body ? 'PATCH' : 'GET', credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   useEffect(() => {setList(null); setSelected(null); setDetail(null); setMessage('');}, [sessionActive]);
   useEffect(() => {
@@ -48,10 +49,11 @@ export function AccountManagement() {
     return () => controller.abort();
   }, [selected, allowed, request, refresh]);
   async function applyAction(action: AccountAction, reason: string) {
-    if (!detail || busy) return false;
+    if (!detail || actionBusyRef.current) return false;
+    actionBusyRef.current = true;
     setBusy(true); setError(''); setMessage('');
     try {await request(`/api/admin/accounts/${encodeURIComponent(detail.user.id)}`, undefined, {action, reason, version: detail.user.accountVersion}); setMessage(`${actionLabels[action]}已完成。`); setRefresh(value => value + 1); return true;}
-    catch (value) {setError((value as Error).message); setRefresh(value => value + 1); return false;} finally {setBusy(false);}
+    catch (value) {setError((value as Error).message); setRefresh(value => value + 1); return false;} finally {actionBusyRef.current = false; setBusy(false);}
   }
   function search(event: FormEvent) {event.preventDefault(); setError(''); setPage(1); setQuery(q); setRefresh(value => value + 1);}
   function closeDetail() {

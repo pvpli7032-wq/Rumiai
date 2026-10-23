@@ -55,6 +55,8 @@ model User {
   interestsJson        String?   @map("interests_json")
   /// 引导完成时间；为空表示还没走完或跳过。
   onboardedAt          DateTime? @map("onboarded_at")
+  /// 邮箱验证完成时间；验证令牌只保存摘要，见 AccountActionToken。
+  emailVerifiedAt      DateTime? @map("email_verified_at")
   /// 本人的邀请码；分享链接带它进入注册。
   inviteCode           String?   @unique @map("invite_code")
   /// 注册时归属的邀请人。只做归属与发奖判断，不建外键关系（不参与级联）。
@@ -113,11 +115,27 @@ model User {
   membershipGrants   MembershipGrant[]
   membershipOrders   MembershipOrder[]
   membershipUsage    MembershipUsage[]
+  accountActionTokens AccountActionToken[]
 
   @@index([createdAt, id])
   @@index([suspendedAt, deletedAt])
   @@index([invitedByUserId])
   @@map("users")
+}
+
+/// One-time, short-lived account verification/recovery token. Raw tokens are never stored.
+model AccountActionToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   String
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, purpose, expiresAt])
+  @@map("account_action_tokens")
 }
 
 model AdminOperator {

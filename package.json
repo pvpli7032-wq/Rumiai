@@ -34,6 +34,7 @@
     "test:worker": "node tests/integration/worker-runner.mjs",
     "test:tasks": "node tests/integration/tasks-runner-validation.mjs",
     "test:account-assets": "node --test --import tsx tests/integration/account-assets.test.ts",
+    "test:account-recovery": "node --test --import tsx tests/integration/account-recovery.test.ts",
     "test:critical-flows": "node --test --import tsx tests/integration/invite-onboarding-billing.test.ts",
     "tasks:run": "node --import tsx ops/scripts/run-tasks.mjs",
     "admin:bootstrap": "node --import tsx ops/scripts/bootstrap-admin.mjs",

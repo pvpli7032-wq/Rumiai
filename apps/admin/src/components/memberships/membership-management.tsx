@@ -53,6 +53,7 @@ export function MembershipManagement() {
   const canWrite = permissions.includes('finance.packages.write');
   const [catalog, setCatalog] = useState<Catalog>(defaults);
   const savedSnapshot = useRef<string | null>(null);
+  const savingRef = useRef(false);
   const [activePanel, setActivePanel] = useState('policy');
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [message, setMessage] = useState('');
   const [reload, setReload] = useState(0);
@@ -74,7 +75,7 @@ export function MembershipManagement() {
   const toggleBenefit = (index: number, key: Benefit['key'], enabled: boolean) => setCatalog(c => ({...c, plans: c.plans.map((plan, i) => { if (i !== index) return plan; const old = benefit(plan, key); return {...plan, benefits: enabled ? [...plan.benefits.filter(item => item.key !== key), {key, label: old?.label ?? LABELS[key], value: old?.value ?? 1}] : plan.benefits.filter(item => item.key !== key)}; })}));
   const updateBenefit = (index: number, key: Benefit['key'], patch: Partial<Benefit>) => setCatalog(c => ({...c, plans: c.plans.map((plan, i) => i !== index ? plan : {...plan, benefits: plan.benefits.map(item => item.key === key ? {...item, ...patch} : item)})}));
   async function save() {
-    if (saving || !canWrite || !savedSnapshot.current) return; setSaving(true); setMessage(''); let savedCount = 0;
+    if (savingRef.current || !canWrite || !savedSnapshot.current) return; savingRef.current = true; setSaving(true); setMessage(''); let savedCount = 0;
     try {
       if (catalog.plans.some(plan => plan.priceCents !== null && (!Number.isSafeInteger(plan.priceCents) || plan.priceCents < 1))) throw Error('已定价套餐价格必须为正整数分；未定价请留空。');
       const policyResponse = await fetch('/api/admin/memberships', {method: 'PATCH', credentials: 'same-origin', headers: {'content-type': 'application/json'}, body: JSON.stringify({kind: 'policy', ...catalog.policy, reason: '后台会员规则配置'})});
@@ -83,7 +84,7 @@ export function MembershipManagement() {
       for (const plan of catalog.plans) { const response = await fetch('/api/admin/memberships', {method: 'PATCH', credentials: 'same-origin', headers: {'content-type': 'application/json'}, body: JSON.stringify({...plan, reason: '后台会员套餐配置'})}); if (!response.ok) throw Error((await response.json()).error ?? `保存${plan.name}失败。`); const saved: Plan = await response.json(); next = {...next, plans: next.plans.map(item => item.id === saved.id ? saved : item)}; setCatalog(next); savedCount++; }
       savedSnapshot.current = JSON.stringify(next);
       setMessage('已保存，前台将读取最新方案。');
-    } catch (error) { setMessage(`${savedCount ? `部分未保存（此前 ${savedCount} 项已生效）：` : ''}${error instanceof Error ? error.message : '保存失败，请重试。'}`); } finally { setSaving(false); }
+    } catch (error) { setMessage(`${savedCount ? `部分未保存（此前 ${savedCount} 项已生效）：` : ''}${error instanceof Error ? error.message : '保存失败，请重试。'}`); } finally { savingRef.current = false; setSaving(false); }
   }
   if (accessLoading || loading) return <AdminPage><AdminNotice tone="loading" title="正在读取会员配置…" /></AdminPage>;
   if (!canRead) return <AdminPage><AdminPageHeader title="会员方案" /><AdminNotice tone="denied" title="当前账号没有会员方案查看权限。" /></AdminPage>;

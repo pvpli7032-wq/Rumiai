@@ -1,7 +1,7 @@
 'use client';
 
 import { Pencil, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AdminNotice, AdminPanel } from '../admin-page';
 import { Badge } from '@rumiai/ui/badge';
 import { Button } from '@rumiai/ui/button';
@@ -24,6 +24,7 @@ const newDraft = (sortOrder: number): Draft => ({ version: 0, title: '', descrip
 
 export function MissionManagement({ sessionActive, canManage, missions, onSaved }: { sessionActive: boolean; canManage: boolean; missions: Mission[]; onSaved: () => void }) {
   const [draft, setDraft] = useState<Draft | null>(null), [saving, setSaving] = useState(false), [error, setError] = useState('');
+  const savingRef = useRef(false);
   const [dirty, setDirty] = useState(false), [deleting, setDeleting] = useState<Mission | null>(null), [deleteReason, setDeleteReason] = useState('');
   const change = <K extends keyof Draft>(key: K, value: Draft[K]) => { setDirty(true); setDraft(current => current ? { ...current, [key]: value } : current); };
   function edit(mission: Mission) {
@@ -31,7 +32,8 @@ export function MissionManagement({ sessionActive, canManage, missions, onSaved 
     setDirty(false); setDraft({ id: mission.id, version: mission.version, title: mission.title, description: mission.description ?? '', rewardCoins: mission.rewardCoins, category: mission.category, conditionType: mission.conditionType, conditionTarget: mission.conditionTarget, period: mission.period, isActive: mission.isActive, sortOrder: mission.sortOrder, startsAt: toDateTimeLocalInput(mission.startsAt), endsAt: toDateTimeLocalInput(mission.endsAt), reason: '' });
   }
   async function save() {
-    if (!draft) return;
+    if (!draft || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true); setError('');
     const body = { ...draft, startsAt: draft.startsAt ? new Date(draft.startsAt).toISOString() : null, endsAt: draft.endsAt ? new Date(draft.endsAt).toISOString() : null };
     try {
@@ -39,7 +41,7 @@ export function MissionManagement({ sessionActive, canManage, missions, onSaved 
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
       setDraft(null); setDirty(false); onSaved();
-    } catch (e) { setError(e instanceof Error ? e.message : '任务保存失败。'); } finally { setSaving(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : '任务保存失败。'); } finally { savingRef.current = false; setSaving(false); }
   }
 
   return (

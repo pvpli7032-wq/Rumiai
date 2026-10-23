@@ -1,5 +1,5 @@
 'use client';
-import {useCallback, useEffect, useState, type FormEvent} from 'react';
+import {useCallback, useEffect, useRef, useState, type FormEvent} from 'react';
 import {Search} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {apiFetch} from '@admin/lib/api-client';
@@ -18,10 +18,11 @@ type Result = {items: CommentRow[]; total: number; page: number; pageSize: numbe
 export function CommentsManagement() {
   const {sessionActive, permissions, loading, error: accessError} = useAdminAccess(), allowed = permissions.includes('community.read'), canEdit = permissions.includes('community.write');
   const [queryText, setQueryText] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [page, setPage] = useState(1), [revision, setRevision] = useState(0), [result, setResult] = useState<Result | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [pending, setPending] = useState<{row: CommentRow; action: 'HIDE'|'RESTORE'|'DELETE'}|null>(null), [reason, setReason] = useState(''), [selectedRow, setSelectedRow] = useState<CommentRow | null>(null);
+  const busyRef = useRef(false);
   const request = useCallback(<T,>(url: string, init?: {method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; signal?: AbortSignal}) => apiFetch<T>(url, {credentials: 'same-origin', cache: 'no-store', ...init}), [sessionActive]);
   useEffect(() => {setResult(null); if (!sessionActive || !allowed) return; const controller = new AbortController(), params = new URLSearchParams({q: query, status, page: String(page)}); void request<Result>(`/api/admin/community/comments?${params}`, {signal: controller.signal}).then(data => {if (!controller.signal.aborted) setResult(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}); return () => controller.abort();}, [request, sessionActive, allowed, query, status, page, revision]);
   function search(event: FormEvent) {event.preventDefault(); setPage(1); setQuery(queryText); setRevision(value => value + 1);}
-  async function apply(event: FormEvent) {event.preventDefault(); if (!pending || busy || !reason.trim()) return; setBusy(true); setError(''); try {await request(`/api/admin/community/comments/${encodeURIComponent(pending.row.id)}`, {method: 'PATCH', body: {action: pending.action, reason: reason.trim(), updatedAt: pending.row.updatedAt}}); setMessage('评论处置已记录，列表正在刷新。'); setPending(null); setReason(''); setSelectedRow(null); setRevision(value => value + 1);} catch (value) {setError((value as Error).message); setRevision(value => value + 1);} finally {setBusy(false);}}
+  async function apply(event: FormEvent) {event.preventDefault(); if (!pending || busyRef.current || !reason.trim()) return; busyRef.current = true; setBusy(true); setError(''); try {await request(`/api/admin/community/comments/${encodeURIComponent(pending.row.id)}`, {method: 'PATCH', body: {action: pending.action, reason: reason.trim(), updatedAt: pending.row.updatedAt}}); setMessage('评论处置已记录，列表正在刷新。'); setPending(null); setReason(''); setSelectedRow(null); setRevision(value => value + 1);} catch (value) {setError((value as Error).message); setRevision(value => value + 1);} finally {busyRef.current = false; setBusy(false);}}
   if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取社区管理权限…" /></AdminPage>;
   if (!sessionActive || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有社区管理查看权限。'} /></AdminPage>;
   const pageCount = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;

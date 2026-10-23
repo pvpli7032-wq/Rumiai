@@ -1,10 +1,14 @@
 {
-  "platform": "win32",
-  "node": "v22.23.2",
+  "platform": "linux",
+  "node": "v24.19.0",
   "passed": true,
   "baselineCommit": "c091ed6133d536d94c4b938b3e5ed335a23ac4e1",
   "baselineMigrations": 52,
-  "finalMigrations": 53,
+  "currentMigrations": [
+    "20261023120000_memberships",
+    "20261023170000_account_recovery"
+  ],
+  "finalMigrations": 54,
   "preservedUser": {
     "id": "upgrade-user-1",
     "email": "upgrade@example.test"
@@ -14,5 +18,6 @@
     "value": "3"
   },
   "membershipTableCount": 6,
+  "recoveryTableCount": 1,
   "sourceState": "local working tree; not deployed"
 }
