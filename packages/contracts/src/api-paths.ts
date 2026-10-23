@@ -189,6 +189,7 @@ export const API = {
       costs: '/api/admin/ai/costs',
     },
     growth: {
+      modules: '/api/admin/growth/modules',
       missions: '/api/admin/growth/missions',
       mission: (id: string) => `/api/admin/growth/missions/${e(id)}`,
       checkins: '/api/admin/growth/checkins',

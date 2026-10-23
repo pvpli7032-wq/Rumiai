@@ -37,6 +37,7 @@
     "test:account-recovery": "node --test --import tsx tests/integration/account-recovery.test.ts",
     "test:chat-media": "node --test --import tsx tests/integration/chat-media.test.ts",
     "test:coin-package-benefits": "node --test --import tsx tests/unit/coin-package-benefits.test.ts",
+    "test:growth-ai-tiers": "node --test --import tsx tests/integration/growth-modules-ai-price-tiers.test.ts",
     "test:critical-flows": "node --test --import tsx tests/integration/invite-onboarding-billing.test.ts",
     "tasks:run": "node --import tsx ops/scripts/run-tasks.mjs",
     "admin:bootstrap": "node --import tsx ops/scripts/bootstrap-admin.mjs",

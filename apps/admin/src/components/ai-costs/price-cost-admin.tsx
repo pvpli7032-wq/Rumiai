@@ -73,6 +73,7 @@ export function PriceCostAdmin() {
       draft.inputPricePerMillion.trim() !== (row.costPrice?.inputPricePerMillion ?? '')
       || draft.outputPricePerMillion.trim() !== (row.costPrice?.outputPricePerMillion ?? '')
       || draft.currency !== (row.costPrice?.currency ?? '')
+      || JSON.stringify(draft.tiers.map(tier=>({minInputTokens:Number(tier.minInputTokens),maxInputTokens:tier.maxInputTokens?Number(tier.maxInputTokens):null,inputPricePerMillion:tier.inputPricePerMillion.trim(),outputPricePerMillion:tier.outputPricePerMillion.trim(),cachedInputPricePerMillion:tier.cachedInputPricePerMillion.trim()||null})))!==JSON.stringify((row.costPrice?.tiers??[]).map(({minInputTokens,maxInputTokens,inputPricePerMillion,outputPricePerMillion,cachedInputPricePerMillion})=>({minInputTokens,maxInputTokens,inputPricePerMillion,outputPricePerMillion,cachedInputPricePerMillion})))
     );
 
     if (!coinChanged && !costChanged) {
@@ -108,6 +109,7 @@ export function PriceCostAdmin() {
             effectiveAt,
             source: draft.source.trim(),
             reason: draft.reason.trim(),
+            ...(draft.tiers.length?{tiers:draft.tiers.map(tier=>({minInputTokens:Number(tier.minInputTokens),maxInputTokens:tier.maxInputTokens?Number(tier.maxInputTokens):null,inputPricePerMillion:tier.inputPricePerMillion.trim(),outputPricePerMillion:tier.outputPricePerMillion.trim(),cachedInputPricePerMillion:tier.cachedInputPricePerMillion.trim()||null}))}:{}),
           },
         });
         saved.push('供应商成本价');

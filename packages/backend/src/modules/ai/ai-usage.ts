@@ -6,7 +6,7 @@ import { readCostBudgetBlock, type AiBudgetBlock } from './budget-guard';
 import { estimateAiCallCost } from './cost-accounting';
 import { logWarning } from '@rumiai/backend/infrastructure/logging/logger';
 import { readAiDailyBudgetConfiguration } from './costs/budget-config-service';
-import {readCurrentAiModelPrices,estimateAiCostFromPrice} from './costs/model-price-service';
+import {readCurrentAiModelPrices,estimateAiCostFromTieredPrice} from './costs/model-price-service';
 import {ledgerTaskType, readTaskBudget, readTaskUsageOf, taskBudgetBlock, type AiTaskType} from './task-budget';
 
 /** 每日调用额度的业务日；时区来自 billing.dayTimezone，默认 UTC（V3 表 8）。 */
@@ -70,10 +70,11 @@ export async function reserveAiCall(userId:string,conversationId:string,operatio
 }
 export async function finishAiCall(id:string,startedAt:Date,status:'SUCCEEDED'|'FAILED'|'CANCELLED'|'MOCK',metrics:AiStreamMetrics={},errorCode?:string){
   const input=metrics.inputTokens??null,output=metrics.outputTokens??null;
-  let price:{id:string;currency:string;inputPerMillionMicros:bigint;outputPerMillionMicros:bigint}|undefined,priceLookupFailed=false;
+  let price:{id:string;currency:string;inputPerMillionMicros:bigint;outputPerMillionMicros:bigint;tiers:{id:string;minInputTokens:number;maxInputTokens:number|null;inputPerMillionMicros:bigint;outputPerMillionMicros:bigint;cachedInputPerMillionMicros:bigint|null}[]}|undefined,priceLookupFailed=false;
   if(status!=='MOCK'&&metrics.modelKey){try{price=(await readCurrentAiModelPrices(db,[metrics.modelKey],startedAt))[0]?.price;}catch{priceLookupFailed=true;logWarning('ai_model_price_lookup_failed',{callId:id});}}
-  const estimatedCost=status==='MOCK'?0:price?estimateAiCostFromPrice(input??undefined,output??undefined,price.inputPerMillionMicros,price.outputPerMillionMicros):priceLookupFailed?null:estimateAiCallCost(status,metrics);
-  const call=await db.aiCall.update({where:{id},data:{status,model:metrics.model??null,attempts:metrics.attempts??0,inputTokens:input,outputTokens:output,estimatedCost,...(price?{currency:price.currency,modelPriceId:price.id}:{}),errorCode:errorCode??null,finishedAt:new Date(),durationMs:Date.now()-startedAt.getTime()}});
+  const tiered=price?estimateAiCostFromTieredPrice(input??undefined,output??undefined,metrics.cachedInputTokens,price):null;
+  const estimatedCost=status==='MOCK'?0:price?tiered?.amount??null:priceLookupFailed?null:estimateAiCallCost(status,metrics);
+  const call=await db.aiCall.update({where:{id},data:{status,model:metrics.model??null,attempts:metrics.attempts??0,inputTokens:input,outputTokens:output,estimatedCost,...(price?{currency:price.currency,modelPriceId:price.id,modelPriceTierId:tiered?.tierId??null,costAuditJson:tiered?JSON.stringify(tiered.audit):null}:{}),errorCode:errorCode??null,finishedAt:new Date(),durationMs:Date.now()-startedAt.getTime()}});
   let circuitBreaker:string;
   try { circuitBreaker=(await readAiDailyBudgetConfiguration()).circuitBreaker; }
   catch { logWarning('ai_budget_monitor_failed',{callId:id}); return call; }

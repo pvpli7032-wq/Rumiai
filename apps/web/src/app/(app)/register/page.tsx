@@ -1,7 +1,7 @@
 'use client';
 import { zhError } from '@rumiai/contracts/copy/zh';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@web/lib/auth-context';
@@ -20,6 +20,7 @@ export default function RegisterPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const submittingRef=useRef(false);
   const [inviteCode, setInviteCode] = useState('');
   const [policy,setPolicy]=useState<{ageGate:{enabled:boolean;minimumAge:number|null;version:string|null};termsVersion:string|null;privacyVersion:string|null}>({ageGate:{enabled:false,minimumAge:null,version:null},termsVersion:null,privacyVersion:null});
   const [policyReady,setPolicyReady]=useState(false);
@@ -32,11 +33,13 @@ export default function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if(submittingRef.current)return;
     setError('');
     if (passwordMinLength !== undefined && password.length < passwordMinLength) { setError(`密码至少需要 ${passwordMinLength} 个字符`); return; }
-    setLoading(true);
-    const result = await register(username, email, password, {ageConfirmed,termsAccepted,privacyAccepted}, inviteCode || undefined);
-    setLoading(false);
+    submittingRef.current=true;setLoading(true);
+    let result;
+    try{result=await register(username, email, password, {ageConfirmed,termsAccepted,privacyAccepted}, inviteCode || undefined);}
+    finally{submittingRef.current=false;setLoading(false);}
     if (result.success) {
       router.push(result.onboardingRequired ? onboardingTarget(afterLoginTarget()) : afterLoginTarget());
     } else {

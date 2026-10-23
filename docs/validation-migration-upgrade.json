@@ -7,9 +7,10 @@
   "currentMigrations": [
     "20261023120000_memberships",
     "20261023170000_account_recovery",
-    "20261023190000_message_media_and_package_benefits"
+    "20261023190000_message_media_and_package_benefits",
+    "20261023210000_growth_modules_ai_price_tiers"
   ],
-  "finalMigrations": 55,
+  "finalMigrations": 56,
   "preservedUser": {
     "id": "upgrade-user-1",
     "email": "upgrade@example.test"

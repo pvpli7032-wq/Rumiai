@@ -8,9 +8,10 @@ import {CheckinRewards} from './checkin-rewards';
 import {MissionManagement,type Mission} from './missions';
 import {GiftCatalogManagement} from './gift-catalog';
 import {RewardBudget} from './reward-budget';
+import {GrowthModuleManagement} from './module-management';
 import {API} from '@rumiai/contracts/api-paths';
 
-const SECTIONS = [['missions','任务配置'],['checkin','签到奖励'],['gifts','礼物目录']] as const;
+const SECTIONS = [['modules','玩法模块'],['missions','任务配置'],['checkin','签到奖励'],['gifts','礼物目录']] as const;
 type GrowthSection = (typeof SECTIONS)[number][0];
 
 export function GrowthManagement(){
@@ -42,6 +43,7 @@ export function GrowthManagement(){
     </div>
     <RewardBudget sessionActive={sessionActive}/>
     {error&&<AdminNotice tone="error" title={error} className="py-6" />}
+    <div hidden={section !== 'modules'}><GrowthModuleManagement sessionActive={sessionActive} canManage={canManage}/></div>
     <div hidden={section !== 'missions'}>{loading ? <AdminNotice tone="loading" title="正在读取任务…" /> : <MissionManagement sessionActive={sessionActive} canManage={canManage} missions={missions} onSaved={()=>void refresh(false)}/>}</div>
     <div hidden={section !== 'checkin'}><CheckinRewards sessionActive={sessionActive} canManage={canManage} onSaved={()=>void refresh(false)}/></div>
     <div hidden={section !== 'gifts'}><GiftCatalogManagement sessionActive={sessionActive} canManage={canManage}/></div>

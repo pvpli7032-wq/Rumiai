@@ -23,7 +23,10 @@ export interface PriceDraft {
   effectiveAt: string;
   source: string;
   reason: string;
+  tiers: PriceTierDraft[];
 }
+
+export interface PriceTierDraft {minInputTokens:string;maxInputTokens:string;inputPricePerMillion:string;outputPricePerMillion:string;cachedInputPricePerMillion:string;}
 
 export interface ModelPriceDrawerProps {
   row: ModelPriceRow | null;
@@ -45,6 +48,7 @@ function initialDraft(row: ModelPriceRow): PriceDraft {
     // 回填当前版本的来源：改价时多半只是调数字，来源沿用上一次登记的那句才有意义。
     source: row.costPrice?.source ?? '',
     reason: '',
+    tiers: (row.costPrice?.tiers??[]).map(tier=>({minInputTokens:String(tier.minInputTokens),maxInputTokens:tier.maxInputTokens===null?'':String(tier.maxInputTokens),inputPricePerMillion:tier.inputPricePerMillion,outputPricePerMillion:tier.outputPricePerMillion,cachedInputPricePerMillion:tier.cachedInputPricePerMillion??''})),
   };
 }
 
@@ -74,6 +78,7 @@ export function ModelPriceDrawer({row, canManage, busy, onClose, onSubmit}: Mode
       if (!/^[A-Z]{3}$/.test(draft.currency)) { setError('成本币种必须是三个大写字母，例如 USD。'); return; }
       if (!draft.source.trim()) { setError('填写成本价时必须写价格来源，方便以后核对。'); return; }
       if (!draft.reason.trim()) { setError('填写成本价时必须写操作理由，会写入管理审计。'); return; }
+      if(draft.tiers.some((tier,index)=>!/^\d+$/.test(tier.minInputTokens)||(!tier.maxInputTokens&&index<draft.tiers.length-1)||Boolean(tier.maxInputTokens&&!/^\d+$/.test(tier.maxInputTokens))||!DECIMAL.test(tier.inputPricePerMillion)||!DECIMAL.test(tier.outputPricePerMillion)||Boolean(tier.cachedInputPricePerMillion&&!DECIMAL.test(tier.cachedInputPricePerMillion)))){setError('成本阶梯区间或单价格式无效；最后一档结束值留空表示无上限。');return;}
     }
     if (!draft.effectiveAt) { setError('请选择生效时间。'); return; }
     setError('');
@@ -106,6 +111,7 @@ export function ModelPriceDrawer({row, canManage, busy, onClose, onSubmit}: Mode
                   : NOT_CONFIGURED}
               </DetailRow>
               <DetailRow label="成本价来源">{row.costPrice?.source || NOT_CONFIGURED}</DetailRow>
+              {row.costPrice&&<DetailRow label="成本阶梯">{row.costPrice.tiers.length?`${row.costPrice.tiers.length} 档（按输入 Token 区间）`:'未配置，使用单一成本价'}</DetailRow>}
               {row.coinPricePending && <DetailRow label="待生效收费价">v{row.coinPricePending.version} · {formatDateTime(row.coinPricePending.effectiveAt)}</DetailRow>}
               {row.costPricePending && <DetailRow label="待生效成本价">{row.costPricePending.currency} · {formatDateTime(row.costPricePending.effectiveAt)}</DetailRow>}
             </div>
@@ -138,6 +144,17 @@ export function ModelPriceDrawer({row, canManage, busy, onClose, onSubmit}: Mode
                 <span className="text-sm font-medium">输出单价</span>
                 <Input inputMode="decimal" value={draft.outputPricePerMillion} onChange={event => setDraft({...draft, outputPricePerMillion: event.target.value})} aria-label="输出单价" placeholder="例如 0.6" />
               </label>
+            </div>
+            <div className="mt-4 space-y-3 border-t border-border pt-4">
+              <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium">上下文成本阶梯（可选）</p><p className="text-xs text-muted-foreground">按输入 Token 命中 [起始, 结束)；首档从 0 开始、区间连续、末档结束留空。不会改变用户按回复扣币。</p></div><Button type="button" variant="outline" onClick={()=>setDraft({...draft,tiers:[...draft.tiers,{minInputTokens:draft.tiers.at(-1)?.maxInputTokens||'0',maxInputTokens:'',inputPricePerMillion:draft.inputPricePerMillion,outputPricePerMillion:draft.outputPricePerMillion,cachedInputPricePerMillion:''}]})}>添加阶梯</Button></div>
+              {draft.tiers.map((tier,index)=><div key={index} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-6">
+                <Input aria-label={`阶梯 ${index+1} 起始 Token`} inputMode="numeric" placeholder="起始 Token" value={tier.minInputTokens} onChange={event=>setDraft({...draft,tiers:draft.tiers.map((item,i)=>i===index?{...item,minInputTokens:event.target.value}:item)})}/>
+                <Input aria-label={`阶梯 ${index+1} 结束 Token`} inputMode="numeric" placeholder="结束/留空" value={tier.maxInputTokens} onChange={event=>setDraft({...draft,tiers:draft.tiers.map((item,i)=>i===index?{...item,maxInputTokens:event.target.value}:item)})}/>
+                <Input aria-label={`阶梯 ${index+1} 输入单价`} inputMode="decimal" placeholder="输入单价" value={tier.inputPricePerMillion} onChange={event=>setDraft({...draft,tiers:draft.tiers.map((item,i)=>i===index?{...item,inputPricePerMillion:event.target.value}:item)})}/>
+                <Input aria-label={`阶梯 ${index+1} 输出单价`} inputMode="decimal" placeholder="输出单价" value={tier.outputPricePerMillion} onChange={event=>setDraft({...draft,tiers:draft.tiers.map((item,i)=>i===index?{...item,outputPricePerMillion:event.target.value}:item)})}/>
+                <Input aria-label={`阶梯 ${index+1} 缓存输入单价`} inputMode="decimal" placeholder="缓存价/可空" value={tier.cachedInputPricePerMillion} onChange={event=>setDraft({...draft,tiers:draft.tiers.map((item,i)=>i===index?{...item,cachedInputPricePerMillion:event.target.value}:item)})}/>
+                <Button type="button" variant="outline" onClick={()=>setDraft({...draft,tiers:draft.tiers.filter((_,i)=>i!==index)})}>移除</Button>
+              </div>)}
             </div>
           </DetailSection>
 

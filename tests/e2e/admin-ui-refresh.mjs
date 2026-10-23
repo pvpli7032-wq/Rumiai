@@ -288,9 +288,14 @@ try {
   await front.getByPlaceholder('username123').fill('e2e-invited-user');
   await front.getByPlaceholder('your@email.com').fill('e2e-invited-user@example.test');
   await front.locator('input[type="password"]').fill(fixture.password);
+  const registrationWrites=[];
+  const countRegistrationWrite=request=>{if(request.url().includes('/api/auth/register')&&request.method()==='POST')registrationWrites.push(request);};
+  front.on('request',countRegistrationWrite);
   const registrationResponse = front.waitForResponse(response => response.url().includes('/api/auth/register') && response.request().method() === 'POST');
-  await front.getByRole('button', {name: '免费注册 🎉'}).click();
-  assert.equal((await registrationResponse).status(), 201);
+  await front.getByRole('button', {name: '免费注册 🎉'}).evaluate(button=>{button.click();button.click();});
+  const registrationResult=await registrationResponse;
+  assert.equal(registrationResult.status(),201,`registration failed: ${await registrationResult.text()}`);
+  await front.waitForTimeout(200);front.off('request',countRegistrationWrite);assert.equal(registrationWrites.length,1,'synchronous duplicate registration must produce one POST');
   await front.waitForURL('**/onboarding?next=%2Fdiscover');
   await front.getByRole('heading', {name: '欢迎来到星伴'}).waitFor({state: 'visible'});
   const onboardingResponse = front.waitForResponse(response => response.url().includes('/api/growth/onboarding') && response.request().method() === 'POST');
@@ -700,6 +705,41 @@ try {
   await admin.getByRole('button', {name: '编辑 E2E 隔离模型'}).waitFor({state: 'visible'});
   await admin.reload();
   await admin.getByRole('button', {name: '编辑 E2E 隔离模型'}).waitFor({state: 'visible'});
+  const savedModel=await fixture.db.aiModel.findUniqueOrThrow({where:{key:'e2e-isolated-model'}});
+
+  // Cost tiers are append-only provider cost versions, independent from the
+  // per-reply coin price. Use the real drawer and verify its persisted ranges.
+  await admin.goto(`${adminOrigin}/admin/ai/costs`);
+  await admin.getByLabel('编辑价格 E2E 隔离模型').click();
+  const priceDrawer=admin.getByRole('dialog',{name:'编辑价格 · E2E 隔离模型'});
+  await priceDrawer.getByLabel('每条回复币价').fill('2');
+  await priceDrawer.getByLabel('输入单价').fill('1');
+  await priceDrawer.getByLabel('输出单价').fill('2');
+  const effectiveNow=await admin.evaluate(()=>{const date=new Date(Date.now()-60_000),pad=value=>String(value).padStart(2,'0');return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;});
+  await priceDrawer.getByLabel('生效时间').fill(effectiveNow);
+  await priceDrawer.getByLabel('价格来源').fill('E2E 隔离合同样本');
+  await priceDrawer.getByLabel('操作理由').fill('E2E 验证成本阶梯');
+  await priceDrawer.getByRole('button',{name:'添加阶梯'}).click();
+  await priceDrawer.getByLabel('阶梯 1 结束 Token').fill('100');
+  await priceDrawer.getByLabel('阶梯 1 缓存输入单价').fill('0.5');
+  await priceDrawer.getByRole('button',{name:'添加阶梯'}).click();
+  await priceDrawer.getByLabel('阶梯 2 输入单价').fill('3');
+  await priceDrawer.getByLabel('阶梯 2 输出单价').fill('4');
+  const tierPriceSave=admin.waitForResponse(response=>response.url().endsWith('/api/admin/ai/prices')&&response.request().method()==='POST');
+  await priceDrawer.getByRole('button',{name:'保存价格'}).click();
+  assert.equal((await tierPriceSave).status(),201);
+  const tierPrice=await fixture.db.aiModelPrice.findFirstOrThrow({where:{modelId:savedModel.id},include:{tiers:{orderBy:{sortOrder:'asc'}}}});
+  assert.deepEqual(tierPrice.tiers.map(row=>[row.minInputTokens,row.maxInputTokens]),[[0,100],[100,null]]);
+  await admin.reload();await admin.getByLabel('编辑价格 E2E 隔离模型').click();
+  await admin.getByText('2 档（按输入 Token 区间）',{exact:true}).waitFor({state:'visible'});
+  const invalidTierPrice=await admin.request.post(`${adminOrigin}/api/admin/ai/prices`,{data:{modelId:savedModel.id,currency:'USD',inputPricePerMillion:'1',outputPricePerMillion:'2',effectiveAt:new Date(Date.now()+60_000).toISOString(),source:'E2E invalid tier',reason:'E2E 验证阶梯断档',tiers:[{minInputTokens:0,maxInputTokens:90,inputPricePerMillion:'1',outputPricePerMillion:'2',cachedInputPricePerMillion:null},{minInputTokens:100,maxInputTokens:null,inputPricePerMillion:'3',outputPricePerMillion:'4',cachedInputPricePerMillion:null}]}});
+  assert.equal(invalidTierPrice.status(),400);
+  recordOperation('/admin/ai/costs','供应商成本阶梯新增/刷新/边界校验',{precondition:'ai.costs.manage + billing.manage + 隔离模型',api:'POST/GET /api/admin/ai/prices',persistence:'ai_model_prices/ai_model_price_tiers + admin_audit_logs',normal:'两档成本价通过',refresh:'通过',failure:'区间断档 400',repeated:'追加版本唯一键保护',status:'通过'});
+  // Prices are append-only in product usage. This isolated cleanup only removes
+  // the temporary model dependencies so the existing model delete case can run.
+  await fixture.db.modelCoinPrice.deleteMany({where:{modelId:savedModel.id}});
+  await fixture.db.aiModelPrice.deleteMany({where:{modelId:savedModel.id}});
+  await admin.goto(`${adminOrigin}/admin/ai/models`);
   await admin.getByRole('button', {name: '删除 / 查看原因'}).click();
   const deleteModelDialog = admin.getByRole('dialog', {name: '删除 AI 模型'});
   await deleteModelDialog.getByLabel('删除理由').fill('E2E 清理无引用模型');
@@ -723,6 +763,30 @@ try {
   // Growth modules: create inactive mission/gift records, prove refresh persistence,
   // exercise invalid input/duplicate protection, then delete the isolated records.
   await admin.goto(`${adminOrigin}/admin/growth`);
+  await admin.getByRole('tab', {name: '玩法模块'}).click();
+  await admin.getByLabel('玩法模块变更理由').fill('E2E 验证玩法模块停用');
+  let checkinModule=admin.locator('[data-growth-module="checkin"]');
+  const moduleWrites=[];
+  const countModuleWrite=request=>{if(request.url().endsWith('/api/admin/growth/modules')&&request.method()==='PUT')moduleWrites.push(request);};
+  admin.on('request',countModuleWrite);
+  const disableModule=admin.waitForResponse(response=>response.url().endsWith('/api/admin/growth/modules')&&response.request().method()==='PUT');
+  await checkinModule.getByRole('button',{name:'停用'}).evaluate(button=>{button.click();button.click();});
+  assert.equal((await disableModule).status(),200);
+  await admin.waitForTimeout(200);admin.off('request',countModuleWrite);
+  assert.equal(moduleWrites.length,1,'a synchronous duplicate module click must produce one PUT');
+  assert.equal((await fixture.db.growthModuleState.findUniqueOrThrow({where:{moduleId:'checkin'}})).isEnabled,false);
+  await admin.reload();await admin.getByRole('tab',{name:'玩法模块'}).click();
+  checkinModule=admin.locator('[data-growth-module="checkin"]');
+  await checkinModule.getByText('已停用',{exact:true}).waitFor({state:'visible'});
+  const staleModule=await admin.request.put(`${adminOrigin}/api/admin/growth/modules`,{data:{moduleId:'checkin',isEnabled:true,config:{},version:0,reason:'E2E 过期玩法版本'}});
+  assert.equal(staleModule.status(),409);
+  await admin.getByLabel('玩法模块变更理由').fill('E2E 恢复玩法模块');
+  const enableModule=admin.waitForResponse(response=>response.url().endsWith('/api/admin/growth/modules')&&response.request().method()==='PUT');
+  await checkinModule.getByRole('button',{name:'启用'}).click();
+  assert.equal((await enableModule).status(),200);
+  assert.equal((await fixture.db.growthModuleState.findUniqueOrThrow({where:{moduleId:'checkin'}})).isEnabled,true);
+  recordOperation('/admin/growth','玩法模块启停/刷新/版本保护',{precondition:'growth.manage + 静态注册模块',api:'GET/PUT /api/admin/growth/modules',persistence:'growth_module_states + admin_audit_logs',normal:'停用并恢复通过，历史未删除',refresh:'通过',failure:'过期版本 409',repeated:'同步双击仅一次 PUT',status:'通过'});
+  await admin.getByRole('tab', {name: '任务配置'}).click();
   await admin.getByRole('button', {name: '新建任务'}).click();
   const missionDialog = admin.getByRole('dialog', {name: '新建任务'});
   await missionDialog.getByLabel('任务名称').fill('E2E 隔离任务');

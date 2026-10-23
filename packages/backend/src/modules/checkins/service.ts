@@ -2,6 +2,7 @@ import {db,pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {grantEarnedCoins} from '@rumiai/backend/modules/coins/reward-ledger';
 import {notifyCoinsReceived} from '@rumiai/backend/modules/notifications/write';
 import {notifySafely} from '@rumiai/backend/modules/notifications/emit';
+import {growthModuleAdapter} from '@rumiai/backend/modules/growth/modules/registry';
 
 export class CheckinError extends Error{
   constructor(message:string,public status=400){super(message);this.name='CheckinError';}
@@ -11,6 +12,7 @@ function localMidnight(value:Date){const day=new Date(value);day.setHours(0,0,0,
 
 export async function readCheckinStatus(userId:string){
   await pragmasReady;
+  if(!await growthModuleAdapter('checkin').isEnabled(db))throw new CheckinError('签到玩法当前已停用，历史签到记录仍会保留。',409);
   const user=await db.user.findUnique({where:{id:userId},select:{coins:true,streakCount:true,lastCheckin:true}});
   if(!user)throw new CheckinError('账号不存在。',404);
   const today=localMidnight(new Date()),last=user.lastCheckin?localMidnight(user.lastCheckin):null;
@@ -31,6 +33,7 @@ export async function claimDailyCheckin(userId:string){
   const newStreak=last?.getTime()===yesterday.getTime()?user.streakCount+1:1;
   const streakDay=Math.min(newStreak,7);
   return db.$transaction(async tx=>{
+    if(!await growthModuleAdapter('checkin').isEnabled(tx))throw new CheckinError('签到玩法当前已停用，历史签到记录仍会保留。',409);
     const policy=await tx.checkinRewardRule.findUnique({where:{streakDay},select:{rewardCoins:true}});
     if(!policy)throw new CheckinError('签到奖励规则尚未配置。',503);
     const updated=await tx.user.updateMany({

@@ -73,9 +73,28 @@ database: policy/version, accrual, reversal, settlement, withdrawal
 
 必须先确认层级、每层比例、适用订单、退款等待期、税费/最低提现、结算周期与币种。真实支付/提现不得用测试成功提示代替。
 
-## 增长玩法插件边界
+## 增长玩法插件边界（本批已交付内建模块协议）
 
-新增玩法通过静态注册表声明 `id/menu/permissions/configSchema/events/billingCapability`；启停和配置存数据库。运行时调用受限能力接口（奖励账本、埋点、通知），不能加载后台上传的任意代码。现有任务、礼物、签到先做适配器迁移，避免一次性重写。
+```text
+packages/contracts/src/growth/modules.ts              跨端声明：id/menu/permission/config/tasks/events
+packages/backend/src/modules/growth/modules/registry.ts 可信静态适配器注册表
+packages/backend/src/modules/growth/modules/state-service.ts 配置校验、启停、版本锁与审计
+apps/api/src/app/api/admin/growth/modules              鉴权与 HTTP 错误映射
+apps/admin/src/components/growth/module-management.tsx 运营启停界面
+database: GrowthModuleState                             只保存状态和声明过的 JSON 配置
+```
+
+现有任务、签到、礼物已注册为三个内建适配器。停用后，新的任务领取、签到和赠礼在事务内被拒绝；用户任务列表/礼物目录不再暴露新入口，但领取、签到、赠礼和金币流水历史不删除。数据库没有代码路径、包名或脚本字段，不能从后台上传或动态执行任意插件。新增玩法仍需经过代码审查，把可信适配器登记到静态注册表；这提供小改动扩展边界，不把系统变成不受控的第三方代码加载器。
+
+当前三个模块的配置 schema 是严格空对象：先建立配置协议，不编造尚未确认的活动规则。后续模块可只新增声明过、服务端验证过的布尔/整数/文本字段。计费能力仍通过现有金币账本领域服务，不允许模块直接改余额。
+
+## AI 供应商成本阶梯（本批已交付结构，未写入线上价格）
+
+`AiModelPrice` 继续作为追加式、按币种和生效时间版本化的价格头；可选 `AiModelPriceTier` 记录连续的 `[minInputTokens, maxInputTokens)` 区间、输入/输出单价及可选缓存输入单价。没有阶梯的旧价格仍按原单价计算，迁移不会替换历史版本。
+
+每次完成 AI 调用时按输入 Token 命中一个阶梯，并在 `AiCall.modelPriceTierId/costAuditJson` 保存价格版本、阶梯、区间、Token 数和实际使用的费率，便于重算与审计。缓存 Token 仅在上游明确返回该指标时使用；未提供缓存价时按普通输入价计算。后台提供结构化阶梯编辑，服务端强制首档从 0 开始、区间连续不重叠、末档无上限、最多 20 档。
+
+本实现没有预填用户口述的 275k 或任何金额，也没有改变用户侧“每次回复扣币”的 `ModelCoinPrice`。供应商 Token 成本与用户币价仍是两套独立版本。
 
 ## 消息媒体与未来语音（本批已交付图片/静态表情）
 

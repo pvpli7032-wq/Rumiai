@@ -15,7 +15,7 @@ if (baselineListResult.status !== 0) throw new Error(baselineListResult.stderr |
 const baselineNames = [...new Set(baselineListResult.stdout.trim().split(/\r?\n/).filter(name => name.endsWith('/migration.sql')).map(name => name.split('/')[2]))].sort();
 if (baselineNames.length !== 52) throw new Error(`audited baseline expected 52 migrations, found ${baselineNames.length}`);
 for (const name of baselineNames) if (!migrations.includes(name)) throw new Error(`baseline migration missing from current tree: ${name}`);
-const expectedCurrentMigrations = ['20261023120000_memberships', '20261023170000_account_recovery', '20261023190000_message_media_and_package_benefits'];
+const expectedCurrentMigrations = ['20261023120000_memberships', '20261023170000_account_recovery', '20261023190000_message_media_and_package_benefits', '20261023210000_growth_modules_ai_price_tiers'];
 const currentMigrations = migrations.filter(name => !baselineNames.includes(name));
 if (JSON.stringify(currentMigrations) !== JSON.stringify(expectedCurrentMigrations)) throw new Error(`unexpected current migration set: ${currentMigrations.join(', ')}`);
 const dir = mkdtempSync(join(tmpdir(), 'rumiai-migration-upgrade-'));

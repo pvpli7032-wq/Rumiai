@@ -1096,6 +1096,19 @@ model CheckinRewardRule {
   @@map("checkin_reward_rules")
 }
 
+/// Operator-owned state for built-in growth modules. Executable code is never loaded
+/// from this table: module_id must resolve through the static, trusted registry.
+model GrowthModuleState {
+  moduleId   String   @id @map("module_id")
+  isEnabled  Boolean  @default(true) @map("is_enabled")
+  configJson String   @default("{}") @map("config_json")
+  version    Int      @default(0)
+  updatedBy  String?  @map("updated_by")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("growth_module_states")
+}
+
 // ==========================================
 // SITE CONTENT (everything the UI renders is DB-driven)
 // ==========================================
@@ -1378,6 +1391,10 @@ model AiCall {
   estimatedCost    Float?        @map("estimated_cost")
   modelPriceId     String?       @map("model_price_id")
   modelPrice       AiModelPrice? @relation(fields: [modelPriceId], references: [id], onDelete: SetNull)
+  modelPriceTierId String?           @map("model_price_tier_id")
+  modelPriceTier   AiModelPriceTier? @relation(fields: [modelPriceTierId], references: [id], onDelete: SetNull)
+  /// Immutable calculator inputs/rates/range chosen for this call; no prompts or responses.
+  costAuditJson    String?           @map("cost_audit_json")
   currency         String
   errorCode        String?       @map("error_code")
   startedAt        DateTime      @default(now()) @map("started_at")
@@ -1388,6 +1405,7 @@ model AiCall {
   @@index([userId, startedAt])
   @@index([currency, startedAt])
   @@index([taskType, startedAt])
+  @@index([modelPriceTierId])
   @@map("ai_calls")
 }
 
@@ -1478,9 +1496,29 @@ model AiModelPrice {
   createdBy              String   @map("created_by")
   createdAt              DateTime @default(now()) @map("created_at")
   calls                  AiCall[]
+  tiers                  AiModelPriceTier[]
 
   @@unique([modelId, effectiveAt])
   @@map("ai_model_prices")
+}
+
+/// Optional context-size tiers attached to one append-only provider price version.
+/// Ranges are [min_input_tokens, max_input_tokens); NULL max means no upper bound.
+model AiModelPriceTier {
+  id                          String       @id @default(cuid())
+  priceId                     String       @map("price_id")
+  price                       AiModelPrice @relation(fields: [priceId], references: [id], onDelete: Cascade)
+  minInputTokens              Int          @map("min_input_tokens")
+  maxInputTokens              Int?         @map("max_input_tokens")
+  inputPerMillionMicros       BigInt       @map("input_per_million_micros")
+  outputPerMillionMicros      BigInt       @map("output_per_million_micros")
+  cachedInputPerMillionMicros BigInt?      @map("cached_input_per_million_micros")
+  sortOrder                   Int          @map("sort_order")
+  calls                       AiCall[]
+
+  @@unique([priceId, minInputTokens])
+  @@index([priceId, sortOrder])
+  @@map("ai_model_price_tiers")
 }
 
 /// Creating a circle does not automatically subscribe its owner.
