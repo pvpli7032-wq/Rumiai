@@ -9,17 +9,19 @@ import {apiFetch} from '@admin/lib/api-client';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
 import {Badge} from '@rumiai/ui/badge';
 import {Button} from '@rumiai/ui/button';
-import {DataTable} from '@rumiai/ui/data-table';
+import {DataTable} from '@admin/components/layout/data-table';
 import {EmptyState} from '@rumiai/ui/empty-state';
 import {Input} from '@rumiai/ui/input';
 import {Select} from '@rumiai/ui/select';
+import {DetailDrawer} from '@admin/components/layout/detail-drawer';
 
 export function CircleManagement() {
   const {sessionActive, permissions, loading, error: accessError} = useAdminAccess();
   const allowed = permissions.includes('community.read'), canEdit = permissions.includes('community.write'), canManageMembers = permissions.includes('community.members.manage');
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [ownership, setOwnership] = useState('ALL'), [featured, setFeatured] = useState('ALL'), [page, setPage] = useState(1), [revision, setRevision] = useState(0);
-  const [list, setList] = useState<CircleList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<ManagedCircle | null>(null), [creating, setCreating] = useState(false);
-  const [reading, setReading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
+  const [list, setList] = useState<CircleList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<ManagedCircle | null>(null), [creating, setCreating] = useState(false), [detailRetry, setDetailRetry] = useState(0);
+  const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
+  const [detailDirty, setDetailDirty] = useState(false);
   const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET') => apiFetch<T>(url, {method, credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   useEffect(() => {setList(null); setSelected(null); setDetail(null); setCreating(false); setError(''); setMessage('');}, [sessionActive]);
   useEffect(() => {
@@ -30,11 +32,12 @@ export function CircleManagement() {
     return () => controller.abort();
   }, [request, sessionActive, allowed, query, status, ownership, featured, page, revision]);
   useEffect(() => {
-    setDetail(null); if (!selected || !allowed) return;
+    setDetail(null); if (!selected || !allowed) { setDetailLoading(false); return; }
     const controller = new AbortController();
-    void request<ManagedCircle>(`/api/admin/circles/${encodeURIComponent(selected)}`, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);});
+    setDetailLoading(true);
+    void request<ManagedCircle>(`/api/admin/circles/${encodeURIComponent(selected)}`, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
     return () => controller.abort();
-  }, [request, selected, allowed]);
+  }, [request, selected, allowed, detailRetry]);
   async function apply(action: CircleAction, reason: string, content?: CircleContent) {
     if (busy || !creating && !detail) return;
     setBusy(true); setError(''); setMessage('');
@@ -51,6 +54,16 @@ export function CircleManagement() {
     if (selected) void request<ManagedCircle>(`/api/admin/circles/${encodeURIComponent(selected)}`).then(data => setDetail(previous => previous && previous.id === data.id ? {...previous, _count: data._count} : previous)).catch(value => setError(value.message));
   }
   function search(event: FormEvent) {event.preventDefault(); setPage(1); setQuery(q); setRevision(value => value + 1); setError('');}
+  const closeDetail = useCallback(() => {
+    if (busy) return;
+    if (detailDirty && !window.confirm('当前圈子详情有未保存修改，确定关闭并放弃吗？')) return;
+    setDetailDirty(false); setCreating(false); setSelected(null); setDetail(null);
+  }, [busy, detailDirty]);
+  const selectCircle = useCallback((id: string) => {
+    if (busy) return;
+    if (detailDirty && !window.confirm('当前圈子详情有未保存修改，切换对象会放弃修改，继续吗？')) return;
+    setDetailDirty(false); setCreating(false); setDetail(null); setSelected(id); setError(''); setMessage('');
+  }, [busy, detailDirty]);
   if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取社区管理权限…" /></AdminPage>;
   if (!sessionActive || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有社区管理查看权限。'} /></AdminPage>;
   return <AdminPage>
@@ -62,7 +75,7 @@ export function CircleManagement() {
     />
     {error && <AdminNotice tone="error" title={error} className="py-6" />}
     {message && <AdminNotice tone="success" title={message} className="py-6" />}
-    <AdminPanel title="筛选检索" description="支持按名称、介绍、标签或圈子编号搜索，并按归属与推荐状态过滤。" badge={list && <Badge>{list.total} 个</Badge>}>
+    <AdminPanel className="border-border bg-card shadow-sm" title="筛选检索" description="支持按名称、介绍、标签或圈子编号搜索，并按归属与推荐状态过滤。" badge={list && <Badge>{list.total} 个</Badge>}>
       <form onSubmit={search} className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-1.5 text-sm font-medium text-foreground">搜索圈子
           <Input aria-label="搜索管理圈子" maxLength={100} value={q} onChange={event => setQ(event.target.value)} placeholder="名称、介绍、标签或圈子编号" />
@@ -105,12 +118,17 @@ export function CircleManagement() {
         {id: 'counts', header: '成员/帖子', width: '120px', cell: circle => <span className="tabular-nums">{circle._count.members} / {circle._count.posts}</span>},
         {id: 'updated', header: '更新时间', width: '180px', cell: circle => <span className="whitespace-nowrap text-xs text-muted-foreground">{new Date(circle.updatedAt).toLocaleString('zh-CN')}</span>},
         {id: 'actions', header: '操作', width: '110px', cell: circle => (
-          <Button size="sm" variant="outline" aria-label={`查看圈子 ${circle.name}`} disabled={busy} onClick={() => {setCreating(false); setSelected(circle.id); setError(''); setMessage('');}}>查看详情</Button>
+          <Button size="sm" variant="outline" aria-label={`查看圈子 ${circle.name}`} disabled={busy} onClick={() => selectCircle(circle.id)}>查看详情</Button>
         )},
       ]}
       pagination={{page, pageCount: Math.max(1, Math.ceil(list.total / list.pageSize)), onPageChange: value => setPage(value), summary: `共 ${list.total} 个`}}
     />}
-    {(creating || detail) && <CircleEditor key={creating ? 'new-circle' : `${detail!.id}:${detail!.updatedAt}`} circle={creating ? null : detail} canEdit={canEdit} busy={busy} onApply={apply} onRefresh={() => {if (detail) void request<ManagedCircle>(`/api/admin/circles/${encodeURIComponent(detail.id)}`).then(data => {setDetail(data); setError(''); setMessage('详情已重新读取。');}).catch(value => setError(value.message));}} onClose={() => {setCreating(false); setSelected(null); setDetail(null);}} />}
-    {detail && !creating && <CircleMembers key={detail.id} circleId={detail.id} sessionActive={sessionActive} canManage={canManageMembers} onChanged={membersChanged} />}
+    <DetailDrawer open={Boolean(creating || selected || detail)} onClose={closeDetail} size="xl" title={creating ? '新增站点圈子' : detail ? `圈子详情 · ${detail.name}` : '圈子详情'} description={detail ? '圈子资料、公开状态和成员限制集中管理。' : '正在读取圈子详情…'}>
+      {message && <AdminNotice tone="success" title={message} className="mb-4 py-3" />}
+      {detailLoading && <AdminNotice tone="loading" title="正在读取圈子详情…" />}
+      {selected && !detail && !detailLoading && <AdminNotice tone="error" title={error || '圈子详情读取失败。'} action={<Button variant="outline" onClick={() => setDetailRetry(value => value + 1)}>重新读取</Button>} />}
+      {(creating || detail) && <CircleEditor key={creating ? 'new-circle' : `${detail!.id}:${detail!.updatedAt}`} circle={creating ? null : detail} canEdit={canEdit} busy={busy} onApply={apply} onRefresh={() => {if (detail) void request<ManagedCircle>(`/api/admin/circles/${encodeURIComponent(detail.id)}`).then(data => {setDetail(data); setError(''); setMessage('详情已重新读取。');}).catch(value => setError(value.message));}} onClose={closeDetail} onDirtyChange={setDetailDirty} error={error} />}
+      {detail && !creating && <CircleMembers key={detail.id} circleId={detail.id} sessionActive={sessionActive} canManage={canManageMembers} onChanged={membersChanged} />}
+    </DetailDrawer>
   </AdminPage>;
 }

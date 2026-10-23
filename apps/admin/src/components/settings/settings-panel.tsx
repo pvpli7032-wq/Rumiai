@@ -118,7 +118,7 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller}
       role="tabpanel"
       aria-label={`${activeLabel}设置`}
       aria-labelledby={`settings-tab-${activeGroup}`}
-      className="flex min-w-0 flex-col gap-4"
+      className="flex min-w-0 flex-col gap-5"
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
@@ -126,7 +126,7 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller}
           <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{GROUP_HINTS[activeGroup]}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
+          <div className="relative w-full min-w-0 sm:w-64 sm:flex-none">
             <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="在本分类中搜索" aria-label="在本分类中搜索设置" className="pl-9" />
           </div>

@@ -6,6 +6,7 @@ import {AdminNotice, AdminPanel, AdminPlaceholder, AdminStat, AdminStatGrid} fro
 import {Badge} from '@rumiai/ui/badge';
 import {AiBudgetReport} from './ai-budget-report';
 import {PaymentValidationMetrics} from './payment-validation-metrics';
+import {DataTable} from '../layout/data-table';
 
 /** 分转元，统一保留两位小数。 */
 function yuan(cents: number) {
@@ -45,14 +46,21 @@ export function FinanceOverview({report, loading, error}: {report: FinanceReport
           </Badge>
         }
       >
-        <div className="space-y-3 text-sm">
-          {report.orderAnomalies.length === 0 && report.refundAnomalies.length === 0 && report.negativeBalances.length === 0 && (
-            <p className="text-muted-foreground">未发现不一致记录。</p>
-          )}
-          {report.orderAnomalies.map(row => <p className="break-all" key={row.orderNo}>{row.orderNo} · {row.status} · 应入账 {row.expectedCoins} / 实际 {row.actualCoins ?? '无流水'}</p>)}
-          {report.refundAnomalies.map(row => <p className="break-all" key={row.refundNo || row.orderNo}>{row.orderNo} · 退款单 {row.refundNo ?? '缺记录'} · {row.refundStatus ?? '无状态'} · 扣币 {row.debitCoins ?? '无流水'} / 返还 {row.releaseCoins ?? '无流水'}</p>)}
-          {report.negativeBalances.map(row => <p className="break-all" key={row.id}>账号 {row.id} · 余额 {row.coins}</p>)}
+        <div className="grid gap-3 md:grid-cols-3">
+          <AdminStat label="订单异常" value={`${report.orderAnomalies.length}${report.orderAnomaliesTruncated ? '+' : ''}`} tone={report.orderAnomalies.length ? 'danger' : 'default'} />
+          <AdminStat label="退款异常" value={`${report.refundAnomalies.length}${report.refundAnomaliesTruncated ? '+' : ''}`} tone={report.refundAnomalies.length ? 'warning' : 'default'} />
+          <AdminStat label="负余额账号" value={`${report.negativeBalances.length}${report.negativeBalancesTruncated ? '+' : ''}`} />
         </div>
+        {report.orderAnomalies.length + report.refundAnomalies.length + report.negativeBalances.length === 0 && <p className="mt-4 text-sm text-muted-foreground">未发现不一致记录。</p>}
+        {report.orderAnomalies.length > 0 && <details className="mt-4 rounded-lg border border-border p-3" open><summary className="text-sm font-medium">订单异常明细（{report.orderAnomalies.length}）</summary><div className="mt-3"><DataTable rows={report.orderAnomalies} getRowId={row => row.orderNo} columns={[
+          {id: 'order', header: '订单编号', cell: row => row.orderNo}, {id: 'status', header: '状态', cell: row => row.status}, {id: 'expected', header: '应入账金币', align: 'right', cell: row => row.expectedCoins}, {id: 'actual', header: '实际金币', align: 'right', cell: row => row.actualCoins ?? '无流水'},
+        ]} /></div></details>}
+        {report.refundAnomalies.length > 0 && <details className="mt-4 rounded-lg border border-border p-3"><summary className="text-sm font-medium">退款异常明细（{report.refundAnomalies.length}）</summary><div className="mt-3"><DataTable rows={report.refundAnomalies} getRowId={row => row.refundNo || row.orderNo} columns={[
+          {id: 'order', header: '订单编号', cell: row => row.orderNo}, {id: 'refund', header: '退款单', cell: row => row.refundNo ?? '缺记录'}, {id: 'status', header: '状态', cell: row => row.refundStatus ?? '无状态'}, {id: 'debit', header: '扣币', align: 'right', cell: row => row.debitCoins ?? '无流水'}, {id: 'release', header: '返还', align: 'right', cell: row => row.releaseCoins ?? '无流水'},
+        ]} /></div></details>}
+        {report.negativeBalances.length > 0 && <details className="mt-4 rounded-lg border border-border p-3"><summary className="text-sm font-medium">负余额账号明细（{report.negativeBalances.length}）</summary><div className="mt-3"><DataTable rows={report.negativeBalances} getRowId={row => row.id} columns={[
+          {id: 'account', header: '账号编号', cell: row => row.id}, {id: 'coins', header: '金币余额', align: 'right', cell: row => <span className="text-destructive">{row.coins}</span>},
+        ]} /></div></details>}
       </AdminPanel>
 
       <AdminPanel title="AI 成本估算" description="各币种分别统计，未知成本不能视为零；模拟调用不计真实成本。这不是供应商账单。" badge={<Badge>{report.aiCosts.length} 种币种</Badge>}>

@@ -12,13 +12,14 @@ import { Select } from '@rumiai/ui/select';
 import { Textarea } from '@rumiai/ui/textarea';
 import { API } from '@rumiai/contracts/api-paths';
 
-export function CircleEditor({ circle, canEdit, busy, onApply, onClose, onRefresh }: { circle: ManagedCircle | null; canEdit: boolean; busy: boolean; onApply: (action: CircleAction, reason: string, content?: CircleContent) => Promise<void>; onClose: () => void; onRefresh: () => void }) {
+export function CircleEditor({ circle, canEdit, busy, onApply, onClose, onRefresh, onDirtyChange, error }: { circle: ManagedCircle | null; canEdit: boolean; busy: boolean; onApply: (action: CircleAction, reason: string, content?: CircleContent) => Promise<void>; onClose: () => void; onRefresh: () => void; onDirtyChange?: (dirty: boolean) => void; error?: string }) {
   const original = { name: circle?.name ?? '', description: circle?.description ?? '', tags: circle?.tags ?? '', universeId: circle?.universeId ?? null };
   const [content, setContent] = useState<CircleContent>(original), [reason, setReason] = useState('');
   const [worlds, setWorlds] = useState<{ id: string; name: string }[]>([]);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const dirty = JSON.stringify(content) !== JSON.stringify(original);
   const editable = canEdit && !circle?.owner?.deletedAt;
+  useEffect(() => { onDirtyChange?.(dirty || Boolean(reason.trim())); }, [dirty, reason, onDirtyChange]);
   useEffect(() => {
     const controller = new AbortController();
     void fetch(API.universes, { signal: controller.signal }).then(response => response.ok ? response.json() : []).then(rows => { if (!controller.signal.aborted && Array.isArray(rows)) setWorlds(rows); }).catch(() => {});
@@ -27,6 +28,7 @@ export function CircleEditor({ circle, canEdit, busy, onApply, onClose, onRefres
   return (
     <>
       <AdminPanel
+        className="border-border bg-card shadow-sm"
         title={circle ? `圈子详情 · ${circle.name}` : '新增站点圈子'}
         description={circle ? `${circle.status === 'ACTIVE' ? '公开' : '隐藏'} · ${circle.owner?.username ?? '站点所有'} · ${circle.id}` : '站点圈子不绑定运营人员个人账号，创建后先隐藏，恢复公开后才显示在前台。'}
         badge={circle ? <Badge variant={circle.status === 'ACTIVE' ? 'success' : 'neutral'}>{circle.status === 'ACTIVE' ? '公开' : '隐藏'}</Badge> : undefined}
@@ -45,6 +47,7 @@ export function CircleEditor({ circle, canEdit, busy, onApply, onClose, onRefres
             <Button variant="outline" size="sm" leadingIcon={<RotateCw className="h-4 w-4" />} disabled={busy} onClick={() => { if (!dirty) onRefresh(); else setConfirmRefresh(true); }}>重新读取详情</Button>
           )}
           {circle?.owner?.deletedAt && <AdminNotice tone="warning" title="作者已注销" description="保留其他成员的圈子历史；作者内容不能恢复或编辑。" />}
+          {error && <AdminNotice tone="error" title={error} />}
           <fieldset disabled={busy || !editable} className="grid gap-4 md:grid-cols-2">
             <label className="block space-y-1.5">
               <span className="text-sm font-medium">圈子名称</span>

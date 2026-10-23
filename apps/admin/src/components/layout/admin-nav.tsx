@@ -67,7 +67,7 @@ function PinButton({entry, pinned, onToggle}: {entry: AdminNavEntry; pinned: boo
       title={label}
       aria-label={label}
       className={cn(
-        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'admin-nav-pin flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         pinned && 'text-brand hover:text-brand',
       )}
     >
@@ -87,13 +87,13 @@ function NavRow({
 }) {
   const Icon = ICONS[entry.icon];
   return (
-    <div className={cn('flex items-center gap-1 rounded-lg pr-1 transition-colors', active ? 'bg-brand-soft' : 'hover:bg-accent')}>
+    <div className={cn('admin-nav-row flex items-center gap-1 rounded-lg pr-1 transition-colors', active ? 'admin-nav-active bg-brand-soft' : 'hover:bg-accent')}>
       <Link
         href={entry.href}
         onClick={onNavigate}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'relative flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors',
+          'relative flex min-h-10 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors',
           active ? 'text-brand' : 'text-muted-foreground hover:text-foreground',
         )}
       >
@@ -144,7 +144,7 @@ export function AdminNav({pathname, groups, permissions, pins, onTogglePin, pinN
                   aria-current={active ? 'page' : undefined}
                   className={cn(
                     'flex min-h-11 items-center justify-center rounded-lg transition-colors',
-                    active ? 'bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                    active ? 'admin-nav-active bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -167,7 +167,7 @@ export function AdminNav({pathname, groups, permissions, pins, onTogglePin, pinN
               aria-current={active ? 'page' : undefined}
               className={cn(
                 'flex min-h-11 items-center justify-center rounded-lg transition-colors',
-                active ? 'bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                active ? 'admin-nav-active bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
               )}
             >
               <Icon className="h-4 w-4" />
@@ -179,7 +179,7 @@ export function AdminNav({pathname, groups, permissions, pins, onTogglePin, pinN
   }
 
   return (
-    <nav aria-label="后台导航" className="space-y-1">
+    <nav aria-label="后台导航" className="space-y-2">
       {pinNotice && (
         <p role="status" className="rounded-lg bg-muted px-3 py-2 text-xs leading-5 text-foreground">
           {pinNotice}
@@ -205,9 +205,9 @@ export function AdminNav({pathname, groups, permissions, pins, onTogglePin, pinN
               type="button"
               onClick={() => setOpenGroups(list => (list.includes(group.id) ? list.filter(item => item !== group.id) : [...list, group.id]))}
               aria-expanded={open}
-              className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="admin-nav-group flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <span className="truncate">{group.label}</span>
+              <span className="flex min-w-0 items-center gap-2"><span className="truncate">{group.label}</span><span className="text-[10px] opacity-60">{group.entries.length}</span></span>
               {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
             </button>
             {open && (

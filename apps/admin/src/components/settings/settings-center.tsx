@@ -131,7 +131,9 @@ export function SettingsCenter() {
         }
       />
 
-      {tabs}
+      <div className="rounded-xl border border-border bg-card p-1.5 shadow-sm">
+        {tabs}
+      </div>
 
       <SettingsPanel activeGroup={activeGroup} sessionActive={sessionActive} canWrite={canWrite} controller={controller} />
 

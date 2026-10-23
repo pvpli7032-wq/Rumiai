@@ -44,6 +44,7 @@ export function MissionManagement({ sessionActive, canManage, missions, onSaved 
   return (
     <>
       <AdminPanel
+        className="border-border bg-card shadow-sm"
         aria-label="平台任务"
         title="平台任务"
         description="领取条件由服务器按签到、用户消息、公开帖子或评论核验；MANUAL 任务不能启用发奖。"
@@ -53,7 +54,7 @@ export function MissionManagement({ sessionActive, canManage, missions, onSaved 
         {!missions.length
           ? <AdminNotice tone="info" title="暂无平台任务。" />
           : <div className="space-y-3">{missions.map(mission => (
-            <article key={mission.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-4">
+            <article key={mission.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-muted/20 p-4 transition-colors hover:border-brand/30 hover:bg-brand-soft/15">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-medium">{mission.title}</h3>

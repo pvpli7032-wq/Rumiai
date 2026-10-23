@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AdminNotice, AdminPanel, AdminStat, AdminStatGrid } from '../admin-page';
-import { DataTable, type DataTableColumn } from '@rumiai/ui/data-table';
+import { DataTable, type DataTableColumn } from '@admin/components/layout/data-table';
 import { Select } from '@rumiai/ui/select';
 import { formatNumber } from '@rumiai/contracts/format/number';
 
@@ -26,6 +26,7 @@ export function RewardBudget({ sessionActive }: { sessionActive: boolean }) {
 
   return (
     <AdminPanel
+      className="border-border bg-card shadow-sm"
       title="奖励发放监控"
       description="按金币账本来源汇总真实发放笔数和金币；当前没有设置预算上限，因此只展示消耗，不做封顶拦截。"
       actions={

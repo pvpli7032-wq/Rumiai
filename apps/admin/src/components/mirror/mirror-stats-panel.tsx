@@ -48,7 +48,7 @@ function RatioBar({value}: {value: number | null}) {
 
 function RatioCard({metric}: {metric: RatioMetric}) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-card to-muted/20 p-4 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
       <p className="mt-3 text-2xl font-semibold tabular-nums leading-none text-foreground">{formatPercent(metric.value)}</p>
       <RatioBar value={metric.value} />
@@ -62,7 +62,7 @@ function RatioCard({metric}: {metric: RatioMetric}) {
 /** 该指标还没进运营统计口径：写清原因，不拿别的数字顶替，也不在这里另算。 */
 function MissingRatioCard({label, reason}: {label: string; reason: string}) {
   return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4">
+    <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-3 text-2xl font-semibold leading-none text-muted-foreground">样本不足</p>
       <p className="mt-2 text-xs leading-5 text-muted-foreground">{reason}</p>
@@ -152,9 +152,9 @@ export function MirrorStatsPanel({sessionActive}: {sessionActive: boolean}) {
         {!mirrorFunnel ? (
           <p className="text-sm text-muted-foreground">{loading ? '正在读取漏斗…' : '漏斗数据还没有返回。'}</p>
         ) : (
-          <ol className="divide-y divide-border">
+          <ol className="space-y-3">
             {mirrorFunnel.steps.map((step, index) => (
-              <li key={step.event} className="py-3">
+              <li key={step.event} className="rounded-2xl border border-border/70 bg-muted/15 p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-sm font-medium text-foreground">{index + 1}. {step.label}</span>
                   <span className="text-sm tabular-nums text-foreground">{formatNumber(step.people)} 人</span>

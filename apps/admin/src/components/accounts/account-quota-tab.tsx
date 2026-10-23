@@ -40,7 +40,7 @@ function formatExpiry(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString('zh-CN') : '长期有效';
 }
 
-export function AccountQuotaTab({userId, sessionActive, permissions}: {userId: string; sessionActive: boolean; permissions: AdminPermission[]}) {
+export function AccountQuotaTab({userId, sessionActive, permissions, onDirtyChange}: {userId: string; sessionActive: boolean; permissions: AdminPermission[]; onDirtyChange?: (dirty: boolean) => void}) {
   const allowed = permissions.includes('accounts.settings.manage');
   const [payload, setPayload] = useState<QuotaPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +52,7 @@ export function AccountQuotaTab({userId, sessionActive, permissions}: {userId: s
   const [busy, setBusy] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState('');
+  useEffect(() => onDirtyChange?.(Boolean(editing)), [editing, onDirtyChange]);
 
   useEffect(() => {
     if (!sessionActive || !allowed) { setLoading(false); return; }
@@ -147,7 +148,7 @@ export function AccountQuotaTab({userId, sessionActive, permissions}: {userId: s
       {notice && <p role="status" className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">{notice}</p>}
 
       <ul className="space-y-2">
-        {payload.definitions.map(definition => {
+      {payload.definitions.map(definition => {
           const current = valueOf(definition.key);
           const source = current?.source ?? 'DEFAULT';
           const overridden = source === 'USER';

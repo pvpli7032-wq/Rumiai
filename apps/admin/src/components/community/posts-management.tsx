@@ -11,6 +11,7 @@ import {Input} from '@rumiai/ui/input';
 import {Select} from '@rumiai/ui/select';
 import {Textarea} from '@rumiai/ui/textarea';
 import {Pagination} from '@rumiai/ui/pagination';
+import {DetailDrawer, DetailRow, DetailSection} from '@admin/components/layout/detail-drawer';
 
 type Row = {id: string; content: string; status: string; isPinned: boolean; isFeatured: boolean; createdAt: string; updatedAt: string; media: {id: string; url: string; position: number}[]; author: {id: string; username: string; displayName: string | null}; circle: {id: string; name: string}; _count: {comments: number}};
 type Result = {items: Row[]; total: number; page: number; pageSize: number};
@@ -30,10 +31,10 @@ function actionAvailable(action: Action, row: Row): boolean {
 
 export function PostsManagement() {
   const {sessionActive, permissions, loading, error: accessError} = useAdminAccess(), allowed = permissions.includes('community.read'), canEdit = permissions.includes('community.write');
-  const [queryText, setQueryText] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [page, setPage] = useState(1), [revision, setRevision] = useState(0), [result, setResult] = useState<Result | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [pending, setPending] = useState<{row: Row; action: Action} | null>(null), [reason, setReason] = useState('');
+  const [queryText, setQueryText] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [page, setPage] = useState(1), [revision, setRevision] = useState(0), [result, setResult] = useState<Result | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [pending, setPending] = useState<{row: Row; action: Action} | null>(null), [reason, setReason] = useState(''), [selectedRow, setSelectedRow] = useState<Row | null>(null);
   const request = useCallback(<T,>(url: string, init?: {method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; signal?: AbortSignal}) => apiFetch<T>(url, {credentials: 'same-origin', cache: 'no-store', ...init}), [sessionActive]);
   useEffect(() => {setResult(null); setError(''); if (!sessionActive || !allowed) return; const controller = new AbortController(); const params = new URLSearchParams({q: query, status, page: String(page)}); void request<Result>(`/api/admin/community/posts?${params}`, {signal: controller.signal}).then(data => {if (!controller.signal.aborted) setResult(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}); return () => controller.abort();}, [request, sessionActive, allowed, query, status, page, revision]);
-  async function apply(event: FormEvent) {event.preventDefault(); if (!pending || busy || !reason.trim()) return; setBusy(true); setError(''); setMessage(''); try {await request(`/api/admin/community/posts/${encodeURIComponent(pending.row.id)}`, {method: 'PATCH', body: {action: pending.action, reason: reason.trim(), updatedAt: pending.row.updatedAt}}); setMessage('处置已记录。'); setPending(null); setReason(''); setRevision(value => value + 1);} catch (value) {setError((value as Error).message); setRevision(value => value + 1);} finally {setBusy(false);}}
+  async function apply(event: FormEvent) {event.preventDefault(); if (!pending || busy || !reason.trim()) return; setBusy(true); setError(''); setMessage(''); try {await request(`/api/admin/community/posts/${encodeURIComponent(pending.row.id)}`, {method: 'PATCH', body: {action: pending.action, reason: reason.trim(), updatedAt: pending.row.updatedAt}}); setMessage('处置已记录，列表正在刷新。'); setPending(null); setReason(''); setSelectedRow(null); setRevision(value => value + 1);} catch (value) {setError((value as Error).message); setRevision(value => value + 1);} finally {setBusy(false);}}
   function search(event: FormEvent) {event.preventDefault(); setPage(1); setQuery(queryText); setRevision(value => value + 1);}
   if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取社区管理权限…" /></AdminPage>;
   if (!sessionActive || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有社区管理查看权限。'} /></AdminPage>;
@@ -49,7 +50,7 @@ export function PostsManagement() {
       {error && <AdminNotice tone="error" title={error} className="py-6" />}
       {message && <AdminNotice tone="success" title={message} className="py-6" />}
 
-      <AdminPanel title="筛选检索" description="支持按帖子内容、作者、圈子或帖子编号检索。">
+      <AdminPanel className="border-border bg-card shadow-sm" title="筛选检索" description="支持按帖子内容、作者、圈子或帖子编号检索。">
         <form onSubmit={search} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto]">
           <label className="space-y-1.5 text-sm font-medium text-foreground">搜索帖子
             <Input value={queryText} maxLength={100} onChange={event => setQueryText(event.target.value)} placeholder="内容、作者、圈子或帖子编号" />
@@ -66,14 +67,14 @@ export function PostsManagement() {
         </form>
       </AdminPanel>
 
-      <AdminPanel title="帖子列表" badge={result && <Badge>{result.total} 条</Badge>}>
+      <AdminPanel className="border-border bg-card shadow-sm" title="帖子列表" badge={result && <Badge>{result.total} 条</Badge>}>
         {result ? (
           result.items.length === 0 ? (
             <p className="py-6 text-sm text-muted-foreground">没有匹配的帖子。</p>
           ) : (
             <div className="space-y-4">
               {result.items.map(row => (
-                <article key={row.id} className="min-w-0 space-y-3 rounded-lg border border-border p-4">
+                <article key={row.id} className="min-w-0 space-y-3 rounded-xl border border-border bg-muted/20 p-4 transition-colors hover:border-brand/30 hover:bg-brand-soft/15">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="break-words text-sm font-semibold text-foreground">{row.circle.name} · {row.author.displayName || row.author.username}</p>
@@ -85,9 +86,10 @@ export function PostsManagement() {
                       {row.isFeatured && <Badge variant="outline">推荐</Badge>}
                     </div>
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm text-foreground">{row.content || '（内容已清除）'}</p>
-                  {row.media.length > 0 && <div className="grid max-w-xl grid-cols-2 gap-2 sm:grid-cols-4">{row.media.map(media => <img key={media.id} src={media.url} alt="帖子附件预览" loading="lazy" className="aspect-square max-h-48 w-full rounded-lg border object-contain" />)}</div>}
-                  <p className="text-xs text-muted-foreground">评论 {row._count.comments} · 帖子编号 {row.id}</p>
+                  <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm text-foreground">{row.content || '（内容已清除）'}</p>
+                  {row.media.length > 0 && <div className="flex gap-2 overflow-hidden">{row.media.slice(0, 3).map(media => <img key={media.id} src={media.url} alt="帖子附件缩略图" loading="lazy" className="h-16 w-16 rounded-lg border border-border object-cover" />)}{row.media.length > 3 && <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-xs text-muted-foreground">+{row.media.length - 3}</span>}</div>}
+                  <p className="text-xs text-muted-foreground">评论 {row._count.comments} · 附件 {row.media.length} · 帖子编号 {row.id}</p>
+                  <Button size="sm" variant="outline" onClick={() => setSelectedRow(row)}>查看详情</Button>
                   {canEdit && (
                     <div className="flex flex-wrap gap-2">
                       {actions.filter(action => actionAvailable(action.id, row)).map(action => (
@@ -107,9 +109,17 @@ export function PostsManagement() {
         )}
       </AdminPanel>
 
+      <DetailDrawer open={Boolean(selectedRow)} onClose={() => setSelectedRow(null)} size="lg" title={selectedRow ? '帖子详情' : '帖子详情'} description={selectedRow ? `${selectedRow.circle.name} · ${selectedRow.author.displayName || selectedRow.author.username}` : undefined}>
+        {selectedRow && <div className="space-y-6">
+          <DetailSection title="帖子内容"><p className="whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/20 p-4 text-sm">{selectedRow.content || '（内容已清除）'}</p>{selectedRow.media.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{selectedRow.media.map(media => <img key={media.id} src={media.url} alt="帖子附件预览" className="aspect-square rounded-lg border border-border object-contain" />)}</div>}</DetailSection>
+          <DetailSection title="帖子信息"><div className="space-y-2"><DetailRow label="帖子编号">{selectedRow.id}</DetailRow><DetailRow label="作者">{selectedRow.author.displayName || selectedRow.author.username}</DetailRow><DetailRow label="圈子">{selectedRow.circle.name}</DetailRow><DetailRow label="评论数">{selectedRow._count.comments}</DetailRow><DetailRow label="状态">{selectedRow.status === 'VISIBLE' ? '公开' : selectedRow.status === 'HIDDEN' ? '已下架' : '已清除'}</DetailRow></div></DetailSection>
+          {canEdit && <div className="flex flex-wrap gap-2 border-t border-border pt-4">{actions.filter(action => actionAvailable(action.id, selectedRow)).map(action => <Button key={action.id} size="sm" variant={action.id === 'DELETE' ? 'danger' : 'outline'} onClick={() => {setPending({row: selectedRow, action: action.id}); setReason('');}}>{action.label}</Button>)}</div>}
+        </div>}
+      </DetailDrawer>
+
       <Dialog
         open={Boolean(pending)}
-        onClose={() => setPending(null)}
+        onClose={() => { if (reason.trim() && !window.confirm('已填写处置理由，确定关闭并丢弃吗？')) return; setPending(null); }}
         title={`确认${actions.find(action => action.id === pending?.action)?.label ?? '处置'}`}
         description={pending ? `${pending.row.circle.name} · ${pending.row.id}，处置理由会写入审计。` : undefined}
         footer={
@@ -120,6 +130,7 @@ export function PostsManagement() {
         }
       >
         <form id="post-action-form" onSubmit={apply}>
+          {error && <AdminNotice tone="error" title={error} className="mb-4 py-4" />}
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">操作理由</span>
             <Textarea required minLength={1} maxLength={500} rows={4} value={reason} onChange={event => setReason(event.target.value)} placeholder="填写可供后续审计的处置理由" />

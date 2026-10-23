@@ -15,6 +15,7 @@
     "test:unit": "node --import tsx --test tests/unit/runtime-paths.test.mjs tests/unit/release-compatibility.test.mjs tests/unit/admin-cookies.test.ts tests/unit/environment.test.mjs",
     "test:memberships": "node tests/integration/run-memberships.mjs",
     "test:e2e:admin": "node --import tsx tests/e2e/admin-live-workflows.mjs",
+    "test:e2e:admin-ui": "node --import tsx tests/e2e/admin-ui-refresh.mjs",
     "test:e2e:membership": "node --import tsx tests/e2e/membership-paid-workflows.mjs",
     "test:restore": "node --import tsx --test tests/integration/isolated-state-restore.test.mjs",
     "test:startup": "node --import tsx --test tests/integration/production-startup.test.mjs",

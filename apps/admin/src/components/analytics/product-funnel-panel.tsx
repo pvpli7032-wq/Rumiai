@@ -34,20 +34,16 @@ export function ProductFunnelPanel({sessionActive, days}: {sessionActive: boolea
     {loading && <p className="text-sm text-muted-foreground">正在读取玩法漏斗…</p>}
     {error && <p className="text-sm text-red-600">{error}</p>}
     {report && <div className="space-y-4">
-      {report.funnels.map(funnel => <div key={funnel.key} className="rounded-lg border border-border p-3">
+      {report.funnels.map(funnel => <div key={funnel.key} className="overflow-hidden rounded-2xl border border-border/80 bg-muted/10">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm font-medium text-foreground">{funnel.title}</p>
-          <p className="text-xs text-muted-foreground">端到端转化 {formatPercent(funnel.overallRate)}</p>
+          <div className="px-4 pt-4"><p className="text-sm font-semibold text-foreground">{funnel.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{funnel.description}</p></div>
+          <p className="mr-4 mt-4 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand">端到端 {formatPercent(funnel.overallRate)}</p>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">{funnel.description}</p>
-        <div className="mt-3 space-y-2">
-          {funnel.steps.map(step => <div key={step.event} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-            <span className="text-foreground">{step.label}</span>
-            <span className="tabular-nums text-muted-foreground">
-              {formatNumber(step.people)} 人
-              {step.rateFromPrevious !== null && <span className="ml-2">上一步 {formatPercent(step.rateFromPrevious)}</span>}
-              <span className="ml-2">整体 {formatPercent(step.rateFromStart)}</span>
-            </span>
+        <div className="space-y-3 px-4 pb-4 pt-4">
+          {funnel.steps.map((step, index) => <div key={step.event} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-sm">
+            <div className="min-w-0"><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium text-foreground">{step.label}</span><span className="shrink-0 tabular-nums text-xs text-muted-foreground">{formatNumber(step.people)} 人</span></div><div aria-hidden className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border/60"><div className="h-full rounded-full bg-brand" style={{width: `${step.rateFromStart === null ? 0 : Math.max(0, Math.min(100, step.rateFromStart * 100))}%`}} /></div><p className="mt-1 text-xs tabular-nums text-muted-foreground">整体 {formatPercent(step.rateFromStart)}</p></div>
+            <span className="w-20 text-right text-xs tabular-nums text-muted-foreground">{index === 0 ? '起点' : `上一步 ${formatPercent(step.rateFromPrevious)}`}</span>
           </div>)}
         </div>
       </div>)}

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AdminNotice, AdminPanel, AdminToolbar } from '@admin/components/admin-page';
 import { Badge } from '@rumiai/ui/badge';
 import { Button } from '@rumiai/ui/button';
-import { DataTable, type DataTableColumn } from '@rumiai/ui/data-table';
+import { DataTable, type DataTableColumn } from '@admin/components/layout/data-table';
 import { Input } from '@rumiai/ui/input';
 import { Select } from '@rumiai/ui/select';
 import { OrderDetailDrawer } from './order-detail-drawer';
@@ -173,6 +173,7 @@ export function PaymentOrderManagement({ sessionActive, canRequest, canApprove, 
 
   return (
     <>
+      {result && <div className="mb-4 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border border-border bg-brand-soft/20 p-4"><p className="text-xs text-muted-foreground">当前结果</p><p className="mt-1 text-2xl font-semibold text-foreground">{result.total}<span className="ml-1 text-sm font-normal text-muted-foreground">笔订单</span></p></div><div className="rounded-2xl border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">当前页</p><p className="mt-1 text-2xl font-semibold text-foreground">{result.page}<span className="ml-1 text-sm font-normal text-muted-foreground">/ {pages}</span></p></div><div className="rounded-2xl border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">数据范围</p><p className="mt-1 text-sm font-semibold text-foreground">UTC 下单时间</p></div></div>}
       <AdminPanel title="充值订单" description="只读订单快照与退款状态；时间线与退款处理在订单详情里。日期按下单时间筛，UTC 日边界并包含截止日当天。">
         <div className="space-y-4">
           <form onSubmit={search}>
@@ -200,7 +201,7 @@ export function PaymentOrderManagement({ sessionActive, canRequest, canApprove, 
             </AdminToolbar>
           </form>
           {error && <AdminNotice tone="error" title={error} />}
-          <DataTable
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"><DataTable
             columns={columns}
             rows={result?.items ?? []}
             getRowId={order => order.orderNo}
@@ -213,7 +214,7 @@ export function PaymentOrderManagement({ sessionActive, canRequest, canApprove, 
               onPageChange: setPage,
               summary: `共 ${result.total} 笔 · 第 ${result.page} / ${pages} 页`,
             } : undefined}
-          />
+          /></div>
         </div>
       </AdminPanel>
 

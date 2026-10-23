@@ -16,13 +16,15 @@ import { toDateTimeLocalInput } from '@rumiai/contracts/format/date-time';
 import { DEFAULT_ACCENT_FROM, DEFAULT_ACCENT_TO } from '@rumiai/contracts/site-content/brand-defaults';
 
 type Action = 'SAVE' | 'SCHEDULE' | 'PUBLISH' | 'UNPUBLISH' | 'DELETE_DRAFT';
-type Props = { type: ContentType; item: SiteContentRow | null; canManage: boolean; canPublish: boolean; busy: boolean; revisions: Revision[]; revisionLoading: boolean; onApply: (action: Action, content: Record<string, unknown>, reason: string, scheduledAt?: string) => void; onRestore: (revision: Revision, reason: string) => void; onLoadRevisions: () => void; onClose: () => void };
+type Props = { type: ContentType; item: SiteContentRow | null; canManage: boolean; canPublish: boolean; busy: boolean; revisions: Revision[]; revisionLoading: boolean; onApply: (action: Action, content: Record<string, unknown>, reason: string, scheduledAt?: string) => void; onRestore: (revision: Revision, reason: string) => void; onLoadRevisions: () => void; onClose: () => void; onDirtyChange?: (dirty: boolean) => void; externalError?: string };
 
 const sourceOptions = [['FOR_YOU', '为你推荐'], ['EXCLUSIVE', '独家角色'], ['POPULAR', '热门'], ['NEWEST', '最新发布'], ['TAG', '按分类']];
 const fieldLabel = (name: string) => ({ placement: '展示位置', kind: '页面类型', slug: '固定路径键', title: '标题', summary: '页面摘要', description: '说明', href: '站内跳转路径', gradientFrom: '渐变起点色', gradientTo: '渐变终点色', imageUrl: '站内图片', sortOrder: '排序值', isActive: '在前台显示', key: '稳定键', label: '显示名称', group: '分类分组', filterRow: '首页筛选行', emoji: '图标', source: '角色来源', tagKey: '关联分类', blocks: '页面组件', startsAt: '内容生效时间', endsAt: '内容结束时间', brandName: '品牌名称', logoUrl: '品牌图标', accentFrom: '品牌渐变起点', accentTo: '品牌渐变终点', footerNote: '页脚说明' } as Record<string, string>)[name] ?? name;
-export function ContentEditor({ type, item, canManage, canPublish, busy, revisions, revisionLoading, onApply, onRestore, onLoadRevisions, onClose }: Props) {
-  const [content, setContent] = useState<Record<string, unknown>>({}), [reason, setReason] = useState(''), [publishAt, setPublishAt] = useState(''), [error, setError] = useState('');
-  useEffect(() => { setContent(item?.content ? { ...item.content } : {}); setReason(''); setPublishAt(''); setError(''); }, [type, item?.id, item?.version]);
+export function ContentEditor({ type, item, canManage, canPublish, busy, revisions, revisionLoading, onApply, onRestore, onLoadRevisions, onClose, onDirtyChange, externalError }: Props) {
+  const [content, setContent] = useState<Record<string, unknown>>({}), [reason, setReason] = useState(''), [publishAt, setPublishAt] = useState(''), [error, setError] = useState(''), [originalContent, setOriginalContent] = useState<Record<string, unknown>>({});
+  useEffect(() => { const next = item?.content ? { ...item.content } : {}; setContent(next); setOriginalContent(next); setReason(''); setPublishAt(''); setError(''); }, [type, item?.id, item?.version]);
+  const dirty = JSON.stringify(content) !== JSON.stringify(originalContent) || reason.trim().length > 0 || publishAt.length > 0;
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   function set(name: string, value: unknown) { setContent(old => ({ ...old, [name]: value })); }
   function apply(action: Action, event?: FormEvent) {
     event?.preventDefault(); setError('');
@@ -148,6 +150,7 @@ export function ContentEditor({ type, item, canManage, canPublish, busy, revisio
 
   return (
     <AdminPanel
+      className="border-border bg-card shadow-sm"
       title={item ? '编辑内容' : '新增内容草稿'}
       description={item ? `编号 ${item.id} · 版本 ${item.version}` : '当前内容未发布到前台'}
       badge={item ? <Badge variant={item.status === 'PUBLISHED' ? 'success' : item.status === 'SCHEDULED' ? 'warning' : 'neutral'}>{item.status}</Badge> : undefined}
@@ -192,6 +195,7 @@ export function ContentEditor({ type, item, canManage, canPublish, busy, revisio
               <Textarea rows={3} required maxLength={500} value={reason} onChange={event => setReason(event.target.value)} />
             </label>
             {error && <AdminNotice tone="error" title={error} />}
+            {externalError && <AdminNotice tone="error" title={externalError} />}
             <div className="flex flex-wrap gap-2">
               <Button type="submit" variant="outline" disabled={busy || !canManage}>保存草稿</Button>
               {canPublish && (

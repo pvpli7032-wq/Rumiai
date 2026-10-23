@@ -12,6 +12,7 @@ import {API} from '@rumiai/contracts/api-paths';
 export function GrowthManagement(){
   const {sessionActive,permissions,loading:accessLoading,error:accessError}=useAdminAccess();
   const [missions,setMissions]=useState<Mission[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
+  const [section,setSection]=useState<'missions'|'checkin'|'gifts'>('missions');
   const canRead=permissions.includes('growth.read'),canManage=permissions.includes('growth.manage');
   const refresh=useCallback(async(showLoading=true)=>{
     if(!sessionActive||!canRead){setLoading(false);return;}
@@ -26,12 +27,15 @@ export function GrowthManagement(){
   if(!sessionActive||!canRead)return <AdminPage><AdminNotice tone="denied" title="当前账号没有任务与奖励查看权限。" /></AdminPage>;
   return <AdminPage>
     <AdminPageHeader eyebrow="增长与运营" title="任务与奖励" description="任务领取由服务器核验活动记录；金币发放写入统一金币流水。签到默认档位沿用现行奖励值。" />
+    <div className="rounded-xl border border-border bg-card p-1.5 shadow-sm" role="tablist" aria-label="增长配置分区">
+      {([['missions','任务配置'],['checkin','签到奖励'],['gifts','礼物目录']] as const).map(([id,label]) => (
+        <button key={id} type="button" role="tab" aria-selected={section===id} onClick={() => setSection(id)} className={`min-h-10 rounded-lg px-4 text-sm font-medium transition-colors ${section===id ? 'bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-muted'}`}>{label}</button>
+      ))}
+    </div>
     <RewardBudget sessionActive={sessionActive}/>
     {error&&<AdminNotice tone="error" title={error} className="py-6" />}
-    {loading
-      ? <AdminNotice tone="loading" title="正在读取任务…" />
-      : <MissionManagement sessionActive={sessionActive} canManage={canManage} missions={missions} onSaved={()=>void refresh(false)}/>}
-    <CheckinRewards sessionActive={sessionActive} canManage={canManage} onSaved={()=>void refresh(false)}/>
-    <GiftCatalogManagement sessionActive={sessionActive} canManage={canManage}/>
+    <div hidden={section !== 'missions'}>{loading ? <AdminNotice tone="loading" title="正在读取任务…" /> : <MissionManagement sessionActive={sessionActive} canManage={canManage} missions={missions} onSaved={()=>void refresh(false)}/>}</div>
+    <div hidden={section !== 'checkin'}><CheckinRewards sessionActive={sessionActive} canManage={canManage} onSaved={()=>void refresh(false)}/></div>
+    <div hidden={section !== 'gifts'}><GiftCatalogManagement sessionActive={sessionActive} canManage={canManage}/></div>
   </AdminPage>;
 }

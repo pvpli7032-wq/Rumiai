@@ -6,7 +6,7 @@ import {useAdminAccess} from './use-admin-access';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from './admin-page';
 import {Badge} from '@rumiai/ui/badge';
 import {Button} from '@rumiai/ui/button';
-import {DataTable} from '@rumiai/ui/data-table';
+import {DataTable} from '@admin/components/layout/data-table';
 import {EmptyState} from '@rumiai/ui/empty-state';
 import {Input} from '@rumiai/ui/input';
 
@@ -56,13 +56,20 @@ export function AdminAudit() {
         </form>
       </AdminPanel>
 
-      <DataTable
-        rows={result?.items ?? []}
-        getRowId={row => row.id}
-        loading={reading}
-        loadingRows={6}
-        empty={<EmptyState title="暂无管理操作记录" description="调整筛选条件后重试。" />}
-        columns={[
+      <AdminPanel
+        title="审计记录"
+        description="按时间倒序展示管理操作；展开「查看修改内容」可核对完整变更。"
+        badge={<Badge variant="outline">{result ? `第 ${page} / ${pageCount} 页` : '读取中'}</Badge>}
+        flush
+        bodyClassName="p-5"
+      >
+        <DataTable
+          rows={result?.items ?? []}
+          getRowId={row => row.id}
+          loading={reading}
+          loadingRows={6}
+          empty={<EmptyState title="暂无管理操作记录" description="调整筛选条件后重试。" />}
+          columns={[
           {id: 'time', header: '时间', width: '180px', cell: row => <span className="whitespace-nowrap text-xs text-muted-foreground">{new Date(row.createdAt).toLocaleString('zh-CN')}</span>},
           {id: 'action', header: '操作', width: '160px', cell: row => <span className="font-medium">{actionNames[row.action] ?? row.action}</span>},
           {id: 'actor', header: '操作人 / 对象', width: '240px', cell: row => (
@@ -80,9 +87,10 @@ export function AdminAudit() {
               </details>
             </span>
           )},
-        ]}
-        pagination={result ? {page, pageCount, onPageChange: value => setPage(value), summary: `共 ${result.total} 条 · 第 ${page} 页`} : undefined}
-      />
+          ]}
+          pagination={result ? {page, pageCount, onPageChange: value => setPage(value), summary: `共 ${result.total} 条 · 第 ${page} 页`} : undefined}
+        />
+      </AdminPanel>
     </AdminPage>
   );
 }

@@ -37,11 +37,11 @@ export function SettingsGroup({
   const panelId = useId();
 
   return (
-    <section className={cn('overflow-hidden rounded-xl border border-border bg-card shadow-sm', className)}>
-      <header className="flex flex-col gap-3 border-b border-border bg-muted/40 px-4 py-4 md:flex-row md:items-start md:justify-between md:px-5">
+    <section className={cn('admin-panel min-w-0 overflow-hidden rounded-xl border border-border bg-card', className)}>
+      <header className="flex flex-col gap-3 border-b border-border/70 px-4 py-4 md:flex-row md:items-start md:justify-between md:px-5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+            <h2 className="text-[15px] font-semibold text-foreground">{title}</h2>
             {badge}
           </div>
           {description && <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">{description}</p>}

@@ -1,7 +1,7 @@
 'use client';
 
 import { Eye, X } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CharacterAssetsEditor } from './character-assets-editor';
 import { buildCharacterLimits } from '@rumiai/contracts/characters/limits';
 import { useUiConfig } from '@admin/lib/use-ui-config';
@@ -16,18 +16,19 @@ import { contentFrom, emptyContent, statusLabels, type CharacterContent, type Ma
 const textFields = [['name', '角色名称'], ['tagline', '简介'], ['personality', '人设'], ['background', '背景'], ['greeting', '开场白'], ['scenario', '场景'], ['roleTemplate', '扮演指引'], ['tags', '标签'], ['badges', '徽章'], ['avatarUrl', '头像地址'], ['copyrightStatement', '版权声明'], ['relationshipStatus', '初始关系']] as const;
 const WIDE_FIELDS = ['background', 'copyrightStatement'];
 
-export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, onPublish, onClose }: { character: ManagedCharacter | null; canEdit: boolean; canPublish: boolean; busy: boolean; onSave: (content: CharacterContent, reason: string) => Promise<boolean>; onPublish: (action: 'PUBLISH' | 'UNPUBLISH', reason: string) => Promise<boolean>; onClose: () => void }) {
+export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, onPublish, onClose, onDirtyChange, error }: { character: ManagedCharacter | null; canEdit: boolean; canPublish: boolean; busy: boolean; onSave: (content: CharacterContent, reason: string) => Promise<boolean>; onPublish: (action: 'PUBLISH' | 'UNPUBLISH', reason: string) => Promise<boolean>; onClose: () => void; onDirtyChange?: (dirty: boolean) => void; error?: string }) {
   const uiConfig = useUiConfig();
-  // 上限由设置中心决定：未加载时给 0（浏览器里等于不限），服务端仍按真实配置校验。
+  // 配置未返回时不设置 HTML maxLength；0 会禁止输入，不能当成「不限」。服务端仍校验真实配置。
   const CHARACTER_LIMITS = useMemo(() => buildCharacterLimits(key => {
     const value = uiConfig[key];
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }), [uiConfig]);
   const [content, setContent] = useState<CharacterContent>(character ? contentFrom(character) : { ...emptyContent });
   const [reason, setReason] = useState(''), [preview, setPreview] = useState(false), [pending, setPending] = useState<'PUBLISH' | 'UNPUBLISH' | null>(null);
-  const original = character ? contentFrom(character) : null;
+  const original = character ? contentFrom(character) : { ...emptyContent };
   const dirty = original !== null && JSON.stringify(content) !== JSON.stringify(original);
   const deleted = character?.reviewStatus === 'DELETED';
+  useEffect(() => { onDirtyChange?.(dirty || Boolean(reason.trim())); }, [dirty, reason, onDirtyChange]);
 
   async function save(event: FormEvent) { event.preventDefault(); if (await onSave(content, reason)) setReason(''); }
   async function publish(action: 'PUBLISH' | 'UNPUBLISH') {
@@ -39,6 +40,7 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
   return (
     <>
       <AdminPanel
+        className="border-border bg-card shadow-sm"
         title={character ? `角色详情 · ${character.name}` : '新增角色'}
         description={character ? `${statusLabels[character.reviewStatus]} · 归属：${character.creator?.username ?? '系统'} · ${character.creatorId ?? '无用户归属'} · ${character.id}` : undefined}
         badge={deleted ? <Badge variant="danger">已删除</Badge> : undefined}
@@ -50,7 +52,8 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
         }
       >
         <div className="space-y-5">
-          {dirty && <AdminNotice tone="warning" title="内容有未保存修改" description="请先保存再发布或下架。" />}
+          {dirty && <AdminNotice tone="warning" title="内容有未保存修改" description="请先保存再发布或下架。" className="py-3" />}
+          {error && <AdminNotice tone="error" title={error} />}
           {character?.reviewReason && <AdminNotice tone="info" title="最近一次审核说明" description={character.reviewReason} />}
           {preview ? (
             <div role="region" aria-label="角色管理预览" className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
@@ -81,6 +84,13 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
             </div>
           ) : (
             <form className="space-y-5" onSubmit={save}>
+              <nav aria-label="角色编辑分区" className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted/20 p-1 text-sm">
+                <a className="rounded-md px-3 py-2 text-muted-foreground hover:bg-brand-soft hover:text-brand" href="#character-basic">基础资料</a>
+                <a className="rounded-md px-3 py-2 text-muted-foreground hover:bg-brand-soft hover:text-brand" href="#character-assets">素材与配角</a>
+                <a className="rounded-md px-3 py-2 text-muted-foreground hover:bg-brand-soft hover:text-brand" href="#character-publish">保存与发布</a>
+              </nav>
+              <div id="character-basic" className="scroll-mt-6">
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
               <div className="grid gap-4 lg:grid-cols-2">
                 {textFields.map(([key, label]) => (
                   <label className={`block space-y-1.5 ${WIDE_FIELDS.includes(key) ? 'lg:col-span-2' : ''}`} key={key}>
@@ -89,13 +99,14 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
                       aria-label={label}
                       rows={3}
                       required={key === 'name' || key === 'personality'}
-                      maxLength={key === 'relationshipStatus' ? 100 : CHARACTER_LIMITS[key]}
+                      maxLength={key === 'relationshipStatus' ? 100 : CHARACTER_LIMITS[key] || undefined}
                       readOnly={busy || !canEdit || deleted}
                       value={content[key]}
                       onChange={event => setContent({ ...content, [key]: event.target.value })}
                     />
                   </label>
                 ))}
+              </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {(['initialRomance', 'initialIntimacy'] as const).map(key => (
@@ -124,9 +135,10 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
                   独家角色标记
                 </label>
               </div>
-              <CharacterAssetsEditor value={{ images: content.images, emojis: content.emojis, supportCast: content.supportCast }} disabled={busy || !canEdit || !!deleted} onChange={changes => setContent(previous => ({ ...previous, ...changes }))} />
+              </div>
+              <div id="character-assets" className="scroll-mt-6"><CharacterAssetsEditor value={{ images: content.images, emojis: content.emojis, supportCast: content.supportCast }} disabled={busy || !canEdit || !!deleted} onChange={changes => setContent(previous => ({ ...previous, ...changes }))} /></div>
               {!deleted && (canEdit || (character && canPublish)) && (
-                <div className="space-y-4 border-t border-border pt-5">
+                <div id="character-publish" className="scroll-mt-6 space-y-4 border-t border-border pt-5">
                   <label className="block space-y-1.5">
                     <span className="text-sm font-medium">操作理由</span>
                     <Textarea aria-label="操作理由" rows={3} required maxLength={500} value={reason} onChange={event => setReason(event.target.value)} />

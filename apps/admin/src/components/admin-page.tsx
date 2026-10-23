@@ -15,7 +15,7 @@ import { cn } from '@rumiai/ui/cn';
 
 const WIDTHS = {
   /** 数据密集型页面：宽表、多列图表。 */
-  wide: 'max-w-[1440px]',
+  wide: 'max-w-[1680px]',
   /** 表单与配置页。 */
   default: 'max-w-6xl',
   /** 单列表单、政策类内容。 */
@@ -36,7 +36,7 @@ export interface AdminPageProps extends ComponentPropsWithRef<'main'> {
 export function AdminPage({ width = 'wide', className, children, ...props }: AdminPageProps) {
   return (
     <main
-      className={cn('mx-auto flex w-full flex-col gap-6 p-4 md:p-6 xl:p-8', WIDTHS[width], className)}
+      className={cn('admin-page mx-auto flex w-full flex-col gap-6 p-4 md:p-6 xl:px-8 xl:py-7', WIDTHS[width], className)}
       {...props}
     >
       {children}
@@ -61,14 +61,14 @@ export function AdminPageHeader({ eyebrow, title, description, actions, meta, cl
   return (
     <header
       className={cn(
-        'flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-start md:justify-between md:gap-6',
+        'admin-page-header flex flex-col gap-4 pb-1 md:flex-row md:items-start md:justify-between md:gap-6',
         className,
       )}
     >
       <div className="min-w-0 space-y-2">
-        {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">{eyebrow}</p>}
+        {eyebrow && <p className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground">{eyebrow}</p>}
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">{title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-[28px] md:leading-9">{title}</h1>
           {meta}
         </div>
         {description && <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>}
@@ -110,12 +110,12 @@ export function AdminPanel({
   ...props
 }: AdminPanelProps) {
   return (
-    <section className={cn('overflow-hidden rounded-xl border border-border bg-card shadow-sm', className)} {...props}>
+    <section className={cn('admin-panel min-w-0 overflow-hidden rounded-xl border border-border bg-card', className)} {...props}>
       {(title || actions) && (
-        <header className="flex flex-col gap-3 border-b border-border bg-muted/40 px-5 py-4 md:flex-row md:items-center md:justify-between">
+        <header className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              {title && <h2 className="text-sm font-semibold text-foreground">{title}</h2>}
+              {title && <h2 className="text-[15px] font-semibold text-foreground">{title}</h2>}
               {badge}
             </div>
             {description && <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">{description}</p>}
@@ -123,7 +123,7 @@ export function AdminPanel({
           {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={cn(flush ? '' : 'p-5', bodyClassName)}>{children}</div>
+      <div className={cn('admin-panel-body', flush ? '' : 'p-4 sm:p-5', bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -156,16 +156,16 @@ export interface AdminStatProps {
 /** 单个指标卡：数值突出、说明收敛。 */
 export function AdminStat({ label, value, hint, icon, tone = 'default', className }: AdminStatProps) {
   return (
-    <div className={cn('rounded-xl border border-border bg-card p-4 shadow-sm', className)}>
+    <div className={cn('admin-stat rounded-xl border border-border bg-card p-4 sm:p-5', className)}>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
         {icon && (
-          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', STAT_TONES[tone])} aria-hidden>
+          <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', STAT_TONES[tone])} aria-hidden>
             {icon}
           </span>
         )}
       </div>
-      <p className="mt-3 text-2xl font-semibold tabular-nums leading-none text-foreground">{value}</p>
+      <p className="admin-stat-value mt-3 text-[28px] font-semibold tabular-nums leading-tight text-foreground">{value}</p>
       {hint && <p className="mt-2 text-xs leading-5 text-muted-foreground">{hint}</p>}
     </div>
   );
@@ -179,7 +179,7 @@ export function AdminStatGrid({ children, className }: { children: ReactNode; cl
 /** 筛选条：搜索、下拉、日期等控件的统一排布容器。 */
 export function AdminToolbar({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3', className)}>
+    <div className={cn('flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3', className)}>
       {children}
     </div>
   );

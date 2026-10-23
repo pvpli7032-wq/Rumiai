@@ -19,6 +19,7 @@ import {TaskBudgetPanel} from './task-budget-panel';
 import {TaskModelPanel} from './task-model-panel';
 import {NOT_ENOUGH_SAMPLE, formatAmount, formatCoins, type ModelPriceRow} from './types';
 import {usePriceCostData} from './use-price-cost-data';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@rumiai/ui/tabs';
 
 /**
  * 「价格与成本」（V3 §17、§28）。
@@ -191,6 +192,14 @@ export function PriceCostAdmin() {
       {notice && <AdminNotice tone="success" title={notice} className="py-6" />}
       {loading && !costView && <AdminNotice tone="loading" title="正在读取价格与成本…" />}
 
+      <Tabs defaultValue="pricing">
+        <TabsList aria-label="价格与成本工作区">
+          <TabsTrigger value="pricing">AI 币价</TabsTrigger>
+          <TabsTrigger value="analysis">成本分析</TabsTrigger>
+          <TabsTrigger value="budget">预算控制</TabsTrigger>
+        </TabsList>
+
+      <TabsContent value="analysis" keepMounted>
       <AdminStatGrid className="xl:grid-cols-3">
         <AdminStat
           label={`已计量模型成本（${days} 天）`}
@@ -214,7 +223,12 @@ export function PriceCostAdmin() {
           tone={summary.unknownCalls > 0 ? 'warning' : 'default'}
         />
       </AdminStatGrid>
+      <BillingSummaryPanel values={billingValues} />
+      {dashboard && <CostCurrencyPanel rows={dashboard.costs} days={days} />}
+      {dashboard && <UnpricedModelsPanel models={dashboard.budget.pricingUnpricedModels} />}
+      </TabsContent>
 
+      <TabsContent value="pricing" keepMounted>
       <AdminPanel
         title="模型价格"
         description={`收费币价按「币/条」、成本价按「每百万 Token」分别列示；平均成本、预计收入、贡献毛利与建议币价取所选区间，${minSampleText}。`}
@@ -251,15 +265,10 @@ export function PriceCostAdmin() {
       </AdminPanel>
 
       {coinView && <TaskModelPanel view={coinView} sessionActive={sessionActive} canWrite={canWriteSettings} onSaved={refresh} />}
+      </TabsContent>
 
-      <BillingSummaryPanel values={billingValues} />
-
+      <TabsContent value="budget" keepMounted>
       {dashboard && dashboard.taskBudgets.length > 0 && <TaskBudgetPanel rows={dashboard.taskBudgets} />}
-
-      {dashboard && <CostCurrencyPanel rows={dashboard.costs} days={days} />}
-
-      {dashboard && <UnpricedModelsPanel models={dashboard.budget.pricingUnpricedModels} />}
-
       {dashboard && (
         <BudgetPanel
           rows={dashboard.settings.rows}
@@ -273,6 +282,8 @@ export function PriceCostAdmin() {
           onSaveBreaker={(enabled, reason, version) => void saveBreaker(enabled, reason, version)}
         />
       )}
+      </TabsContent>
+      </Tabs>
 
       <ModelPriceDrawer
         key={editing?.id ?? 'none'}

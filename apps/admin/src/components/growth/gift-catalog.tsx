@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AdminNotice, AdminPanel } from '../admin-page';
 import { Badge } from '@rumiai/ui/badge';
 import { Button } from '@rumiai/ui/button';
-import { DataTable, type DataTableColumn } from '@rumiai/ui/data-table';
+import { DataTable, type DataTableColumn } from '@admin/components/layout/data-table';
 import { Input } from '@rumiai/ui/input';
 
 type GiftItem = { id: string; code: string; name: string; description: string | null; emoji: string; coinPrice: number; isActive: boolean; sortOrder: number; version: number };
@@ -50,6 +50,7 @@ export function GiftCatalogManagement({ sessionActive, canManage }: { sessionAct
 
   return (
     <AdminPanel
+      className="border-border bg-card shadow-sm"
       aria-label="礼物目录"
       title="礼物目录"
       description="赠礼价格由服务器目录决定；停用仅影响新赠送，历史礼物记录保留原价。"

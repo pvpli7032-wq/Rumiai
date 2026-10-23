@@ -19,5 +19,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const apiBase = process.env.ADMIN_API_INTERNAL_URL?.trim() || 'http://127.0.0.1:3012';
   const response = await fetch(`${apiBase}/api/admin/auth/session`, {headers: {cookie}, cache: 'no-store'}).catch(() => null);
   if (!response?.ok) redirect('/admin/login');
-  return <AdminAccessProvider><AdminShell>{children}</AdminShell></AdminAccessProvider>;
+  const storefrontOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '') || '';
+  return <AdminAccessProvider><AdminShell storefrontOrigin={storefrontOrigin}>{children}</AdminShell></AdminAccessProvider>;
 }

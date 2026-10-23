@@ -102,17 +102,22 @@ export interface TabsContentProps {
   value: string;
   children: ReactNode;
   className?: string;
+  /** Preserve form drafts when changing tabs. Existing callers still unmount by default. */
+  keepMounted?: boolean;
 }
 
-export function TabsContent({ value, children, className }: TabsContentProps) {
+export function TabsContent({ value, children, className, keepMounted = false }: TabsContentProps) {
   const { value: active, baseId } = useTabsContext('TabsContent');
-  if (active !== value) return null;
+  const hidden = active !== value;
+  if (hidden && !keepMounted) return null;
 
   return (
     <div
       role="tabpanel"
       id={`${baseId}-panel-${value}`}
       aria-labelledby={`${baseId}-tab-${value}`}
+      hidden={hidden}
+      style={hidden ? {display: 'none'} : undefined}
       className={cn('focus-visible:outline-none', className)}
       tabIndex={0}
     >

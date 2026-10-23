@@ -23,6 +23,7 @@ import { ChargeReconciliationPanel } from '@admin/components/finance/charge-reco
  */
 const TABS = [
   { value: 'orders', label: '订单' },
+  { value: 'overview', label: '经营概览' },
   { value: 'refunds', label: '退款' },
   { value: 'packages', label: '套餐' },
   { value: 'reconcile', label: '对账' },
@@ -65,7 +66,7 @@ export default function FinancePage() {
         eyebrow="财务与支付"
         title="财务支付"
         description="本地订单、金币流水与费用单核对。支付渠道账单与真实退款需另行核验。"
-        actions={tab === 'orders' ? (
+        actions={tab === 'orders' || tab === 'overview' ? (
           <>
             <div className="w-32">
               <Select aria-label="统计范围" value={days} onChange={event => setDays(Number(event.target.value))}>
@@ -84,7 +85,6 @@ export default function FinancePage() {
         <TabsContent value="orders" className="flex flex-col gap-6">
           {canReadFinance
             ? <>
-                <FinanceOverview report={report} loading={loading} error={error} />
                 <PaymentOrderManagement
                   sessionActive={sessionActive!}
                   canRequest={permissions.includes('finance.refunds.request')}
@@ -95,6 +95,10 @@ export default function FinancePage() {
                 />
               </>
             : <AdminNotice tone="denied" title="当前账号没有财务查看权限。" />}
+        </TabsContent>
+
+        <TabsContent value="overview" className="flex flex-col gap-6">
+          {canReadFinance ? <FinanceOverview report={report} loading={loading} error={error} /> : <AdminNotice tone="denied" title="当前账号没有财务查看权限。" />}
         </TabsContent>
 
         <TabsContent value="refunds" className="flex flex-col gap-6">

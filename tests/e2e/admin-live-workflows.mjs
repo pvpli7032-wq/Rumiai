@@ -134,6 +134,7 @@ try {
   await admin.getByPlaceholder('说明为什么需要修改资料').fill('隔离浏览器表单验收');
   await admin.getByRole('button', {name: '保存公开资料'}).click();
   await admin.waitForTimeout(1000);
+  await admin.getByRole('tab', {name: '记录与关联'}).click();
   await admin.getByText('隔离浏览器表单验收', {exact: true}).waitFor();
   const adminCookieOnlyMe = await admin.request.get('http://127.0.0.1:3010/api/users/me');
   assert.equal(adminCookieOnlyMe.status(), 401, 'admin session cookie must not authenticate the storefront');
@@ -159,7 +160,8 @@ try {
   }});
   assert.equal(configured.status(), 200);
   await admin.goto('http://127.0.0.1:3011/admin/memberships');
-  await admin.locator('input[type=number]').nth(2).fill('123');
+  await admin.getByRole('tab', {name: 'E2E 月会员', exact: true}).click();
+  await admin.getByLabel('方案价格（分）').fill('123');
   await admin.getByRole('button', {name: '保存配置'}).click();
   await admin.getByText('已保存，前台将读取最新方案。', {exact: true}).waitFor();
   const publicCatalog = await front.request.get('http://127.0.0.1:3010/api/memberships');

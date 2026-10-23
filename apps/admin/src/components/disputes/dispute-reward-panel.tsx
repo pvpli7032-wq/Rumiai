@@ -78,7 +78,7 @@ export function DisputeRewardPanel({sessionActive, canReadSettings, refreshKey}:
       {canReadSettings && error && <AdminNotice tone="error" title={error} />}
       {canReadSettings && !error && loading && <AdminNotice tone="loading" title="正在读取奖励参数…" />}
       {canReadSettings && !error && !loading && values && (
-        <dl className="divide-y divide-border">
+        <dl className="divide-y divide-border/70 rounded-2xl border border-border/70 bg-muted/10 px-4">
           {REWARD_SETTING_KEYS.map(key => (
             <div key={key} className="flex flex-col gap-0.5 py-3 text-sm sm:flex-row sm:items-baseline sm:gap-4">
               <dt className="shrink-0 text-muted-foreground sm:w-40">{REWARD_SETTING_LABELS[key].label}</dt>

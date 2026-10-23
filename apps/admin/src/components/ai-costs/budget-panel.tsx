@@ -107,7 +107,7 @@ export function BudgetPanel({rows, source, status, circuitBreaker, circuitBreake
 
           <div className="grid gap-3 lg:grid-cols-2">
             {rows.map(row => (
-              <article key={row.currency} className="min-w-0 space-y-1 rounded-lg border border-border p-3 text-sm">
+            <article key={row.currency} className="min-w-0 space-y-1 rounded-2xl border border-border/80 bg-gradient-to-br from-card to-muted/20 p-4 text-sm shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-medium">{row.currency} · {row.isActive ? '启用' : '已停用'}</h3>
                   <span className="text-xs text-muted-foreground">版本 {row.version}</span>

@@ -7,7 +7,7 @@ import { apiFetch } from '@admin/lib/api-client';
 import { AdminNotice, AdminPanel, AdminToolbar } from '../admin-page';
 import { Badge } from '@rumiai/ui/badge';
 import { Button } from '@rumiai/ui/button';
-import { DataTable, type DataTableColumn } from '@rumiai/ui/data-table';
+import { DataTable, type DataTableColumn } from '@admin/components/layout/data-table';
 import { Dialog } from '@rumiai/ui/dialog';
 import { Input } from '@rumiai/ui/input';
 import { Select } from '@rumiai/ui/select';

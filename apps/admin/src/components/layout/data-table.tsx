@@ -5,6 +5,7 @@ import {Button} from '@rumiai/ui/button';
 import {DataTable as UiDataTable, type DataTableProps as UiDataTableProps} from '@rumiai/ui/data-table';
 import {EmptyState} from '@rumiai/ui/empty-state';
 import {ErrorState} from '@rumiai/ui/error-state';
+import {cn} from '@rumiai/ui/cn';
 
 /**
  * 后台表格：在 `@rumiai/ui/data-table` 之上补上后台统一的空态与错误态。
@@ -29,6 +30,7 @@ export function DataTable<T>({
   emptyAction,
   error,
   onRetry,
+  className,
   ...rest
 }: DataTableProps<T>) {
   const emptyNode = empty ?? <EmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />;
@@ -37,7 +39,7 @@ export function DataTable<T>({
       ? <ErrorState title={error} action={onRetry ? <Button size="sm" variant="outline" onClick={onRetry}>重试</Button> : undefined} />
       : error;
 
-  return <UiDataTable {...rest} empty={emptyNode} error={errorNode} />;
+  return <UiDataTable {...rest} className={cn('admin-data-table', className)} empty={emptyNode} error={errorNode} />;
 }
 
 export type {DataTableColumn, DataTableSort, DataTablePagination} from '@rumiai/ui/data-table';

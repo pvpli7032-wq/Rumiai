@@ -31,7 +31,7 @@ export function CheckinRewards({ sessionActive, canManage, onSaved }: { sessionA
   }
 
   return (
-    <AdminPanel aria-label="连续签到金币" title="连续签到金币" description="第 7 天及以后按第 7 天金额发放。修改将影响之后的签到，不追溯历史流水。">
+    <AdminPanel className="border-border bg-card shadow-sm" aria-label="连续签到金币" title="连续签到金币" description="第 7 天及以后按第 7 天金额发放。修改将影响之后的签到，不追溯历史流水。">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {rules.map(rule => (

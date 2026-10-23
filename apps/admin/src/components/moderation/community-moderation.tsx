@@ -71,6 +71,7 @@ export function CommunityModeration() {
 
   return (
     <AdminPanel
+      className="border-border bg-card shadow-sm"
       title="社区治理"
       description="举报队列、申诉复核与处置审计按标签切换，处置动作均需填写理由。"
       badge={<Badge variant={canModerate ? 'brand' : 'neutral'}>{canModerate ? '可处置' : '只读'}</Badge>}
@@ -104,7 +105,7 @@ export function CommunityModeration() {
           ) : (
             <div className="grid gap-4 xl:grid-cols-2">
               {reports.map(report => (
-                <article key={report.id} className="space-y-3 rounded-lg border border-border p-4">
+                <article key={report.id} className="space-y-3 rounded-xl border border-border bg-muted/20 p-4 transition-colors hover:border-brand/30">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-semibold text-foreground">{report.targetType} · {report.category}</h3>
@@ -143,7 +144,7 @@ export function CommunityModeration() {
           ) : (
             <div className="grid gap-4 xl:grid-cols-2">
               {appeals.map(appeal => (
-                <article key={appeal.id} className="space-y-3 rounded-lg border border-border p-4">
+                <article key={appeal.id} className="space-y-3 rounded-xl border border-border bg-muted/20 p-4 transition-colors hover:border-brand/30">
                   <h3 className="text-sm font-semibold text-foreground">@{appeal.user.username} 的社区申诉</h3>
                   <p className="whitespace-pre-wrap text-sm text-foreground">{appeal.reason}</p>
                   <p className="text-xs text-muted-foreground">封禁原因：{appeal.user.communityBanReason || '未提供'}</p>

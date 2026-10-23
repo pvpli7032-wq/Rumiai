@@ -5,7 +5,7 @@ import {ExternalLink} from 'lucide-react';
 import {AdminNotice, AdminPanel, AdminToolbar} from '@admin/components/admin-page';
 import {Badge} from '@rumiai/ui/badge';
 import {Button} from '@rumiai/ui/button';
-import {DataTable, type DataTableColumn} from '@rumiai/ui/data-table';
+import {DataTable, type DataTableColumn} from '@admin/components/layout/data-table';
 import {Input} from '@rumiai/ui/input';
 import {formatCny} from '@rumiai/contracts/format/number';
 import {STATUS_LABEL, type OrderRow} from './order-types';

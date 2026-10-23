@@ -2,7 +2,7 @@
 
 import {useEffect,useState} from 'react';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
-import {DataTable} from '@rumiai/ui/data-table';
+import {DataTable} from '@admin/components/layout/data-table';
 import {Select} from '@rumiai/ui/select';
 import {SceneFunnelPanel} from './scene-funnel-panel';
 import {ProductFunnelPanel} from './product-funnel-panel';
@@ -39,7 +39,7 @@ export function AnalyticsOverview({sessionActive}:{sessionActive: boolean}){
     return()=>controller.abort();
   },[days,sessionActive]);
 
-  const cards=report?[
+  const cards: Array<[string, string]> = report?[
     ['新注册用户',formatNumber(report.users.registered)],['活跃账号',formatNumber(report.users.active)],['付费用户',formatNumber(report.users.payingUsers)],
     ['新建对话',formatNumber(report.engagement.newConversations)],['用户消息',formatNumber(report.engagement.userMessages)],['AI 回复',formatNumber(report.engagement.assistantMessages)],
     ['公开帖子',formatNumber(report.engagement.visiblePosts)],['公开评论',formatNumber(report.engagement.visibleComments)],['审核动作',formatNumber(report.engagement.moderationActions)],
@@ -62,12 +62,11 @@ export function AnalyticsOverview({sessionActive}:{sessionActive: boolean}){
     {loading&&<AdminNotice tone="loading" title="正在读取真实业务汇总…" />}
     {error&&<AdminNotice tone="error" title={error} />}
     {report&&<>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label,value])=>(
-        <article key={label} className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-          <p className="mt-2 break-words text-2xl font-semibold tabular-nums leading-none text-foreground">{value}</p>
-        </article>
-      ))}</div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <MetricGroup title="用户增长" description="注册与活跃账号" tone="brand" items={cards.slice(0, 3)} />
+        <MetricGroup title="内容与互动" description={`近 ${days} 天业务行为`} tone="violet" items={cards.slice(3, 9)} />
+        <MetricGroup title="商业结果" description="支付与退款状态" tone="amber" items={cards.slice(9, 12)} />
+      </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <AdminPanel title="转化与退款" description="付费率沿用同周期注册与 EZFP 人民币已付款用户口径；退款只计已确认成功。">
           <div className="space-y-2 text-sm">
@@ -117,6 +116,22 @@ export function AnalyticsOverview({sessionActive}:{sessionActive: boolean}){
       </AdminPanel>
     </>}
   </AdminPage>;
+}
+
+function MetricGroup({title, description, tone, items}: {title: string; description: string; tone: 'brand' | 'violet' | 'amber'; items: Array<[string, string]>}) {
+  const accent = tone === 'brand' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : tone === 'violet' ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300';
+  return <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm">
+    <div className={`${accent} border-b border-border/70 px-5 py-4`}>
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+    </div>
+    <div className="grid grid-cols-2 divide-x divide-y divide-border/70 sm:grid-cols-3 xl:grid-cols-2">
+      {items.map(([label, value]) => <div key={label} className="min-w-0 px-4 py-4">
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+        <p className="mt-2 truncate text-xl font-semibold tabular-nums text-foreground">{value}</p>
+      </div>)}
+    </div>
+  </section>;
 }
 
 /** 未成熟的 cohort 不能当作留存为 0，单独标注。 */

@@ -45,7 +45,7 @@ export function MirrorResultDrawer({item, canManage, busy, onClose, onHide, onRe
       {item && (
         <div className="space-y-5">
           <DetailSection title="结果内容" description="称号、金句为保存时校验后的值。">
-            <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+            <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/30 p-4">
               <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                 {item.title}
                 <Badge variant={MIRROR_STATUS_VARIANTS[item.status]}>{MIRROR_STATUS_LABELS[item.status]}</Badge>

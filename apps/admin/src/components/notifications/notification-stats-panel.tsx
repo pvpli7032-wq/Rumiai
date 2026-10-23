@@ -4,7 +4,7 @@ import {useEffect, useState} from 'react';
 import {Bell} from 'lucide-react';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel, AdminStat, AdminStatGrid} from '../admin-page';
 import {Badge} from '@rumiai/ui/badge';
-import {DataTable} from '@rumiai/ui/data-table';
+import {DataTable} from '@admin/components/layout/data-table';
 import {cn} from '@rumiai/ui/cn';
 import {RANGE_OPTIONS, type RangeDays} from '../workbench/range';
 import {API} from '@rumiai/contracts/api-paths';
@@ -39,14 +39,14 @@ export function NotificationStatsPanel({sessionActive}: {sessionActive: boolean}
       eyebrow="系统与安全"
       title="通知统计"
       description="各类型通知的发送量、未读与已读情况。只统计已落表的通知；写入失败只有日志，不在此页。"
-      actions={<div role="group" aria-label="日期范围" className="inline-flex rounded-lg border border-border bg-card p-0.5">
+      actions={<div role="group" aria-label="日期范围" className="inline-flex rounded-2xl border border-border/80 bg-card p-1 shadow-sm">
         {RANGE_OPTIONS.map(option => <button
           key={option.days}
           type="button"
           aria-pressed={days === option.days}
           onClick={() => setDays(option.days)}
           className={cn(
-            'min-h-9 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'min-h-9 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             days === option.days ? 'bg-brand-soft text-brand' : 'text-muted-foreground hover:text-foreground',
           )}
         >{option.label}</button>)}
@@ -78,7 +78,7 @@ export function NotificationStatsPanel({sessionActive}: {sessionActive: boolean}
             {id: 'sent', header: '发送量', align: 'right', cell: row => <span className="tabular-nums">{number(row.sent)}</span>},
             {id: 'unread', header: '未读', align: 'right', cell: row => <span className="tabular-nums">{number(row.unread)}</span>},
             {id: 'read', header: '已读', align: 'right', cell: row => <span className="tabular-nums">{number(row.read)}</span>},
-            {id: 'rate', header: '已读率', align: 'right', cell: row => <span className="tabular-nums">{percent(row.readRate)}</span>},
+            {id: 'rate', header: '已读率', align: 'right', cell: row => <span className="flex min-w-24 items-center justify-end gap-2"><span className="h-1.5 w-14 overflow-hidden rounded-full bg-border/60"><span className="block h-full rounded-full bg-emerald-500" style={{width: `${row.readRate === null ? 0 : Math.max(2, Math.min(100, row.readRate * 100))}%`}} /></span><span className="tabular-nums">{percent(row.readRate)}</span></span>},
           ]}
         />
       </AdminPanel>

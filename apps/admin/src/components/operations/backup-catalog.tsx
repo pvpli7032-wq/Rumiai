@@ -6,7 +6,7 @@ import type { BackupInventoryItem } from '@rumiai/contracts/admin/operations';
 import { AdminNotice, AdminPanel } from '../admin-page';
 import { Badge } from '@rumiai/ui/badge';
 import { Button } from '@rumiai/ui/button';
-import { DataTable, type DataTableColumn } from '@rumiai/ui/data-table';
+import { DataTable, type DataTableColumn } from '@admin/components/layout/data-table';
 
 type Catalog = { items: BackupInventoryItem[]; activeRestore: BackupInventoryItem | null; page: number; pageSize: number; total: number };
 const kinds: Record<string, string> = { DATABASE: '数据库文件', STATE_BACKUP: '联合备份', STATE_RESTORE: '隔离恢复' };
@@ -56,7 +56,7 @@ export function BackupCatalog({ sessionActive }: { sessionActive: boolean }) {
         {loading && <AdminNotice tone="loading" title="正在读取备份记录…" />}
         {error && <AdminNotice tone="error" title={error} />}
         {catalog?.activeRestore && (
-          <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-4 text-sm">
+          <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/30 p-4 text-sm shadow-sm">
             <p className="font-medium">当前数据库目录中的恢复记录</p>
             <p className="text-muted-foreground">{checks[catalog.activeRestore.verification]}{catalog.activeRestore.verification === 'RECORDED_AT_OPERATION' && (' · ' + time(catalog.activeRestore.recordedAt))}</p>
             <p className="text-xs text-muted-foreground">{catalog.activeRestore.verification === 'RECORDED_AT_OPERATION' ? '这是当时隔离复制与校验的记录，后续业务写入不改变该历史结果。' : '恢复记录不完整或不可读，请由运维人员重新核查。'}</p>

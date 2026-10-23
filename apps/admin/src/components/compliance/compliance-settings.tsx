@@ -19,7 +19,7 @@ export function ComplianceSettings({canManage=true}:{canManage?:boolean}){
       {error&&<AdminNotice tone="error" title={error} className="py-6" />}
       {message&&<AdminNotice tone="success" title={message} className="py-6" />}
 
-      <AdminPanel title="注册确认要求" description={canManage ? '保存会写入管理审计，请填写变更理由。' : '当前账号只有查看权限，设置不可修改。'}>
+      <AdminPanel className="border-border bg-card shadow-sm" title="注册确认要求" description={canManage ? '保存会写入管理审计，请填写变更理由。' : '当前账号只有查看权限，设置不可修改。'}>
         <form onSubmit={save} className="space-y-5">
           <fieldset disabled={!canManage} className="space-y-5">
             <label className="flex min-h-11 flex-wrap items-center gap-3 text-sm font-medium">
@@ -53,7 +53,7 @@ export function ComplianceSettings({canManage=true}:{canManage?:boolean}){
         </form>
       </AdminPanel>
 
-      <AdminPanel title="已记录的确认数" description="按政策版本汇总，不展示个人确认明细。">
+      <AdminPanel className="border-border bg-card shadow-sm" title="已记录的确认数" description="按政策版本汇总，不展示个人确认明细。">
         {counts.length
           ? <ul className="divide-y divide-border">{counts.map(row=><li key={`${row.policyType}:${row.policyVersion}`} className="flex items-center justify-between py-2.5 text-sm"><span className="text-foreground">{row.policyType} · {row.policyVersion}</span><span className="font-medium tabular-nums">{row.count}</span></li>)}</ul>
           : <p className="text-sm text-muted-foreground">暂无确认记录</p>}

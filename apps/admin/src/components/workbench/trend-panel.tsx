@@ -14,13 +14,16 @@ export function TrendPanel({points}: {points: TrendPoint[]}) {
         <p className="py-8 text-center text-sm text-muted-foreground">暂无数据</p>
       ) : (
         <div className="space-y-3">
-          <div role="list" aria-label="每日有效回复" className="flex h-40 items-end gap-1 sm:gap-2">
+          <div role="list" aria-label="每日有效回复" className="relative flex h-44 items-end gap-1 rounded-2xl border border-border/70 bg-muted/15 px-3 pb-3 pt-5 sm:gap-2">
+            <span className="pointer-events-none absolute inset-x-3 top-1/3 border-t border-dashed border-border/70" />
+            <span className="pointer-events-none absolute inset-x-3 top-2/3 border-t border-dashed border-border/70" />
             {points.map(point => (
               <div key={point.date} role="listitem" className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
                 <span className="text-[10px] tabular-nums text-muted-foreground">{point.value}</span>
                 <div
                   aria-hidden
-                  className="w-full rounded-t bg-brand/70"
+                  title={`${point.date}: ${point.value} 条有效回复`}
+                  className="relative z-10 w-full rounded-t bg-brand transition-opacity hover:opacity-80"
                   style={{height: `${max > 0 ? Math.max(2, Math.round((point.value / max) * 120)) : 2}px`}}
                 />
               </div>

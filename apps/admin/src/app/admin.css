@@ -1,0 +1,126 @@
+/* Administration owns its visual language. These tokens never affect the storefront. */
+@layer base {
+  html.admin-theme {
+    color-scheme: light;
+    --brand: #087f83;
+    --brand-2: #129697;
+    --brand-foreground: #ffffff;
+    --brand-soft: #e6f4f3;
+    --brand-strong: #076b70;
+    --brand-accent-1: #087f83;
+    --brand-accent-2: #129697;
+    --brand-gradient: linear-gradient(135deg, #087f83, #129697);
+    --brand-gradient-accent: var(--brand-gradient);
+    --background: 210 33% 98%;
+    --foreground: 215 31% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 31% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 31% 17%;
+    --primary: 182 88% 27%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 25% 95%;
+    --secondary-foreground: 215 26% 27%;
+    --muted: 210 26% 96%;
+    --muted-foreground: 215 15% 44%;
+    --accent: 180 30% 94%;
+    --accent-foreground: 182 88% 25%;
+    --border: 213 25% 90%;
+    --input: 213 25% 85%;
+    --ring: 182 88% 27%;
+    --destructive: 0 68% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --radius: 0.75rem;
+  }
+
+  html.admin-theme.dark {
+    color-scheme: dark;
+    --brand: #54c8bd;
+    --brand-2: #7ddbd1;
+    --brand-foreground: #112c30;
+    --brand-soft: #203d40;
+    --brand-strong: #7ddbd1;
+    --background: 215 26% 10%;
+    --foreground: 210 22% 93%;
+    --card: 215 25% 14%;
+    --card-foreground: 210 22% 93%;
+    --popover: 215 25% 14%;
+    --popover-foreground: 210 22% 93%;
+    --primary: 174 51% 56%;
+    --primary-foreground: 185 48% 13%;
+    --secondary: 215 22% 19%;
+    --secondary-foreground: 210 22% 90%;
+    --muted: 215 22% 18%;
+    --muted-foreground: 213 17% 67%;
+    --accent: 184 27% 20%;
+    --accent-foreground: 174 51% 66%;
+    --border: 215 21% 24%;
+    --input: 215 21% 31%;
+    --ring: 174 51% 56%;
+    --destructive: 0 78% 67%;
+    --destructive-foreground: 0 0% 10%;
+  }
+
+  .admin-theme body { letter-spacing: 0.005em; }
+  .admin-theme :focus-visible { outline-offset: 3px; }
+  .admin-theme input:not([type='checkbox']):not([type='radio']),
+  .admin-theme textarea,
+  .admin-theme select { max-width: 100%; }
+  .admin-theme input[type='checkbox'], .admin-theme input[type='radio'] { accent-color: var(--brand); }
+}
+
+/* Sidebar is a separate dark surface in both themes, matching the approved split view. */
+.admin-sidebar {
+  --brand: #75d9d0;
+  --brand-soft: #f1faf9;
+  --brand-foreground: #102c32;
+  --foreground: 210 25% 94%;
+  --muted-foreground: 212 21% 73%;
+  --accent: 212 24% 23%;
+  --border: 212 23% 25%;
+  --card: 212 28% 17%;
+  background: #1e2b38;
+  color: #eef4f8;
+}
+.admin-sidebar [aria-current='page'] { color: #087f83; }
+.admin-sidebar .admin-nav-active { background: #f1faf9; box-shadow: 0 2px 6px #0f172a12; }
+.admin-sidebar .admin-nav-active button { color: #557b80; }
+.admin-sidebar .admin-nav-pin { opacity: 0; }
+.admin-sidebar .admin-nav-row:hover .admin-nav-pin,
+.admin-sidebar .admin-nav-row:focus-within .admin-nav-pin { opacity: 1; }
+@media (hover: none) { .admin-sidebar .admin-nav-pin { opacity: 1; } }
+.admin-sidebar .admin-nav-group { letter-spacing: 0.025em; }
+.admin-sidebar nav { scrollbar-color: #51616f transparent; }
+
+.admin-workspace { scrollbar-gutter: stable; }
+.admin-page { min-width: 0; }
+.admin-panel { box-shadow: 0 2px 8px #25364b03; }
+.admin-panel > header { background: transparent; }
+.admin-panel > header h2 { line-height: 1.6; }
+.admin-panel-body { min-width: 0; }
+.admin-stat { min-width: 0; position: relative; }
+.admin-stat-value { overflow-wrap: anywhere; letter-spacing: -0.035em; }
+.admin-theme table { font-variant-numeric: tabular-nums; }
+.admin-theme table th { white-space: nowrap; }
+.admin-theme table td { overflow-wrap: anywhere; }
+.admin-data-table { min-width: 0; }
+.admin-data-table > .overflow-x-auto { max-height: min(68dvh, 760px); overscroll-behavior: contain; scrollbar-width: thin; }
+.admin-data-table thead { position: sticky; top: 0; z-index: 1; background: hsl(var(--muted)); }
+.admin-data-table tbody tr:hover { background: color-mix(in srgb, var(--brand-soft) 45%, hsl(var(--card))); }
+.admin-data-table td { line-height: 1.65; }
+.admin-theme [role='tablist']:not(.admin-section-tabs) { background: transparent; border-bottom: 1px solid hsl(var(--border)); border-radius: 0; padding: 0; gap: 1rem; }
+.admin-theme [role='tablist']:not(.admin-section-tabs) [role='tab'] { border-radius: 0; padding: 0.75rem 0.25rem; border-bottom: 2px solid transparent; background: transparent; box-shadow: none; }
+.admin-theme [role='tablist']:not(.admin-section-tabs) [role='tab'][aria-selected='true'] { border-bottom-color: var(--brand); color: var(--brand); }
+.admin-section-tabs { scrollbar-width: thin; }
+.admin-theme [role='dialog'] { border-color: hsl(var(--border)); }
+.admin-theme [role='dialog']:not(.admin-sidebar) > :first-child { background: hsl(var(--card)); }
+.admin-theme [role='dialog'] > .overflow-y-auto { background: hsl(var(--background)); }
+.admin-theme [role='dialog'] .admin-panel { box-shadow: none; }
+.admin-theme pre { max-width: 100%; overflow-x: auto; font-size: 0.75rem; line-height: 1.7; }
+.admin-theme summary { cursor: pointer; }
+@media (max-width: 639px) {
+  .admin-page { gap: 1.25rem; }
+  .admin-panel > header { padding: 1rem; }
+  .admin-panel-body:not(:empty) { max-width: 100%; }
+  .admin-theme [role='tablist'] { column-gap: 0.75rem; }
+}

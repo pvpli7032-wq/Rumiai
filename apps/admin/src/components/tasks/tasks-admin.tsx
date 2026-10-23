@@ -135,7 +135,7 @@ export function TasksAdmin() {
         <AdminStat label="受开关关闭" value={String(stats.disabled)} hint="依赖的功能开关关闭时任务不产生新工作" tone={stats.disabled > 0 ? 'warning' : 'default'} />
       </AdminStatGrid>
 
-      <AdminPanel
+            <AdminPanel
         title="任务列表"
         description="最近运行取该种类最新更新的一条记录；结果展示最近状态、失败原因与下次运行时间。"
         badge={items ? <Badge>{items.length} 个任务</Badge> : undefined}
@@ -178,9 +178,13 @@ export function TasksAdmin() {
               header: '队列',
               width: '150px',
               cell: item => (
-                <span className="block text-xs">
-                  <span className="block">待处理 {item.pending} · 运行中 {item.running}</span>
-                  <span className="block text-muted-foreground">完成 {item.done} · 失败 {item.failed}</span>
+                  <span className="block text-xs">
+                  <span className="block tabular-nums">待处理 {item.pending} · 运行中 {item.running}</span>
+                  <span className="mt-1 block text-muted-foreground tabular-nums">完成 {item.done} · 失败 {item.failed}</span>
+                  <span className="mt-2 flex h-1.5 w-28 overflow-hidden rounded-full bg-border/60" aria-label={`任务 ${item.name} 队列状态`}>
+                    <span className="h-full bg-emerald-500" style={{width: `${item.done + item.failed > 0 ? Math.min(100, (item.done / (item.done + item.failed)) * 100) : 0}%`}} />
+                    <span className="h-full bg-rose-400" style={{width: `${item.done + item.failed > 0 ? Math.min(100, (item.failed / (item.done + item.failed)) * 100) : 0}%`}} />
+                  </span>
                 </span>
               ),
             },

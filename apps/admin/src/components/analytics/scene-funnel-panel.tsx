@@ -43,15 +43,15 @@ export function SceneFunnelPanel({sessionActive,days}:{sessionActive: boolean;da
           ['主动结束率（首条消息口径）',percent(report.rates.activeEndRateAfterFirstMessage)],
           ['继续点击率',percent(report.rates.continueClickRate)],
         ].map(([label,value])=>(
-          <div key={label} className="rounded-lg border border-border p-3">
+          <div key={label} className="rounded-2xl border border-border/80 bg-gradient-to-br from-card to-muted/30 p-4 shadow-sm">
             <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums leading-none text-foreground">{value}</p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums leading-none text-foreground">{value}</p>
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        事实计数（近 {report.days} 天）：开场到达 {formatNumber(report.events.opened)} · 首条消息 {formatNumber(report.events.firstSent)} · 结束确认 {formatNumber(report.events.activeEndConfirmed)} · 继续点击 {formatNumber(report.events.continueClicked)}
-      </p>
+      <div className="grid gap-2 rounded-2xl border border-border/70 bg-muted/20 p-4 text-xs sm:grid-cols-4">
+        {[['开场到达', report.events.opened], ['首条消息', report.events.firstSent], ['结束确认', report.events.activeEndConfirmed], ['继续点击', report.events.continueClicked]].map(([label, value]) => <div key={label as string}><span className="block text-muted-foreground">{label}</span><span className="mt-1 block text-base font-semibold tabular-nums text-foreground">{formatNumber(value as number)}</span></div>)}
+      </div>
       <details className="text-xs text-muted-foreground">
         <summary className="cursor-pointer select-none">指标口径</summary>
         <div className="mt-1 space-y-1">

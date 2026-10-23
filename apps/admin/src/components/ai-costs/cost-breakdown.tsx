@@ -15,7 +15,7 @@ export function CostCurrencyPanel({rows, days}: {rows: CostRow[]; days: number})
     >
       <div className="grid gap-3 lg:grid-cols-2">
         {rows.map(row => (
-          <article key={row.currency} className="min-w-0 space-y-1 rounded-lg border border-border p-3 text-sm">
+          <article key={row.currency} className="min-w-0 space-y-1 rounded-2xl border border-border/80 bg-gradient-to-br from-card to-muted/20 p-4 text-sm shadow-sm">
             <h3 className="font-medium">{row.currency} · 已知估算 {formatAmount(row.estimatedCost, row.currency)}</h3>
             <p className="break-words text-xs text-muted-foreground">
               总调用 {row.calls} · 实际调用 {row.realCalls} · 已知成本 {row.knownCostCalls} · 未知成本 {row.unknownCostCalls}

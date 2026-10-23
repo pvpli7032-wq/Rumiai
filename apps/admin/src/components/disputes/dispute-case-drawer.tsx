@@ -49,7 +49,7 @@ export function DisputeCaseDrawer({item, canManage, busy, onClose, onCloseCase, 
       {item && (
         <div className="space-y-5">
           <DetailSection title="诉求">
-            <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+            <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/30 p-4">
               <p className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant={DISPUTE_STATUS_VARIANTS[item.status]}>{DISPUTE_STATUS_LABELS[item.status]}</Badge>
                 {item.hidden && <Badge variant="neutral">后台已隐藏</Badge>}
@@ -85,7 +85,7 @@ export function DisputeCaseDrawer({item, canManage, busy, onClose, onCloseCase, 
 
           <DetailSection title="隐藏记录" description="来自管理操作日志；隐藏后停止公开访问，也不再进入结案任务。">
             {item.hidden ? (
-              <div className="space-y-1 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <div className="space-y-1 rounded-2xl border border-border/80 bg-muted/30 p-4 text-sm">
                 <p className="break-words text-foreground">{item.hidden.reason}</p>
                 <p className="text-xs text-muted-foreground">
                   {item.hidden.actor ? `操作人 ${item.hidden.actor.name}（${item.hidden.actor.id}）` : '操作人账号已注销'} · {formatDateTime(item.hidden.at)}
@@ -98,7 +98,7 @@ export function DisputeCaseDrawer({item, canManage, busy, onClose, onCloseCase, 
 
           <DetailSection title="最近一次失败" description="来自后台任务的失败记录；重试次数与上限在设置中心「增长玩法」。">
             {item.lastFailure ? (
-              <div className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+              <div className="space-y-1 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
                 <p className="flex items-start gap-2 break-words">
                   <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                   {item.lastFailure.message}

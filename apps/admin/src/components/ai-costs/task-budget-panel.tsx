@@ -56,7 +56,7 @@ export function TaskBudgetPanel({rows}: TaskBudgetPanelProps) {
     >
       <div className="grid gap-3 lg:grid-cols-2">
         {rows.map(row => (
-          <article key={row.taskType} className="min-w-0 space-y-1 rounded-lg border border-border p-3 text-sm">
+          <article key={row.taskType} className="min-w-0 space-y-1 rounded-2xl border border-border/80 bg-gradient-to-br from-card to-muted/20 p-4 text-sm shadow-sm">
             <h3 className="font-medium">{row.label}</h3>
             <p className="break-words text-xs text-muted-foreground">今日已用：<UsageText row={row} /></p>
             <p className="break-words text-xs text-muted-foreground">

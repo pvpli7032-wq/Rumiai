@@ -10,10 +10,11 @@ import {apiFetch} from '@admin/lib/api-client';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
 import {Badge} from '@rumiai/ui/badge';
 import {Button} from '@rumiai/ui/button';
-import {DataTable} from '@rumiai/ui/data-table';
+import {DataTable} from '@admin/components/layout/data-table';
 import {EmptyState} from '@rumiai/ui/empty-state';
 import {Input} from '@rumiai/ui/input';
 import {Select} from '@rumiai/ui/select';
+import {DetailDrawer} from '@admin/components/layout/detail-drawer';
 
 export function CharacterManagement() {
   const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
@@ -22,6 +23,7 @@ export function CharacterManagement() {
   const [q, setQ] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('ALL'), [tag, setTag] = useState(''), [creator, setCreator] = useState(''), [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
   const [list, setList] = useState<{items: CharacterSummary[]; total: number; pageSize: number} | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<ManagedCharacter | null>(null), [creating, setCreating] = useState(false);
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false);
+  const [detailDirty, setDetailDirty] = useState(false);
   const request = useCallback(<T,>(url: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET', body?: object, signal?: AbortSignal) => apiFetch<T>(url, {method, credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   useEffect(() => {setList(null); setDetail(null); setSelected(null); setCreating(false);}, [sessionActive]);
   useEffect(() => {
@@ -32,7 +34,7 @@ export function CharacterManagement() {
     return () => controller.abort();
   }, [sessionActive, allowed, request, query, status, tag, creator, page, refresh]);
   useEffect(() => {
-    setDetail(null); if (!selected || !allowed) return;
+    setDetail(current => current?.id === selected ? current : null); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
     void request<ManagedCharacter>(`/api/admin/characters/${encodeURIComponent(selected)}`, 'GET', undefined, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
     return () => controller.abort();
@@ -55,6 +57,16 @@ export function CharacterManagement() {
     try {await request('/api/admin/characters/publication', 'POST', {action, reason, items: items.map(character => ({id: character.id, updatedAt: character.updatedAt}))}); setRefresh(value => value + 1); setMessage('批量角色操作已完成。'); return true;}
     catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
   }
+  const closeDetail = useCallback(() => {
+    if (busy) return;
+    if (detailDirty && !window.confirm('当前角色详情有未保存修改，确定关闭并放弃吗？')) return;
+    setDetailDirty(false); setCreating(false); setSelected(null); setDetail(null);
+  }, [busy, detailDirty]);
+  const selectCharacter = useCallback((id: string) => {
+    if (busy) return;
+    if (detailDirty && !window.confirm('当前角色详情有未保存修改，切换对象会放弃修改，继续吗？')) return;
+    setDetailDirty(false); setCreating(false); setDetail(null); setSelected(id); setError(''); setMessage('');
+  }, [busy, detailDirty]);
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在读取角色管理权限…" /></AdminPage>;
   if (!sessionActive || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有角色管理查看权限。'} /></AdminPage>;
   return <AdminPage>
@@ -66,7 +78,7 @@ export function CharacterManagement() {
     />
     {error && <AdminNotice tone="error" title={error} className="py-6" />}
     {message && <AdminNotice tone="success" title={message} className="py-6" />}
-    <AdminPanel title="筛选检索" description="支持按名称、简介、标签、作者编号与审核状态组合筛选。" badge={list && <Badge>{list.total} 个</Badge>}>
+    <AdminPanel className="border-border bg-card shadow-sm" title="筛选检索" description="支持按名称、简介、标签、作者编号与审核状态组合筛选。" badge={list && <Badge>{list.total} 个</Badge>}>
       <form className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" onSubmit={event => {event.preventDefault(); setQuery(q); setPage(1); setRefresh(value => value + 1); setError('');}}>
         <label className="space-y-1.5 text-sm font-medium text-foreground">搜索角色
           <Input maxLength={100} value={q} onChange={event => setQ(event.target.value)} placeholder="名称、简介或角色编号" />
@@ -113,13 +125,17 @@ export function CharacterManagement() {
         {id: 'updated', header: '更新时间', width: '180px', cell: character => <span className="whitespace-nowrap text-xs text-muted-foreground">{new Date(character.updatedAt).toLocaleString('zh-CN')}</span>},
         {id: 'actions', header: '操作', width: '110px', cell: character => (
           // 一列里会有多个同名按钮，带上角色名才能让读屏和验收脚本区分。
-          <Button size="sm" variant="outline" aria-label={`查看角色 ${character.name}`} disabled={busy} onClick={() => {setCreating(false); setSelected(character.id); setError(''); setMessage('');}}>查看详情</Button>
+          <Button size="sm" variant="outline" aria-label={`查看角色 ${character.name}`} disabled={busy} onClick={() => selectCharacter(character.id)}>查看详情</Button>
         )},
       ]}
       pagination={{page, pageCount: Math.max(1, Math.ceil(list.total / list.pageSize)), onPageChange: value => setPage(value), summary: `共 ${list.total} 个`}}
     />}
-    {detailLoading && <AdminNotice tone="loading" title="正在读取角色详情…" />}
-    {(creating || detail) && <CharacterEditor key={creating ? 'new' : `${detail!.id}:${detail!.updatedAt}`} character={creating ? null : detail} canEdit={canEdit} canPublish={canPublish} busy={busy} onSave={save} onPublish={publish} onClose={() => {setCreating(false); setSelected(null); setDetail(null);}} />}
-    {detail&&!creating&&<CharacterModelAccess key={detail.id} characterId={detail.id} deleted={detail.reviewStatus==='DELETED'}/>}
+    <DetailDrawer open={Boolean(creating || selected || detail)} onClose={closeDetail} size="xl" title={creating ? '新增角色' : detail ? `角色详情 · ${detail.name}` : '角色详情'} description={detail ? '编辑、素材、模型权限与发布操作集中在此处。' : '正在读取角色详情…'}>
+      {message && <AdminNotice tone="success" title={message} className="mb-4 py-3" />}
+      {detailLoading && <AdminNotice tone="loading" title="正在读取角色详情…" />}
+      {selected && !detail && !detailLoading && <AdminNotice tone="error" title={error || '角色详情读取失败。'} action={<Button variant="outline" onClick={() => setRefresh(value => value + 1)}>重新读取</Button>} />}
+      {(creating || detail) && <CharacterEditor key={creating ? 'new' : `${detail!.id}:${detail!.updatedAt}`} character={creating ? null : detail} canEdit={canEdit} canPublish={canPublish} busy={busy} onSave={save} onPublish={publish} onClose={closeDetail} onDirtyChange={setDetailDirty} error={error} />}
+      {detail&&!creating&&<CharacterModelAccess key={detail.id} characterId={detail.id} deleted={detail.reviewStatus==='DELETED'}/>}
+    </DetailDrawer>
   </AdminPage>;
 }

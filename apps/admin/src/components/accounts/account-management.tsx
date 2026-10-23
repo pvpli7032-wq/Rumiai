@@ -25,7 +25,7 @@ export function AccountManagement() {
    */
   const [registered, setRegistered] = useState<{from: string; until: string} | null>(null);
   const [list, setList] = useState<AccountList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<AccountDetail | null>(null);
-  const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [detailError, setDetailError] = useState(''), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0);
+  const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [detailError, setDetailError] = useState(''), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0), [detailDirty, setDetailDirty] = useState(false);
   const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, {method: body ? 'PATCH' : 'GET', credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   useEffect(() => {setList(null); setSelected(null); setDetail(null); setMessage('');}, [sessionActive]);
   useEffect(() => {
@@ -34,14 +34,14 @@ export function AccountManagement() {
   }, []);
   useEffect(() => {
     if (!registered) return;
-    setList(null); if (!sessionActive || !allowed) return;
+    if (!sessionActive || !allowed) { setList(null); return; }
     const controller = new AbortController(); setReading(true);
     const params = new URLSearchParams({q: query, status, community, sort, page: String(page), from: registered.from, until: registered.until});
     void request<AccountList>(`/api/admin/accounts?${params}`, controller.signal).then(data => {if (!controller.signal.aborted) setList(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setReading(false);});
     return () => controller.abort();
   }, [sessionActive, allowed, request, query, status, community, sort, page, refresh, registered]);
   useEffect(() => {
-    setDetail(null); setDetailError(''); if (!selected || !allowed) return;
+    setDetail(current => current?.user.id === selected ? current : null); setDetailError(''); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
     const requestedId = selected;
     void request<AccountDetail>(`/api/admin/accounts/${encodeURIComponent(requestedId)}`, controller.signal).then(data => {if (!controller.signal.aborted && requestedId === selected) setDetail(data);}).catch(value => {if (!controller.signal.aborted && requestedId === selected) setDetailError(value instanceof Error ? value.message : '用户详情读取失败，请重试。');}).finally(() => {if (!controller.signal.aborted && requestedId === selected) setDetailLoading(false);});
@@ -54,13 +54,18 @@ export function AccountManagement() {
     catch (value) {setError((value as Error).message); setRefresh(value => value + 1); return false;} finally {setBusy(false);}
   }
   function search(event: FormEvent) {event.preventDefault(); setError(''); setPage(1); setQuery(q); setRefresh(value => value + 1);}
+  function closeDetail() {
+    if (busy) return;
+    if (detailDirty && !window.confirm('当前用户详情有未保存修改，关闭会丢失这些输入。确定关闭吗？')) return;
+    setSelected(null); setDetailDirty(false);
+  }
   if (accessLoading) return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
   if (!sessionActive || !allowed) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有用户管理查看权限。'} /></AdminPage>;
   return <AdminPage>
     <AdminPageHeader eyebrow="用户与客服" title="用户管理" description="查询用户、管理账号状态和社区权限，查看关联业务记录。" />
     {error && <AdminNotice tone="error" title={error} className="py-6" />}
     {message && <AdminNotice tone="success" title={message} className="py-6" />}
-    <AdminPanel title="筛选检索" description="支持按用户名、邮箱、昵称或用户编号搜索；日期按注册时间筛，UTC 日边界并包含截止日当天。" badge={list && <Badge>{list.total} 人</Badge>}>
+    <AdminPanel title="筛选检索" description="按用户身份、状态与注册时间组合检索；选中用户后在详情面板继续处理资料和关联资产。" badge={list && <Badge variant="brand">{list.total} 人</Badge>}>
       <form className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-5" onSubmit={search}>
         <label className="space-y-1.5 text-sm font-medium text-foreground sm:col-span-2">搜索用户
           <Input placeholder="用户名、邮箱、昵称或用户编号" maxLength={100} value={q} onChange={event => setQ(event.target.value)} />
@@ -88,27 +93,30 @@ export function AccountManagement() {
     </AdminPanel>
     {reading && <AdminNotice tone="loading" title="正在查询用户…" />}
     {list && (
-      <AdminPanel title="用户列表" badge={<Badge variant="outline">{list.total} 人</Badge>}>
+      <AdminPanel title="用户列表" description="点击任意行打开右侧详情；列表保留关键状态，完整资料与业务关联在详情中查看。" badge={<Badge variant="outline">{list.total} 人</Badge>}>
         <AccountTable
           items={list.items}
           selected={selected}
           loading={reading}
           pagination={{ page, pageCount: Math.max(1, Math.ceil(list.total / list.pageSize)), onPageChange: value => setPage(value), summary: `共 ${list.total} 人` }}
-          onSelect={id => { if (!busy) { setSelected(id); setMessage(''); setError(''); } }}
+          canReadFinance={permissions.includes('finance.read')}
+          onSelect={id => { if (busy || (detailDirty && !window.confirm('当前用户详情有未保存修改，切换用户会丢失这些输入。确定继续吗？'))) return; setSelected(id); setDetailDirty(false); setMessage(''); setError(''); }}
         />
       </AdminPanel>
     )}
     <DetailDrawer
       open={Boolean(selected)}
-      onClose={() => {if (!busy) setSelected(null);}}
+      onClose={closeDetail}
       title={detail ? `用户详情 · @${detail.user.username}` : '用户详情'}
       description={detail ? `用户编号 ${detail.user.id}` : '正在读取用户资料与关联资产'}
-      size="lg"
+      size="xl"
     >
-      {detailLoading && <AdminNotice tone="loading" title="正在读取用户详情…" />}
+      {detailLoading && <AdminNotice tone="loading" title="正在读取用户详情…" className={detail ? 'mb-4 py-3' : undefined} />}
+      {error && detail && <AdminNotice tone="error" title={error} className="mb-4 py-3" />}
+      {message && detail && <AdminNotice tone="success" title={message} className="mb-4 py-3" />}
       {detailError && <AdminNotice tone="error" title={detailError} action={<Button variant="outline" onClick={() => setRefresh(value => value + 1)}>重试读取详情</Button>} />}
       {!detailLoading && !detailError && !detail && <AdminNotice tone="error" title="用户详情暂时为空，请重试。" action={<Button variant="outline" onClick={() => setRefresh(value => value + 1)}>重试读取详情</Button>} />}
-      {detail && <ManagedAccountDetail key={detail.user.id} detail={detail} sessionActive={sessionActive} permissions={permissions} busy={busy} onAction={applyAction} onProfileSaved={() => setRefresh(value => value + 1)} onClose={() => setSelected(null)} />}
+      {detail && <ManagedAccountDetail key={detail.user.id} detail={detail} sessionActive={sessionActive} permissions={permissions} busy={busy} onAction={applyAction} onProfileSaved={() => setRefresh(value => value + 1)} onDirtyChange={setDetailDirty} onClose={closeDetail} />}
     </DetailDrawer>
   </AdminPage>;
 }

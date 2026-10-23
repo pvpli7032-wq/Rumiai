@@ -3,7 +3,7 @@ import {useCallback, useEffect, useState, type ReactNode} from 'react';
 import Link from 'next/link';
 import {usePathname, useRouter} from 'next/navigation';
 import {
-  ArrowLeft, ChevronDown, ChevronRight, ExternalLink, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserCog, X,
+  ArrowLeft, ChevronDown, ChevronRight, ExternalLink, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Sparkles, UserCog, X,
 } from 'lucide-react';
 import {useAdminAccess} from './use-admin-access';
 import {findEntry, visibleGroups} from '@rumiai/contracts/admin/nav';
@@ -12,10 +12,11 @@ import {AdminNav} from './layout/admin-nav';
 import {useNavPins} from './nav-pins';
 import {ThemeToggle} from '@rumiai/ui/theme-toggle';
 import {useOverlayDismiss} from '@rumiai/ui/overlay';
+import {AdminNavigationSearch} from './layout/admin-navigation-search';
 
 const SIDEBAR_STATE_KEY = 'admin.sidebar.collapsed';
 
-export function AdminShell({children}: {children: ReactNode}) {
+export function AdminShell({children, storefrontOrigin = ''}: {children: ReactNode; storefrontOrigin?: string}) {
   const pathname = usePathname();
   const router = useRouter();
   const {permissions, session, loading: accessLoading, refreshAccess} = useAdminAccess();
@@ -74,27 +75,27 @@ export function AdminShell({children}: {children: ReactNode}) {
     <Link
       href="/admin"
       className={cn(
-        'flex h-16 shrink-0 items-center border-b border-border',
+        'flex h-[76px] shrink-0 items-center border-b border-border',
         collapsed ? 'justify-center px-2' : 'gap-3 px-5',
       )}
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-gradient text-brand-foreground">
-        <ShieldCheck className="h-5 w-5" />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 text-brand">
+        <Sparkles className="h-6 w-6" />
       </span>
       {!collapsed && (
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold tracking-tight">星伴管理中心</span>
-          <span className="block truncate text-xs text-muted-foreground">运营控制台</span>
+          <span className="block truncate text-lg font-semibold tracking-wider">星伴</span>
+          <span className="block truncate text-[11px] text-muted-foreground">管理中心 · Workspace</span>
         </span>
       )}
     </Link>
   );
 
   return (
-    <div style={{height: 'var(--app-height, 100dvh)'}} className="flex min-h-0 w-full overflow-hidden bg-background text-foreground">
-      <aside className={cn('hidden shrink-0 flex-col border-r border-border bg-card transition-[width] duration-200 lg:flex', collapsed ? 'w-[76px]' : 'w-64')}>
+    <div data-admin-shell style={{height: 'var(--app-height, 100dvh)'}} className="flex min-h-0 w-full overflow-hidden bg-background text-foreground">
+      <aside aria-label="后台侧栏" className={cn('admin-sidebar hidden shrink-0 flex-col transition-[width] duration-200 lg:flex', collapsed ? 'w-[76px]' : 'w-[224px]')}>
         {brand}
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-4">
           <AdminNav
             pathname={pathname}
             groups={groups}
@@ -106,14 +107,14 @@ export function AdminShell({children}: {children: ReactNode}) {
           />
         </div>
         <div className="shrink-0 border-t border-border p-3">
-          <Link
-            href="/profile"
+          <a
+            href={`${storefrontOrigin}/profile`}
             title="返回站点"
             className={cn('mb-1 flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground', collapsed && 'justify-center px-0')}
           >
             <ArrowLeft className="h-4 w-4 shrink-0" />
             {!collapsed && <span>返回站点</span>}
-          </Link>
+          </a>
           <button
             type="button"
             onClick={toggleSidebar}
@@ -127,7 +128,7 @@ export function AdminShell({children}: {children: ReactNode}) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-card px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
@@ -151,16 +152,17 @@ export function AdminShell({children}: {children: ReactNode}) {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/"
+            <AdminNavigationSearch groups={groups} />
+            <a
+              href={`${storefrontOrigin}/`}
               target="_blank"
               rel="noreferrer"
               className="hidden items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:flex"
             >
               <ExternalLink className="h-4 w-4" />查看前台
-            </Link>
+            </a>
             <span aria-hidden className="hidden h-6 w-px bg-border md:block" />
-            <ThemeToggle />
+            <div className="hidden sm:block"><ThemeToggle /></div>
             <div className="relative">
               <button
                 type="button"
@@ -186,13 +188,14 @@ export function AdminShell({children}: {children: ReactNode}) {
                       <p className="truncate text-sm font-medium">{user?.username ?? '未登录'}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{user?.email ?? '—'}</p>
                       <p className="mt-2 inline-flex rounded-full bg-brand-soft px-2 py-0.5 text-xs font-medium text-brand">{roleLabel}</p>
+                      <div className="mt-3 sm:hidden"><ThemeToggle /></div>
                     </div>
-                    <Link role="menuitem" href="/profile" onClick={closeMenu} className="flex min-h-10 items-center gap-2 px-4 text-sm transition-colors hover:bg-accent">
+                    <a role="menuitem" href={`${storefrontOrigin}/profile`} onClick={closeMenu} className="flex min-h-10 items-center gap-2 px-4 text-sm transition-colors hover:bg-accent">
                       <UserCog className="h-4 w-4" />个人主页
-                    </Link>
-                    <Link role="menuitem" href="/profile" onClick={closeMenu} className="flex min-h-10 items-center gap-2 px-4 text-sm transition-colors hover:bg-accent lg:hidden">
+                    </a>
+                    <a role="menuitem" href={`${storefrontOrigin}/profile`} onClick={closeMenu} className="flex min-h-10 items-center gap-2 px-4 text-sm transition-colors hover:bg-accent lg:hidden">
                       <ArrowLeft className="h-4 w-4" />返回站点
-                    </Link>
+                    </a>
                     <button
                       type="button"
                       role="menuitem"
@@ -208,7 +211,7 @@ export function AdminShell({children}: {children: ReactNode}) {
           </div>
         </header>
 
-        <div role="region" aria-label="后台工作区" className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-muted/40">
+        <div role="region" aria-label="后台工作区" className="admin-workspace min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
           {logoutError && <p role="alert" className="p-4 text-destructive">{logoutError}</p>}
           {session ? children : <p role="status" className="p-6">正在验证后台会话…</p>}
         </div>
@@ -217,10 +220,10 @@ export function AdminShell({children}: {children: ReactNode}) {
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setDrawer(false)} aria-hidden="true" />
-          <div role="dialog" aria-modal="true" aria-label="后台菜单" className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-card shadow-xl">
+          <div role="dialog" aria-modal="true" aria-label="后台菜单" className="admin-sidebar absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col shadow-xl">
             <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
               <Link href="/admin" onClick={() => setDrawer(false)} className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-brand-foreground"><ShieldCheck className="h-4 w-4" /></span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-brand"><Sparkles className="h-5 w-5" /></span>
                 <span className="text-sm font-semibold">星伴管理中心</span>
               </Link>
               <button type="button" onClick={() => setDrawer(false)} aria-label="关闭后台菜单" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-accent"><X className="h-4 w-4" /></button>
@@ -237,7 +240,7 @@ export function AdminShell({children}: {children: ReactNode}) {
               />
             </div>
             <div className="shrink-0 border-t border-border p-3">
-              <Link href="/profile" className="mb-1 flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm"><ArrowLeft className="h-4 w-4" />返回站点</Link>
+              <a href={`${storefrontOrigin}/profile`} className="mb-1 flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm"><ArrowLeft className="h-4 w-4" />返回站点</a>
               <button type="button" onClick={() => { setDrawer(false); logout(); }} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-destructive"><LogOut className="h-4 w-4" />退出登录</button>
             </div>
           </div>

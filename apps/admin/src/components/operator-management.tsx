@@ -7,7 +7,7 @@ import {apiFetch} from '@admin/lib/api-client';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from './admin-page';
 import {Badge} from '@rumiai/ui/badge';
 import {Button} from '@rumiai/ui/button';
-import {DataTable} from '@rumiai/ui/data-table';
+import {DataTable} from '@admin/components/layout/data-table';
 import {EmptyState} from '@rumiai/ui/empty-state';
 import {Input} from '@rumiai/ui/input';
 import {Pagination} from '@rumiai/ui/pagination';

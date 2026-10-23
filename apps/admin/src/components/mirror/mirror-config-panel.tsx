@@ -55,6 +55,7 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
 
   return (
     <AdminPanelGroup>
+      <div className="grid gap-5 xl:grid-cols-2">
       <AdminPanel
         title="推广角色"
         description="首页展示的角色。名单在设置中心指定（按顺序取公开且已审核的角色）；名单为空或全部失效时，回退为「本站原创 + 聊得最多」自动选取。"
@@ -70,7 +71,7 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {characters.map(character => (
-                <li key={character.id} className="min-w-0 rounded-lg border border-border p-3">
+                <li key={character.id} className="min-w-0 rounded-2xl border border-border/80 bg-card p-3 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
                     <p className="break-words text-sm font-medium">{character.name}</p>
                     <Badge variant={character.source === 'CONFIGURED' ? 'brand' : 'neutral'}>{MIRROR_SOURCE_LABELS[character.source]}</Badge>
@@ -127,7 +128,7 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
           {examples.length > 0 && (
             <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {examples.map(example => (
-                <li key={example.characterId} className="min-w-0 rounded-lg border border-border p-3">
+                <li key={example.characterId} className="min-w-0 rounded-2xl border border-border/80 bg-card p-3 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
                     <p className="break-words text-sm font-medium">{example.title}</p>
                     <Badge variant="warning">示例</Badge>
@@ -141,6 +142,8 @@ export function MirrorConfigPanel({config, error, loading}: MirrorConfigPanelPro
           )}
         </div>
       </AdminPanel>
+
+      </div>
 
       <AdminPanel
         title="观察风格、版式与保留"

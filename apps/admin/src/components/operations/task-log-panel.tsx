@@ -61,7 +61,7 @@ export function TaskLogPanel({sessionActive}:{sessionActive: boolean}){
       {items.map(item=>{
         const busy=running===item.kind;
         const open=openLog===item.kind;
-        return <article key={item.kind} className="rounded-lg border border-border p-3">
+        return <article key={item.kind} className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0 space-y-1">
               <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">

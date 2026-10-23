@@ -35,7 +35,7 @@ export function FilterBar({
       role="search"
       aria-label={ariaLabel}
       className={cn(
-        'flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3',
+        'flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-3',
         'sm:flex-row sm:flex-wrap sm:items-center',
         className,
       )}

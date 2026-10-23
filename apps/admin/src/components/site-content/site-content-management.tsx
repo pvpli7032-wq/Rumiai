@@ -8,8 +8,9 @@ import {apiFetch} from '@admin/lib/api-client';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel} from '../admin-page';
 import {Badge} from '@rumiai/ui/badge';
 import {Button} from '@rumiai/ui/button';
-import {DataTable} from '@rumiai/ui/data-table';
+import {DataTable} from '@admin/components/layout/data-table';
 import {EmptyState} from '@rumiai/ui/empty-state';
+import {DetailDrawer} from '@admin/components/layout/detail-drawer';
 
 const statusLabel = {PUBLISHED:'已发布',UNPUBLISHED:'已下架',DRAFT:'草稿',SCHEDULED:'定时'} as const;
 export function SiteContentManagement() {
@@ -17,6 +18,7 @@ export function SiteContentManagement() {
   const canRead = permissions.includes('site.content.read'), canManage = permissions.includes('site.content.manage'), canPublish = permissions.includes('site.content.publish');
   const [type,setType] = useState<ContentType>('BANNER'), [result,setResult] = useState<ManagedSiteContent|null>(null), [selected,setSelected] = useState<string|null>(null), [creating,setCreating] = useState(false);
   const [revision,setRevision] = useState(0), [revisions,setRevisions] = useState<Revision[]>([]), [revisionLoading,setRevisionLoading] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(''), [message,setMessage] = useState('');
+  const [editorDirty,setEditorDirty] = useState(false);
   const request = useCallback(<T,>(url:string, init?:{method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; signal?: AbortSignal}) => apiFetch<T>(url,{credentials: 'same-origin',cache:'no-store',...init}),[sessionActive]);
   useEffect(()=>{setSelected(null);setCreating(false);setRevisions([]);setError('');setMessage('');},[sessionActive]);
   useEffect(()=>{setResult(null);if(!sessionActive||!canRead)return;const controller=new AbortController();void request<ManagedSiteContent>('/api/admin/site-content',{signal:controller.signal}).then(data=>{if(!controller.signal.aborted)setResult(data);}).catch(value=>{if(!controller.signal.aborted)setError(value.message);});return()=>controller.abort();},[request,sessionActive,canRead,revision]);
@@ -25,6 +27,7 @@ export function SiteContentManagement() {
   async function apply(action:'SAVE'|'SCHEDULE'|'PUBLISH'|'UNPUBLISH'|'DELETE_DRAFT',content:Record<string,unknown>,reason:string,scheduledAt?:string){if(busy)return;setBusy(true);setError('');setMessage('');try{const body={action,content,reason,version:item?.version??0,...(scheduledAt?{scheduledAt}:{})};const saved=await request<SiteContentRow>(creating?`/api/admin/site-content/${type}`:`/api/admin/site-content/${type}/${encodeURIComponent(item!.id)}`,{method:creating?'POST':'PATCH',body:body});setCreating(false);setSelected(saved.id);setRevisions([]);setRevision(value=>value+1);setMessage(action==='SAVE'?'草稿已保存。':action==='SCHEDULE'?'定时发布已保存。':action==='UNPUBLISH'?'内容已下架。':action==='DELETE_DRAFT'?'草稿已丢弃。':'内容已发布。');}catch(value){setError((value as Error).message);setRevision(value=>value+1);}finally{setBusy(false);}}
   async function loadRevisions(){if(!item)return;setRevisionLoading(true);setError('');try{setRevisions(await request(`/api/admin/site-content/${type}/${encodeURIComponent(item.id)}/revisions`));}catch(value){setError((value as Error).message);}finally{setRevisionLoading(false);}}
   async function restoreRevision(target:Revision,reason:string){if(!item||busy)return;if(!reason.trim()){setError('恢复版本前请填写操作理由。');return;}setBusy(true);setError('');try{await request(`/api/admin/site-content/${type}/${encodeURIComponent(item.id)}/revisions/${encodeURIComponent(target.id)}/restore`,{method:'POST',body:JSON.stringify({version:item.version,reason})});setRevisions([]);setRevision(value=>value+1);setMessage(`版本 ${target.version} 已恢复为草稿，发布前仍可检查。`);}catch(value){setError((value as Error).message);setRevision(value=>value+1);}finally{setBusy(false);}}
+  const closeEditor = useCallback(() => { if (busy) return; if (editorDirty && !window.confirm('当前内容有未保存修改，确定关闭并放弃吗？')) return; setEditorDirty(false); setCreating(false); setSelected(null); setRevisions([]); }, [busy, editorDirty]);
   if(accessLoading)return <AdminPage><AdminNotice tone="loading" title="正在读取站点内容权限…" /></AdminPage>;
   if(!sessionActive||!canRead)return <AdminPage><AdminNotice tone="denied" title={accessError||'当前账号没有站点内容查看权限。'} /></AdminPage>;
   return <AdminPage>
@@ -45,6 +48,7 @@ export function SiteContentManagement() {
       </button>
     ))}</div>
     <AdminPanel
+      className="border-border bg-card shadow-sm"
       title={contentTypes.find(row=>row.id===type)?.label ?? '内容列表'}
       description="修改先进草稿，发布或定时生效后才对访客可见。"
       badge={<Badge>{rows.length} 条</Badge>}
@@ -85,6 +89,7 @@ export function SiteContentManagement() {
         ]}
       /> : <AdminNotice tone="loading" title="正在读取站点内容…" />}
     </AdminPanel>
-    {(creating||item)&&<ContentEditor key={`${type}:${creating?'new':item!.id}:${item?.version??0}`} type={type} item={creating?{id:'',content:{...defaults[type]},status:'DRAFT',isPublished:false,scheduledAt:null,version:0,updatedAt:new Date().toISOString()}:item} canManage={canManage} canPublish={canPublish} busy={busy} revisions={revisions} revisionLoading={revisionLoading} onApply={apply} onRestore={restoreRevision} onLoadRevisions={()=>void loadRevisions()} onClose={()=>{setCreating(false);setSelected(null);setRevisions([]);}}/>}
+    <DetailDrawer open={Boolean(creating||item)} onClose={closeEditor} size="xl" title={creating ? '新增内容草稿' : '编辑站点内容'} description="内容编辑、预览、版本历史和发布操作集中在此处。">
+      {(creating||item)&&<ContentEditor key={`${type}:${creating?'new':item!.id}:${item?.version??0}`} type={type} item={creating?{id:'',content:{...defaults[type]},status:'DRAFT',isPublished:false,scheduledAt:null,version:0,updatedAt:new Date().toISOString()}:item} canManage={canManage} canPublish={canPublish} busy={busy} revisions={revisions} revisionLoading={revisionLoading} onApply={apply} onRestore={restoreRevision} onLoadRevisions={()=>void loadRevisions()} onClose={closeEditor} onDirtyChange={setEditorDirty} externalError={error}/>}</DetailDrawer>
   </AdminPage>;
 }

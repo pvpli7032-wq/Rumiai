@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import type { AdminPermission } from '@rumiai/contracts/admin/permissions';
 import { AdminStat, AdminStatGrid, AdminPanel } from '../admin-page';
 import { Avatar } from '@rumiai/ui/avatar';
@@ -21,7 +20,7 @@ const benefitValue = (key: string, value: number) => key === 'CHAT_PRICE_MULTIPL
 
 function RelatedPanel({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
   return (
-    <div className="min-w-0 space-y-2">
+    <div className="min-w-0 space-y-2 rounded-xl border border-border bg-card p-4">
       <h3 className="text-sm font-semibold">{title}</h3>
       {children}
       <p className="text-xs text-muted-foreground">{empty}</p>
@@ -42,7 +41,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
  * 用户详情（V3 §15）：默认只看头像、昵称、状态与余额；额度特例放单独标签，
  * 默认「继承公共值」。只改一个用户时不用跳到全局特例列表。
  */
-export function ManagedAccountDetail({ detail, sessionActive, permissions, busy, onAction, onProfileSaved, onClose }: { detail: AccountDetail; sessionActive: boolean; permissions: AdminPermission[]; busy: boolean; onAction: (action: AccountAction, reason: string) => Promise<boolean>; onProfileSaved: () => void; onClose: () => void }) {
+export function ManagedAccountDetail({ detail, sessionActive, permissions, busy, onAction, onProfileSaved, onDirtyChange, onClose }: { detail: AccountDetail; sessionActive: boolean; permissions: AdminPermission[]; busy: boolean; onAction: (action: AccountAction, reason: string) => Promise<boolean>; onProfileSaved: () => void; onDirtyChange?: (dirty: boolean) => void; onClose: () => void }) {
   const { user } = detail;
   const [reason, setReason] = useState('');
   const [profileReason, setProfileReason] = useState('');
@@ -52,6 +51,10 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   const [profile, setProfile] = useState({username: user.username, displayName: user.displayName ?? '', avatarUrl: user.avatarUrl ?? ''});
   const [confirming, setConfirming] = useState<AccountAction | null>(null);
   const [tab, setTab] = useState('basic');
+  const [quotaDirty, setQuotaDirty] = useState(false);
+  const profileDirty = profile.username !== user.username || profile.displayName !== (user.displayName ?? '') || profile.avatarUrl !== (user.avatarUrl ?? '') || Boolean(profileReason.trim());
+  const actionDirty = Boolean(reason.trim());
+  useEffect(() => onDirtyChange?.(profileDirty || actionDirty || quotaDirty), [profileDirty, actionDirty, quotaDirty, onDirtyChange]);
   const actions: AccountAction[] = user.deletedAt ? [] : [...(permissions.includes('accounts.manage') ? [user.suspendedAt ? 'RESTORE' as const : 'SUSPEND' as const] : []), ...(permissions.includes('accounts.community.manage') ? [user.communityBannedAt ? 'UNBAN_COMMUNITY' as const : 'BAN_COMMUNITY' as const] : []), ...(permissions.includes('accounts.sessions.revoke') ? ['REVOKE_SESSIONS' as const] : [])];
   const [action, setAction] = useState<AccountAction | ''>(actions[0] ?? '');
   const selectedAction = actions.includes(action as AccountAction) ? action as AccountAction : actions[0];
@@ -80,37 +83,32 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   return (
     <AdminPanel
       aria-label="用户详情"
-      title={`用户详情 · @${user.username}`}
-      description={`用户编号 ${user.id}`}
-      badge={<Badge variant={user.deletedAt ? 'neutral' : user.suspendedAt ? 'danger' : 'success'}>{accountState(user)}</Badge>}
-      actions={<Button variant="ghost" size="sm" leadingIcon={<X className="h-4 w-4" />} disabled={busy} onClick={onClose}>关闭详情</Button>}
+      className="border-0 bg-transparent shadow-none"
+      bodyClassName="p-0 sm:p-0"
     >
+      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
+        {detail.canReadFinance && <div className="rounded-2xl border border-border bg-brand-soft/30 p-3"><p className="text-xs text-muted-foreground">金币余额</p><p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{user.coins}</p></div>}
+        <div className="rounded-2xl border border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">角色 / 会话</p><p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{user._count.characters} <span className="text-sm font-normal text-muted-foreground">/ {user._count.conversations}</span></p></div>
+        <div className="rounded-2xl border border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">关联订单</p><p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{user._count.paymentOrders}</p></div>
+      </div>
+      <div className="mb-5 flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-brand-soft/20 p-4">
+        <Avatar src={user.avatarUrl} name={displayName} alt={displayName} size="lg" />
+        <div className="min-w-0"><p className="truncate text-base font-semibold">{displayName}</p><p className="truncate text-sm text-muted-foreground">@{user.username}</p></div>
+        <div className="flex flex-wrap gap-2"><Badge variant={user.deletedAt ? 'neutral' : user.suspendedAt ? 'danger' : 'success'}>{accountState(user)}</Badge>{user.communityBannedAt && <Badge variant="warning">社区禁言中</Badge>}</div>
+      </div>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList aria-label="用户详情标签">
           <TabsTrigger value="basic">基本资料</TabsTrigger>
           <TabsTrigger value="membership">会员与资产</TabsTrigger>
           <TabsTrigger value="quota">额度特例</TabsTrigger>
+          <TabsTrigger value="activity">记录与关联</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="basic" className="space-y-5">
-          <div className="flex flex-wrap items-center gap-4">
-            <Avatar src={user.avatarUrl} name={displayName} alt={displayName} size="lg" />
-            <div className="min-w-0">
-              <p className="truncate text-base font-semibold">{displayName}</p>
-              <p className="truncate text-sm text-muted-foreground">@{user.username}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={user.deletedAt ? 'neutral' : user.suspendedAt ? 'danger' : 'success'}>{accountState(user)}</Badge>
-              {user.communityBannedAt && <Badge variant="warning">社区禁言中</Badge>}
-              <Badge variant="brand">{user.coins} 金币</Badge>
-            </div>
-          </div>
-
-          <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <TabsContent value="basic" keepMounted className="space-y-5">
+          <dl className="grid grid-cols-2 gap-3 xl:grid-cols-3">
             <Field label="昵称" value={user.displayName?.trim() || '未设置'} />
             <Field label="登录邮箱" value={user.email} />
             <Field label="社区权限" value={user.communityBannedAt ? '已禁言' : '可发言'} />
-            <Field label="金币余额" value={String(user.coins)} />
             <Field label="注册时间" value={formatTime(user.createdAt)} />
             <Field label="最近登录" value={formatTime(user.lastLoginAt)} />
             <Field label="最近认证活动" value={formatTime(user.lastActiveAt)} />
@@ -142,12 +140,6 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
           )}
           {user.suspensionReason && <p className="break-words rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">停用理由：{user.suspensionReason}</p>}
           {user.communityBanReason && <p className="break-words rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">禁言理由：{user.communityBanReason}</p>}
-          <AdminStatGrid className="sm:grid-cols-2 xl:grid-cols-4">
-            <AdminStat label="角色" value={user._count.characters} />
-            <AdminStat label="会话" value={user._count.conversations} />
-            <AdminStat label="帖子" value={user._count.posts} />
-            <AdminStat label="订单" value={user._count.paymentOrders} />
-          </AdminStatGrid>
           {!!actions.length && (
             <form onSubmit={submit} className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
               <div>
@@ -169,6 +161,14 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
               <Button type="submit" variant="danger" loading={busy} disabled={busy || !reason.trim()}>{busy ? '处理中…' : '执行账号操作'}</Button>
             </form>
           )}
+        </TabsContent>
+        <TabsContent value="activity" keepMounted className="space-y-5">
+          <AdminStatGrid className="sm:grid-cols-2 xl:grid-cols-4">
+            <AdminStat label="角色" value={user._count.characters} />
+            <AdminStat label="会话" value={user._count.conversations} />
+            <AdminStat label="帖子" value={user._count.posts} />
+            <AdminStat label="订单" value={user._count.paymentOrders} />
+          </AdminStatGrid>
           <div className="grid gap-5 xl:grid-cols-2">
             <RelatedPanel title="近期角色" empty={detail.characters.length ? '' : '暂无角色。'}>
               {detail.characters.map(item => (
@@ -177,7 +177,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
             </RelatedPanel>
             <RelatedPanel title="近期订单" empty={detail.orders.length ? '' : '暂无订单。'}>
               {detail.orders.map(item => (
-                <p key={item.orderNo} className="break-all border-b border-border py-2 text-sm">{item.orderNo} · {item.status} · ¥{(item.amountCnyCents / 100).toFixed(2)} · {item.coinAmount} 金币</p>
+                <p key={item.orderNo} className="break-all border-b border-border py-2 text-sm">{item.orderNo} · {item.status}{detail.canReadFinance ? ` · ¥${(item.amountCnyCents / 100).toFixed(2)} · ${item.coinAmount} 金币` : ' · 金额受限'}</p>
               ))}
             </RelatedPanel>
           </div>
@@ -198,7 +198,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
           <p className="text-xs text-muted-foreground">关联列表各显示最近 {detail.relatedLimit} 条。活动时间自本功能启用后记录，最多每五分钟更新一次。</p>
         </TabsContent>
 
-        <TabsContent value="membership" className="space-y-5">
+        <TabsContent value="membership" keepMounted className="space-y-5">
           {!assets && <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">当前服务版本尚未返回会员资产摘要，请刷新后重试。</p>}
           {assets && <>
             <DetailSection title="当前会员" description="当前有效权益期和已衔接的续费有效期。">
@@ -224,8 +224,8 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
           </>}
         </TabsContent>
 
-        <TabsContent value="quota">
-          <AccountQuotaTab userId={user.id} sessionActive={sessionActive} permissions={permissions} />
+        <TabsContent value="quota" keepMounted>
+          <AccountQuotaTab userId={user.id} sessionActive={sessionActive} permissions={permissions} onDirtyChange={setQuotaDirty} />
         </TabsContent>
       </Tabs>
 
