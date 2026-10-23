@@ -1,0 +1,21 @@
+{
+  "platform": "win32",
+  "node": "v22.23.2",
+  "command": "npm run test:account-assets",
+  "status": "passed",
+  "tests": 1,
+  "passed": 1,
+  "failed": 0,
+  "skipped": 0,
+  "database": "temporary SQLite fixture; removed after test",
+  "usageAggregation": {
+    "records": 501,
+    "expectedConsumed": 501,
+    "verified": true
+  },
+  "financePermission": {
+    "withFinanceRead": "amount/refund/usage/ledger returned",
+    "withoutFinanceRead": "amount/refund/usage/ledger are null and visible=false"
+  },
+  "sourceState": "local working tree; not deployed"
+}

@@ -70,7 +70,7 @@ try {
     if (used) await membershipService.recordMembershipUsage({orderNo: order.orderNo, userId: fixture.user.id, benefitCode: 'CHAT_PRICE_MULTIPLIER', idempotencyKey: `mem-fin-usage-${suffix}`});
     const refund = await membershipService.requestMembershipRefund(order.orderNo, '后台财务抽屉验收', financeNow);
     await membershipService.completeMembershipRefund(order.orderNo, `mem-fin-refund-${suffix}`, financeNow);
-    return {orderNo: payment.orderNo, refundId: refund.id, amountCents: refund.amountCents};
+    return {orderNo: order.orderNo, paymentOrderNo: payment.orderNo, refundId: refund.id, amountCents: refund.amountCents};
   }
   const membershipFinance = {
     used: await prepareMembershipRefund('USED-20261023', true),
@@ -121,7 +121,15 @@ try {
   await admin.getByLabel('搜索用户').fill(fixture.user.email);
   await admin.getByRole('button', {name: '搜索用户'}).click();
   await admin.getByRole('button', {name: `查看用户 ${fixture.user.username}`}).click();
+  const accountDialog = admin.getByRole('dialog', {name: /用户详情/});
+  await accountDialog.waitFor({state: 'visible'});
   await admin.getByText('正在读取用户详情…').waitFor({state: 'hidden'});
+  await admin.getByRole('tab', {name: '会员与资产'}).click();
+  await accountDialog.getByText('MEM-FIN-USED-20261023', {exact: false}).waitFor();
+  await accountDialog.getByText('MEM-FIN-UNUSED-20261023', {exact: false}).waitFor();
+  await accountDialog.getByText('退款：COMPLETED · ¥29.00 · 扣费 ¥1.00', {exact: true}).waitFor();
+  await accountDialog.getByText('退款：COMPLETED · ¥30.00 · 扣费 ¥0.00', {exact: true}).waitFor();
+  await admin.getByRole('tab', {name: '基本资料'}).click();
   await admin.getByLabel('昵称').fill('E2E 表单资料');
   await admin.getByPlaceholder('说明为什么需要修改资料').fill('隔离浏览器表单验收');
   await admin.getByRole('button', {name: '保存公开资料'}).click();
@@ -164,7 +172,7 @@ try {
   assert.equal(await front.getByText('¥1.23', {exact: true}).count(), 1);
 
   await admin.goto('http://127.0.0.1:3011/admin/finance');
-  await admin.getByRole('button', {name: `查看订单 ${membershipFinance.used.orderNo}`}).click();
+  await admin.getByRole('button', {name: `查看订单 ${membershipFinance.used.paymentOrderNo}`}).click();
   await admin.getByText('¥29.00', {exact: true}).waitFor();
   await admin.getByText(`${membershipFinance.used.refundId} · 渠道退款号 mem-fin-refund-USED-20261023`, {exact: true}).waitFor();
   assert.equal(await admin.getByText('申请整单退款', {exact: true}).count(), 0, '会员订单不得展示金币整单退款按钮');

@@ -5,6 +5,7 @@ import {recordAdminAudit} from '@rumiai/backend/modules/admin/management-service
 import {readSettingValue} from '@rumiai/backend/modules/settings/service';
 import {MEMBERSHIP_BENEFIT_RULES, type MembershipBenefit, type MembershipBenefitKey, type MembershipPlanPublic, type MembershipPolicyPublic, type MembershipRefundQuote} from '@rumiai/contracts/memberships';
 import type {MembershipCurrent} from '@rumiai/contracts/memberships';
+import type {AdminAccountMembershipOrder, AdminAccountMembershipUsage} from '@rumiai/contracts/admin/account-assets';
 
 const DEFAULT_POLICY = {refundWindowHours: 24, usageChargePeriodHours: 24};
 const PLAN_CODES = new Set(['MONTHLY', 'QUARTERLY', 'YEARLY']);
@@ -65,6 +66,30 @@ export async function readMembershipOrders(userId: string) {
   await pragmasReady;
   const orders = await db.membershipOrder.findMany({where: {userId}, orderBy: {createdAt: 'desc'}, take: 50, include: {plan: true, refund: true, grant: true}});
   return orders.map(order => ({orderNo: order.orderNo, planCode: order.plan.code, planName: order.plan.name, amountCents: order.amountCents, durationDays: order.durationDays, status: order.status, paidAt: order.paidAt?.toISOString() ?? null, createdAt: order.createdAt.toISOString(), grant: order.grant ? {startsAt: order.grant.startsAt.toISOString(), expiresAt: order.grant.expiresAt.toISOString(), status: order.grant.status} : null, refund: order.refund ? {status: order.refund.status, amountCents: order.refund.amountCents, deductedCents: order.refund.deductedCents} : null}));
+}
+
+/** Account-management projection: membership owns its order/grant/usage rules. */
+export async function readMembershipAccountAssets(userId: string): Promise<{current: MembershipCurrent; orders: AdminAccountMembershipOrder[]}> {
+  const [current, orders, orderRows, grouped] = await Promise.all([
+    readMembershipCurrent(userId),
+    readMembershipOrders(userId),
+    db.membershipOrder.findMany({where: {userId}, select: {id: true, orderNo: true}}),
+    db.membershipUsage.groupBy({where: {userId}, by: ['orderId', 'state'], _sum: {quantity: true}}),
+  ]);
+  const orderIdByNo = new Map(orderRows.map(row => [row.orderNo, row.id]));
+  const usageByOrder = new Map<string, AdminAccountMembershipUsage>();
+  for (const row of grouped) {
+    const summary = usageByOrder.get(row.orderId) ?? {consumed: 0, reserved: 0, released: 0};
+    const quantity = row._sum.quantity ?? 0;
+    if (row.state === 'CONSUMED') summary.consumed = quantity;
+    else if (row.state === 'RESERVED') summary.reserved = quantity;
+    else if (row.state === 'RELEASED') summary.released = quantity;
+    usageByOrder.set(row.orderId, summary);
+  }
+  return {
+    current,
+    orders: orders.map(order => ({...order, amountCents: order.amountCents, usage: usageByOrder.get(orderIdByNo.get(order.orderNo) ?? '') ?? {consumed: 0, reserved: 0, released: 0}})),
+  };
 }
 
 export async function readMembershipBenefit(userId: string, benefitCode: string): Promise<{orderNo: string; value: number} | null> {

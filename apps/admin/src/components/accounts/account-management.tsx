@@ -11,6 +11,7 @@ import {Badge} from '@rumiai/ui/badge';
 import {Button} from '@rumiai/ui/button';
 import {Input} from '@rumiai/ui/input';
 import {Select} from '@rumiai/ui/select';
+import {DetailDrawer} from '../layout/detail-drawer';
 
 export function AccountManagement() {
   const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
@@ -24,7 +25,7 @@ export function AccountManagement() {
    */
   const [registered, setRegistered] = useState<{from: string; until: string} | null>(null);
   const [list, setList] = useState<AccountList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<AccountDetail | null>(null);
-  const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0);
+  const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [detailError, setDetailError] = useState(''), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0);
   const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, {method: body ? 'PATCH' : 'GET', credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   useEffect(() => {setList(null); setSelected(null); setDetail(null); setMessage('');}, [sessionActive]);
   useEffect(() => {
@@ -40,9 +41,10 @@ export function AccountManagement() {
     return () => controller.abort();
   }, [sessionActive, allowed, request, query, status, community, sort, page, refresh, registered]);
   useEffect(() => {
-    setDetail(null); if (!selected || !allowed) return;
+    setDetail(null); setDetailError(''); if (!selected || !allowed) return;
     const controller = new AbortController(); setDetailLoading(true);
-    void request<AccountDetail>(`/api/admin/accounts/${encodeURIComponent(selected)}`, controller.signal).then(data => {if (!controller.signal.aborted) setDetail(data);}).catch(value => {if (!controller.signal.aborted) setError(value.message);}).finally(() => {if (!controller.signal.aborted) setDetailLoading(false);});
+    const requestedId = selected;
+    void request<AccountDetail>(`/api/admin/accounts/${encodeURIComponent(requestedId)}`, controller.signal).then(data => {if (!controller.signal.aborted && requestedId === selected) setDetail(data);}).catch(value => {if (!controller.signal.aborted && requestedId === selected) setDetailError(value instanceof Error ? value.message : '用户详情读取失败，请重试。');}).finally(() => {if (!controller.signal.aborted && requestedId === selected) setDetailLoading(false);});
     return () => controller.abort();
   }, [selected, allowed, request, refresh]);
   async function applyAction(action: AccountAction, reason: string) {
@@ -96,7 +98,17 @@ export function AccountManagement() {
         />
       </AdminPanel>
     )}
-    {detailLoading && <AdminNotice tone="loading" title="正在读取用户详情…" />}
-    {detail && <ManagedAccountDetail key={detail.user.id} detail={detail} sessionActive={sessionActive} permissions={permissions} busy={busy} onAction={applyAction} onProfileSaved={() => setRefresh(value => value + 1)} onClose={() => setSelected(null)} />}
+    <DetailDrawer
+      open={Boolean(selected)}
+      onClose={() => {if (!busy) setSelected(null);}}
+      title={detail ? `用户详情 · @${detail.user.username}` : '用户详情'}
+      description={detail ? `用户编号 ${detail.user.id}` : '正在读取用户资料与关联资产'}
+      size="lg"
+    >
+      {detailLoading && <AdminNotice tone="loading" title="正在读取用户详情…" />}
+      {detailError && <AdminNotice tone="error" title={detailError} action={<Button variant="outline" onClick={() => setRefresh(value => value + 1)}>重试读取详情</Button>} />}
+      {!detailLoading && !detailError && !detail && <AdminNotice tone="error" title="用户详情暂时为空，请重试。" action={<Button variant="outline" onClick={() => setRefresh(value => value + 1)}>重试读取详情</Button>} />}
+      {detail && <ManagedAccountDetail key={detail.user.id} detail={detail} sessionActive={sessionActive} permissions={permissions} busy={busy} onAction={applyAction} onProfileSaved={() => setRefresh(value => value + 1)} onClose={() => setSelected(null)} />}
+    </DetailDrawer>
   </AdminPage>;
 }

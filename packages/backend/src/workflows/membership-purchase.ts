@@ -3,6 +3,7 @@ import { db, pragmasReady } from '@rumiai/backend/infrastructure/database/client
 import { resolveNewPaymentConfiguration, resolveOrderPaymentConfiguration, type PaymentRuntimeConfiguration } from '@rumiai/backend/modules/payments/merchant-config-service';
 import { createMembershipEzfpCheckout, requestMembershipEzfpRefund, verifyMembershipEzfpCallback } from '@rumiai/backend/modules/payments/membership-provider';
 import { createMembershipOrder, completeMembershipRefund, markMembershipPaidInTransaction, requestMembershipRefund } from '../modules/memberships/service';
+import { isCheckoutEnabled } from '../modules/payments/checkout-policy-service';
 
 export class MembershipPaymentWorkflowError extends Error {
   constructor(message: string, readonly status = 400, readonly code?: string) { super(message); this.name = 'MembershipPaymentWorkflowError'; }
@@ -21,6 +22,7 @@ export async function createMembershipPayment(input: { userId: string; planCode:
   if (existing && existing.plan.code !== input.planCode.trim().toUpperCase()) throw new MembershipPaymentWorkflowError('请求编号已经用于另一会员套餐。', 409, 'IDEMPOTENCY_CONFLICT');
   if (existing?.status === 'PAID') return {orderNo:existing.orderNo,status:'PAID',amountCnyCents:existing.amountCents};
   if (existing && existing.status !== 'PENDING') throw new MembershipPaymentWorkflowError('该会员订单已结束，不能重复支付。', 409, 'ORDER_CLOSED');
+  if (!await isCheckoutEnabled()) throw new MembershipPaymentWorkflowError('真实支付暂未配置或未启用。', 503, 'PAYMENT_UNAVAILABLE');
   let newConfig: PaymentRuntimeConfiguration | null = null;
   if (!existing?.paymentOrder) {
     try { newConfig = await resolveNewPaymentConfiguration(); } catch { throw new MembershipPaymentWorkflowError('真实支付暂未配置或未启用。', 503, 'PAYMENT_UNAVAILABLE'); }

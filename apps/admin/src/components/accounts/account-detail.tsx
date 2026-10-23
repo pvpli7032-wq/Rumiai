@@ -13,8 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@rumiai/ui/tabs';
 import { Textarea } from '@rumiai/ui/textarea';
 import { Input } from '@rumiai/ui/input';
 import { apiFetch } from '@admin/lib/api-client';
+import { DetailRow, DetailSection } from '../layout/detail-drawer';
 import { AccountQuotaTab } from './account-quota-tab';
 import { accountState, formatTime, actionLabels, auditLabels, type AccountAction, type AccountDetail } from './types';
+
+const benefitValue = (key: string, value: number) => key === 'CHAT_PRICE_MULTIPLIER' ? `${value} 倍` : key === 'DAILY_FREE_REPLIES' ? `${value} 次/日` : `${value} 个`;
 
 function RelatedPanel({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
   return (
@@ -72,6 +75,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
     finally { setProfileBusy(false); }
   }
   const displayName = user.displayName?.trim() || user.username;
+  const assets = detail.assets;
 
   return (
     <AdminPanel
@@ -84,6 +88,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList aria-label="用户详情标签">
           <TabsTrigger value="basic">基本资料</TabsTrigger>
+          <TabsTrigger value="membership">会员与资产</TabsTrigger>
           <TabsTrigger value="quota">额度特例</TabsTrigger>
         </TabsList>
 
@@ -191,6 +196,32 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
             ))}
           </RelatedPanel>
           <p className="text-xs text-muted-foreground">关联列表各显示最近 {detail.relatedLimit} 条。活动时间自本功能启用后记录，最多每五分钟更新一次。</p>
+        </TabsContent>
+
+        <TabsContent value="membership" className="space-y-5">
+          {!assets && <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">当前服务版本尚未返回会员资产摘要，请刷新后重试。</p>}
+          {assets && <>
+            <DetailSection title="当前会员" description="当前有效权益期和已衔接的续费有效期。">
+              {assets.membership.current ? <div className="space-y-2 rounded-lg border border-brand/30 bg-brand-soft/20 p-4 text-sm">
+                <p className="font-semibold">{assets.membership.current.planCode}</p>
+                <DetailRow label="当前有效期">{formatTime(assets.membership.current.startsAt)} — {formatTime(assets.membership.current.expiresAt)}</DetailRow>
+                <DetailRow label="含续费有效期">{formatTime(assets.membership.current.renewalExpiresAt)}</DetailRow>
+                <div className="flex flex-wrap gap-2 pt-1">{assets.membership.current.benefits.map(item => <Badge key={item.key} variant="outline">{item.label}：{benefitValue(item.key, item.value)}</Badge>)}</div>
+              </div> : <p className="rounded-lg border border-border p-4 text-sm text-muted-foreground">当前无有效会员。</p>}
+            </DetailSection>
+            <DetailSection title="会员订单与权益使用" description="展示订单有效期、退款状态及权益使用汇总。">
+              {assets.membership.orders.length ? <div className="space-y-3">{assets.membership.orders.map(order => <article key={order.orderNo} className="space-y-1 rounded-lg border border-border p-3 text-sm">
+                <p className="font-medium">{order.planName} · {order.status}</p>
+                <p className="break-all text-xs text-muted-foreground">{order.orderNo} · {formatTime(order.paidAt ?? order.createdAt)} · {order.amountCents === null ? '金额受限' : `¥${(order.amountCents / 100).toFixed(2)}`}</p>
+                {order.grant && <p className="text-xs text-muted-foreground">有效期：{formatTime(order.grant.startsAt)} — {formatTime(order.grant.expiresAt)} · {order.grant.status}</p>}
+                {assets.finance.visible ? <>
+                  {order.refund && <p className="text-xs text-muted-foreground">退款：{order.refund.status} · ¥{(order.refund.amountCents / 100).toFixed(2)} · 扣费 ¥{(order.refund.deductedCents / 100).toFixed(2)}</p>}
+                  {order.usage && <p className="text-xs text-muted-foreground">权益使用：成功 {order.usage.consumed} · 进行中 {order.usage.reserved} · 已释放 {order.usage.released}</p>}
+                </> : <p className="text-xs text-muted-foreground">退款和权益消费金额需要财务查看权限。</p>}
+              </article>)}</div> : <p className="rounded-lg border border-border p-4 text-sm text-muted-foreground">暂无会员订单。</p>}
+            </DetailSection>
+            {!assets.finance.visible && <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">当前账号没有财务查看权限，已隐藏金额、退款和权益消费明细。</p>}
+          </>}
         </TabsContent>
 
         <TabsContent value="quota">

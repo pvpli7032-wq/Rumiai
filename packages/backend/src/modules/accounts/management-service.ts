@@ -3,6 +3,8 @@ import {db, pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {hasAdminPermission} from '@rumiai/backend/modules/admin/authorization';
 import {assertAccountSuspensionAllowed, assertAdministrativeAccountManagementAllowed, parseUtcDayRange, recordAdminAudit, AdminManagementError} from '@rumiai/backend/modules/admin/management-service';
 import {setCommunityRestriction} from '@rumiai/backend/modules/community/restriction-service';
+import {readMembershipAccountAssets} from '@rumiai/backend/modules/memberships/service';
+import type {AdminAccountAssets} from '@rumiai/contracts/admin/account-assets';
 import type {AdminPermission} from '@rumiai/contracts/admin/permissions';
 
 export class AccountManagementError extends Error {
@@ -43,7 +45,7 @@ export async function listManagedAccounts(actorId: string, params: {q?: string; 
 
 export async function readManagedAccount(actorId: string, userId: string) {
   id(userId); await requirePermission(actorId, 'accounts.read');
-  return db.$transaction(async tx => {
+  const detail = await db.$transaction(async tx => {
     await requirePermission(actorId, 'accounts.read', tx);
     const user = await tx.user.findUnique({where: {id: userId}, select: {...accountSelection, _count: {select: {characters: true, conversations: true, posts: true, paymentOrders: true, reportsFiled: true}}}});
     if (!user) throw new AccountManagementError('用户不存在。', 404);
@@ -56,6 +58,24 @@ export async function readManagedAccount(actorId: string, userId: string) {
     ]);
     return {user, characters, orders, ledger, activity, canReadFinance, relatedLimit: 20};
   });
+  const membership = await readMembershipAccountAssets(userId);
+  const membershipOrders: AdminAccountAssets['membership']['orders'] = membership.orders.map(order => ({
+    ...order,
+    amountCents: detail.canReadFinance ? order.amountCents : null,
+    refund: detail.canReadFinance ? order.refund : null,
+    usage: detail.canReadFinance ? order.usage : null,
+  }));
+  const assets: AdminAccountAssets = {
+    membership: {current: membership.current, orders: membershipOrders},
+    finance: {
+      visible: detail.canReadFinance,
+      ledger: detail.ledger?.map(item => ({...item, createdAt: item.createdAt.toISOString()})) ?? null,
+    },
+  };
+  return {
+    ...detail,
+    assets,
+  };
 }
 
 const actions = {SUSPEND: 'accounts.manage', RESTORE: 'accounts.manage', REVOKE_SESSIONS: 'accounts.sessions.revoke', BAN_COMMUNITY: 'accounts.community.manage', UNBAN_COMMUNITY: 'accounts.community.manage'} as const;

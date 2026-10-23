@@ -13,6 +13,7 @@ let server: Server;
 let port = 0;
 let refundMode: 'success'|'uncertain'|'rejected' = 'success';
 const refundRequests: Array<Record<string, string>> = [];
+const checkoutRequests: Array<Record<string, string>> = [];
 
 function signedQuery(fields: Record<string,string>): Record<string,string> {
   const params: Record<string,string> = {...fields, timestamp:String(Math.floor(Date.now()/1000)), sign_type:'RSA'};
@@ -44,6 +45,7 @@ before(async () => {
     const body = await new Promise<string>(resolve => {let value=''; request.on('data', chunk => {value += chunk;}); request.on('end', () => resolve(value));});
     const input = Object.fromEntries(new URLSearchParams(body));
     if (request.url?.endsWith('/refund')) refundRequests.push(input);
+    if (request.url?.endsWith('/create')) checkoutRequests.push(input);
     response.setHeader('content-type', 'application/json');
     if (request.url?.endsWith('/create')) response.end(JSON.stringify(signedPayload({code: 0, trade_no: `TRADE-${input.out_trade_no}`, pay_type: 'jump', pay_info: 'http://localhost:3012/ezfp-test'})));
     else if (request.url?.endsWith('/refund') && refundMode === 'uncertain') response.end('{"code":0}');
@@ -80,6 +82,26 @@ it('checkout is server-priced, snapshot-stable, and isolated from coin idempoten
   assert.equal(replay.amountCnyCents,3000);
   assert.equal(first.orderNo,replay.orderNo);
   assert.equal(await db.paymentOrder.count({where:{userId:f.user.id}}),2);
+});
+
+it('closed checkout gate blocks replay of a pending cached redirect without provider call', async () => {
+  const f = await fixture();
+  const first = await workflow.createMembershipPayment({userId:f.user.id,planCode:f.plan.code,idempotencyKey:`gate-${f.user.id}`,paymentMethod:'alipay',clientIp:'127.0.0.1'});
+  assert.ok(first.redirectUrl);
+  const providerCalls = checkoutRequests.length;
+  await db.paymentCheckoutPolicy.update({where:{id:'primary'},data:{enabled:false}});
+  try {
+    await assert.rejects(
+      () => workflow.createMembershipPayment({userId:f.user.id,planCode:f.plan.code,idempotencyKey:`gate-${f.user.id}`,paymentMethod:'alipay',clientIp:'127.0.0.1'}),
+      error => error instanceof workflow.MembershipPaymentWorkflowError && error.code === 'PAYMENT_UNAVAILABLE' && error.status === 503,
+    );
+    const payment = await db.membershipOrder.findUniqueOrThrow({where:{orderNo:first.orderNo},include:{paymentOrder:true}});
+    assert.equal(payment.status,'PENDING');
+    assert.equal(payment.paymentOrder?.status,'PENDING');
+    assert.equal(checkoutRequests.length, providerCalls, 'closed gate must not call EZFP for cached pending checkout');
+  } finally {
+    await db.paymentCheckoutPolicy.update({where:{id:'primary'},data:{enabled:true}});
+  }
 });
 
 it('signed notify rejects PID/amount tampering and duplicate callback grants once', async () => {

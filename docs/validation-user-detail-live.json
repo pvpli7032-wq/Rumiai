@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-23",
+  "origin": "https://lh.y-98.cn",
+  "reportedProblem": "Existing user detail appeared not to react and lacked frontend-related assets",
+  "before": {"detailHttp": 200, "dialogCount": 0, "headingYAfterFilteringToOneUser": 861, "viewportHeight": 900, "membershipAssetsReturned": false},
+  "fix": ["Immediately open a detail drawer with local loading, error feedback and retry", "Membership module owns account membership projection and full groupBy usage aggregation", "Shared browser-safe asset contract; financial fields require finance.read"],
+  "afterExistingUser": {"detailHttp": 200, "assetsReturned": true, "dialogCount": 1, "headingY": 20, "viewportHeight": 900, "pageErrors": []},
+  "liveBrowser": {"exitCode": 0, "drawerVisible": true, "membershipAssetsTab": true, "escapeCloseAndReopen": true, "simulatedNetworkFailureAndRetry": true, "profileSaveAndFrontendPropagation": true, "sessionIsolation": true},
+  "isolatedBrowser": {"exitCode": 0, "membershipOrderAndRefundDom": true, "scope": "Local domain fixtures, not merchant-paid live orders"},
+  "backendTests": {"membership": "29/29 passed", "accountAssets": "1/1 passed including 501 usage entries and missing-finance-permission redaction"},
+  "builds": {"localApi": "passed", "localAdmin": "passed", "serverStagedApiAndAdmin": "exit 0, promoted together after validation"},
+  "dependencyBoundaries": "847 source files passed",
+  "cleanup": {"dedicatedTestAccountDisabled": true, "sessionsRevoked": true, "credentialFileRemoved": true, "obsoleteBuildDirectoriesRemoved": true},
+  "paymentSafety": "Actual database checkout policy remains disabled; pending membership order retry now also rejects checkout while disabled",
+  "limitations": ["No live paid membership order fabricated for verification", "Not an assertion that every admin function or every frontend asset has been manually verified", "No chat message bodies, passwords or merchant keys exposed by the user-detail response"]
+}

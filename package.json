@@ -32,6 +32,7 @@
     "typecheck": "tsc --noEmit",
     "test:worker": "node --experimental-default-type=module tests/integration/worker-runner.mjs",
     "test:tasks": "node --experimental-default-type=module tests/integration/tasks-runner-validation.mjs",
+    "test:account-assets": "node --experimental-default-type=module --test --import tsx tests/integration/account-assets.test.ts",
     "tasks:run": "node --import tsx ops/scripts/run-tasks.mjs",
     "admin:bootstrap": "node --import tsx ops/scripts/bootstrap-admin.mjs",
     "account:password": "node --import tsx ops/scripts/set-account-password.mjs",

@@ -19,7 +19,7 @@
   "dependencyBoundaries": {
     "command": "npm run architecture:check",
     "result": "PASS",
-    "sourceFilesChecked": 845,
+    "sourceFilesChecked": 847,
     "checks": ["application isolation", "UI apps cannot import backend", "packages cannot import applications", "browser-safe contracts", "client/server dependency graph", "unresolved workspace aliases"]
   },
   "runtimePaths": {

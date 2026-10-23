@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T06:24:02.827Z",
+  "generatedAt": "2026-10-23T07:52:32.716Z",
   "platform": "win32",
   "node": "v22.23.2",
   "migrationCount": 53,
@@ -47,8 +47,8 @@
       "status": "passed",
       "exitCode": 0,
       "counts": {
-        "tests": 4,
-        "pass": 4,
+        "tests": 5,
+        "pass": 5,
         "fail": 0,
         "cancelled": 0,
         "skipped": 0
