@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server';
 import {getAdminRequestUser} from '@rumiai/backend/modules/admin-auth/request';
-import {MissionManagementError,saveManagedMission} from '@rumiai/backend/modules/missions/management-service';
+import {MissionManagementError,saveManagedMission,deleteManagedMission} from '@rumiai/backend/modules/missions/management-service';
 import {logRouteError} from '@rumiai/backend/infrastructure/logging/logger';
 
 export const dynamic='force-dynamic';
@@ -17,4 +17,11 @@ export async function PATCH(request:Request,{params:paramsPromise}:{params:Promi
     if(error instanceof MissionManagementError)return NextResponse.json({error:error.message},{status:error.status,headers});
     logRouteError('PATCH /api/admin/growth/missions/[id]',error);return NextResponse.json({error:'任务配置保存失败。'},{status:500,headers});
   }
+}
+
+export async function DELETE(request:Request,{params:paramsPromise}:{params:Promise<{id:string}>}){
+  const auth=await getAdminRequestUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers});
+  let input:unknown;try{input=await request.json();}catch{return NextResponse.json({error:'删除请求格式无效。'},{status:400,headers});}
+  try{return NextResponse.json(await deleteManagedMission(auth.userId,(await paramsPromise).id,input),{headers});}
+  catch(error){if(error instanceof MissionManagementError)return NextResponse.json({error:error.message},{status:error.status,headers});logRouteError('DELETE /api/admin/growth/missions/[id]',error);return NextResponse.json({error:'任务删除失败。'},{status:500,headers});}
 }

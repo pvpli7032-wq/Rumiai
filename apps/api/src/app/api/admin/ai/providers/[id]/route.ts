@@ -1,6 +1,7 @@
 import {NextResponse} from 'next/server';
 import {getAdminRequestUser} from '@rumiai/backend/modules/admin-auth/request';
-import {saveAiProvider} from '@rumiai/backend/modules/ai/providers/management-service';
+import {deleteAiProvider,saveAiProvider} from '@rumiai/backend/modules/ai/providers/management-service';
 import {privateHeaders,providerErrorResponse,readProviderJson} from '../_response';
 
 export async function PATCH(request:Request,{params:paramsPromise}:{params:Promise<{id:string}>}){try{const auth=await getAdminRequestUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers:privateHeaders});const parsed=await readProviderJson(request);if('response'in parsed)return parsed.response;const params=await paramsPromise;return NextResponse.json(await saveAiProvider(auth.userId,{...(parsed.input as object),id:params.id}),{headers:privateHeaders});}catch(error){return providerErrorResponse(error,'PATCH /api/admin/ai/providers/[id]');}}
+export async function DELETE(request:Request,{params:paramsPromise}:{params:Promise<{id:string}>}){try{const auth=await getAdminRequestUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401,headers:privateHeaders});const parsed=await readProviderJson(request);if('response'in parsed)return parsed.response;const params=await paramsPromise;return NextResponse.json(await deleteAiProvider(auth.userId,params.id,parsed.input),{headers:privateHeaders});}catch(error){return providerErrorResponse(error,'DELETE /api/admin/ai/providers/[id]');}}

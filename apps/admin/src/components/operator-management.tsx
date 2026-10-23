@@ -12,6 +12,7 @@ import {EmptyState} from '@rumiai/ui/empty-state';
 import {Input} from '@rumiai/ui/input';
 import {Pagination} from '@rumiai/ui/pagination';
 import {Textarea} from '@rumiai/ui/textarea';
+import {PermissionPicker} from './operators/permission-picker';
 
 type Role = {id: string; name: string; system: boolean; version: number; permissions: {permission: string}[]; _count: {assignments: number}};
 type Operator = {userId: string; enabled: boolean; version: number; user: {username: string; email: string; deletedAt: string | null}; assignments: {role: {id: string; name: string}}[]};
@@ -130,7 +131,7 @@ export function OperatorManagement() {
         <label className="block space-y-1.5 text-sm font-medium text-foreground">角色名称
           <Input required maxLength={60} value={roleName} onChange={event => setRoleName(event.target.value)} />
         </label>
-        <fieldset><legend className="mb-2 text-sm font-medium">业务权限</legend><div className="grid gap-2 md:grid-cols-2">{Object.entries(report.definitions).filter(([key]) => !report.ownerOnly.includes(key)).map(([key, label]) => <label key={key} className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4 rounded border-border accent-brand" checked={rolePermissions.includes(key)} onChange={event => setRolePermissions(event.target.checked ? [...rolePermissions, key] : rolePermissions.filter(permission => permission !== key))} />{label}</label>)}</div></fieldset>
+        <PermissionPicker definitions={report.definitions} excluded={report.ownerOnly} value={rolePermissions} onChange={setRolePermissions} disabled={busy} />
         <label className="block space-y-1.5">
           <span className="text-sm font-medium">修改理由</span>
           <Textarea required maxLength={300} rows={3} value={roleReason} onChange={event => setRoleReason(event.target.value)} />

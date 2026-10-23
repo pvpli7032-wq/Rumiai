@@ -1,5 +1,7 @@
 import { db, pragmasReady } from '@rumiai/backend/infrastructure/database/client';
 import { effectivePackageBonus } from './package-service';
+import { hasAdminPermission } from '@rumiai/backend/modules/admin/authorization';
+import { claimWriter, recordAdminAudit } from '@rumiai/backend/modules/admin/management-service';
 
 export class PackageManagementError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -33,9 +35,11 @@ export async function readPackageManagement() {
   await pragmasReady;
   return db.$transaction(async tx => {
     const packages = await tx.coinPackage.findMany({ orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
+    const references = packages.length ? await tx.paymentOrder.groupBy({ by: ['packageId'], where: { packageId: { in: packages.map(item => item.id) } }, _count: { _all: true } }) : [];
+    const referenceCounts = new Map(references.map(item => [item.packageId, item._count._all]));
     const changes = await tx.coinPackageChange.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 20 });
     const now = new Date();
-    return { packages: packages.map(pkg => ({ ...pkg, effectiveBonus: effectivePackageBonus(pkg, now) })), changes };
+    return { packages: packages.map(pkg => ({ ...pkg, referenceCount: referenceCounts.get(pkg.id) ?? 0, effectiveBonus: effectivePackageBonus(pkg, now) })), changes };
   });
 }
 
@@ -62,5 +66,29 @@ export async function updateManagedPackage(actorId: string, id: string, input: u
     const after = await tx.coinPackage.findUniqueOrThrow({ where: { id } });
     await tx.coinPackageChange.create({ data: { packageId: id, actorId, beforeJson: JSON.stringify(before), afterJson: JSON.stringify(after) } });
     return after;
+  });
+}
+
+/** Delete only an inactive package with no payment-order snapshot references. */
+export async function deleteManagedPackage(actorId: string,id: string,input: unknown) {
+  if(!input||typeof input!=='object'||Array.isArray(input)) throw new PackageManagementError('删除请求格式错误。');
+  const body=input as Record<string,unknown>;
+  if(typeof body.reason!=='string'||!body.reason.trim()||body.reason.trim().length>500) throw new PackageManagementError('请填写 1–500 字操作理由。');
+  const reason=body.reason.trim();
+  const version=integer(body.version,'套餐版本');
+  if(!/^[A-Za-z0-9_-]{1,100}$/.test(id)) throw new PackageManagementError('套餐编号无效。');
+  await pragmasReady;
+  return db.$transaction(async tx=>{
+    await claimWriter(tx,actorId);
+    if(!await hasAdminPermission(actorId,'finance.packages.write',tx)) throw new PackageManagementError('当前账号没有套餐管理权限。',403);
+    const before=await tx.coinPackage.findUnique({where:{id}});
+    if(!before) throw new PackageManagementError('套餐不存在。',404);
+    if(before.version!==version) throw new PackageManagementError('套餐已被其他操作修改，请刷新后重试。',409);
+    if(before.isActive) throw new PackageManagementError('请先下架套餐，再执行删除。',409);
+    const references=await tx.paymentOrder.count({where:{packageId:id}});
+    if(references>0) throw new PackageManagementError(`套餐已有 ${references} 条订单快照引用，不能删除；请保留下架状态。`,409);
+    await tx.coinPackage.delete({where:{id}});
+    await recordAdminAudit(tx,actorId,'DELETE_COIN_PACKAGE',id,reason,{before:{label:before.label,version:before.version,isActive:before.isActive}});
+    return {id,deleted:true};
   });
 }

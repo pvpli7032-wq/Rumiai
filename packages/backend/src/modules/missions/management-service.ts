@@ -32,7 +32,9 @@ export async function readManagedMissions(actor:string){
   return db.$transaction(async tx=>{
     await requirePermission(actor,'growth.read',tx);
     const missions=await tx.mission.findMany({orderBy:[{sortOrder:'asc'},{createdAt:'desc'},{id:'asc'}],take:200});
-    return {missions};
+    const references=missions.length?await tx.userMission.groupBy({by:['missionId'],where:{missionId:{in:missions.map(item=>item.id)}},_count:{_all:true}}):[];
+    const counts=new Map(references.map(item=>[item.missionId,item._count._all]));
+    return {missions:missions.map(item=>({...item,referenceCount:counts.get(item.id)??0}))};
   });
 }
 
@@ -76,5 +78,27 @@ export async function saveManagedMission(actor:string,input:unknown){
       after:{title:saved.title,rewardCoins:saved.rewardCoins,conditionType:saved.conditionType,conditionTarget:saved.conditionTarget,period:saved.period,isActive:saved.isActive,version:saved.version},
     });
     return saved;
+  });
+}
+
+/** Delete only an inactive mission which has never been referenced by a user claim. */
+export async function deleteManagedMission(actor:string,id:string,input:unknown){
+  const body=object(input);
+  if(typeof body.reason!=='string'||!body.reason.trim()||body.reason.trim().length>500)throw new MissionManagementError('请填写 1–500 字操作理由。');
+  const reason=body.reason.trim();
+  if(!Number.isSafeInteger(body.version)||Number(body.version)<0)throw new MissionManagementError('任务版本无效，请刷新后重试。');
+  if(!/^[-A-Za-z0-9_]{1,100}$/.test(id))throw new MissionManagementError('任务编号无效。');
+  await pragmasReady;
+  return db.$transaction(async tx=>{
+    await claimWriter(tx,actor);await requirePermission(actor,'growth.manage',tx);
+    const before=await tx.mission.findUnique({where:{id}});
+    if(!before)throw new MissionManagementError('任务不存在。',404);
+    if(before.version!==body.version)throw new MissionManagementError('任务已被其他操作修改，请刷新后重试。',409);
+    if(before.isActive)throw new MissionManagementError('请先停用任务，再执行删除。',409);
+    const references=await tx.userMission.count({where:{missionId:id}});
+    if(references>0)throw new MissionManagementError(`任务已有 ${references} 条用户领取记录，不能删除；请保留为停用状态。`,409);
+    await tx.mission.delete({where:{id}});
+    await recordAdminAudit(tx,actor,'DELETE_GROWTH_MISSION',id,reason,{before:{title:before.title,version:before.version,isActive:before.isActive}});
+    return {id,deleted:true};
   });
 }

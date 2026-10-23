@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {hasAdminPermission} from '@rumiai/backend/modules/admin/authorization';
 import {recordAdminAudit} from '@rumiai/backend/modules/admin/management-service';
@@ -19,9 +20,34 @@ function publicProvider(row:Awaited<ReturnType<typeof db.aiProvider.findMany>>[n
   return {...publicFields,hasSecret:Boolean(secretCiphertext&&secretNonce&&secretTag)};
 }
 
+type ProviderReferences={models:number;activeModels:number};
+async function providerReferences(tx:Prisma.TransactionClient, providerId:string):Promise<ProviderReferences>{
+  const models=await tx.aiModel.findMany({where:{providerId},select:{key:true,modelCode:true,isActive:true}});
+  return {models:models.length,activeModels:models.filter(item=>item.isActive).length};
+}
+
 export async function readAiProviders(actorId:string){
   await requirePermission(actorId,'ai.providers.read');
-  return db.$transaction(async tx=>{await requirePermission(actorId,'ai.providers.read',tx);const rows=await tx.aiProvider.findMany({select:{...publicSelect,...secretSelect},orderBy:[{sortOrder:'asc'},{id:'asc'}],take:100});return rows.map(publicProvider);});
+  return db.$transaction(async tx=>{await requirePermission(actorId,'ai.providers.read',tx);const rows=await tx.aiProvider.findMany({select:{...publicSelect,...secretSelect},orderBy:[{sortOrder:'asc'},{id:'asc'}],take:100});const models=rows.length?await tx.aiModel.findMany({where:{providerId:{in:rows.map(row=>row.id)}},select:{providerId:true,isActive:true}}):[];return rows.map(row=>{const owned=models.filter(model=>model.providerId===row.id);const references={models:owned.length,activeModels:owned.filter(model=>model.isActive).length};return {...publicProvider(row),references,canDelete:!row.isActive&&!references.models};});});
+}
+
+export async function deleteAiProvider(actorId:string,id:string,input:unknown){
+  const row=object(input),reasonText=explanation(row.reason),version=expectedVersion(row.version);
+  if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))throw new AiProviderError('供应商编号无效。');
+  await pragmasReady;
+  try{return await db.$transaction(async tx=>{
+    await tx.$executeRaw`UPDATE admin_operators SET version = version WHERE user_id = ${actorId}`;
+    await requirePermission(actorId,'ai.providers.manage',tx);
+    const before=await tx.aiProvider.findUnique({where:{id},select:{...publicSelect,...secretSelect}});
+    if(!before)throw new AiProviderError('供应商不存在。',404);
+    if(before.version!==version)throw new AiProviderError('供应商配置已被其他人修改，请刷新后重试。',409);
+    if(before.isActive)throw new AiProviderError('请先停用供应商，再执行删除。',409);
+    const refs=await providerReferences(tx,id);
+    if(refs.models)throw new AiProviderError(`供应商仍有模型引用（${refs.models} 个，其中启用 ${refs.activeModels} 个），请先停用并删除或迁移这些模型后再删除供应商。`,409);
+    await tx.aiProvider.delete({where:{id}});
+    await recordAdminAudit(tx,actorId,'DELETE_AI_PROVIDER',id,reasonText,{before:{name:before.name,version:before.version},references:refs});
+    return {id,deleted:true};
+  });}catch(error){if(error instanceof AiProviderError)throw error;if((error as {code?:string})?.code==='P2003')throw new AiProviderError('供应商仍被其他数据引用，无法删除。',409);throw error;}
 }
 
 export async function saveAiProvider(actorId:string,input:unknown){

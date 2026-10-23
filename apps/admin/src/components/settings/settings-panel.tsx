@@ -14,7 +14,7 @@ import {ExportImportDialog} from './export-import-dialog';
 import {sameSettingValue} from './format';
 import {PromptPreview} from './prompt-preview';
 import {RestoreDefaultsDialog} from './restore-defaults-dialog';
-import {sectionsOfGroup} from './sections';
+import {sectionForKey, sectionsOfGroup} from './sections';
 import {SettingField} from './setting-field';
 import {SettingsHistoryDialog} from './settings-history-dialog';
 import type {useSettingsGroup} from './use-settings-group';
@@ -40,11 +40,14 @@ function searchableText(definition: SettingDefinition): string {
   return [definition.label, definition.key, definition.description].join(' ').toLowerCase();
 }
 
-export function SettingsPanel({activeGroup, sessionActive, canWrite, controller}: {
+export function SettingsPanel({activeGroup, sessionActive, canWrite, controller, sectionId, onSectionChange, focus}: {
   activeGroup: SettingsGroupId;
   sessionActive: boolean;
   canWrite: boolean;
   controller: ReturnType<typeof useSettingsGroup>;
+  sectionId?: string;
+  onSectionChange?: (sectionId: string) => void;
+  focus?: {key: string; nonce: number} | null;
 }) {
   const {definitions, values, draft, dirtyKeys, fieldErrors, loading, loadError, savedAt} = controller;
   const [query, setQuery] = useState('');
@@ -52,9 +55,11 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller}
   const [historyOpen, setHistoryOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [restoreScope, setRestoreScope] = useState<{label: string; items: SettingDefinition[]} | null>(null);
+  const [handledFocusNonce, setHandledFocusNonce] = useState<number | null>(null);
 
   const activeLabel = SETTING_GROUPS.find(group => group.id === activeGroup)?.label ?? '';
   const sections = useMemo(() => sectionsOfGroup(activeGroup), [activeGroup]);
+  const selectedSection = sections.find(section => section.id === sectionId) ?? sections[0];
   const needle = query.trim().toLowerCase();
   const searching = needle.length > 0;
   const matched = useMemo(
@@ -65,7 +70,28 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller}
   useEffect(() => {
     setQuery('');
     setSavedNotice('');
-  }, [activeGroup]);
+    if (sections[0]) onSectionChange?.(sections[0].id);
+  }, [activeGroup, onSectionChange, sections]);
+
+  useEffect(() => {
+    if (!focus || focus.nonce === handledFocusNonce || loading || loadError || !values[focus.key]) return;
+    const definition = definitions.find(item => item.key === focus.key);
+    if (!definition) return;
+    const section = sectionForKey(activeGroup, focus.key);
+    if (query !== definition.label) {
+      if (section) onSectionChange?.(section.id);
+      setQuery(definition.label);
+      return;
+    }
+    // Cross-category navigation first loads its data, then renders the search row.
+    // Mark the focus request handled only after that actual control exists.
+    const row = document.querySelector<HTMLElement>(`[data-setting-key="${CSS.escape(focus.key)}"]`);
+    const control = row?.querySelector<HTMLElement>('input,textarea,select');
+    if (!row || !control) return;
+    row.scrollIntoView({behavior: 'smooth', block: 'center'});
+    control.focus({preventScroll: true});
+    setHandledFocusNonce(focus.nonce);
+  }, [focus, handledFocusNonce, definitions, activeGroup, onSectionChange, loading, loadError, values, query]);
 
   useEffect(() => {
     if (savedAt === null) return;
@@ -158,6 +184,36 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller}
         <AdminNotice tone="info" title="当前为只读查看" description="修改设置需要「保存运营设置」权限。" />
       )}
 
+      {!loading && !loadError && !searching && sections.length > 0 && (
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+          <nav aria-label={`${activeLabel}小节`} className="rounded-xl border border-border bg-card p-2 shadow-sm lg:sticky lg:top-4">
+            <p className="px-3 pb-2 pt-1 text-xs font-medium text-muted-foreground">本类目录</p>
+            <div className="flex gap-1 overflow-x-auto lg:block lg:overflow-visible">
+              {sections.map(section => {
+                const selected = selectedSection?.id === section.id;
+                return <button key={section.id} type="button" onClick={() => onSectionChange?.(section.id)} aria-current={selected ? 'page' : undefined}
+                  className={`flex min-h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-left text-sm transition-colors lg:mb-1 lg:w-full ${selected ? 'bg-brand-soft font-semibold text-brand' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                  <span>{section.title}</span><span className="text-xs opacity-70">{section.definitions.length}</span>
+                </button>;
+              })}
+            </div>
+          </nav>
+          <div className="min-w-0 space-y-5">
+            {selectedSection && (() => {
+              const common = selectedSection.definitions.filter(definition => !definition.advanced);
+              const advanced = selectedSection.definitions.filter(definition => definition.advanced);
+              const visibleCommon = common.slice(0, MAX_COMMON_FIELDS);
+              const allAdvanced = [...common.slice(MAX_COMMON_FIELDS), ...advanced];
+              return <SettingsGroup key={selectedSection.id} title={selectedSection.title} description={selectedSection.description}
+                badge={<Badge variant="outline">{selectedSection.definitions.length} 项</Badge>} advancedCount={allAdvanced.length}
+                advanced={allAdvanced.length > 0 ? allAdvanced.map(renderField) : undefined}>
+                {visibleCommon.length > 0 ? visibleCommon.map(renderField) : <p className="py-4 text-sm text-muted-foreground">本节只有高级项，展开下方「高级设置」修改。</p>}
+              </SettingsGroup>;
+            })()}
+          </div>
+        </div>
+      )}
+
       {!loading && !loadError && searching && (
         <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           <header className="border-b border-border bg-muted/40 px-4 py-3 md:px-5">
@@ -177,28 +233,6 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller}
           <p className="text-sm text-muted-foreground">这个分类下还没有可配置的项目。</p>
         </AdminPanel>
       )}
-
-      {!loading && !loadError && !searching && sections.map(section => {
-        const common = section.definitions.filter(definition => !definition.advanced);
-        const advanced = section.definitions.filter(definition => definition.advanced);
-        const visibleCommon = common.slice(0, MAX_COMMON_FIELDS);
-        const allAdvanced = [...common.slice(MAX_COMMON_FIELDS), ...advanced];
-
-        return (
-          <SettingsGroup
-            key={section.id}
-            title={section.title}
-            description={section.description}
-            badge={<Badge variant="outline">{section.definitions.length} 项</Badge>}
-            advancedCount={allAdvanced.length}
-            advanced={allAdvanced.length > 0 ? allAdvanced.map(renderField) : undefined}
-          >
-            {visibleCommon.length > 0 ? visibleCommon.map(renderField) : (
-              <p className="py-4 text-sm text-muted-foreground">本节只有高级项，展开下方「高级设置」修改。</p>
-            )}
-          </SettingsGroup>
-        );
-      })}
 
       {historyOpen && sessionActive && (
         <SettingsHistoryDialog

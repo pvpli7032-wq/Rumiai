@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import {ArrowDownUp} from 'lucide-react';
-import {useState} from 'react';
+import {useRouter} from 'next/navigation';
+import {ArrowDownUp, Search} from 'lucide-react';
+import {useCallback, useMemo, useState} from 'react';
 import {AdminNotice, AdminPage} from '@admin/components/admin-page';
 import {AdminPageHeader} from '@admin/components/layout/admin-page-header';
 import {SaveBar} from '@admin/components/layout/save-bar';
@@ -16,6 +17,7 @@ import {ExportImportDialog} from './export-import-dialog';
 import {SettingsPanel} from './settings-panel';
 import {useSettingsGroup} from './use-settings-group';
 import {useUnsavedGuard} from './use-unsaved-guard';
+import {buildSettingSearchIndex, searchSettings, shouldConfirmSettingNavigation} from './search';
 
 /**
  * 设置中心：单内容区 + 顶部分类标签（V3 §16）。
@@ -27,7 +29,11 @@ import {useUnsavedGuard} from './use-unsaved-guard';
  */
 export function SettingsCenter() {
   const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
+  const router = useRouter();
   const [activeGroup, setActiveGroup] = useState<SettingsGroupId>('chat');
+  const [sectionId, setSectionId] = useState<string | undefined>();
+  const [globalQuery, setGlobalQuery] = useState('');
+  const [focus, setFocus] = useState<{key: string; nonce: number} | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
 
   const canRead = permissions.includes('settings.read');
@@ -38,10 +44,28 @@ export function SettingsCenter() {
   useUnsavedGuard(dirtyKeys.length > 0);
 
   // 分类标签是「切换视图」而不是离开页面：分类之间切换时先确认一次，避免悄悄丢掉草稿。
-  function switchGroup(next: SettingsGroupId) {
+  const switchGroup = useCallback((next: SettingsGroupId) => {
     if (next === activeGroup) return;
     if (dirtyKeys.length > 0 && !window.confirm('当前分类有未保存的修改，切换分类会放弃这些修改，继续吗？')) return;
     setActiveGroup(next);
+    setSectionId(undefined);
+  }, [activeGroup, dirtyKeys.length]);
+
+  const searchIndex = useMemo(() => buildSettingSearchIndex(SETTING_GROUPS, permissions.includes('ai.costs.read')), [permissions]);
+  const searchMatches = useMemo(() => searchSettings(searchIndex, globalQuery), [globalQuery, searchIndex]);
+  const searchResults = searchMatches.slice(0, 20);
+
+  function openSearchResult(item: typeof searchIndex[number]) {
+    const leavingPage = Boolean(item.specialHref);
+    if (shouldConfirmSettingNavigation(dirtyKeys.length > 0, activeGroup, item.group.id, item.specialHref) && !window.confirm(leavingPage ? '当前页面有未保存的修改，确定离开吗？' : '当前分类有未保存的修改，切换分类会放弃这些修改，继续吗？')) return;
+    setGlobalQuery('');
+    if (item.specialHref) {
+      router.push(item.specialHref);
+      return;
+    }
+    setActiveGroup(item.group.id);
+    setSectionId(item.section?.id);
+    setFocus({key: item.definition.key, nonce: Date.now()});
   }
 
   const tabs = (
@@ -135,7 +159,22 @@ export function SettingsCenter() {
         {tabs}
       </div>
 
-      <SettingsPanel activeGroup={activeGroup} sessionActive={sessionActive} canWrite={canWrite} controller={controller} />
+      <div className="relative z-10 rounded-xl border border-border bg-card p-3 shadow-sm">
+        <div className="relative">
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input value={globalQuery} onChange={event => setGlobalQuery(event.target.value)} placeholder="搜索全部设置：名称、技术键或说明" aria-label="搜索全部设置" className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20" />
+        </div>
+        {globalQuery.trim() && <div className="mt-2 max-h-80 overflow-auto rounded-lg border border-border bg-background p-1" role="listbox" aria-label="全局设置搜索结果">
+          {searchResults.length ? <>
+            <p className="px-3 py-2 text-xs text-muted-foreground">共 {searchMatches.length} 项{searchMatches.length > 20 ? '，显示前 20 项' : ''}</p>
+            {searchResults.map(item => <button key={`${item.group.id}:${item.definition.key}`} type="button" role="option" onClick={() => openSearchResult(item)} className="flex w-full items-start gap-3 rounded-md px-3 py-2 text-left hover:bg-muted">
+            <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-foreground">{item.definition.label}</span><span className="block truncate text-xs text-muted-foreground">{item.definition.key} · {item.group.label}{item.section ? ` · ${item.section.title}` : ' · 专属页面'}</span></span>
+          </button>)}</> : <p className="px-3 py-4 text-center text-sm text-muted-foreground">没有匹配的设置项。</p>}
+        </div>}
+        <p className="mt-2 text-xs text-muted-foreground">跨分类搜索只展示当前账号可见的登记项；AI 模型路由等专属项仅提供跳转，不读取参数值。</p>
+      </div>
+
+      <SettingsPanel activeGroup={activeGroup} sessionActive={sessionActive} canWrite={canWrite} controller={controller} sectionId={sectionId} onSectionChange={setSectionId} focus={focus} />
 
       {transferOpen && (
         <ExportImportDialog open sessionActive={sessionActive} canWrite={canWrite} onClose={() => setTransferOpen(false)} onImported={() => controller.reload()} />

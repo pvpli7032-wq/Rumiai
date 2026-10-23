@@ -12,7 +12,7 @@ import { Textarea } from '@rumiai/ui/textarea';
 import { API } from '@rumiai/contracts/api-paths';
 import { toDateTimeLocalInput } from '@rumiai/contracts/format/date-time';
 
-export type Mission = { id: string; title: string; description: string | null; rewardCoins: number; category: string; conditionType: string; conditionTarget: number; period: string; isActive: boolean; sortOrder: number; version: number; startsAt: string | null; endsAt: string | null };
+export type Mission = { id: string; title: string; description: string | null; rewardCoins: number; category: string; conditionType: string; conditionTarget: number; period: string; isActive: boolean; sortOrder: number; version: number; startsAt: string | null; endsAt: string | null; referenceCount: number };
 type Draft = { id?: string; version: number; title: string; description: string; rewardCoins: number; category: string; conditionType: string; conditionTarget: number; period: string; isActive: boolean; sortOrder: number; startsAt: string; endsAt: string; reason: string };
 
 const CATEGORIES = [['DAILY', '每日'], ['ONBOARDING', '新手'], ['STARTER', '入门'], ['SPECIAL', '特别'], ['CREATOR', '创作']] as const;
@@ -24,10 +24,11 @@ const newDraft = (sortOrder: number): Draft => ({ version: 0, title: '', descrip
 
 export function MissionManagement({ sessionActive, canManage, missions, onSaved }: { sessionActive: boolean; canManage: boolean; missions: Mission[]; onSaved: () => void }) {
   const [draft, setDraft] = useState<Draft | null>(null), [saving, setSaving] = useState(false), [error, setError] = useState('');
-  const change = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft(current => current ? { ...current, [key]: value } : current);
+  const [dirty, setDirty] = useState(false), [deleting, setDeleting] = useState<Mission | null>(null), [deleteReason, setDeleteReason] = useState('');
+  const change = <K extends keyof Draft>(key: K, value: Draft[K]) => { setDirty(true); setDraft(current => current ? { ...current, [key]: value } : current); };
   function edit(mission: Mission) {
     setError('');
-    setDraft({ id: mission.id, version: mission.version, title: mission.title, description: mission.description ?? '', rewardCoins: mission.rewardCoins, category: mission.category, conditionType: mission.conditionType, conditionTarget: mission.conditionTarget, period: mission.period, isActive: mission.isActive, sortOrder: mission.sortOrder, startsAt: toDateTimeLocalInput(mission.startsAt), endsAt: toDateTimeLocalInput(mission.endsAt), reason: '' });
+    setDirty(false); setDraft({ id: mission.id, version: mission.version, title: mission.title, description: mission.description ?? '', rewardCoins: mission.rewardCoins, category: mission.category, conditionType: mission.conditionType, conditionTarget: mission.conditionTarget, period: mission.period, isActive: mission.isActive, sortOrder: mission.sortOrder, startsAt: toDateTimeLocalInput(mission.startsAt), endsAt: toDateTimeLocalInput(mission.endsAt), reason: '' });
   }
   async function save() {
     if (!draft) return;
@@ -37,7 +38,7 @@ export function MissionManagement({ sessionActive, canManage, missions, onSaved 
       const response = await fetch(draft.id ? `${API.admin.growth.missions}/${draft.id}` : API.admin.growth.missions, { method: draft.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
       if (!response.ok) throw Error(data.error);
-      setDraft(null); onSaved();
+      setDraft(null); setDirty(false); onSaved();
     } catch (e) { setError(e instanceof Error ? e.message : '任务保存失败。'); } finally { setSaving(false); }
   }
 
@@ -49,7 +50,7 @@ export function MissionManagement({ sessionActive, canManage, missions, onSaved 
         title="平台任务"
         description="领取条件由服务器按签到、用户消息、公开帖子或评论核验；MANUAL 任务不能启用发奖。"
         badge={<Badge variant="outline">{missions.length} 个任务</Badge>}
-        actions={canManage ? <Button size="sm" leadingIcon={<Plus className="h-4 w-4" />} onClick={() => { setError(''); setDraft(newDraft(missions.length)); }}>新建任务</Button> : undefined}
+        actions={canManage ? <Button size="sm" leadingIcon={<Plus className="h-4 w-4" />} onClick={() => { setError(''); setDirty(false); setDraft(newDraft(missions.length)); }}>新建任务</Button> : undefined}
       >
         {!missions.length
           ? <AdminNotice tone="info" title="暂无平台任务。" />
@@ -66,19 +67,19 @@ export function MissionManagement({ sessionActive, canManage, missions, onSaved 
                   条件 {mission.conditionType} ≥ {mission.conditionTarget} · 奖励 {mission.rewardCoins} 金币{mission.startsAt ? ` · 开始 ${new Date(mission.startsAt).toLocaleString('zh-CN')}` : ''}{mission.endsAt ? ` · 结束 ${new Date(mission.endsAt).toLocaleString('zh-CN')}` : ''}
                 </p>
               </div>
-              {canManage && <Button variant="outline" size="sm" leadingIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => edit(mission)}>编辑</Button>}
+              {canManage && <div className="flex flex-wrap items-center gap-2">{!mission.isActive && <span className="text-xs text-muted-foreground">历史领取 {mission.referenceCount} 条</span>}<Button variant="outline" size="sm" leadingIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => edit(mission)}>编辑</Button>{!mission.isActive && mission.referenceCount === 0 && <Button variant="danger" size="sm" onClick={() => { setError(''); setDeleteReason(''); setDeleting(mission); }}>删除</Button>}</div>}
             </article>
           ))}</div>}
       </AdminPanel>
       <Dialog
         open={!!draft}
-        onClose={() => setDraft(null)}
+        onClose={() => { if (saving) return; if (dirty && !window.confirm('当前任务有未保存修改，确定关闭并放弃吗？')) return; setDirty(false); setDraft(null); }}
         title={draft?.id ? '编辑任务' : '新建任务'}
         description="保存后立即按新的核验条件发放，历史领取记录不受影响。"
         size="lg"
         footer={
           <>
-            <Button variant="ghost" disabled={saving} onClick={() => setDraft(null)}>取消</Button>
+            <Button variant="ghost" disabled={saving} onClick={() => { if (saving) return; if (dirty && !window.confirm('当前任务有未保存修改，确定关闭并放弃吗？')) return; setDirty(false); setDraft(null); }}>取消</Button>
             <Button loading={saving} disabled={saving} onClick={() => void save()}>保存任务</Button>
           </>
         }
@@ -142,6 +143,9 @@ export function MissionManagement({ sessionActive, canManage, missions, onSaved 
             {error && <div className="sm:col-span-2"><AdminNotice tone="error" title={error} /></div>}
           </form>
         )}
+      </Dialog>
+      <Dialog open={!!deleting} onClose={() => { if (!saving) setDeleting(null); }} title="删除已停用任务" description="仅允许删除没有任何用户领取记录的任务；删除后不可恢复。" size="md" footer={<><Button variant="ghost" disabled={saving} onClick={() => setDeleting(null)}>取消</Button><Button variant="danger" loading={saving} disabled={saving || !deleteReason.trim()} onClick={async () => { if (!deleting) return; setSaving(true); setError(''); try { const response = await fetch(`${API.admin.growth.missions}/${encodeURIComponent(deleting.id)}`, {method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({version: deleting.version, reason: deleteReason.trim()})}); const data = await response.json(); if (!response.ok) throw Error(data.error || '任务删除失败。'); setDeleting(null); onSaved(); } catch (e) { setError(e instanceof Error ? e.message : '任务删除失败。'); } finally { setSaving(false); } }}>确认删除</Button></>}>
+        {deleting && <p className="mb-3 text-sm text-muted-foreground">当前关联领取记录：{deleting.referenceCount} 条。</p>}{error && <AdminNotice tone="error" title={error} className="mb-3" />}<label className="block space-y-1.5"><span className="text-sm font-medium">删除理由</span><Textarea required maxLength={500} rows={3} value={deleteReason} onChange={event => setDeleteReason(event.target.value)} /></label>
       </Dialog>
     </>
   );

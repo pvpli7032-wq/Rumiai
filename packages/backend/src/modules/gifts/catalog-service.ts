@@ -19,7 +19,7 @@ export async function readPublicGiftCatalog(){
 
 export async function readManagedGiftCatalog(actor:string){
   await pragmasReady;
-  return db.$transaction(async tx=>{await requireGrowth(actor,'growth.read',tx);return {gifts:await tx.giftCatalogItem.findMany({orderBy:[{sortOrder:'asc'},{createdAt:'asc'},{id:'asc'}],take:100})};});
+  return db.$transaction(async tx=>{await requireGrowth(actor,'growth.read',tx);const gifts=await tx.giftCatalogItem.findMany({orderBy:[{sortOrder:'asc'},{createdAt:'asc'},{id:'asc'}],take:100});const ids=gifts.map(item=>item.id),codes=gifts.map(item=>item.code);const [linked,legacy]=await Promise.all([ids.length?tx.gift.groupBy({by:['catalogId'],where:{catalogId:{in:ids}},_count:{_all:true}}):[],codes.length?tx.gift.groupBy({by:['giftType'],where:{catalogId:null,giftType:{in:codes}},_count:{_all:true}}):[]]);const counts=new Map<string,number>();for(const row of linked)if(row.catalogId)counts.set(row.catalogId,(counts.get(row.catalogId)??0)+row._count._all);for(const row of legacy){const item=gifts.find(gift=>gift.code===row.giftType);if(item)counts.set(item.id,(counts.get(item.id)??0)+row._count._all);}return {gifts:gifts.map(item=>({...item,referenceCount:counts.get(item.id)??0}))};});
 }
 
 export async function saveGiftCatalogItem(actor:string,input:unknown){
@@ -54,5 +54,27 @@ export async function saveGiftCatalogItem(actor:string,input:unknown){
   }).catch(error=>{
     if(typeof error==='object'&&error!==null&&'code'in error&&error.code==='P2002')throw new GiftCatalogError('礼物代码已存在。',409);
     throw error;
+  });
+}
+
+/** Delete only an inactive catalog item with no historical gift transactions. */
+export async function deleteGiftCatalogItem(actor:string,id:string,input:unknown){
+  const body=object(input);
+  if(typeof body.reason!=='string'||!body.reason.trim()||body.reason.trim().length>500)throw new GiftCatalogError('请填写 1–500 字操作理由。');
+  const reason=body.reason.trim();
+  if(!Number.isSafeInteger(body.version)||Number(body.version)<0)throw new GiftCatalogError('礼物版本无效，请刷新后重试。');
+  if(!/^[-A-Za-z0-9_]{1,100}$/.test(id))throw new GiftCatalogError('礼物编号无效。');
+  await pragmasReady;
+  return db.$transaction(async tx=>{
+    await claimWriter(tx,actor);await requireGrowth(actor,'growth.manage',tx);
+    const before=await tx.giftCatalogItem.findUnique({where:{id}});
+    if(!before)throw new GiftCatalogError('礼物不存在。',404);
+    if(before.version!==body.version)throw new GiftCatalogError('礼物目录已被其他操作修改，请刷新后重试。',409);
+    if(before.isActive)throw new GiftCatalogError('请先停用礼物，再执行删除。',409);
+    const references=await tx.gift.count({where:{OR:[{catalogId:id},{catalogId:null,giftType:before.code}]}});
+    if(references>0)throw new GiftCatalogError(`礼物已有 ${references} 条赠送记录，不能删除；请保留为停用状态。`,409);
+    await tx.giftCatalogItem.delete({where:{id}});
+    await recordAdminAudit(tx,actor,'DELETE_GIFT_CATALOG',id,reason,{before:{code:before.code,name:before.name,version:before.version,isActive:before.isActive}});
+    return {id,deleted:true};
   });
 }

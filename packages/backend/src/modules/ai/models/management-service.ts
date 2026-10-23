@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {hasAdminPermission} from '@rumiai/backend/modules/admin/authorization';
 import {recordAdminAudit} from '@rumiai/backend/modules/admin/management-service';
@@ -13,10 +14,62 @@ function reason(value:unknown){return text(value,'操作理由',300);}
 function expected(value:unknown){return integer(value,'版本信息',0,2147483647);}
 async function requirePermission(actorId:string,permission:'ai.models.read'|'ai.models.manage'|'ai.models.test'|'ai.providers.read',tx?:Parameters<typeof hasAdminPermission>[2]){if(!await hasAdminPermission(actorId,permission,tx))throw new AiModelError('当前账号没有此管理权限。',403);}
 function view(row:Awaited<ReturnType<typeof db.aiModel.findMany>>[number]&{provider:{id:string;name:string;isActive:boolean}}){return {...row,provider:{id:row.provider.id,name:row.provider.name,isActive:row.provider.isActive}};}
+type ModelReferences={characterBindings:number;conversationBindings:number;modelPrices:number;coinPrices:number;aiCalls:number;taskSettings:number};
+async function modelReferences(tx:Prisma.TransactionClient,model:{id:string;key:string;modelCode:string}):Promise<ModelReferences>{
+  const [characterBindings,conversationBindings,modelPrices,coinPrices,aiCalls,settings]=await Promise.all([
+    tx.characterAiModel.count({where:{modelKey:model.key}}),
+    tx.conversation.count({where:{aiModel:{in:[model.key,model.modelCode]}}}),
+    tx.aiModelPrice.count({where:{modelId:model.id}}),
+    tx.modelCoinPrice.count({where:{modelId:model.id}}),
+    tx.aiCall.count({where:{model:{in:[model.key,model.modelCode]}}}),
+    tx.operationSetting.findMany({where:{key:{in:['ai.taskModel.chat','ai.taskModel.story','ai.taskModel.mirror','ai.taskModel.disputeVerdict','ai.taskModel.memorySummary']}},select:{value:true}}),
+  ]);
+  const taskSettings=settings.filter(row=>{try{return JSON.parse(row.value)===model.key;}catch{return false;}}).length;
+  return {characterBindings,conversationBindings,modelPrices,coinPrices,aiCalls,taskSettings};
+}
+async function modelReferencesBatch(tx:Prisma.TransactionClient,models:Array<{id:string;key:string;modelCode:string}>):Promise<Map<string,ModelReferences>>{
+  if(!models.length)return new Map();
+  const ids=models.map(model=>model.id),keys=[...new Set(models.flatMap(model=>[model.key,model.modelCode]))];
+  const [characters,conversations,prices,coinPrices,calls,settings]=await Promise.all([
+    tx.characterAiModel.findMany({where:{modelKey:{in:models.map(model=>model.key)}},select:{modelKey:true}}),
+    tx.conversation.groupBy({by:['aiModel'],where:{aiModel:{in:keys}},_count:{_all:true}}),
+    tx.aiModelPrice.findMany({where:{modelId:{in:ids}},select:{modelId:true}}),
+    tx.modelCoinPrice.findMany({where:{modelId:{in:ids}},select:{modelId:true}}),
+    tx.aiCall.groupBy({by:['model'],where:{model:{in:keys}},_count:{_all:true}}),
+    tx.operationSetting.findMany({where:{key:{in:['ai.taskModel.chat','ai.taskModel.story','ai.taskModel.mirror','ai.taskModel.disputeVerdict','ai.taskModel.memorySummary']}},select:{value:true}}),
+  ]);
+  const result=new Map<string,ModelReferences>();
+  for(const model of models){
+    const aliases=new Set([model.key,model.modelCode]);
+    result.set(model.id,{characterBindings:characters.filter(row=>row.modelKey===model.key).length,conversationBindings:conversations.filter(row=>row.aiModel!==null&&aliases.has(row.aiModel)).reduce((total,row)=>total+row._count._all,0),modelPrices:prices.filter(row=>row.modelId===model.id).length,coinPrices:coinPrices.filter(row=>row.modelId===model.id).length,aiCalls:calls.filter(row=>row.model!==null&&aliases.has(row.model)).reduce((total,row)=>total+row._count._all,0),taskSettings:settings.filter(row=>{try{return JSON.parse(row.value)===model.key;}catch{return false;}}).length});
+  }
+  return result;
+}
 
 export async function readAiModels(actorId:string){
   await requirePermission(actorId,'ai.models.read');
-  return db.$transaction(async tx=>{await requirePermission(actorId,'ai.models.read',tx);const rows=await tx.aiModel.findMany({include:{provider:{select:{id:true,name:true,isActive:true}}},orderBy:[{sortOrder:'asc'},{key:'asc'}],take:200});return rows.map(view);});
+  return db.$transaction(async tx=>{await requirePermission(actorId,'ai.models.read',tx);const rows=await tx.aiModel.findMany({include:{provider:{select:{id:true,name:true,isActive:true}}},orderBy:[{sortOrder:'asc'},{key:'asc'}],take:200});const references=modelReferencesBatch(tx,rows);return Promise.resolve(references).then(referenceMap=>rows.map(row=>{const refs=referenceMap.get(row.id)??{characterBindings:0,conversationBindings:0,modelPrices:0,coinPrices:0,aiCalls:0,taskSettings:0};const hasReferences=Object.values(refs).some(value=>value>0);return {...view(row),references:refs,canDelete:!row.isActive&&!row.isDefault&&!row.isFallback&&!hasReferences};}));});
+}
+
+export async function deleteAiModel(actorId:string,id:string,input:unknown){
+  const row=object(input),reasonText=reason(row.reason),version=expected(row.version);
+  if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))throw new AiModelError('模型编号无效。');
+  await pragmasReady;
+  try{return await db.$transaction(async tx=>{
+    await tx.$executeRaw`UPDATE admin_operators SET version = version WHERE user_id = ${actorId}`;
+    await requirePermission(actorId,'ai.models.manage',tx);
+    const before=await tx.aiModel.findUnique({where:{id},select:{id:true,key:true,modelCode:true,isActive:true,isDefault:true,isFallback:true,version:true}});
+    if(!before)throw new AiModelError('模型不存在。',404);
+    if(before.version!==version)throw new AiModelError('模型配置已被其他人修改，请刷新后重试。',409);
+    if(before.isActive)throw new AiModelError('请先停用模型，再执行删除。',409);
+    if(before.isDefault)throw new AiModelError('默认模型不能直接删除，请先切换默认模型。',409);
+    if(before.isFallback)throw new AiModelError('备用模型不能直接删除，请先取消备用路由。',409);
+    const refs=await modelReferences(tx,before);
+    if(refs.characterBindings||refs.conversationBindings||refs.modelPrices||refs.coinPrices||refs.aiCalls||refs.taskSettings)throw new AiModelError(`模型仍有历史或运行引用（角色 ${refs.characterBindings} 个、会话 ${refs.conversationBindings} 个、成本价格 ${refs.modelPrices} 条、币价 ${refs.coinPrices} 条、AI 调用 ${refs.aiCalls} 条、任务模型设置 ${refs.taskSettings} 项）。历史应保留，请先停用模型并迁移运行配置；如需保留记录则不要删除。`,409);
+    await tx.aiModel.delete({where:{id}});
+    await recordAdminAudit(tx,actorId,'DELETE_AI_MODEL',id,reasonText,{before, references:refs});
+    return {id,deleted:true};
+  });}catch(error){if(error instanceof AiModelError)throw error;if((error as {code?:string})?.code==='P2003')throw new AiModelError('模型仍被其他数据引用，无法删除。',409);throw error;}
 }
 
 export async function saveAiModel(actorId:string,input:unknown){
