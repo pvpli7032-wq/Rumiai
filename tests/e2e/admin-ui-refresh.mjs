@@ -51,7 +51,7 @@ const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMI
 ], uncovered: [
   '未执行真实会员购买、退款、充值、支付商户验证。',
   '未执行后台任务、备份、恢复、维护模式、证书续签等危险运维动作。',
-  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的举报申诉、站点内容、财务与运维操作仍需逐组补测，不能由路由快照推定通过。',
+  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的举报申诉、财务与运维操作仍需逐组补测，不能由路由快照推定通过。',
 ]};
 
 function recordOperation(route, operation, details) {
@@ -413,6 +413,57 @@ try {
   assert.equal((await complianceRestoreReload).status(), 200);
   assert.equal(await admin.getByLabel('要求注册者确认达到最低年龄').isChecked(), complianceBefore.ageGateEnabled);
   recordOperation('/admin/compliance', '保存注册合规要求', {precondition: 'compliance.manage', api: 'PATCH /api/admin/compliance', persistence: 'compliance_policy + admin_audit_logs', normal: '通过并恢复原策略', refresh: '通过', failure: '非法年龄 400、过期版本 409', repeated: '同步双击仅一次 PATCH', status: '通过'});
+
+  // Site content: create and reload a real banner draft, publish it, inspect its
+  // revision, unpublish it, and prove invalid href/version failures are visible.
+  await admin.goto(`${adminOrigin}/admin/site-content`);
+  await admin.getByRole('button', {name: '新增草稿'}).click();
+  let siteContentDialog = admin.getByRole('dialog', {name: '新增内容草稿'});
+  await siteContentDialog.getByLabel('标题').fill('E2E 临时横幅');
+  await siteContentDialog.getByLabel('说明').fill('仅用于隔离站点内容操作验收。');
+  await siteContentDialog.getByLabel('站内跳转路径').fill('/discover');
+  await siteContentDialog.getByLabel('操作理由').fill('E2E 创建临时横幅草稿');
+  const siteContentCreates = [];
+  const countSiteContentCreate = request => { if (request.url().endsWith('/api/admin/site-content/BANNER') && request.method() === 'POST') siteContentCreates.push(request); };
+  admin.on('request', countSiteContentCreate);
+  const createSiteContentResponse = admin.waitForResponse(response => response.url().endsWith('/api/admin/site-content/BANNER') && response.request().method() === 'POST');
+  await siteContentDialog.getByRole('button', {name: '保存草稿'}).evaluate(button => {button.click(); button.click();});
+  const createSiteContent = await createSiteContentResponse;
+  assert.equal(createSiteContent.status(), 201);
+  const createdSiteContent = await createSiteContent.json();
+  await admin.waitForTimeout(200);
+  admin.off('request', countSiteContentCreate);
+  assert.equal(siteContentCreates.length, 1);
+  await admin.reload();
+  await admin.getByText('首页大图 · E2E 临时横幅', {exact: true}).waitFor({state: 'visible'});
+  await admin.getByRole('button', {name: '编辑与预览'}).last().click();
+  siteContentDialog = admin.getByRole('dialog', {name: '编辑站点内容'});
+  await siteContentDialog.getByLabel('标题').waitFor({state: 'visible'});
+  assert.equal(await siteContentDialog.getByLabel('标题').inputValue(), 'E2E 临时横幅');
+  await siteContentDialog.getByLabel('操作理由').fill('E2E 发布临时横幅');
+  const sitePublishWrites = [];
+  const countSitePublish = request => { if (request.url().endsWith(`/api/admin/site-content/BANNER/${createdSiteContent.id}`) && request.method() === 'PATCH') sitePublishWrites.push(request); };
+  admin.on('request', countSitePublish);
+  const publishSiteContentResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/site-content/BANNER/${createdSiteContent.id}`) && response.request().method() === 'PATCH');
+  await siteContentDialog.getByRole('button', {name: '立即发布'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await publishSiteContentResponse).status(), 200);
+  await admin.waitForTimeout(200);
+  admin.off('request', countSitePublish);
+  assert.equal(sitePublishWrites.length, 1);
+  await siteContentDialog.getByRole('button', {name: '查看发布历史'}).click();
+  await siteContentDialog.getByText(/版本 \d+ ·/).first().waitFor({state: 'visible'});
+  await siteContentDialog.getByLabel('操作理由').fill('E2E 下架临时横幅');
+  const unpublishSiteContentResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/site-content/BANNER/${createdSiteContent.id}`) && response.request().method() === 'PATCH');
+  await siteContentDialog.getByRole('button', {name: '下架'}).click();
+  assert.equal((await unpublishSiteContentResponse).status(), 200);
+  const siteContentState = await admin.request.get(`${adminOrigin}/api/admin/site-content`);
+  const siteContentRow = (await siteContentState.json()).BANNER.items.find(row => row.id === createdSiteContent.id);
+  assert.equal(siteContentRow.status, 'UNPUBLISHED');
+  const invalidSiteContent = await admin.request.post(`${adminOrigin}/api/admin/site-content/BANNER`, {data: {action: 'SAVE', reason: 'E2E 非法外链', content: {...siteContentRow.content, title: '非法横幅', href: 'https://example.test'}}});
+  assert.equal(invalidSiteContent.status(), 400);
+  const staleSiteContent = await admin.request.patch(`${adminOrigin}/api/admin/site-content/BANNER/${createdSiteContent.id}`, {data: {action: 'SAVE', reason: 'E2E 过期内容版本', version: Math.max(0, siteContentRow.version - 1), content: siteContentRow.content}});
+  assert.equal(staleSiteContent.status(), 409);
+  recordOperation('/admin/site-content', '横幅草稿新增/刷新/发布/历史/下架', {precondition: 'site.content.manage + site.content.publish', api: 'POST/PATCH/GET /api/admin/site-content', persistence: '站点横幅 + site_content_drafts/revisions + admin_audit_logs', normal: '通过（隔离数据库）', refresh: '通过', failure: '外部链接 400、过期版本 409', repeated: '同步双击仅一次 POST/PATCH', status: '通过'});
 
   // Accounts: edit profile, reload persistence, community ban/unban, suspend/restore,
   // session revocation, stale-version rejection, and synchronous duplicate protection.
