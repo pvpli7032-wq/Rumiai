@@ -51,7 +51,7 @@ const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMI
 ], uncovered: [
   '未执行真实会员购买、退款、充值、支付商户验证。',
   '未执行后台任务、备份、恢复、维护模式、证书续签等危险运维动作。',
-  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的字符、圈子、举报申诉、合规、内容与财务操作仍需逐组补测，不能由路由快照推定通过。',
+  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的举报申诉、站点内容、财务与运维操作仍需逐组补测，不能由路由快照推定通过。',
 ]};
 
 function recordOperation(route, operation, details) {
@@ -373,6 +373,47 @@ try {
   await admin.getByRole('button', {name: '保存本页'}).waitFor({state: 'hidden'});
   recordOperation('/admin/settings', '保存运营设置', {precondition: 'owner + settings.write', api: 'PATCH /api/admin/settings', persistence: 'operation_settings + setting_revisions', normal: '通过', refresh: '通过', failure: '越界值与版本冲突均可见', repeated: '同步双击仅一次 PATCH', status: '通过'});
 
+  // Compliance: persist the registration policy through the real form, reload it,
+  // prove validation/concurrency rejection, then restore the original fixture.
+  const complianceBeforeResponse = await admin.request.get(`${adminOrigin}/api/admin/compliance`);
+  assert.equal(complianceBeforeResponse.status(), 200);
+  const complianceBefore = (await complianceBeforeResponse.json()).policy;
+  await admin.goto(`${adminOrigin}/admin/compliance`);
+  const minimumAgeInput = admin.getByRole('spinbutton', {name: '最低年龄', exact: true});
+  await minimumAgeInput.waitFor({state: 'visible'});
+  await admin.getByLabel('要求注册者确认达到最低年龄').check();
+  await minimumAgeInput.fill('18');
+  await admin.getByLabel('年龄政策版本').fill('e2e-age-policy');
+  await admin.getByLabel('服务条款版本').fill('e2e-terms');
+  await admin.getByLabel('隐私政策版本').fill('e2e-privacy');
+  await admin.getByLabel('变更理由').fill('E2E 合规设置持久化验收');
+  const complianceWrites = [];
+  const countComplianceWrite = request => { if (request.url().endsWith('/api/admin/compliance') && request.method() === 'PATCH') complianceWrites.push(request); };
+  admin.on('request', countComplianceWrite);
+  const complianceSave = admin.waitForResponse(response => response.url().endsWith('/api/admin/compliance') && response.request().method() === 'PATCH');
+  await admin.getByRole('button', {name: '保存设置'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await complianceSave).status(), 200);
+  await admin.waitForTimeout(200);
+  admin.off('request', countComplianceWrite);
+  assert.equal(complianceWrites.length, 1);
+  const complianceReload = admin.waitForResponse(response => response.url().endsWith('/api/admin/compliance') && response.request().method() === 'GET');
+  await admin.reload();
+  assert.equal((await complianceReload).status(), 200);
+  assert.equal(await admin.getByRole('spinbutton', {name: '最低年龄', exact: true}).inputValue(), '18');
+  assert.equal(await admin.getByLabel('服务条款版本').inputValue(), 'e2e-terms');
+  const complianceCurrent = (await (await admin.request.get(`${adminOrigin}/api/admin/compliance`)).json()).policy;
+  const invalidCompliance = await admin.request.patch(`${adminOrigin}/api/admin/compliance`, {data: {...complianceCurrent, minimumAge: 0, reason: 'E2E 非法年龄'}});
+  assert.equal(invalidCompliance.status(), 400);
+  const staleCompliance = await admin.request.patch(`${adminOrigin}/api/admin/compliance`, {data: {...complianceCurrent, version: complianceCurrent.version - 1, reason: 'E2E 过期版本'}});
+  assert.equal(staleCompliance.status(), 409);
+  const restoreCompliance = await admin.request.patch(`${adminOrigin}/api/admin/compliance`, {data: {...complianceBefore, version: complianceCurrent.version, reason: 'E2E 恢复原合规设置'}});
+  assert.equal(restoreCompliance.status(), 200);
+  const complianceRestoreReload = admin.waitForResponse(response => response.url().endsWith('/api/admin/compliance') && response.request().method() === 'GET');
+  await admin.reload();
+  assert.equal((await complianceRestoreReload).status(), 200);
+  assert.equal(await admin.getByLabel('要求注册者确认达到最低年龄').isChecked(), complianceBefore.ageGateEnabled);
+  recordOperation('/admin/compliance', '保存注册合规要求', {precondition: 'compliance.manage', api: 'PATCH /api/admin/compliance', persistence: 'compliance_policy + admin_audit_logs', normal: '通过并恢复原策略', refresh: '通过', failure: '非法年龄 400、过期版本 409', repeated: '同步双击仅一次 PATCH', status: '通过'});
+
   // Accounts: edit profile, reload persistence, community ban/unban, suspend/restore,
   // session revocation, stale-version rejection, and synchronous duplicate protection.
   const managedAccount = seededContent.contentUsers[5];
@@ -682,6 +723,96 @@ try {
   await mobileDetail.getByRole('button', {name: '关闭详情'}).click();
   await mobileDetail.waitFor({state: 'hidden'});
 
+  // Characters: create an isolated site-owned draft through the real editor, prove
+  // duplicate suppression and reload persistence, exercise a rejected payload, then
+  // use the guarded UI deletion path to leave no fixture behind.
+  await admin.setViewportSize({width: 1440, height: 1000});
+  await admin.goto(`${adminOrigin}/admin/characters`);
+  await admin.getByRole('button', {name: '新增角色'}).click();
+  let characterDialog = admin.getByRole('dialog', {name: '新增角色'});
+  await characterDialog.getByLabel('角色名称').fill('E2E 临时站点角色');
+  await characterDialog.getByLabel('人设').fill('仅用于隔离后台操作验收。');
+  await characterDialog.getByLabel('版权声明').fill('E2E 测试数据，无外部版权内容。');
+  await characterDialog.getByLabel('操作理由').fill('E2E 创建后删除的临时草稿');
+  const characterCreates = [];
+  const countCharacterCreate = request => { if (request.url().endsWith('/api/admin/characters') && request.method() === 'POST') characterCreates.push(request); };
+  admin.on('request', countCharacterCreate);
+  const createCharacterResponse = admin.waitForResponse(response => response.url().endsWith('/api/admin/characters') && response.request().method() === 'POST');
+  await characterDialog.getByRole('button', {name: '保存角色内容'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await createCharacterResponse).status(), 201);
+  await admin.getByText('角色内容已保存，公开状态由发布流程管理。', {exact: true}).first().waitFor({state: 'visible'});
+  await admin.waitForTimeout(200);
+  admin.off('request', countCharacterCreate);
+  assert.equal(characterCreates.length, 1, 'character synchronous double click must create one draft');
+  const createdCharacter = await fixture.db.character.findFirstOrThrow({where: {name: 'E2E 临时站点角色', creatorId: null}});
+  await admin.reload();
+  await admin.getByPlaceholder('名称、简介或角色编号').fill(createdCharacter.id);
+  await admin.getByRole('button', {name: '搜索角色'}).click();
+  await admin.getByRole('button', {name: '查看角色 E2E 临时站点角色'}).click();
+  characterDialog = admin.getByRole('dialog', {name: /角色详情/});
+  await characterDialog.getByLabel('角色名称').waitFor({state: 'visible'});
+  assert.equal(await characterDialog.getByLabel('角色名称').inputValue(), 'E2E 临时站点角色');
+  const invalidCharacter = await admin.request.post(`${adminOrigin}/api/admin/characters`, {data: {reason: 'E2E 非法字段', content: {name: '非法角色', personality: '非法字段测试', rogue: true}}});
+  assert.equal(invalidCharacter.status(), 400);
+  await characterDialog.getByRole('button', {name: '删除草稿 / 查看原因'}).click();
+  const deleteCharacterDialog = admin.getByRole('dialog', {name: '删除角色草稿'});
+  await deleteCharacterDialog.getByLabel('删除理由').fill('E2E 操作完成后清理临时草稿');
+  const deleteCharacterResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/characters/${createdCharacter.id}`) && response.request().method() === 'DELETE');
+  await deleteCharacterDialog.getByRole('button', {name: '确认删除'}).click();
+  assert.equal((await deleteCharacterResponse).status(), 200);
+  await deleteCharacterDialog.waitFor({state: 'hidden'});
+  assert.equal(await fixture.db.character.findUnique({where: {id: createdCharacter.id}}), null);
+  recordOperation('/admin/characters', '站点角色草稿新增/刷新/删除', {precondition: 'characters.write', api: 'POST/GET/DELETE /api/admin/characters', persistence: 'characters + 素材关系 + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: '不支持字段 400', repeated: '同步双击仅一次 POST', status: '通过'});
+
+  // Circles: create hidden, reject featuring while hidden, then restore, feature,
+  // unfeature and hide again. The isolated row is removed directly after UI coverage
+  // because the product intentionally has no circle deletion operation.
+  await admin.goto(`${adminOrigin}/admin/circles`);
+  await admin.getByRole('button', {name: '新增站点圈子'}).click();
+  let circleDialog = admin.getByRole('dialog', {name: '新增站点圈子'});
+  await circleDialog.getByLabel('管理圈子名称').fill('E2E 临时站点圈子');
+  await circleDialog.getByLabel('管理圈子介绍').fill('仅用于隔离后台完整操作验收。');
+  await circleDialog.getByLabel('管理圈子标签').fill('e2e,temporary');
+  await circleDialog.getByLabel('圈子操作理由').fill('E2E 创建临时圈子');
+  const circleCreates = [];
+  const countCircleCreate = request => { if (request.url().endsWith('/api/admin/circles') && request.method() === 'POST') circleCreates.push(request); };
+  admin.on('request', countCircleCreate);
+  const createCircleResponse = admin.waitForResponse(response => response.url().endsWith('/api/admin/circles') && response.request().method() === 'POST');
+  await circleDialog.getByRole('button', {name: '创建站点圈子'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await createCircleResponse).status(), 201);
+  await admin.getByText('圈子操作已完成。', {exact: true}).first().waitFor({state: 'visible'});
+  await admin.waitForTimeout(200);
+  admin.off('request', countCircleCreate);
+  assert.equal(circleCreates.length, 1, 'circle synchronous double click must create one row');
+  let createdCircle = await fixture.db.circle.findFirstOrThrow({where: {name: 'E2E 临时站点圈子', ownerId: null}});
+  assert.equal(createdCircle.status, 'HIDDEN');
+  const invalidFeature = await admin.request.patch(`${adminOrigin}/api/admin/circles/${createdCircle.id}`, {data: {action: 'FEATURE', reason: 'E2E 隐藏圈子不可推荐', updatedAt: createdCircle.updatedAt.toISOString()}});
+  assert.equal(invalidFeature.status(), 409);
+  await admin.reload();
+  await admin.getByLabel('搜索管理圈子').fill(createdCircle.id);
+  await admin.getByRole('button', {name: '搜索圈子'}).click();
+  await admin.getByRole('button', {name: '查看圈子 E2E 临时站点圈子'}).click();
+  circleDialog = admin.getByRole('dialog', {name: /圈子详情/});
+  await circleDialog.getByLabel('管理圈子名称').waitFor({state: 'visible'});
+  for (const [reason, action, expected] of [
+    ['E2E 恢复公开', '恢复公开', {status: 'ACTIVE', isFeatured: false}],
+    ['E2E 推荐圈子', '推荐圈子', {status: 'ACTIVE', isFeatured: true}],
+    ['E2E 取消推荐', '取消推荐', {status: 'ACTIVE', isFeatured: false}],
+    ['E2E 恢复隐藏', '隐藏圈子', {status: 'HIDDEN', isFeatured: false}],
+  ]) {
+    await circleDialog.getByLabel('圈子操作理由').fill(reason);
+    const circleActionResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/circles/${createdCircle.id}`) && response.request().method() === 'PATCH');
+    await circleDialog.getByRole('button', {name: action, exact: true}).click();
+    assert.equal((await circleActionResponse).status(), 200);
+    createdCircle = await fixture.db.circle.findUniqueOrThrow({where: {id: createdCircle.id}});
+    assert.equal(createdCircle.status, expected.status);
+    assert.equal(createdCircle.isFeatured, expected.isFeatured);
+  }
+  await circleDialog.getByRole('button', {name: '关闭详情'}).last().click();
+  await circleDialog.waitFor({state: 'hidden'});
+  await fixture.db.circle.delete({where: {id: createdCircle.id}});
+  recordOperation('/admin/circles', '站点圈子新增/刷新/公开/推荐/隐藏', {precondition: 'community.write', api: 'POST/GET/PATCH /api/admin/circles', persistence: 'circles + admin_audit_logs', normal: '五类动作通过并清理隔离行', refresh: '通过', failure: '隐藏圈子推荐 409', repeated: '同步双击仅一次 POST', status: '通过'});
+
   // Seeded character/circle records must open real GET-backed drawers. Exercise
   // dirty close cancellation and acceptance without submitting a new draft.
   await admin.setViewportSize({width: 1440, height: 1000});
@@ -689,7 +820,7 @@ try {
   await admin.getByPlaceholder('名称、简介或角色编号').fill(seededContent.character.name);
   await admin.getByRole('button', {name: '搜索角色'}).click();
   await admin.getByRole('button', {name: `查看角色 ${seededContent.character.name}`}).click();
-  const characterDialog = admin.getByRole('dialog', {name: /角色详情/});
+  characterDialog = admin.getByRole('dialog', {name: /角色详情/});
   await characterDialog.waitFor({state: 'visible'});
   await characterDialog.getByRole('status').getByText('正在读取角色详情…', {exact: true}).waitFor({state: 'hidden'});
   await characterDialog.getByLabel('角色名称').fill('E2E 未保存角色');
@@ -709,7 +840,7 @@ try {
   await admin.getByLabel('搜索管理圈子').fill(seededContent.circle.name);
   await admin.getByRole('button', {name: '搜索圈子'}).click();
   await admin.getByRole('button', {name: `查看圈子 ${seededContent.circle.name}`}).click();
-  const circleDialog = admin.getByRole('dialog', {name: /圈子详情/});
+  circleDialog = admin.getByRole('dialog', {name: /圈子详情/});
   await circleDialog.waitFor({state: 'visible'});
   await circleDialog.getByRole('status').getByText('正在读取圈子详情…', {exact: true}).waitFor({state: 'hidden'});
   await circleDialog.getByLabel('管理圈子名称').fill('E2E 未保存圈子');
