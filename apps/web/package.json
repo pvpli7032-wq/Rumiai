@@ -1,0 +1,20 @@
+{
+  "name": "@rumiai/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3010",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3010",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rumiai/contracts": "0.0.0",
+    "@rumiai/ui": "0.0.0",
+    "next": "15.5.28",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "next-themes": "0.4.6",
+    "lucide-react": "0.468.0"
+  }
+}

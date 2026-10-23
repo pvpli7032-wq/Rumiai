@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-10-23T06:24:02.827Z",
+  "platform": "win32",
+  "node": "v22.23.2",
+  "migrationCount": 53,
+  "database": "temporary SQLite per test; removed after each run",
+  "sourceState": "local working tree; not deployed",
+  "results": [
+    {
+      "test": "tests/integration/membership-core.test.ts",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "test": "tests/integration/membership-benefits.test.ts",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "tests": 4,
+        "pass": 4,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "test": "tests/integration/membership-payments.test.ts",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "tests": 6,
+        "pass": 6,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "test": "tests/integration/membership-workflow.test.ts",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "tests": 4,
+        "pass": 4,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "test": "tests/integration/membership-billing.test.ts",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "tests": 5,
+        "pass": 5,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "test": "tests/integration/membership-character.test.ts",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "tests": 4,
+        "pass": 4,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "test": "tests/integration/membership-routes.test.ts",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "tests": 3,
+        "pass": 3,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "test": "tests/integration/membership-finance.test.ts",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      }
+    }
+  ]
+}

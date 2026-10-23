@@ -23,22 +23,31 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@api/*": ["./apps/api/src/*"],
+      "@admin/*": ["./apps/admin/src/*"],
+      "@web/*": ["./apps/web/src/*"],
+      "@/components/*": ["./apps/web/src/components/*"],
+      "@/app/*": ["./apps/web/src/app/*"],
+      "@rumiai/ui": ["./packages/ui/src/index.ts"],
+      "@rumiai/ui/*": ["./packages/ui/src/*"],
+      "@rumiai/contracts/*": ["./packages/contracts/src/*"],
+      "@rumiai/backend/*": ["./packages/backend/src/*"],
+      "@/*": ["./apps/web/src/*"]
     },
     "tsBuildInfoFile": "./.next/cache/typecheck.tsbuildinfo"
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "prisma/**/*.ts",
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "tests/**/*.ts",
+    "database/**/*.ts",
     "tailwind.config.ts",
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
-    ".next-build/types/**/*.ts"
+    "next-env.d.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "apps/**/.next*/**"
   ]
 }

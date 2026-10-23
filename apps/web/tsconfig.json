@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./.next/cache/typecheck.tsbuildinfo",
+    "baseUrl": ".",
+    "paths": {
+      "@web/*": ["./src/*"],
+      "@/*": ["./src/*"],
+      "@rumiai/ui/*": ["../../packages/ui/src/*"],
+      "@rumiai/contracts/*": ["../../packages/contracts/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "next-env.d.ts", ".next/types/**/*.ts", ".next-build/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

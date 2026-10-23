@@ -1,0 +1,3787 @@
+{
+  "description": "Current source route map. Authentication calls are an inventory, not proof of permission coverage. Listed routes are not automatically functionally verified.",
+  "counts": {
+    "web": 39,
+    "admin": 26,
+    "api": 199
+  },
+  "routes": [
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/accounts",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/accounts/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/ai/costs",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/ai/costs/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/ai/models",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/ai/models/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/ai/providers",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/ai/providers/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/analytics",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/analytics/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/audit",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/audit/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/characters",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/characters/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/circles",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/circles/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/community/comments",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/community/comments/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/community/posts",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/community/posts/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/compliance",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/compliance/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/disputes",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/disputes/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/finance",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/finance/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/growth",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/growth/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/login",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin-auth)/admin/login/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/memberships",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/memberships/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/mirror",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/mirror/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/moderation",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/moderation/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/notifications",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/notifications/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/operations",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/operations/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/operators",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/operators/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/payments/merchants",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/payments/merchants/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/settings",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/settings/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/site-content",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/site-content/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "admin",
+      "kind": "page",
+      "url": "/admin/tasks",
+      "methods": [],
+      "source": "apps/admin/src/app/(admin)/admin/tasks/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/accounts",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/accounts/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/accounts/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/accounts/[id]",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/accounts/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/accounts/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/accounts/[id]/profile",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/accounts/[id]/profile/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/accounts/admin-profile-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/accounts/[id]/settings",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/admin/accounts/[id]/settings/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/accounts/management-service",
+        "@rumiai/backend/modules/settings/index"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/accounts/[id]/settings/[key]",
+      "methods": [
+        "DELETE"
+      ],
+      "source": "apps/api/src/app/api/admin/accounts/[id]/settings/[key]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/accounts/management-service",
+        "@rumiai/backend/modules/settings/index"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/coin-prices",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/coin-prices/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/coin-prices-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/costs",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/costs/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/ai/costs/budget-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/models",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/models/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/ai/models/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/models/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/models/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/ai/models/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/models/[id]/test",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/models/[id]/test/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/ai/models/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/prices",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/prices/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/ai/costs/model-price-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/providers",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/providers/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/ai/providers/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/providers/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/providers/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/ai/providers/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/ai/providers/[id]/test",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/ai/providers/[id]/test/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/ai/providers/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/analytics",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/analytics/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/analytics/report-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/analytics/ops-metrics",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/analytics/ops-metrics/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/database/client",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/admin/authorization",
+        "@rumiai/backend/modules/analytics/ops-metrics-report-service",
+        "@rumiai/backend/modules/analytics/product-funnel-report-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/analytics/product-funnel",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/analytics/product-funnel/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/analytics/product-funnel-report-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/analytics/scene-funnel",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/analytics/scene-funnel/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/analytics/scene-funnel-report-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/audit",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/audit/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/admin/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/auth/login",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/auth/login/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http/body",
+        "@rumiai/backend/infrastructure/http/client-ip",
+        "@rumiai/backend/infrastructure/http/errors",
+        "@rumiai/backend/infrastructure/http/rate-limit",
+        "@rumiai/backend/modules/admin-auth/cookies",
+        "@rumiai/backend/modules/admin-auth/service",
+        "@rumiai/backend/modules/settings/limits"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/auth/logout",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/auth/logout/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http/errors",
+        "@rumiai/backend/modules/admin-auth/cookies",
+        "@rumiai/backend/modules/admin-auth/service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/auth/session",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/auth/session/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/cookies",
+        "@rumiai/backend/modules/admin-auth/service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/billing/charges",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/billing/charges/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/charges-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/characters",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/characters/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/characters/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/characters/[id]",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/admin/characters/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/characters/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/characters/[id]/models",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/admin/characters/[id]/models/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/characters/model-access-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/characters/[id]/publication",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/characters/[id]/publication/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/characters/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/characters/publication",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/characters/publication/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/characters/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/circles",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/circles/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/circles/errors",
+        "@rumiai/backend/modules/circles/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/circles/[id]",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/circles/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/circles/errors",
+        "@rumiai/backend/modules/circles/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/circles/[id]/members",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/circles/[id]/members/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/circles/membership-management"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/circles/[id]/members/[userId]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/circles/[id]/members/[userId]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/circles/errors",
+        "@rumiai/backend/modules/circles/membership-management"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/community/comments",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/community/comments/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/posts/service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/community/comments/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/community/comments/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/posts/service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/community/posts",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/community/posts/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/posts/service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/community/posts/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/community/posts/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/posts/service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/compliance",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/compliance/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/compliance/policy-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/disputes/cases",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/disputes/cases/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/dispute-cases-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/disputes/cases/[id]/close",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/disputes/cases/[id]/close/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/dispute-cases-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/disputes/cases/[id]/hide",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/disputes/cases/[id]/hide/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/dispute-cases-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/callback-alerts",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/callback-alerts/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/payments/callback-alert-service",
+        "@rumiai/backend/modules/payments/finance-auth"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/orders",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/orders/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/payments/finance-auth",
+        "@rumiai/backend/modules/payments/refund-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/orders/[orderNo]/refund",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/orders/[orderNo]/refund/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/payments/finance-auth",
+        "@rumiai/backend/modules/payments/refund-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/orders/all",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/orders/all/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/payments/finance-auth",
+        "@rumiai/backend/modules/payments/order-management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/orders/export",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/orders/export/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/payments/finance-auth",
+        "@rumiai/backend/modules/payments/order-management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/packages",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/packages/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/coins/package-management",
+        "@rumiai/backend/modules/payments/finance-auth"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/packages/[id]",
+      "methods": [
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/packages/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/coins/package-management",
+        "@rumiai/backend/modules/payments/finance-auth"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/reconciliation",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/reconciliation/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/payments/finance-auth",
+        "@rumiai/backend/modules/payments/statement-reconciliation-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/reconciliation/[id]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/reconciliation/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/payments/finance-auth",
+        "@rumiai/backend/modules/payments/statement-reconciliation-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/finance/report",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/finance/report/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/payments/finance-auth",
+        "@rumiai/backend/modules/payments/reconciliation-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/growth/checkins",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/checkins/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/checkins/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/growth/gifts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/gifts/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/gifts/catalog-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/growth/gifts/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/gifts/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/gifts/catalog-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/growth/missions",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/missions/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/missions/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/growth/missions/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/missions/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/missions/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/growth/rewards",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/rewards/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/growth/reward-budget-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/memberships",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/memberships/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/memberships/service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/mirror/results",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/mirror/results/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/mirror-results-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/mirror/results/[id]",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/mirror/results/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/mirror-results-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/moderation/appeals",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/moderation/appeals/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/community/moderation-read-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/moderation/appeals/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/moderation/appeals/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/community/moderation-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/moderation/audit",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/moderation/audit/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/community/moderation-read-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/moderation/characters",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/moderation/characters/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/characters/review-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/moderation/characters/[id]",
+      "methods": [
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/admin/moderation/characters/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/characters/review-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/moderation/characters/batch",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/moderation/characters/batch/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/characters/review-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/moderation/reports",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/moderation/reports/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/community/moderation-read-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/moderation/reports/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/moderation/reports/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/community/moderation-service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/notifications/stats",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/notifications/stats/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/database/client",
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/notifications/stats"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/operations",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/operations/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/operations/report-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/operations/backups",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/operations/backups/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/operations/backup-read-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/operations/certificate",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/operations/certificate/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/operations/certificate-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/operations/maintenance",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/operations/maintenance/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/operations/maintenance-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/operators",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/operators/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/admin/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/operators/lookup",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/operators/lookup/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/admin/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/payments/checkout",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/admin/payments/checkout/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/payments/checkout-policy-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/payments/merchants",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/payments/merchants/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/payments/merchant-config-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/payments/merchants/[id]/test",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/payments/merchants/[id]/test/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/payments/merchant-config-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/roles",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/roles/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/admin/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/settings",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/settings/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/settings/index"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/settings/export",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/settings/export/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/settings/history",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/settings/history/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/settings/index"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/settings/import",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/settings/import/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/settings/import/confirm",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/settings/import/confirm/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/settings/index"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/settings/prompts/preview",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/settings/prompts/preview/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/ai/ai-usage",
+        "@rumiai/backend/modules/ai/models/runtime-service",
+        "@rumiai/backend/modules/ai/types",
+        "@rumiai/backend/modules/conversations/chat-stream",
+        "@rumiai/backend/modules/settings/index"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/settings/restore",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/settings/restore/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/settings/index"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/site-content",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/site-content/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/site-content/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/site-content/[type]",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/site-content/[type]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/site-content/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/site-content/[type]/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/admin/site-content/[type]/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/site-content/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/site-content/[type]/[id]/revisions",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/site-content/[type]/[id]/revisions/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/site-content/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/site-content/[type]/[id]/revisions/[revisionId]/restore",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/site-content/[type]/[id]/revisions/[revisionId]/restore/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/site-content/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/tasks",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/tasks/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/tasks-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/tasks/[id]/run",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/admin/tasks/[id]/run/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/admin/tasks-admin"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/ai/models",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/ai/models/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/ai/models/runtime-service",
+        "@rumiai/backend/modules/conversations/conversation-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/ai/usage",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/ai/usage/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/ai/ai-usage"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/analytics/funnel-events",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/analytics/funnel-events/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/analytics/scene-funnel-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/auth/login",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/auth/login/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/auth/auth-cookies",
+        "@rumiai/backend/infrastructure/http/client-ip",
+        "@rumiai/backend/infrastructure/http/rate-limit",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/login-service",
+        "@rumiai/backend/modules/settings/limits"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/auth/logout",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/auth/logout/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/auth/auth-cookies",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/session-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/auth/me",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/auth/me/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/accounts/profile-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/auth/register",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/auth/register/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/auth/auth-cookies",
+        "@rumiai/backend/infrastructure/auth/user-identity",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/registration-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/characters/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/catalog-service",
+        "@rumiai/backend/modules/characters/creator-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters/[id]",
+      "methods": [
+        "DELETE",
+        "GET",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/characters/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/catalog-service",
+        "@rumiai/backend/modules/characters/creator-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters/[id]/bookmark",
+      "methods": [
+        "DELETE",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/characters/[id]/bookmark/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/engagement-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters/[id]/comments",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/characters/[id]/comments/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/comment-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters/[id]/gift",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/characters/[id]/gift/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/gifts/send-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters/[id]/like",
+      "methods": [
+        "DELETE",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/characters/[id]/like/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/engagement-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters/[id]/quests",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/characters/[id]/quests/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/quest-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters/[id]/quests/[questId]/complete",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/characters/[id]/quests/[questId]/complete/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/quest-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/characters/reply-plan",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/characters/reply-plan/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/billing/reader-plan"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/checkin",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/checkin/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/checkins/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/checkin/status",
+      "methods": [],
+      "source": "apps/api/src/app/api/checkin/status/route.ts",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/circles",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/circles/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/circles/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/circles/[id]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/circles/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/circles/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/circles/[id]/posts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/circles/[id]/posts/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/auth/user-identity",
+        "@rumiai/backend/modules/posts/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/circles/[id]/subscription",
+      "methods": [
+        "DELETE",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/circles/[id]/subscription/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/circles/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/coins/ledger",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/coins/ledger/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http/errors",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/coins/ledger-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/coins/orders",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/coins/orders/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/payments/order-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/coins/orders/[orderNo]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/coins/orders/[orderNo]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/payments/order-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/coins/packages",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/coins/packages/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/coins/package-service",
+        "@rumiai/backend/modules/payments/merchant-config-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/coins/payments/ezfp/notify",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/coins/payments/ezfp/notify/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/payments/callback-alert-service",
+        "@rumiai/backend/modules/payments/settlement-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/coins/purchase",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/coins/purchase/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/payments/purchase-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/comments/[commentId]",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/comments/[commentId]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/comment-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/comments/[commentId]/like",
+      "methods": [
+        "DELETE",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/comments/[commentId]/like/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/comment-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/community-appeals",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/community-appeals/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/community/appeal-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/compliance/registration-policy",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/compliance/registration-policy/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/compliance/policy-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/conversations/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/conversations/conversation-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]",
+      "methods": [
+        "DELETE",
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/conversations/conversation-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/export",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/export/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/conversations/conversation-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/memory",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/memory/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/memory/index"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/memory/[factId]",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/memory/[factId]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/memory/index"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/memory/[factId]/confirm",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/memory/[factId]/confirm/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/memory/index"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/memory/[factId]/ignore",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/memory/[factId]/ignore/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/memory/index"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/messages",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/messages/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/conversations/chat-application-service",
+        "@rumiai/backend/modules/conversations/message-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/messages/[messageId]",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/messages/[messageId]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/conversations/message-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/messages/[messageId]/like",
+      "methods": [
+        "DELETE",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/messages/[messageId]/like/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/conversations/message-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/messages/[messageId]/regenerate",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/messages/[messageId]/regenerate/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/conversations/chat-application-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/share",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/share/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/database/client",
+        "@rumiai/backend/infrastructure/http"
+      ],
+      "authenticationCalls": [
+        "requireUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/turns",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/turns/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/billing/turn",
+        "@rumiai/backend/modules/conversations/turn-query"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/creators",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/creators/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/creators/read-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/creators/[username]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/creators/[username]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/creators/read-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/creators/[username]/activity",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/creators/[username]/activity/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/creators/read-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/creators/[username]/connections",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/creators/[username]/connections/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/creators/read-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/creators/[username]/follow",
+      "methods": [
+        "DELETE",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/creators/[username]/follow/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http/rate-limit",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/community/restriction-service",
+        "@rumiai/backend/modules/creators/follow-service",
+        "@rumiai/backend/modules/settings/limits"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/disputes",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/disputes/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/disputes/case-service",
+        "@rumiai/backend/modules/disputes/close-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/disputes/[id]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/disputes/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/disputes/case-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/disputes/[id]/vote",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/disputes/[id]/vote/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/disputes/close-service",
+        "@rumiai/backend/modules/disputes/vote-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/disputes/[id]/withdraw",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/disputes/[id]/withdraw/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/disputes/withdraw-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/disputes/excerpt",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/disputes/excerpt/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/disputes/case-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/disputes/options",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/disputes/options/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/disputes/case-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/events",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/events/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/infrastructure/http/rate-limit",
+        "@rumiai/backend/modules/analytics/product-events-service",
+        "@rumiai/backend/modules/mirror/share"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/explore",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/explore/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/discovery/read-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/gifts",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/gifts/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/gifts/catalog-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/growth/invite",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/growth/invite/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/growth/invite-service"
+      ],
+      "authenticationCalls": [
+        "requireUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/growth/invite/visit",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/growth/invite/visit/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/growth/invite-service",
+        "@rumiai/backend/modules/mirror/share"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/growth/onboarding",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/growth/onboarding/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/growth/onboarding-service"
+      ],
+      "authenticationCalls": [
+        "requireUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/home",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/home/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/catalog-service",
+        "@rumiai/backend/modules/settings/service",
+        "@rumiai/backend/modules/site-content/home-copy",
+        "@rumiai/backend/modules/site-content/public-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/horoscope/[sign]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/horoscope/[sign]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/discovery/read-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/leaderboard/gifts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/leaderboard/gifts/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/gifts/read-service",
+        "@rumiai/backend/modules/gifts/send-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/me/membership",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/me/membership/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/memberships/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/me/membership/refund",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/me/membership/refund/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/memberships/service",
+        "@rumiai/backend/modules/payments/membership-provider",
+        "@rumiai/backend/workflows/membership-purchase"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/me/membership/refund-preview",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/me/membership/refund-preview/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/memberships/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/me/notifications",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/me/notifications/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http/errors",
+        "@rumiai/backend/modules/notifications/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/me/notifications/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/me/notifications/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http/errors",
+        "@rumiai/backend/modules/notifications/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/me/quota",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/me/quota/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/database/client",
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/billing/allowance",
+        "@rumiai/backend/modules/billing/cancel",
+        "@rumiai/backend/modules/billing/price"
+      ],
+      "authenticationCalls": [
+        "requireUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/memberships",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/memberships/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/memberships/service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/memberships/checkout",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/memberships/checkout/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http/client-ip",
+        "@rumiai/backend/modules/memberships/service",
+        "@rumiai/backend/modules/payments/membership-provider",
+        "@rumiai/backend/workflows/membership-purchase"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/memberships/payments/ezfp/notify",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/memberships/payments/ezfp/notify/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/memberships/service",
+        "@rumiai/backend/modules/payments/membership-provider",
+        "@rumiai/backend/workflows/membership-purchase"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/mirror",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/mirror/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/mirror/service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/mirror/[shareId]",
+      "methods": [
+        "DELETE",
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/mirror/[shareId]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/mirror/index"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/mirror/compare",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/mirror/compare/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/mirror/index"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/missions",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/missions/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/missions/reward-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/missions/[id]/complete",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/missions/[id]/complete/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/missions/reward-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/operations/status",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/operations/status/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/operations/maintenance-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/post-comments/[id]",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/post-comments/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/posts/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/posts/[id]",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/posts/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/posts/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/posts/[id]/comments",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/posts/[id]/comments/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/auth/user-identity",
+        "@rumiai/backend/modules/posts/service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/public-character/[id]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/public-character/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/characters/catalog-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/public-conversations/[id]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/public-conversations/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/database/client",
+        "@rumiai/backend/infrastructure/logging/logger"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/rankings",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/rankings/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/analytics/ranking-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/reports",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/reports/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/community/report-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/seo/sitemap",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/seo/sitemap/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/seo/sitemap"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/site",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/site/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/site-content/public-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/site/announcements",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/site/announcements/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/site-content/public-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/site/pages/[slug]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/site/pages/[slug]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/site-content/public-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/stories",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/stories/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/stories/catalog-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/stories/[slug]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/stories/[slug]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/stories/catalog-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/story-runs",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/story-runs/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/stories/repository/run-service",
+        "@rumiai/backend/modules/stories/rollout-flags"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/story-runs/[id]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/story-runs/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/stories/repository/run-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/story-runs/[id]/close-chapter",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/story-runs/[id]/close-chapter/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/stories/lifecycle/chapter-service",
+        "@rumiai/backend/modules/stories/rollout-flags"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/story-runs/[id]/export",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/story-runs/[id]/export/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/stories/lifecycle/export-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/story-runs/[id]/resume",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/story-runs/[id]/resume/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/stories/lifecycle/chapter-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/story-runs/[id]/turns",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/story-runs/[id]/turns/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/ai/ai-usage",
+        "@rumiai/backend/modules/stories/rollout-flags",
+        "@rumiai/backend/modules/stories/turn-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/story-runs/[id]/turns/[turnId]/retry-state",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/story-runs/[id]/turns/[turnId]/retry-state/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/modules/stories/lifecycle/chapter-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/ui-config",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/ui-config/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/settings/index"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/universes",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/universes/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/discovery/read-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/upload",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/upload/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/http/rate-limit",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/settings/limits",
+        "@rumiai/backend/modules/uploads/storage-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/uploads/[name]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/uploads/[name]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth-cookies",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/site-content/errors",
+        "@rumiai/backend/modules/site-content/management-service",
+        "@rumiai/backend/modules/uploads/read-service",
+        "@rumiai/backend/modules/uploads/storage-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/users/me",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/users/me/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/profile-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/users/me/close",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/users/me/close/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/auth/auth-cookies",
+        "@rumiai/backend/infrastructure/http/rate-limit",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/closure-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/users/me/export",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/users/me/export/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/data-export"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/about",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/about/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/auth",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/auth/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/character/[id]",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/character/[id]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/disputes",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/disputes/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/disputes/[id]",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/disputes/[id]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/disputes/new",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/disputes/new/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/explore",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/explore/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/mirror",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/mirror/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/mirror/[shareId]",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/mirror/[shareId]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/[locale]/terms-and-policy",
+      "methods": [],
+      "source": "apps/web/src/app/[locale]/terms-and-policy/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/ai-usage",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/ai-usage/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/announcements",
+      "methods": [],
+      "source": "apps/web/src/app/announcements/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/chat",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/chat/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/chat-history",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/chat-history/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/circles",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/circles/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/circles/[id]",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/circles/[id]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/community-appeal",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/community-appeal/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/creator",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/creator/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/discover",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/discover/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/horoscope",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/horoscope/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/leaderboard",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/leaderboard/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/login",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/login/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/membership",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/membership/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/my-characters",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/my-characters/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/my-reports",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/my-reports/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/onboarding",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/onboarding/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/pages/[slug]",
+      "methods": [],
+      "source": "apps/web/src/app/pages/[slug]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/profile",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/profile/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/profile/[username]",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/profile/[username]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/profile/[username]/connections",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/profile/[username]/connections/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/register",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/register/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/share/chat/[id]",
+      "methods": [],
+      "source": "apps/web/src/app/share/chat/[id]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/shop",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/shop/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/shop/ledger",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/shop/ledger/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "handler",
+      "url": "/sitemap.xml",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/web/src/app/sitemap.xml/route.ts",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "handler",
+      "url": "/sitemaps/[file]",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/web/src/app/sitemaps/[file]/route.ts",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/square",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/square/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/stories/[slug]",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/stories/[slug]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    }
+  ]
+}

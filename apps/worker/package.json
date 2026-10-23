@@ -1,0 +1,10 @@
+{
+  "name": "@rumiai/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/index.ts"
+  },
+  "dependencies": {"@rumiai/backend": "0.0.0", "@next/env": "15.5.28", "tsx": "^4.7.1"}
+}

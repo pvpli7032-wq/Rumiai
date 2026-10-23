@@ -1,0 +1,18 @@
+import {strict as assert} from 'node:assert';
+import {createRequire} from 'node:module';
+const require = createRequire(import.meta.url);
+const {chromium} = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const base = process.env.ADMIN_BASE_URL || 'http://127.0.0.1:3011';
+const browser = await chromium.launch({headless:true});
+const page = await browser.newPage();
+await page.goto(`${base}/admin`, {waitUntil:'domcontentloaded'});
+assert.equal(page.url(), `${base}/admin/login`);
+assert.match(await page.locator('h1').innerText(), /管理中心/);
+const loginHtml = await page.content();
+const asset = loginHtml.match(/\/admin-assets\/[^"']+\.js/)?.[0];
+assert.ok(asset, 'login page must emit admin assetPrefix URLs');
+const assetResponse = await page.request.get(`${base}${asset}`);
+assert.equal(assetResponse.status(), 200);
+assert.match(assetResponse.headers()['content-type'] ?? '', /javascript/);
+await browser.close();
+console.log(JSON.stringify({base, unauthenticatedAdminRedirect:true, loginAssetStatus:assetResponse.status(), authenticatedFlows:'not run: isolated fixture credentials were not supplied'}));

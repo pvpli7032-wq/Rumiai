@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "status": "in-progress",
+  "target": "single-repository-multiple-applications-modular-backend",
+  "applications": {
+    "apps/web": "User-facing pages, feature UI and site layouts",
+    "apps/admin": "Independent administration UI and login",
+    "apps/api": "HTTP adapters, callbacks and composition root",
+    "apps/worker": "Background execution entry, not duplicated domain logic"
+  },
+  "packages": {
+    "packages/backend": "Server-only modules, workflows and infrastructure",
+    "packages/contracts": "Browser-safe request/response contracts",
+    "packages/ui": "Shared business-independent interface components"
+  },
+  "support": {
+    "database": "Schema, migrations and initialization",
+    "ops": "Release, backup, recovery and health checks",
+    "tests": "Integration and end-to-end verification",
+    "docs": "Architecture decisions, ownership and maintenance"
+  },
+  "stages": [
+    {"id": "S1", "scope": "Inventory ownership and establish workspace contracts", "status": "completed", "evidence": "docs/validation-architecture.json; docs/route-inventory.json"},
+    {"id": "S2", "scope": "Extract backend modules, infrastructure and public interfaces without rewriting working business rules", "status": "validated-local", "evidence": "845-file dependency check; 28 real SQLite membership integration tests including real route handlers and finance projections; docs/validation-architecture.json; docs/validation-memberships.json", "limitation": "Not a claim that every pre-existing business operation has been manually exercised"},
+    {"id": "S3", "scope": "Extract independent admin application and verify session/permission isolation", "status": "validated-local", "evidence": "Independent login, ordinary user rejected, both-direction session isolation, sidebar persistence, actual profile and membership form saves; docs/validation-admin-browser.md"},
+    {"id": "S4", "scope": "Extract web and API applications while preserving URLs and callbacks", "status": "validated-local", "evidence": "All 248 baseline route entries preserved; three production builds; web/API projections and membership frontend rendering verified; docs/validation-build.json; docs/validation-admin-browser.md"},
+    {"id": "S5", "scope": "Extract worker and remove old duplicate execution entry", "status": "validated-local", "evidence": "docs/validation-worker.json; Windows IPC shutdown and Linux SIGTERM; no web/API timer owner"},
+    {"id": "S6", "scope": "Integrated validation, release and rollback verification", "status": "in-progress", "evidence": "docs/validation-build.json; docs/validation-admin-browser.md; docs/validation-release.json; docs/validation-server-candidate.json; docs/validation-server-public.json", "completedIncrement": "Actual shared database upgraded to 53 migrations, new version cutover, four root-owned children with one worker, public HTTP and actual-account browser workflows verified", "remaining": "Formal membership price/benefit configuration and real merchant acceptance remain unverified; real collection stays disabled. Additional backup and copy-based restoration waived by explicit user instruction; no old-version rollback claimed."}
+  ],
+  "membershipOwnership": {
+    "rules": "packages/backend/src/modules/memberships",
+    "contracts": "packages/contracts/src/memberships",
+    "crossDomainOrchestration": "packages/backend/src/workflows",
+    "paymentExecution": "payments module",
+    "ui": "web/admin feature directories after application extraction"
+  },
+  "invariants": [
+    "Client applications cannot import database, secrets or backend implementation",
+    "HTTP adapters do not own business rules",
+    "Cross-module callers use explicit public interfaces",
+    "Membership prices, entitlements and refund rules come from backend configuration",
+    "Paid order snapshots are immutable and fulfillment/refunds are idempotent",
+    "Preserve existing cross-domain transaction guarantees",
+    "Use one shared database initially; do not claim distributed SQLite scalability",
+    "Do not enable real payment or deploy unverified changes",
+    "Do not mark structural migration complete while legacy ownership or duplicate implementations remain"
+  ],
+  "stageGates": [
+    "Typecheck and production build",
+    "Dependency boundary checks",
+    "Affected domain integration tests",
+    "Applicable browser workflows and frontend/backend data association",
+    "Single task execution ownership and rollback readiness"
+  ]
+}

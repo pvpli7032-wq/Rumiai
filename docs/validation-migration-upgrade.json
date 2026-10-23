@@ -1,0 +1,18 @@
+{
+  "platform": "win32",
+  "node": "v22.23.2",
+  "passed": true,
+  "baselineCommit": "c091ed6133d536d94c4b938b3e5ed335a23ac4e1",
+  "baselineMigrations": 52,
+  "finalMigrations": 53,
+  "preservedUser": {
+    "id": "upgrade-user-1",
+    "email": "upgrade@example.test"
+  },
+  "preservedSetting": {
+    "key": "billing.freeDailyMessages",
+    "value": "3"
+  },
+  "membershipTableCount": 6,
+  "sourceState": "local working tree; not deployed"
+}

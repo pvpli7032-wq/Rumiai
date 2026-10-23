@@ -1,0 +1,1 @@
+export interface BackupInventoryItem {id:string;kind:'DATABASE'|'STATE_BACKUP'|'STATE_RESTORE';recordedAt:string;databaseBytes:number|null;uploadCount:number|null;uploadBytes:number|null;referenceCount:number|null;verification:'NOT_RECORDED'|'RECORDED_AT_OPERATION'|'INCOMPLETE'|'INVALID_METADATA';reasonCode:string|null}

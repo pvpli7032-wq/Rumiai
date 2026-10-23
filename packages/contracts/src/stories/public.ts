@@ -1,0 +1,1 @@
+export type PublicStory = {slug:string;title:string;locale:string;characterId:string;characterName:string;characterTagline:string|null;characterAvatarUrl:string|null;publicSummary:string;chapters:Array<{key:string;title:string}>;templateVersionId:string};

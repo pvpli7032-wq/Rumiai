@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@admin/*": ["./src/*"],
+      "@/*": ["./src/*"],
+      "@rumiai/ui/*": [
+        "../../packages/ui/src/*"
+      ],
+      "@rumiai/contracts/*": [
+        "../../packages/contracts/src/*"
+      ],
+      "@web/*": [
+        "../../apps/web/src/*"
+      ]
+    },
+    "tsBuildInfoFile": "./.next/cache/admin-typecheck.tsbuildinfo"
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".next-admin/types/**/*.ts"
+  ]
+}

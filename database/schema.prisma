@@ -1,0 +1,2076 @@
+// xingban/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+/// User account model managing profile, auth credentials, tier, and economy state
+model User {
+  id                   String    @id @default(cuid())
+  username             String    @unique
+  email                String    @unique
+  passwordHash         String    @map("password_hash")
+  avatarUrl            String?   @map("avatar_url")
+  /// Public display name shown above the @username on creator cards
+  displayName          String?   @map("display_name")
+  tier                 String    @default("ROOKIE") // ROOKIE, PRO, MASTER, LEGEND, EPIC, MYTHIC
+  /// Cached creator-leaderboard counters (see prisma/seed-creators.ts)
+  followerCount        Int       @default(0) @map("follower_count")
+  characterCount       Int       @default(0) @map("character_count")
+  messageCount         Int       @default(0) @map("message_count")
+  chatCount            Int       @default(0) @map("chat_count")
+  universeMessageCount Int       @default(0) @map("universe_message_count")
+  universeChatCount    Int       @default(0) @map("universe_chat_count")
+  /// Followers gained in the last seven days — powers the "มาแรงสัปดาห์นี้" tab
+  weeklyFollowerGain   Int       @default(0) @map("weekly_follower_gain")
+  /// Bumped on logout to invalidate every token issued before it. Tokens carry this
+  /// value, so a leaked one stops working as soon as the user signs out.
+  tokenVersion         Int       @default(0) @map("token_version")
+  deletedAt            DateTime? @map("deleted_at")
+  suspendedAt          DateTime? @map("suspended_at")
+  suspensionReason     String?   @map("suspension_reason")
+  accountVersion       Int       @default(0) @map("account_version")
+  lastLoginAt          DateTime? @map("last_login_at")
+  lastActiveAt         DateTime? @map("last_active_at")
+  communityBannedAt    DateTime? @map("community_banned_at")
+  communityBanReason   String?   @map("community_ban_reason")
+  /// Reader preferences from the chat panel. bannedWords is a newline-separated list
+  /// ("คำที่ไม่ต้องการ"); shortcuts is JSON for the quick-insert buttons.
+  bannedWords          String?   @map("banned_words")
+  readingMode          Boolean   @default(false) @map("reading_mode")
+  shortcuts            String?
+  coins                Int       @default(100)
+  streakCount          Int       @default(0) @map("streak_count")
+  lastCheckin          DateTime? @map("last_checkin")
+  /// 新手引导选中的兴趣标签（JSON 数组）；为空表示还没选过。
+  interestsJson        String?   @map("interests_json")
+  /// 引导完成时间；为空表示还没走完或跳过。
+  onboardedAt          DateTime? @map("onboarded_at")
+  /// 本人的邀请码；分享链接带它进入注册。
+  inviteCode           String?   @unique @map("invite_code")
+  /// 注册时归属的邀请人。只做归属与发奖判断，不建外键关系（不参与级联）。
+  invitedByUserId      String?   @map("invited_by_user_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  circles                   Circle[]
+  circleMemberships         CircleMember[]
+  circleRestrictions        CircleMembershipRestriction[] @relation("CircleRestrictedUser")
+  circleRestrictionsApplied CircleMembershipRestriction[] @relation("CircleRestrictionActor")
+  posts                     Post[]
+  postLikes                 PostLike[]
+  postComments              PostComment[]
+  following                 Follow[]                      @relation("Following")
+  followers                 Follow[]                      @relation("Followers")
+  moderationActions         ModerationAction[]
+  siteContentDrafts         SiteContentDraft[]
+  siteContentRevisions      SiteContentRevision[]
+  appeals                   CommunityAppeal[]
+
+  // Relationships
+  characters         Character[]           @relation("CreatedCharacters")
+  conversations      Conversation[]
+  storyTemplates     StoryTemplate[]
+  storyRuns          StoryRun[]
+  storyShares        StoryShare[]
+  activityDays       UserActivityDay[]
+  checkins           Checkin[]
+  giftsSent          Gift[]                @relation("UserGiftsSent")
+  coinTransactions   CoinTransaction[]
+  paymentOrders      PaymentOrder[]
+  userMissions       UserMission[]
+  characterLikes     CharacterLike[]
+  characterBookmarks CharacterBookmark[]
+  reportsFiled       Report[]              @relation("ReportsFiled")
+  questProgress      UserCharacterQuest[]
+  aiCalls            AiCall[]
+  aiDailyUsage       AiDailyUsage[]
+  accountClosure     AccountClosure?
+  consents           UserConsent[]
+  uploadAssets       UploadAsset[]
+  adminOperator      AdminOperator?
+  adminSessions      AdminSession[]
+  comments           Comment[]
+  commentLikes       CommentLike[]
+  settingOverrides   UserSettingOverride[]
+  dailyAllowances    UserDailyAllowance[]
+  generationCharges  GenerationCharge[]
+  mirrorResults      MirrorResult[]
+  disputeCases       DisputeCase[]
+  disputeVotes       DisputeVote[]
+  memoryFacts        MemoryFact[]
+  notifications      Notification[]
+  productEvents      ProductEvent[]
+  membershipGrants   MembershipGrant[]
+  membershipOrders   MembershipOrder[]
+  membershipUsage    MembershipUsage[]
+
+  @@index([createdAt, id])
+  @@index([suspendedAt, deletedAt])
+  @@index([invitedByUserId])
+  @@map("users")
+}
+
+model AdminOperator {
+  userId      String                @id @map("user_id")
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  enabled     Boolean               @default(true)
+  version     Int                   @default(0)
+  assignments AdminRoleAssignment[]
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  @@map("admin_operators")
+}
+
+/// HttpOnly sessions used only by the administration console. Frontend bearer
+/// tokens never identify an admin request; revoking this row logs out the
+/// console without changing the user's frontend session.
+model AdminSession {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  tokenHash  String   @unique @map("token_hash")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+}
+
+model AdminRole {
+  id          String                @id @default(cuid())
+  code        String                @unique
+  name        String
+  system      Boolean               @default(false)
+  version     Int                   @default(0)
+  permissions AdminRolePermission[]
+  assignments AdminRoleAssignment[]
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  @@map("admin_roles")
+}
+
+model AdminRolePermission {
+  roleId     String    @map("role_id")
+  permission String
+  role       AdminRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permission])
+  @@map("admin_role_permissions")
+}
+
+model AdminRoleAssignment {
+  userId    String        @map("user_id")
+  roleId    String        @map("role_id")
+  operator  AdminOperator @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  role      AdminRole     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("admin_role_assignments")
+}
+
+model AdminAuditLog {
+  id        String   @id @default(cuid())
+  actorId   String   @map("actor_id")
+  action    String
+  targetId  String   @map("target_id")
+  reason    String
+  changes   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([targetId, createdAt])
+  @@map("admin_audit_logs")
+}
+
+/// Current operator-configured registration requirements. Legal text remains in the CMS.
+model CompliancePolicy {
+  id               String   @id @default("primary")
+  ageGateEnabled   Boolean  @default(false) @map("age_gate_enabled")
+  minimumAge       Int?     @map("minimum_age")
+  agePolicyVersion String?  @map("age_policy_version")
+  termsVersion     String?  @map("terms_version")
+  privacyVersion   String?  @map("privacy_version")
+  version          Int      @default(0)
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("compliance_policies")
+}
+
+model SiteCertificateStatus {
+  id             String    @id @default("primary")
+  hostname       String?
+  port           Int?
+  status         String    @default("NOT_CHECKED")
+  verified       Boolean   @default(false)
+  validFrom      DateTime? @map("valid_from")
+  validUntil     DateTime? @map("valid_until")
+  checkedAt      DateTime? @map("checked_at")
+  errorCode      String?   @map("error_code")
+  fingerprint256 String?
+
+  @@map("site_certificate_status")
+}
+
+model MaintenancePolicy {
+  id                String   @id @default("primary")
+  enabled           Boolean  @default(false)
+  message           String   @default("系统维护中，暂时无法提交操作，请稍后重试。")
+  retryAfterSeconds Int      @default(300) @map("retry_after_seconds")
+  version           Int      @default(0)
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("maintenance_policies")
+}
+
+/// Immutable registration consent records; stores policy versions, never IP or birth date.
+model UserConsent {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  policyType    String   @map("policy_type")
+  policyVersion String   @map("policy_version")
+  source        String   @default("REGISTER")
+  acceptedAt    DateTime @default(now()) @map("accepted_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, policyType, policyVersion])
+  @@index([policyType, policyVersion, acceptedAt])
+  @@index([userId, acceptedAt])
+  @@map("user_consents")
+}
+
+model AccountClosure {
+  id           String    @id @default(cuid())
+  userId       String    @unique @map("user_id")
+  fileUrlsJson String    @map("file_urls_json")
+  status       String    @default("PENDING_FILES")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  completedAt  DateTime? @map("completed_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("account_closures")
+}
+
+model UploadAsset {
+  id        String   @id @default(cuid())
+  /// Original uploading account; `siteOwned` records the asset's current business owner.
+  ownerId   String   @map("owner_id")
+  siteOwned Boolean  @default(false) @map("site_owned")
+  url       String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@index([ownerId])
+  @@map("upload_assets")
+}
+
+/// Character model for AI persona (both user-created and system featured characters)
+model Character {
+  communityPosts       Post[]
+  id                   String             @id @default(cuid())
+  name                 String
+  /// Short hook shown on cards in the explore page
+  tagline              String?
+  personality          String
+  background           String
+  greeting             String?
+  avatarUrl            String?            @map("avatar_url")
+  creatorId            String?            @map("creator_id")
+  isPublic             Boolean            @default(false) @map("is_public")
+  publicationRequested Boolean            @default(false) @map("publication_requested")
+  reviewStatus         String             @default("DRAFT") @map("review_status")
+  reviewReason         String?            @map("review_reason")
+  copyrightStatement   String?            @map("copyright_statement")
+  reviewedBy           String?            @map("reviewed_by")
+  reviewedAt           DateTime?          @map("reviewed_at")
+  chatCount            Int                @default(0) @map("chat_count")
+  /// Shown with the "Only on 星伴" badge on cards
+  isExclusive          Boolean            @default(false) @map("is_exclusive")
+  /// Comma-separated feature emojis rendered on the card (e.g. "☺️,🎹")
+  badges               String?
+  /// Comma-separated tag keys (e.g. "Female,NC,นอกใจ")
+  tags                 String?
+  /// Persona template for the player character, shown under "บทบาท" — the live site
+  /// ships a fill-in-the-blanks profile the user adopts.
+  roleTemplate         String?            @map("role_template")
+  /// Opening situation, shown under "สถานการณ์".
+  scenario             String?
+  /// Cached counters the detail header shows: ไลก์ / แชท / ข้อความ / ของขวัญ.
+  /// chatCount already exists; likes and gifts are also derivable from their tables,
+  /// but the header reads them on every card so they are denormalised here.
+  likeCount            Int                @default(0) @map("like_count")
+  messageCount         Int                @default(0) @map("message_count")
+  giftCount            Int                @default(0) @map("gift_count")
+  /// 18+ content, which the live site warns about above the fold.
+  isAdult              Boolean            @default(false) @map("is_adult")
+  /// Starting relationship, shown as "ค่าความสัมพันธ์เริ่มต้น": a status label plus
+  /// two meters (romance and intimacy).
+  ///
+  /// These are NOT percentages. The live chat page shows a romance value of 1100 with
+  /// its bar about half filled, so the fill is relative to the band of the current
+  /// status tier rather than to a 0-100 range. Only non-negative is enforced here; the
+  /// tier thresholds that drive the bar are not known.
+  relationshipStatus   String?            @map("relationship_status")
+  initialRomance       Int                @default(0) @map("initial_romance")
+  initialIntimacy      Int                @default(0) @map("initial_intimacy")
+  aiModelsRestricted   Boolean            @default(false) @map("ai_models_restricted")
+  aiModelScopeVersion  Int                @default(0) @map("ai_model_scope_version")
+  allowedAiModels      CharacterAiModel[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  creator       User?               @relation("CreatedCharacters", fields: [creatorId], references: [id], onDelete: SetNull)
+  conversations Conversation[]
+  giftsReceived Gift[]              @relation("CharacterGiftsReceived")
+  images        CharacterImage[]
+  emojis        CharacterEmoji[]
+  supportCast   SupportCharacter[]
+  likes         CharacterLike[]
+  bookmarks     CharacterBookmark[]
+  quests        CharacterQuest[]
+  comments      Comment[]
+
+  @@index([creatorId])
+  @@index([isPublic])
+  @@index([reviewStatus, updatedAt, id])
+  @@map("characters")
+}
+
+model CharacterAiModel {
+  characterId String    @map("character_id")
+  modelKey    String    @map("model_key")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  model       AiModel   @relation(fields: [modelKey], references: [key], onDelete: Restrict)
+
+  @@id([characterId, modelKey])
+  @@index([modelKey])
+  @@map("character_ai_models")
+}
+
+/// Extra pictures behind the main one — the detail header pages through them ("1/5").
+model CharacterImage {
+  id          String   @id @default(cuid())
+  characterId String   @map("character_id")
+  url         String
+  /// IMAGE or VIDEO — the panel lists both under "รูปภาพและวิดีโอ".
+  kind        String   @default("IMAGE")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, sortOrder])
+  @@map("character_images")
+}
+
+/// One picture per emotion, shown in the "อิโมจิตัวละคร" strip. The live site uses
+/// happy / sad / angry / embarrassed / confident / blank.
+model CharacterEmoji {
+  id          String @id @default(cuid())
+  characterId String @map("character_id")
+  emotion     String
+  url         String
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, emotion])
+  @@map("character_emojis")
+}
+
+/// Secondary cast listed under "ตัวละครสนับสนุน", each with its own portrait and notes.
+model SupportCharacter {
+  id          String  @id @default(cuid())
+  characterId String  @map("character_id")
+  name        String
+  avatarUrl   String? @map("avatar_url")
+  description String
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, sortOrder])
+  @@map("support_characters")
+}
+
+/// A like is per person, so it needs a row rather than only a counter — otherwise the
+/// same account could like a character repeatedly.
+model CharacterLike {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  characterId String   @map("character_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, characterId])
+  @@index([characterId])
+  @@map("character_likes")
+}
+
+/// The bookmark button in the detail header.
+model CharacterBookmark {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  characterId String   @map("character_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, characterId])
+  @@index([userId])
+  @@map("character_bookmarks")
+}
+
+/// Per-character quests, shown as "ภารกิจ (4)" on the detail dialog. The existing
+/// Mission model is platform-wide; these belong to one character.
+model CharacterQuest {
+  id               String   @id @default(cuid())
+  characterId      String   @map("character_id")
+  title            String
+  description      String?
+  rewardCoins      Int      @default(0) @map("reward_coins")
+  requiredMessages Int      @default(1) @map("required_messages")
+  sortOrder        Int      @default(0) @map("sort_order")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  character Character            @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  progress  UserCharacterQuest[]
+
+  @@index([characterId, sortOrder])
+  @@map("character_quests")
+}
+
+/// One row per reader per quest, so a reward can only be collected once.
+model UserCharacterQuest {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  questId     String    @map("quest_id")
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at")
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest CharacterQuest @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId])
+  @@map("user_character_quests")
+}
+
+/// A moderation report. A platform carrying adult user-generated content needs a way
+/// for readers to flag it, so this is deliberately broad: any target type, the same
+/// categories the live site offers, and the extra fields its copyright form collects.
+model Report {
+  id              String   @id @default(cuid())
+  reporterId      String   @map("reporter_id")
+  /// CHARACTER, USER, COMMENT, POST, UNIVERSE or MESSAGE.
+  targetType      String   @map("target_type")
+  targetId        String   @map("target_id")
+  /// One of the categories in community/report-types.ts.
+  category        String
+  /// Narrows an inappropriateImage report: realPerson, explicit, violent or other.
+  imageReason     String?  @map("image_reason")
+  details         String
+  /// Submitted assistant reply retained as evidence even if its chat is deleted.
+  evidenceContent String?  @map("evidence_content")
+  /// Copyright claims carry provenance the other categories do not.
+  workTitle       String?  @map("work_title")
+  relationship    String?
+  sourceLink      String?  @map("source_link")
+  contactType     String?  @map("contact_type")
+  contactValue    String?  @map("contact_value")
+  /// OPEN, REVIEWING, ACTIONED or DISMISSED.
+  status          String   @default("OPEN")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  reporter User @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([targetType, targetId])
+  @@index([reporterId])
+  @@index([status])
+  @@map("reports")
+}
+
+/// Conversation container between a User and a Character
+model Conversation {
+  id                 String    @id @default(cuid())
+  userId             String    @map("user_id")
+  characterId        String    @map("character_id")
+  title              String?
+  /// Relationship state belongs to the conversation, not the character: the live chat
+  /// page shows these moving as you talk, and seeds them from the character's initial
+  /// values. A user can hold several conversations with one character, each at its own
+  /// stage.
+  relationshipStatus String?   @map("relationship_status")
+  romance            Int       @default(0)
+  intimacy           Int       @default(0)
+  /// The "โหมดความสัมพันธ์ (ทดลอง)" switch, per chat.
+  relationshipMode   Boolean   @default(true) @map("relationship_mode")
+  /// Overrides AI_MODEL for this chat only, chosen from a server-side allowlist so a
+  /// reader cannot point the shared provider quota at an arbitrary model.
+  aiModel            String?   @map("ai_model")
+  /// Free-text notes the reader keeps for this chat ("โน้ตตัวละคร").
+  notes              String?
+  /// Set when the chat is moved out of the sidebar list ("แชทที่จัดเก็บ").
+  archivedAt         DateTime? @map("archived_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  character Character           @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  /// 只有从故事入口开始的会话才有实例；历史自由聊天保持 null，继续走原聊天路径。
+  storyRun  StoryRun?
+  /// 普通聊天的滚动摘要；故事会话走既有 StoryCheckpoint，不复用这张表。
+  memory    ConversationMemory?
+
+  @@index([userId])
+  @@index([characterId])
+  @@index([userId, characterId])
+  @@index([userId, archivedAt])
+  @@map("conversations")
+}
+
+/// Chat message history inside a conversation
+model Message {
+  id             String    @id @default(cuid())
+  conversationId String    @map("conversation_id")
+  role           String // USER, ASSISTANT, SYSTEM
+  content        String
+  /// Set when the reader taps the thumbs-up on a reply.
+  likedAt        DateTime? @map("liked_at")
+  /// A picture generated alongside the reply, as the live greeting message carries.
+  imageUrl       String?   @map("image_url")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  conversation        Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// 故事回合对消息的引用。消息被删除时置空而不是级联：回合本身是幂等与恢复的
+  /// 凭据，不能因为一条消息被编辑就消失。
+  storyInputTurns     StoryTurn[]      @relation("StoryInputMessage")
+  storyAssistantTurns StoryTurn[]      @relation("StoryAssistantMessage")
+  storyEvents         StoryEvent[]     @relation("StorySourceMessage")
+  storyShareTurns     StoryShareTurn[]
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+/// Daily check-in activity log for tracking user streak and reward distribution
+model Checkin {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  checkedInAt DateTime @default(now()) @map("checked_in_at")
+  coinsEarned Int      @map("coins_earned")
+  streakDay   Int      @map("streak_day")
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([checkedInAt])
+  @@map("checkins")
+}
+
+/// Gift transaction sent by a user to support a character (used for Gift Leaderboard)
+model Gift {
+  id          String   @id @default(cuid())
+  senderId    String   @map("sender_id")
+  characterId String   @map("character_id")
+  catalogId   String?  @map("catalog_id")
+  amount      Int
+  giftType    String   @default("rose") @map("gift_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  sender    User             @relation("UserGiftsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  character Character        @relation("CharacterGiftsReceived", fields: [characterId], references: [id], onDelete: Cascade)
+  catalog   GiftCatalogItem? @relation(fields: [catalogId], references: [id], onDelete: SetNull)
+
+  @@index([senderId])
+  @@index([characterId])
+  @@index([createdAt])
+  @@map("gifts")
+}
+
+/// Server-priced gift options; Gift.amount remains the immutable historical price snapshot.
+model GiftCatalogItem {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  emoji       String   @default("🎁")
+  coinPrice   Int      @map("coin_price")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  version     Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  gifts       Gift[]
+
+  @@index([isActive, sortOrder])
+  @@map("gift_catalog_items")
+}
+
+/// Ledger tracking all coin adjustments (purchases, rewards, spent)
+model CoinTransaction {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  sourceKey       String   @default("OTHER") @map("source_key")
+  paymentOrderId  String?  @unique @map("payment_order_id")
+  refundId        String?  @unique @map("refund_id")
+  refundReleaseId String?  @unique @map("refund_release_id")
+  amount          Int
+  type            String // PURCHASE, EARNED, SPENT
+  description     String?
+  /// 聊天计费：同一条费用单的 HOLD（负数）/ RELEASE（正数）各只允许一行。
+  /// 既有流水这两列为 NULL，不参与唯一约束。
+  chargeId        String?  @map("charge_id")
+  chargeAction    String?  @map("charge_action") // HOLD, SETTLE, RELEASE
+  /// 奖励发放的唯一业务键（例如评理参与奖「caseId:userId」），同一键只发一次。
+  rewardKey       String?  @unique @map("reward_key")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentOrder  PaymentOrder?  @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  refund        PaymentRefund? @relation("RefundDebit", fields: [refundId], references: [id], onDelete: Restrict)
+  refundRelease PaymentRefund? @relation("RefundRelease", fields: [refundReleaseId], references: [id], onDelete: Restrict)
+
+  @@unique([chargeId, chargeAction])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([sourceKey, createdAt])
+  @@map("coin_transactions")
+}
+
+/// A server-priced EZFP checkout. Coin and CNY amounts are immutable snapshots;
+/// paymentOrderId on CoinTransaction gives each order at most one coin credit.
+model PaymentOrder {
+  id                 String                   @id @default(cuid())
+  orderNo            String                   @unique @map("order_no")
+  idempotencyKey     String                   @map("idempotency_key")
+  userId             String                   @map("user_id")
+  packageId          String?                  @map("package_id")
+  packageCoins       Int                      @map("package_coins")
+  packageBonus       Int                      @map("package_bonus")
+  coinAmount         Int                      @map("coin_amount")
+  amountCnyCents     Int                      @map("amount_cny_cents")
+  currency           String                   @default("CNY")
+  status             String                   @default("PENDING")
+  provider           String                   @default("EZFP")
+  merchantRevisionId String?                  @map("merchant_revision_id")
+  merchantRevision   PaymentMerchantRevision? @relation(fields: [merchantRevisionId], references: [id], onDelete: Restrict)
+  providerTradeNo    String?                  @unique @map("provider_trade_no")
+  providerPayType    String?                  @map("provider_pay_type")
+  providerPayInfo    String?                  @map("provider_pay_info")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+  paidAt             DateTime?                @map("paid_at")
+
+  user               User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinTransaction    CoinTransaction?
+  refund             PaymentRefund?
+  callbackEvents     PaymentCallbackEvent[]
+  reconciliationRows PaymentReconciliationEntry[]
+  membershipOrder    MembershipOrder?
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([merchantRevisionId])
+  @@map("payment_orders")
+}
+
+/// Minimal audit trail for authenticated payment notifications. Raw callback payloads are never stored.
+model PaymentCallbackEvent {
+  id              String       @id @default(cuid())
+  paymentOrderId  String       @map("payment_order_id")
+  provider        String
+  providerTradeNo String       @map("provider_trade_no")
+  outcome         String
+  reasonCode      String?      @map("reason_code")
+  receivedAt      DateTime     @default(now()) @map("received_at")
+  paymentOrder    PaymentOrder @relation(fields: [paymentOrderId], references: [id], onDelete: Cascade)
+
+  @@index([paymentOrderId, receivedAt])
+  @@index([provider, receivedAt])
+  @@map("payment_callback_events")
+}
+
+/// Bounded, low-cardinality callback rejection monitoring. Raw notification data is never stored.
+model PaymentCallbackAlertSample {
+  id          String   @id @default(cuid())
+  provider    String
+  minuteStart DateTime @map("minute_start")
+  reasonCode  String   @map("reason_code")
+  firstSeenAt DateTime @map("first_seen_at")
+  lastSeenAt  DateTime @map("last_seen_at")
+
+  @@unique([provider, minuteStart, reasonCode])
+  @@index([minuteStart, provider])
+  @@map("payment_callback_alert_samples")
+}
+
+/// Immutable imported channel statement and local order reconciliation result.
+model PaymentReconciliationBatch {
+  id                String                       @id @default(cuid())
+  provider          String                       @default("EZFP")
+  sourceSha256      String                       @unique @map("source_sha256")
+  importedById      String                       @map("imported_by_id")
+  importReason      String                       @map("import_reason")
+  rowCount          Int                          @map("row_count")
+  matchedRowCount   Int                          @map("matched_row_count")
+  exceptionRowCount Int                          @map("exception_row_count")
+  grossCnyCents     BigInt                       @map("gross_cny_cents")
+  feeCnyCents       BigInt                       @map("fee_cny_cents")
+  periodStart       DateTime                     @map("period_start")
+  periodEnd         DateTime                     @map("period_end")
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  rows              PaymentReconciliationEntry[]
+
+  @@index([createdAt])
+  @@map("payment_reconciliation_batches")
+}
+
+model PaymentReconciliationEntry {
+  id                     String                     @id @default(cuid())
+  batchId                String                     @map("batch_id")
+  entrySource            String                     @default("STATEMENT") @map("entry_source")
+  lineNumber             Int?                       @map("line_number")
+  providerTradeNo        String?                    @map("provider_trade_no")
+  orderNo                String                     @map("order_no")
+  grossCnyCents          Int?                       @map("gross_cny_cents")
+  feeCnyCents            Int?                       @map("fee_cny_cents")
+  paidAt                 DateTime                   @map("paid_at")
+  matchStatus            String                     @map("match_status")
+  exceptionCode          String?                    @map("exception_code")
+  paymentOrderId         String?                    @map("payment_order_id")
+  internalAmountCnyCents Int?                       @map("internal_amount_cny_cents")
+  internalOrderStatus    String?                    @map("internal_order_status")
+  createdAt              DateTime                   @default(now()) @map("created_at")
+  batch                  PaymentReconciliationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  paymentOrder           PaymentOrder?              @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, lineNumber])
+  @@index([batchId, matchStatus])
+  @@index([providerTradeNo])
+  @@index([orderNo])
+  @@map("payment_reconciliation_entries")
+}
+
+/// One authenticated user activity per UTC day, used for privacy-minimal retention cohorts.
+model UserActivityDay {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  activityDate DateTime @map("activity_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityDate])
+  @@index([activityDate, userId])
+  @@map("user_activity_days")
+}
+
+/// Mutable channel identity points at immutable, encrypted configuration revisions.
+model PaymentCheckoutPolicy {
+  id        String   @id
+  enabled   Boolean
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_checkout_policy")
+}
+
+model PaymentMerchant {
+  id                String                    @id @default(cuid())
+  name              String                    @unique
+  provider          String                    @default("EZFP")
+  environment       String                    @default("PRODUCTION")
+  isActive          Boolean                   @default(false) @map("is_active")
+  activeSlot        String?                   @unique @map("active_slot")
+  currentRevisionId String?                   @unique @map("current_revision_id")
+  version           Int                       @default(0)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+  revisions         PaymentMerchantRevision[]
+  currentRevision   PaymentMerchantRevision?  @relation("MerchantCurrentRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+
+  @@index([provider, environment, isActive])
+  @@map("payment_merchants")
+}
+
+/// Immutable provider credentials/settings referenced by orders at creation time.
+model PaymentMerchantRevision {
+  id                    String           @id @default(cuid())
+  merchantId            String           @map("merchant_id")
+  revision              Int
+  merchantNo            String           @map("merchant_no")
+  apiBaseUrl            String           @map("api_base_url")
+  privateKeyCiphertext  String           @map("private_key_ciphertext")
+  privateKeyNonce       String           @map("private_key_nonce")
+  privateKeyTag         String           @map("private_key_tag")
+  platformKeyCiphertext String           @map("platform_key_ciphertext")
+  platformKeyNonce      String           @map("platform_key_nonce")
+  platformKeyTag        String           @map("platform_key_tag")
+  refundsEnabled        Boolean          @default(false) @map("refunds_enabled")
+  createdBy             String           @map("created_by")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  merchant              PaymentMerchant  @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  currentFor            PaymentMerchant? @relation("MerchantCurrentRevision")
+  orders                PaymentOrder[]
+
+  @@unique([merchantId, revision])
+  @@index([merchantId, createdAt])
+  @@map("payment_merchant_revisions")
+}
+
+/// One full refund per order. PROCESSING/UNKNOWN reserve coins until confirmed.
+model PaymentRefund {
+  id               String           @id @default(cuid())
+  paymentOrderId   String           @unique @map("payment_order_id")
+  refundNo         String           @unique @map("refund_no")
+  providerRefundNo String?          @unique @map("provider_refund_no")
+  actorId          String           @map("actor_id")
+  approvedById     String?          @map("approved_by_id")
+  approvedAt       DateTime?        @map("approved_at")
+  approvalReason   String?          @map("approval_reason")
+  rejectedById     String?          @map("rejected_by_id")
+  rejectedAt       DateTime?        @map("rejected_at")
+  rejectionReason  String?          @map("rejection_reason")
+  lastActionById   String?          @map("last_action_by_id")
+  reason           String
+  amountCnyCents   Int              @map("amount_cny_cents")
+  coinAmount       Int              @map("coin_amount")
+  status           String           @default("PROCESSING")
+  errorCode        String?          @map("error_code")
+  attemptedAt      DateTime         @default(now()) @map("attempted_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  completedAt      DateTime?        @map("completed_at")
+  paymentOrder     PaymentOrder     @relation(fields: [paymentOrderId], references: [id], onDelete: Restrict)
+  debit            CoinTransaction? @relation("RefundDebit")
+  release          CoinTransaction? @relation("RefundRelease")
+
+  @@index([status, createdAt])
+  @@map("payment_refunds")
+}
+
+/// Operator-configured subscription catalogue. A null price is intentionally not sellable.
+model MembershipPlan {
+  id           String            @id @default(cuid())
+  code         String            @unique
+  name         String
+  durationDays Int               @map("duration_days")
+  priceCents   Int?              @map("price_cents")
+  benefitsJson String            @map("benefits_json")
+  isActive     Boolean           @default(true) @map("is_active")
+  sortOrder    Int               @default(0) @map("sort_order")
+  version      Int               @default(0)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  orders       MembershipOrder[]
+
+  @@index([isActive, sortOrder])
+  @@map("membership_plans")
+}
+
+/// Global rules used by the membership/refund domain. Kept separate from plans so operators can
+/// change policy without mutating historical order snapshots.
+model MembershipPolicy {
+  id                     String   @id @default("primary")
+  refundWindowHours      Int      @default(24) @map("refund_window_hours")
+  usageChargePeriodHours Int      @default(24) @map("usage_charge_period_hours")
+  version                Int      @default(0)
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("membership_policies")
+}
+
+/// Immutable membership purchase snapshot. Payment adapters may attach their PaymentOrder later.
+model MembershipOrder {
+  id                     String            @id @default(cuid())
+  orderNo                String            @unique @map("order_no")
+  userId                 String            @map("user_id")
+  idempotencyKey         String            @map("idempotency_key")
+  planId                 String            @map("plan_id")
+  paymentOrderId         String?           @unique @map("payment_order_id")
+  amountCents            Int               @map("amount_cents")
+  durationDays           Int               @map("duration_days")
+  refundWindowHours      Int               @map("refund_window_hours")
+  usageChargePeriodHours Int               @map("usage_charge_period_hours")
+  benefitsJson           String            @map("benefits_json")
+  status                 String            @default("PENDING")
+  paidAt                 DateTime?         @map("paid_at")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  plan                   MembershipPlan    @relation(fields: [planId], references: [id], onDelete: Restrict)
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentOrder           PaymentOrder?     @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  grant                  MembershipGrant?
+  usage                  MembershipUsage[]
+  refund                 MembershipRefund?
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("membership_orders")
+}
+
+/// Period granted by one order. Revoking a refund only revokes this grant, never a renewal.
+model MembershipGrant {
+  id           String          @id @default(cuid())
+  orderId      String          @unique @map("order_id")
+  userId       String          @map("user_id")
+  startsAt     DateTime        @map("starts_at")
+  expiresAt    DateTime        @map("expires_at")
+  benefitsJson String          @map("benefits_json")
+  status       String          @default("ACTIVE")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  revokedAt    DateTime?       @map("revoked_at")
+  order        MembershipOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, expiresAt])
+  @@map("membership_grants")
+}
+
+/// Every entitlement-consuming event is recorded; this is the source of truth for refund usage.
+model MembershipUsage {
+  id             String          @id @default(cuid())
+  orderId        String          @map("order_id")
+  userId         String          @map("user_id")
+  benefitCode    String          @map("benefit_code")
+  quantity       Int             @default(1)
+  state          String          @default("CONSUMED")
+  chargeId       String?         @map("charge_id")
+  idempotencyKey String          @unique @map("idempotency_key")
+  metadataJson   String?         @map("metadata_json")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  order          MembershipOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@index([userId, createdAt])
+  @@unique([chargeId, benefitCode])
+  @@map("membership_usage")
+}
+
+/// Idempotent refund request/result. Provider execution can transition PENDING to COMPLETED.
+model MembershipRefund {
+  id               String          @id @default(cuid())
+  orderId          String          @unique @map("order_id")
+  amountCents      Int             @map("amount_cents")
+  deductedCents    Int             @map("deducted_cents")
+  attempt          Int             @default(1)
+  reason           String
+  status           String          @default("PENDING")
+  providerRefundNo String?         @unique @map("provider_refund_no")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  completedAt      DateTime?       @map("completed_at")
+  order            MembershipOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@map("membership_refunds")
+}
+
+/// Master table of available platform missions
+model Mission {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  rewardCoins     Int       @map("reward_coins")
+  category        String    @default("DAILY") // DAILY, ONBOARDING, STARTER, SPECIAL, CREATOR
+  conditionType   String    @default("MANUAL") @map("condition_type")
+  conditionTarget Int       @default(1) @map("condition_target")
+  period          String    @default("ONCE")
+  isActive        Boolean   @default(false) @map("is_active")
+  sortOrder       Int       @default(0) @map("sort_order")
+  version         Int       @default(0)
+  startsAt        DateTime? @map("starts_at")
+  endsAt          DateTime? @map("ends_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  userMissions UserMission[]
+
+  @@index([isActive, sortOrder, createdAt])
+  @@map("missions")
+}
+
+/// Junction table tracking user progress and completion status for missions
+model UserMission {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  missionId   String    @map("mission_id")
+  periodKey   String    @default("ONCE") @map("period_key")
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, missionId, periodKey])
+  @@index([userId])
+  @@index([missionId])
+  @@map("user_missions")
+}
+
+/// Editable daily streak rewards; rows 1–7 preserve the existing schedule.
+model CheckinRewardRule {
+  streakDay   Int      @id @map("streak_day")
+  rewardCoins Int      @map("reward_coins")
+  version     Int      @default(0)
+  updatedBy   String?  @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("checkin_reward_rules")
+}
+
+// ==========================================
+// SITE CONTENT (everything the UI renders is DB-driven)
+// ==========================================
+
+/// Promo banners for the explore hero carousel and the sidebar carousel
+model Banner {
+  id           String   @id @default(cuid())
+  placement    String // HERO, SIDEBAR
+  title        String
+  description  String
+  href         String
+  gradientFrom String   @map("gradient_from")
+  gradientTo   String   @map("gradient_to")
+  imageUrl     String?  @map("image_url")
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([placement, isActive])
+  @@map("banners")
+}
+
+/// Master tag catalog used by the creator picker and the explore filter chips
+model Tag {
+  id        String  @id @default(cuid())
+  key       String  @unique
+  label     String
+  group     String // ประเภท, บทบาท, บุคลิก, แนวเรื่อง, ความสัมพันธ์
+  filterRow String? @map("filter_row") // type | role -> shown as a filter chip row on the explore page
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  @@index([group])
+  @@index([filterRow])
+  @@map("tags")
+}
+
+/// Feature emojis a creator can pin on a character card
+model Badge {
+  id        String  @id @default(cuid())
+  emoji     String  @unique
+  label     String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  @@map("badges")
+}
+
+/// A horizontal rail on the explore page and how it picks its characters
+model HomeSection {
+  id        String  @id @default(cuid())
+  key       String  @unique
+  emoji     String
+  title     String
+  /// FOR_YOU | EXCLUSIVE | POPULAR | NEWEST | TAG
+  source    String
+  tagKey    String? @map("tag_key")
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  @@map("home_sections")
+}
+
+model SiteNavigationItem {
+  id        String   @id @default(cuid())
+  placement String
+  label     String
+  href      String
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([placement, isActive, sortOrder, id])
+  @@map("site_navigation_items")
+}
+
+model SitePage {
+  id         String    @id @default(cuid())
+  slug       String    @unique
+  kind       String    @default("PAGE")
+  title      String
+  summary    String    @default("")
+  blocksJson String    @map("blocks_json")
+  sortOrder  Int       @default(0) @map("sort_order")
+  isActive   Boolean   @default(true) @map("is_active")
+  startsAt   DateTime? @map("starts_at")
+  endsAt     DateTime? @map("ends_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@index([kind, isActive, startsAt, endsAt, sortOrder])
+  @@map("site_pages")
+}
+
+model SiteBranding {
+  id         String   @id @default("primary")
+  brandName  String   @map("brand_name")
+  logoUrl    String?  @map("logo_url")
+  accentFrom String   @map("accent_from")
+  accentTo   String   @map("accent_to")
+  footerNote String?  @map("footer_note")
+  isActive   Boolean  @default(true) @map("is_active")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("site_branding")
+}
+
+/// Validated working copies for explicitly supported site-content records.
+model SiteContentDraft {
+  contentType String    @map("content_type")
+  contentId   String    @map("content_id")
+  draftJson   String    @map("draft_json")
+  scheduledAt DateTime? @map("scheduled_at")
+  version     Int       @default(0)
+  actorId     String    @map("actor_id")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  actor       User      @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@id([contentType, contentId])
+  @@index([contentType, scheduledAt])
+  @@map("site_content_drafts")
+}
+
+model SiteContentRevision {
+  id           String   @id @default(cuid())
+  contentType  String   @map("content_type")
+  contentId    String   @map("content_id")
+  version      Int
+  snapshotJson String   @map("snapshot_json")
+  actorId      String   @map("actor_id")
+  reason       String
+  createdAt    DateTime @default(now()) @map("created_at")
+  actor        User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([contentType, contentId, createdAt])
+  @@map("site_content_revisions")
+}
+
+/// Coin bundles shown in the shop
+model CoinPackage {
+  id            String    @id @default(cuid())
+  coins         Int
+  priceThb      Int       @map("price_thb")
+  priceCnyCents Int?      @map("price_cny_cents")
+  bonus         Int       @default(0)
+  bonusStartsAt DateTime? @map("bonus_starts_at")
+  bonusEndsAt   DateTime? @map("bonus_ends_at")
+  version       Int       @default(0)
+  label         String
+  sortOrder     Int       @default(0) @map("sort_order")
+  isActive      Boolean   @default(true) @map("is_active")
+
+  @@map("coin_packages")
+}
+
+model CoinPackageChange {
+  id         String   @id @default(cuid())
+  packageId  String   @map("package_id")
+  actorId    String   @map("actor_id")
+  beforeJson String?  @map("before_json")
+  afterJson  String   @map("after_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([packageId, createdAt])
+  @@map("coin_package_changes")
+}
+
+/// Daily horoscope copy per zodiac sign
+model Horoscope {
+  id            String @id @default(cuid())
+  sign          String @unique
+  thaiName      String @map("thai_name")
+  title         String
+  description   String
+  luckyNumber   Int    @map("lucky_number")
+  luckyColor    String @map("lucky_color")
+  compatibility String
+  advice        String
+
+  @@map("horoscopes")
+}
+
+/// A shared world (จักรวาล) that groups several characters into one setting
+model Universe {
+  circles        Circle[]
+  id             String   @id @default(cuid())
+  name           String
+  /// Short hook shown under the name on cards
+  tagline        String?
+  description    String
+  imageUrl       String?  @map("image_url")
+  creatorId      String?  @map("creator_id")
+  /// How many characters live in this world
+  characterCount Int      @default(0) @map("character_count")
+  chatCount      Int      @default(0) @map("chat_count")
+  /// Comma-separated tag keys (e.g. "แฟนตาซี,ดันเจี้ยน")
+  tags           String?
+  isPublic       Boolean  @default(true) @map("is_public")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([isPublic])
+  @@map("universes")
+}
+
+/// Comments on a character's page. The report taxonomy already carries a COMMENT target
+/// type, so this is the surface it was written for.
+///
+/// `parentId` gives one level of replies. It is deliberately not a general tree: an
+/// unbounded thread needs its own moderation and pagination story, and a reply-to-a-reply
+/// reads the same as a reply in a list this short.
+model Comment {
+  id          String    @id @default(cuid())
+  characterId String    @map("character_id")
+  authorId    String    @map("author_id")
+  parentId    String?   @map("parent_id")
+  body        String
+  likeCount   Int       @default(0) @map("like_count")
+  /// Soft-hidden by moderation. The row stays so a reply keeps its parent and the
+  /// reporter can still see what they filed against.
+  hiddenAt    DateTime? @map("hidden_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  character Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+  likes     CommentLike[]
+
+  @@index([characterId, createdAt])
+  @@index([parentId])
+  @@map("comments")
+}
+
+/// One like per person per comment, enforced by the unique index rather than by a
+/// read-then-write, which is how the mission rewards were double-collected.
+model CommentLike {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  commentId String   @map("comment_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId])
+  @@map("comment_likes")
+}
+
+/// Accepted generation attempts; no prompt or response text is stored here.
+model AiDailyUsage {
+  userId String @map("user_id")
+  day    String
+  count  Int    @default(0)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@map("ai_daily_usage")
+}
+
+model AiCall {
+  id               String        @id @default(cuid())
+  /// 匿名玩法（Mirror 公开生成）没有账号，成本仍必须计量，所以这两列可空。
+  userId           String?       @map("user_id")
+  conversationId   String?       @map("conversation_id")
+  /// 业务任务类型：chat / story / mirror / dispute_verdict / memory_summary。
+  taskType         String?       @map("task_type")
+  /// 匿名主体的服务端归属标识（不信任客户端传入的用户 ID）。
+  anonymousSubject String?       @map("anonymous_subject")
+  operation        String
+  status           String        @default("STARTED")
+  model            String?
+  attempts         Int           @default(0)
+  inputTokens      Int?          @map("input_tokens")
+  outputTokens     Int?          @map("output_tokens")
+  estimatedCost    Float?        @map("estimated_cost")
+  modelPriceId     String?       @map("model_price_id")
+  modelPrice       AiModelPrice? @relation(fields: [modelPriceId], references: [id], onDelete: SetNull)
+  currency         String
+  errorCode        String?       @map("error_code")
+  startedAt        DateTime      @default(now()) @map("started_at")
+  finishedAt       DateTime?     @map("finished_at")
+  durationMs       Int?          @map("duration_ms")
+  user             User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@index([currency, startedAt])
+  @@index([taskType, startedAt])
+  @@map("ai_calls")
+}
+
+/// Daily cost thresholds stored in their native currency; never converted implicitly.
+model AiDailyCostBudget {
+  currency  String   @id
+  siteLimit Float?   @map("site_limit")
+  userLimit Float?   @map("user_limit")
+  isActive  Boolean  @default(true) @map("is_active")
+  version   Int      @default(0)
+  updatedBy String   @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_daily_cost_budgets")
+}
+
+/// Explicit singleton for the cost circuit breaker. Absence preserves legacy env behavior.
+model AiCostPolicy {
+  id                    String   @id @default("GLOBAL")
+  circuitBreakerEnabled Boolean  @default(false) @map("circuit_breaker_enabled")
+  version               Int      @default(0)
+  updatedBy             String   @map("updated_by")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_cost_policies")
+}
+
+model AiProvider {
+  id               String    @id @default(cuid())
+  name             String    @unique
+  protocol         String    @default("OPENAI_COMPATIBLE")
+  baseUrl          String    @map("base_url")
+  secretCiphertext String?   @map("secret_ciphertext")
+  secretNonce      String?   @map("secret_nonce")
+  secretTag        String?   @map("secret_tag")
+  isActive         Boolean   @default(false) @map("is_active")
+  sortOrder        Int       @default(0) @map("sort_order")
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  models           AiModel[]
+
+  @@index([isActive, sortOrder, id])
+  @@map("ai_providers")
+}
+
+model AiModel {
+  id              String             @id @default(cuid())
+  key             String             @unique
+  displayName     String             @map("display_name")
+  modelCode       String             @map("model_code")
+  providerId      String             @map("provider_id")
+  provider        AiProvider         @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  isActive        Boolean            @default(false) @map("is_active")
+  isDefault       Boolean            @default(false) @map("is_default")
+  defaultSlot     String?            @unique @map("default_slot")
+  isFallback      Boolean            @default(false) @map("is_fallback")
+  sortOrder       Int                @default(0) @map("sort_order")
+  timeoutMs       Int                @default(60000) @map("timeout_ms")
+  maxRetries      Int                @default(1) @map("max_retries")
+  maxOutputTokens Int                @default(800) @map("max_output_tokens")
+  lastCheckAt     DateTime?          @map("last_check_at")
+  lastCheckStatus String?            @map("last_check_status")
+  version         Int                @default(0)
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  prices          AiModelPrice[]
+  coinPrices      ModelCoinPrice[]
+  characters      CharacterAiModel[]
+
+  @@unique([providerId, modelCode])
+  @@index([isActive, isDefault, isFallback, sortOrder, id])
+  @@map("ai_models")
+}
+
+/// Append-only provider price history. Rates are stored as millionths of a currency unit per million tokens.
+model AiModelPrice {
+  id                     String   @id @default(cuid())
+  modelId                String   @map("model_id")
+  model                  AiModel  @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  currency               String
+  inputPerMillionMicros  BigInt   @map("input_per_million_micros")
+  outputPerMillionMicros BigInt   @map("output_per_million_micros")
+  effectiveAt            DateTime @map("effective_at")
+  source                 String
+  reason                 String
+  createdBy              String   @map("created_by")
+  createdAt              DateTime @default(now()) @map("created_at")
+  calls                  AiCall[]
+
+  @@unique([modelId, effectiveAt])
+  @@map("ai_model_prices")
+}
+
+/// Creating a circle does not automatically subscribe its owner.
+model Circle {
+  id           String                        @id @default(cuid())
+  name         String
+  description  String
+  tags         String?
+  ownerId      String?                       @map("owner_id")
+  universeId   String?                       @map("universe_id")
+  status       String                        @default("ACTIVE")
+  isFeatured   Boolean                       @default(false) @map("is_featured")
+  createdAt    DateTime                      @default(now()) @map("created_at")
+  updatedAt    DateTime                      @updatedAt @map("updated_at")
+  owner        User?                         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  universe     Universe?                     @relation(fields: [universeId], references: [id], onDelete: SetNull)
+  members      CircleMember[]
+  restrictions CircleMembershipRestriction[]
+  posts        Post[]
+
+  @@index([status, createdAt])
+  @@index([status, isFeatured, createdAt, id])
+  @@index([status, updatedAt, id])
+  @@map("circles")
+}
+
+model CircleMember {
+  circleId  String   @map("circle_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([circleId, userId])
+  @@index([userId, createdAt])
+  @@index([circleId, createdAt, userId])
+  @@map("circle_members")
+}
+
+model CircleMembershipRestriction {
+  circleId  String   @map("circle_id")
+  userId    String   @map("user_id")
+  actorId   String   @map("actor_id")
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User     @relation("CircleRestrictedUser", fields: [userId], references: [id], onDelete: Cascade)
+  actor     User     @relation("CircleRestrictionActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@id([circleId, userId])
+  @@index([userId])
+  @@index([circleId, createdAt, userId])
+  @@map("circle_membership_restrictions")
+}
+
+model Post {
+  id          String        @id @default(cuid())
+  circleId    String        @map("circle_id")
+  authorId    String        @map("author_id")
+  characterId String?       @map("character_id")
+  content     String
+  status      String        @default("VISIBLE")
+  isPinned    Boolean       @default(false) @map("is_pinned")
+  isFeatured  Boolean       @default(false) @map("is_featured")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  circle      Circle        @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  character   Character?    @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  media       PostMedia[]
+  likes       PostLike[]
+  comments    PostComment[]
+
+  @@index([circleId, status, createdAt])
+  @@index([circleId, status, isPinned, isFeatured, createdAt, id])
+  @@index([status, updatedAt, id])
+  @@index([circleId, status, updatedAt, id])
+  @@index([authorId, createdAt])
+  @@map("posts")
+}
+
+model PostMedia {
+  id       String @id @default(cuid())
+  postId   String @map("post_id")
+  url      String
+  position Int    @default(0)
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, position])
+  @@map("post_media")
+}
+
+model PostLike {
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("post_likes")
+}
+
+/// Independent from character comments; community visibility applies here.
+model PostComment {
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  authorId  String   @map("author_id")
+  content   String
+  imageUrl  String?  @map("image_url")
+  status    String   @default("VISIBLE")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, status, createdAt])
+  @@index([status, updatedAt, id])
+  @@map("post_comments")
+}
+
+model Follow {
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt])
+  @@map("follows")
+}
+
+/// Target identifiers survive deletion for audit history.
+model ModerationAction {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  action     String
+  reason     String
+  createdAt  DateTime @default(now()) @map("created_at")
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([targetType, targetId, createdAt])
+  @@map("moderation_actions")
+}
+
+model CommunityAppeal {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  reason     String
+  status     String    @default("OPEN")
+  resolution String?
+  reviewedBy String?   @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("community_appeals")
+}
+
+/// 故事模板：一个可体验的故事起点。V1 才有；V0 用的是随版本发布的静态配置。
+model StoryTemplate {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  status    String
+  ownerId   String?  @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner    User?                  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  versions StoryTemplateVersion[]
+
+  @@index([status, updatedAt, id])
+  @@map("story_templates")
+}
+
+/// 模板的不可变发布版本。已发布版本不再改，改动出新版本。
+model StoryTemplateVersion {
+  id                    String    @id @default(cuid())
+  templateId            String    @map("template_id")
+  version               Int
+  locale                String
+  /// 结构化定义。SQLite 无 Json 类型，落库前由应用层按版本化 schema 校验。
+  definitionJson        String    @map("definition_json")
+  /// 发布时的角色快照，避免角色改动后已发布版本的说法漂移。
+  characterSnapshotJson String    @map("character_snapshot_json")
+  publishedAt           DateTime? @map("published_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  template StoryTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  runs     StoryRun[]
+
+  @@unique([templateId, version, locale])
+  @@index([locale, publishedAt])
+  @@map("story_template_versions")
+}
+
+/// 故事运行实例。与 Conversation 一对一；没有实例的会话就是普通自由聊天。
+model StoryRun {
+  id                          String    @id @default(cuid())
+  userId                      String    @map("user_id")
+  conversationId              String    @unique @map("conversation_id")
+  templateVersionId           String    @map("template_version_id")
+  chapterKey                  String    @map("chapter_key")
+  status                      String    @default("ACTIVE")
+  /// 乐观版本号：每个状态变更事务成功时递增一次，写入前比对。
+  revision                    Int       @default(0)
+  lastCommittedTurnNo         Int       @default(0) @map("last_committed_turn_no")
+  stateProcessedThroughTurnNo Int       @default(0) @map("state_processed_through_turn_no")
+  /// 已确认状态快照。SQLite 下是经 schema 校验的 JSON 文本。
+  stateJson                   String    @map("state_json")
+  /// 创建幂等键：同一用户同一键重试不会建出第二个实例。
+  createRequestId             String    @map("create_request_id")
+  /// 唯一活动回合槽。非空表示此实例正在生成，同一实例至多一个回合。
+  activeTurnId                String?   @unique @map("active_turn_id")
+  startedAt                   DateTime  @map("started_at")
+  endedAt                     DateTime? @map("ended_at")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
+
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation    Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  templateVersion StoryTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  turns           StoryTurn[]
+  events          StoryEvent[]
+  checkpoints     StoryCheckpoint[]
+  shares          StoryShare[]
+
+  @@unique([userId, createRequestId])
+  @@index([userId, updatedAt, id])
+  @@index([templateVersionId])
+  @@map("story_runs")
+}
+
+/// 一次故事回合。承担幂等、单实例串行与状态整理的持久租约。
+model StoryTurn {
+  id                 String    @id @default(cuid())
+  runId              String    @map("run_id")
+  turnNo             Int       @map("turn_no")
+  requestId          String    @map("request_id")
+  /// 规范化请求的 hash：区分「同键重试」与「同键不同内容」。
+  requestHash        String    @map("request_hash")
+  status             String    @default("ACCEPTED")
+  inputMessageId     String?   @unique @map("input_message_id")
+  assistantMessageId String?   @unique @map("assistant_message_id")
+  operation          String
+  stateStatus        String    @default("PENDING") @map("state_status")
+  stateAttempts      Int       @default(0) @map("state_attempts")
+  errorCode          String?   @map("error_code")
+  startedAt          DateTime  @map("started_at")
+  committedAt        DateTime? @map("committed_at")
+  /// 后台状态整理的持久租约。进程重启后过期任务可被重新认领。
+  leaseOwner         String?   @map("lease_owner")
+  leaseExpiresAt     DateTime? @map("lease_expires_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  run              StoryRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  inputMessage     Message?     @relation("StoryInputMessage", fields: [inputMessageId], references: [id], onDelete: SetNull)
+  assistantMessage Message?     @relation("StoryAssistantMessage", fields: [assistantMessageId], references: [id], onDelete: SetNull)
+  events           StoryEvent[]
+
+  @@unique([runId, requestId])
+  @@unique([runId, turnNo])
+  @@index([runId, stateStatus, leaseExpiresAt])
+  @@index([runId, turnNo, status])
+  @@map("story_turns")
+}
+
+/// 已确认/待确认的故事事实。用 type 区分，不为每种类型另建引擎。
+model StoryEvent {
+  id              String    @id @default(cuid())
+  runId           String    @map("run_id")
+  sourceTurnId    String    @map("source_turn_id")
+  chapterKey      String    @map("chapter_key")
+  /// FACT / PROMISE / RELATIONSHIP / CHAPTER_RESULT
+  type            String
+  status          String    @default("PENDING")
+  payloadJson     String    @map("payload_json")
+  sourceMessageId String?   @map("source_message_id")
+  /// 历史被修改时置位：失效而非删除，便于解释与排查。
+  invalidatedAt   DateTime? @map("invalidated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  run           StoryRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sourceTurn    StoryTurn @relation(fields: [sourceTurnId], references: [id], onDelete: Cascade)
+  sourceMessage Message?  @relation("StorySourceMessage", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+
+  @@index([runId, sourceTurnId, status])
+  @@index([runId, chapterKey, status, createdAt])
+  @@index([sourceMessageId])
+  @@map("story_events")
+}
+
+/// 状态快照。失效后保留，不删除。
+model StoryCheckpoint {
+  id            String    @id @default(cuid())
+  runId         String    @map("run_id")
+  throughTurnNo Int       @map("through_turn_no")
+  revision      Int
+  stateJson     String    @map("state_json")
+  invalidatedAt DateTime? @map("invalidated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  run StoryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, throughTurnNo, revision])
+  @@index([runId, invalidatedAt, throughTurnNo])
+  @@map("story_checkpoints")
+}
+
+/// 用户选定 2–6 条本人故事消息的分享快照（W07）。状态机 PUBLISHED→WITHDRAWN 单向；
+/// 撤回只改本行，不动 run 本体；读者路径对 WITHDRAWN 一律 404，不暴露存在性。
+/// publishedPostId 预留与现有帖子服务的关联，本阶段不写入（读者入口走社区体系）。
+model StoryShare {
+  id                     String    @id @default(cuid())
+  runId                  String    @map("run_id")
+  userId                 String    @map("user_id")
+  title                  String
+  /// 用户勾选的消息 ID 数组 JSON；创建时校验全部属于本 run 且已提交。
+  selectedMessageIdsJson String    @map("selected_message_ids_json")
+  /// 创建时一次固化的公开快照（模板/章节公开标题 + 选中片段），读者只读快照，不读 run 本体。
+  snapshotJson           String    @map("snapshot_json")
+  /// PUBLISHED / WITHDRAWN
+  status                 String    @default("PUBLISHED")
+  publishedPostId        String?   @map("published_post_id")
+  withdrawnAt            DateTime? @map("withdrawn_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  run                StoryRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storyTurnSelection StoryShareTurn[]
+
+  @@index([runId])
+  @@index([userId, createdAt])
+  @@map("story_shares")
+}
+
+/// V0 场景漏斗事实。每个用户每个场景会话每个节点最多一条，只记事实不记内容；
+/// 不声明关系字段以保持本文件只增不改的约定，会话归属由写入服务校验。
+model SceneFunnelEvent {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  conversationId String   @map("conversation_id")
+  sceneId        String   @map("scene_id")
+  event          String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, conversationId, event])
+  @@index([createdAt])
+  @@map("scene_funnel_events")
+}
+
+/// 分享快照与消息的固定对应（创建时写入，消息删除随之置空，快照本身不改）。
+model StoryShareTurn {
+  id        String   @id @default(cuid())
+  shareId   String   @map("share_id")
+  messageId String?  @map("message_id")
+  position  Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  share   StoryShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  message Message?   @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@unique([shareId, position])
+  @@index([messageId])
+  @@map("story_share_turns")
+}
+
+// ==========================================
+// 商业改造（2026-10-21，V3 实施版）
+// 迁移：20261021180000_commercial_platform
+// ==========================================
+
+/// 运营公共参数。value 存校验后的 JSON 字符串，读取方按 registry 的类型解析。
+/// 每项只有一个主编辑位置：设置中心。
+model OperationSetting {
+  key       String   @id
+  group     String
+  value     String
+  version   Int      @default(0)
+  updatedBy String   @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([group])
+  @@map("operation_settings")
+}
+
+/// 用户特例：只有额度、计费模式、折扣倍率与指定玩法次数允许覆盖。
+/// 到期后自动回落公共值（读取时判断 expires_at，不做后台清理任务）。
+model UserSettingOverride {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  key       String
+  value     String
+  expiresAt DateTime? @map("expires_at")
+  version   Int       @default(0)
+  updatedBy String    @map("updated_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([expiresAt])
+  @@map("user_setting_overrides")
+}
+
+/// 设置变更历史。恢复历史值时写一条新记录，不原地改旧记录。
+model SettingRevision {
+  id         String   @id @default(cuid())
+  key        String
+  scope      String // GLOBAL, USER
+  userId     String?  @map("user_id")
+  oldValue   String?  @map("old_value")
+  newValue   String   @map("new_value")
+  operatorId String   @map("operator_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([key, createdAt])
+  @@index([scope, createdAt])
+  @@map("setting_revisions")
+}
+
+/// 模型收费币价（用户侧），与供应商成本价 AiModelPrice 分开存，各自有历史。
+model ModelCoinPrice {
+  id            String   @id @default(cuid())
+  modelId       String   @map("model_id")
+  coinsPerReply Int      @map("coins_per_reply")
+  effectiveAt   DateTime @map("effective_at")
+  version       Int      @default(0)
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  model         AiModel  @relation(fields: [modelId], references: [id], onDelete: Restrict)
+
+  @@unique([modelId, effectiveAt])
+  @@map("model_coin_prices")
+}
+
+/// 一次生成请求的计费单。状态机：HELD → SETTLED / RELEASED，结果不明为 UNKNOWN。
+/// 价格快照在预扣时固化，后续改价不影响已开始请求。
+model GenerationCharge {
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  requestId         String    @map("request_id")
+  operation         String // CHAT_SEND, CHAT_REGENERATE, STORY_TURN, MIRROR, DISPUTE_VERDICT, MEMORY_SUMMARY
+  status            String    @default("HELD") // HELD, SETTLED, RELEASED, UNKNOWN
+  coins             Int       @default(0)
+  priceSnapshotJson String    @map("price_snapshot_json")
+  allowanceSource   String?   @map("allowance_source") // FREE_QUOTA, PAID
+  /// 请求内容的摘要。同号不同内容必须报冲突，不能静默回放旧结果（V3 §20）。
+  requestHash       String?   @map("request_hash")
+  /// 取消原因：USER_CANCEL / UPSTREAM_FAIL / EMPTY_RESPONSE 等，对账用（V3 §157）。
+  cancelReason      String?   @map("cancel_reason")
+  conversationId    String?   @map("conversation_id")
+  messageId         String?   @map("message_id")
+  aiCallId          String?   @map("ai_call_id")
+  heldAt            DateTime  @default(now()) @map("held_at")
+  settledAt         DateTime? @map("settled_at")
+  releasedAt        DateTime? @map("released_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, operation, requestId])
+  @@index([status, heldAt])
+  @@map("generation_charges")
+}
+
+/// 每日免费次数。free_reserved 是并发预占，成功后并入 free_used。
+model UserDailyAllowance {
+  userId         String @map("user_id")
+  day            String
+  freeUsed       Int    @default(0) @map("free_used")
+  freeReserved   Int    @default(0) @map("free_reserved")
+  /// 当日已用掉的「免费取消」次数；只在「已输出即收费」策略下消耗。
+  freeCancelUsed Int    @default(0) @map("free_cancel_used")
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@map("user_daily_allowances")
+}
+
+/// 他眼中的你：一次生成结果。share_id 为公开分享标识，删除后公开接口 404。
+model MirrorResult {
+  id               String    @id @default(cuid())
+  shareId          String    @unique @map("share_id")
+  userId           String?   @map("user_id")
+  anonymousSubject String?   @map("anonymous_subject")
+  characterId      String    @map("character_id")
+  answersJson      String    @map("answers_json")
+  title            String
+  observationsJson String    @map("observations_json")
+  quote            String
+  indicesJson      String    @map("indices_json")
+  rawJson          String?   @map("raw_json")
+  status           String    @default("READY") // READY, FAILED, HIDDEN, EXPIRED
+  chargeId         String?   @map("charge_id")
+  expiresAt        DateTime? @map("expires_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("mirror_results")
+}
+
+/// 评理案例。复用帖子承载评论点赞举报，这里只存案例、规则快照、票数与结案结果。
+model DisputeCase {
+  id               String        @id @default(cuid())
+  postId           String        @unique @map("post_id")
+  authorId         String        @map("author_id")
+  characterId      String?       @map("character_id")
+  excerptJson      String        @map("excerpt_json")
+  claim            String
+  ruleSnapshotJson String        @map("rule_snapshot_json")
+  deadlineAt       DateTime      @map("deadline_at")
+  voteCount        Int           @default(0) @map("vote_count")
+  closeStatus      String        @default("OPEN") @map("close_status") // OPEN, CLOSING, CLOSED
+  verdictJson      String?       @map("verdict_json")
+  closedAt         DateTime?     @map("closed_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  author           User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes            DisputeVote[]
+
+  @@index([closeStatus, deadlineAt])
+  @@index([authorId, createdAt])
+  @@map("dispute_cases")
+}
+
+/// 一人一票，可改票有限次；唯一键保证并发下不会出现两张票。
+model DisputeVote {
+  id          String      @id @default(cuid())
+  caseId      String      @map("case_id")
+  userId      String      @map("user_id")
+  choice      String // AUTHOR, OTHER, SPLIT
+  reviseCount Int         @default(0) @map("revise_count")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  case        DisputeCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([userId, createdAt])
+  @@map("dispute_votes")
+}
+
+/// 普通聊天的滚动摘要，一个会话一行；关闭记忆后不再更新与注入。
+model ConversationMemory {
+  id               String       @id @default(cuid())
+  conversationId   String       @unique @map("conversation_id")
+  summary          String
+  coveredMessageId String?      @map("covered_message_id")
+  version          Int          @default(0)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_memories")
+}
+
+/// 从对话里确认的关键事实。source_message_id 不设外键：消息删除由失效逻辑显式处理。
+model MemoryFact {
+  id              String   @id @default(cuid())
+  conversationId  String   @map("conversation_id")
+  userId          String   @map("user_id")
+  text            String
+  sourceMessageId String?  @map("source_message_id")
+  pinned          Boolean  @default(false)
+  status          String   @default("ACTIVE") // ACTIVE, INVALID, DELETED
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, status])
+  @@index([userId, createdAt])
+  @@map("memory_facts")
+}
+
+/// 统一后台任务：持久化、可重入、带租约。与 StoryTurn 的租约语义一致但互不干扰。
+model BackgroundTask {
+  id         String    @id @default(cuid())
+  kind       String
+  subjectId  String    @map("subject_id")
+  status     String    @default("PENDING") // PENDING, RUNNING, DONE, FAILED
+  attempts   Int       @default(0)
+  nextRunAt  DateTime  @default(now()) @map("next_run_at")
+  leaseOwner String?   @map("lease_owner")
+  leaseUntil DateTime? @map("lease_until")
+  lastError  String?   @map("last_error")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([kind, subjectId])
+  @@index([status, nextRunAt])
+  @@map("background_tasks")
+}
+
+/// 站内通知：审核结果、回复提醒、到账、活动结果共用一套。
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  type       String
+  title      String
+  body       String?
+  targetType String?   @map("target_type")
+  targetId   String?   @map("target_id")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+/// 新玩法漏斗事件（Mirror / 评理）。既有 SceneFunnelEvent 继续服务故事，不双写同一事件。
+model ProductEvent {
+  id               String   @id @default(cuid())
+  name             String
+  subjectKey       String?  @map("subject_key")
+  userId           String?  @map("user_id")
+  anonymousSubject String?  @map("anonymous_subject")
+  propertiesJson   String?  @map("properties_json")
+  createdAt        DateTime @default(now()) @map("created_at")
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([name, createdAt])
+  @@map("product_events")
+}

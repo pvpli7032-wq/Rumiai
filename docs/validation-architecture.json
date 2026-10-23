@@ -1,0 +1,32 @@
+{
+  "sourceState": "local working tree; not deployed",
+  "baselineCommit": "c091ed6133d536d94c4b938b3e5ed335a23ac4e1",
+  "applicationRouteMigration": {
+    "comparison": "HEAD src/app page.tsx and route.ts paths versus apps/web, apps/admin and apps/api src/app relative paths",
+    "baselineEntryCount": 248,
+    "currentEntryCount": 264,
+    "missingBaselineEntries": 0,
+    "addedEntries": 16,
+    "limitation": "Path preservation is not functional verification of every route."
+  },
+  "currentInventory": {
+    "command": "npm run architecture:routes",
+    "web": 39,
+    "admin": 26,
+    "api": 199,
+    "artifact": "docs/route-inventory.json"
+  },
+  "dependencyBoundaries": {
+    "command": "npm run architecture:check",
+    "result": "PASS",
+    "sourceFilesChecked": 845,
+    "checks": ["application isolation", "UI apps cannot import backend", "packages cannot import applications", "browser-safe contracts", "client/server dependency graph", "unresolved workspace aliases"]
+  },
+  "runtimePaths": {
+    "command": "npm run test:unit",
+    "result": "PASS",
+    "tests": 9,
+    "scope": "schema-relative SQLite, real Prisma absolute path with spaces, shared upload and backup root, read-only migration release gate, explicit admin origin and secure cookie boundaries"
+  },
+  "releaseLimitations": ["No production deployment", "No production backup restoration", "No formal merchant real payment/refund acceptance"]
+}

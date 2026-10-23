@@ -1,0 +1,20 @@
+{
+  "name": "@rumiai/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts",
+    "./admin/*": "./src/admin/*.ts",
+    "./analytics": "./src/analytics.ts",
+    "./ai/*": "./src/ai/*.ts",
+    "./http/*": "./src/http/*.ts",
+    "./site-content/*": "./src/site-content/*.ts",
+    "./public-api": "./src/public-api.ts",
+    "./stories/*": "./src/stories/*.ts",
+    "./memberships": "./src/memberships/index.ts",
+    "./notifications/*": "./src/notifications/*.ts",
+    "./api-types/*": "./src/api-types/*.ts",
+    "./memberships/*": "./src/memberships/*.ts"
+  }
+}

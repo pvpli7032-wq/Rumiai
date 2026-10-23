@@ -28,9 +28,9 @@ prisma/*.db.bak*
 prisma/migrations/dev.db*
 
 # downloaded / uploaded assets
-public/uploads/
-public/universes/
-public/creators/
+apps/web/public/uploads/
+apps/web/public/universes/
+apps/web/public/creators/
 
 # logs & os
 *.log
@@ -43,6 +43,11 @@ Thumbs.db
 .claude/settings.local.json
 
 # sqlite WAL sidecars
+database/*.db*
+database/migrations/dev.db*
+database/.local/
+database/backups/
+database/restores/
 prisma/*.db-wal
 prisma/*.db-shm
 
@@ -64,3 +69,9 @@ artifacts/
 线上测试文档资料.txt
 .git-commit-msg.txt
 .msg.txt
+
+# Personal/export encryption keys stay local; authorized runtime files are added explicitly.
+private-data/*.key
+private-data/*.db*
+private-data/*.env*
+private-data/*decrypted*
