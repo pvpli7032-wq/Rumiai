@@ -33,11 +33,15 @@ export function useChatTurns(opts: {
   const [streamingText, setStreamingText] = useState('');
   const [mockNotice, setMockNotice] = useState(false);
   const [insufficientNotice, setInsufficientNotice] = useState('');
+  const [mediaNotice, setMediaNotice] = useState('');
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const activeRequest = useRef<AbortController | null>(null);
+  const mediaBusyRef = useRef(false);
+  const pendingMedia = useRef<{signature: string; requestId: string} | null>(null);
   // 一次点击一个请求号（V3 §20）：同一条草稿重试沿用同一个编号，成功后清空。
   const pendingSend = useRef<{requestId: string; content: string} | null>(null);
   // 重新生成同理：同一个消息被连点重试时沿用同一个编号。
@@ -60,6 +64,42 @@ export function useChatTurns(opts: {
   }
   function abortRequest() {
     activeRequest.current?.abort();
+  }
+
+  async function saveAttachment(attachment: Record<string, unknown>, content = ''): Promise<boolean> {
+    if (!conversationId || !token || mediaBusyRef.current || streaming) return false;
+    const signature = JSON.stringify({attachment, content});
+    const requestId = pendingMedia.current?.signature === signature ? pendingMedia.current.requestId : newRequestId();
+    pendingMedia.current = {signature, requestId};
+    mediaBusyRef.current = true; setMediaBusy(true); setChatError(null); setMediaNotice('');
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}/messages/attachments`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`}, body: JSON.stringify({content, attachment, requestId})});
+      const data = await response.json();
+      if (!response.ok) throw Error(data.error || '附件保存失败，请重试。');
+      setMediaNotice(data.aiNotice || '附件已保存。');
+      pendingMedia.current = null; await reloadMessages();
+      return true;
+    } catch (error) { setChatError(error instanceof Error ? zhError(error.message) : '附件保存失败，请重试。'); return false; }
+    finally { mediaBusyRef.current = false; setMediaBusy(false); }
+  }
+
+  async function sendImage(file: File, content: string): Promise<boolean> {
+    if (!conversationId || !token || mediaBusyRef.current || streaming) return false;
+    const signature = `IMAGE:${file.name}:${file.size}:${file.lastModified}:${content}`;
+    const requestId = pendingMedia.current?.signature === signature ? pendingMedia.current.requestId : newRequestId();
+    pendingMedia.current = {signature, requestId};
+    mediaBusyRef.current = true; setMediaBusy(true); setChatError(null); setMediaNotice('');
+    try {
+      const form = new FormData(); form.set('file', file);
+      const upload = await fetch('/api/upload', {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+      const asset = await upload.json();
+      if (!upload.ok) throw Error(asset.error || '图片上传失败，请重试。');
+      const response = await fetch(`/api/conversations/${conversationId}/messages/attachments`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`}, body: JSON.stringify({content, requestId, attachment: {type: 'IMAGE', assetId: asset.id, mimeType: asset.mimeType, byteSize: asset.size}})});
+      const data = await response.json();
+      if (!response.ok) throw Error(data.error || '图片保存失败，请重试。');
+      pendingMedia.current = null; setMediaNotice(data.aiNotice || '图片已保存。'); await reloadMessages(); return true;
+    } catch (error) { setChatError(error instanceof Error ? zhError(error.message) : '图片上传失败，请重试。'); return false; }
+    finally { mediaBusyRef.current = false; setMediaBusy(false); }
   }
 
   async function sendMessage(e: React.FormEvent) {
@@ -231,8 +271,8 @@ export function useChatTurns(opts: {
   }
 
   return {
-    input, setInput, streaming, streamingText, mockNotice, insufficientNotice, editingId, setEditingId,
+    input, setInput, streaming, streamingText, mockNotice, insufficientNotice, mediaNotice, mediaBusy, editingId, setEditingId,
     editDraft, setEditDraft, speakingId, busyId, sendMessage, cancelStreaming, regenerate, saveEdit,
-    toggleSpeak, resetTurns, abortRequest,
+    toggleSpeak, resetTurns, abortRequest, sendImage, sendSticker: (stickerId: string) => saveAttachment({type: 'STICKER', stickerId}),
   };
 }

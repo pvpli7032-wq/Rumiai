@@ -31,10 +31,21 @@ test('password reset and email verification tokens are hashed, short-lived, one-
   assert.notEqual(stored.tokenHash, reset.token, 'database must not contain the bearer token');
   assert.ok(stored.expiresAt.getTime() - stored.createdAt.getTime() <= 15 * 60_000 + 1_000);
 
+  await assert.rejects(
+    () => recovery.resetPassword('not-a-real-reset-token', 'Replacement-password-456!'),
+    /无效|过期/,
+    'a random bearer token must not reveal whether it ever existed',
+  );
+
   const oldBearer = await signToken({userId: fixture.user.id, email: fixture.user.email, tokenVersion: 0});
   await fixture.db.adminSession.create({data: {userId: fixture.user.id, tokenHash: 'recovery-test-admin-session', expiresAt: new Date(Date.now() + 60_000)}});
   const newPassword = 'Replacement-password-456!';
-  await recovery.resetPassword(reset.token, newPassword);
+  const concurrent = await Promise.allSettled([
+    recovery.resetPassword(reset.token, newPassword),
+    recovery.resetPassword(reset.token, newPassword),
+  ]);
+  assert.equal(concurrent.filter(result => result.status === 'fulfilled').length, 1, 'a reset token must be claimed exactly once under concurrent use');
+  assert.equal(concurrent.filter(result => result.status === 'rejected').length, 1);
   await assert.rejects(() => recovery.resetPassword(reset.token, newPassword), /无效|过期/);
   await assert.rejects(() => loginWithPassword({email: fixture.user.email, password: fixture.password}));
   assert.equal((await loginWithPassword({email: fixture.user.email, password: newPassword})).user.id, fixture.user.id);
@@ -54,6 +65,9 @@ test('password reset and email verification tokens are hashed, short-lived, one-
   await assert.rejects(() => recovery.verifyEmail(verification.token), /无效|过期/);
 
   delete process.env.ACCOUNT_EMAIL_DELIVERY;
-  const unavailable = await forgotRoute.POST(new Request('http://test.local/api/auth/password/forgot', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({email: fixture.user.email})}));
-  assert.equal(unavailable.status, 503, 'unconfigured delivery must not claim that email was sent');
+  const unavailableKnown = await forgotRoute.POST(new Request('http://test.local/api/auth/password/forgot', {method: 'POST', headers: {'content-type': 'application/json', 'x-real-ip': '192.0.2.12'}, body: JSON.stringify({email: fixture.user.email})}));
+  const unavailableUnknown = await forgotRoute.POST(new Request('http://test.local/api/auth/password/forgot', {method: 'POST', headers: {'content-type': 'application/json', 'x-real-ip': '192.0.2.13'}, body: JSON.stringify({email: 'another-unknown@example.test'})}));
+  assert.equal(unavailableKnown.status, 503, 'unconfigured delivery must not claim that email was sent');
+  assert.equal(unavailableUnknown.status, 503);
+  assert.deepEqual(await unavailableKnown.json(), await unavailableUnknown.json(), 'delivery configuration errors must not reveal whether an email exists');
 });

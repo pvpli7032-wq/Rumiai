@@ -6,9 +6,10 @@
   "baselineMigrations": 52,
   "currentMigrations": [
     "20261023120000_memberships",
-    "20261023170000_account_recovery"
+    "20261023170000_account_recovery",
+    "20261023190000_message_media_and_package_benefits"
   ],
-  "finalMigrations": 54,
+  "finalMigrations": 55,
   "preservedUser": {
     "id": "upgrade-user-1",
     "email": "upgrade@example.test"

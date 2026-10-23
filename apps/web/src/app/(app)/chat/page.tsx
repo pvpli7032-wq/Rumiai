@@ -160,6 +160,8 @@ function ChatContent() {
         onCancel={turns.cancelStreaming}
         chatError={chatError}
         mockNotice={turns.mockNotice}
+        mediaNotice={turns.mediaNotice}
+        mediaBusy={turns.mediaBusy}
         shortcuts={shortcuts}
         activeScene={activeScene}
         composer={composer}
@@ -169,6 +171,8 @@ function ChatContent() {
         characterName={character?.name}
         chatMaxChars={chatMaxChars}
         onSubmit={turns.sendMessage}
+        onSendImage={turns.sendImage}
+        onSendSticker={turns.sendSticker}
       />
       </>
       )}

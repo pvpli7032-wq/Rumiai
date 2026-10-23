@@ -17,8 +17,13 @@ export async function listActiveCoinPackages() {
   const packages = await db.coinPackage.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: 'asc' },
-    select: { id: true, coins: true, priceThb: true, priceCnyCents: true, bonus: true, label: true, bonusStartsAt: true, bonusEndsAt: true },
+    select: { id: true, coins: true, priceThb: true, priceCnyCents: true, bonus: true, benefitsJson: true, label: true, bonusStartsAt: true, bonusEndsAt: true },
   });
   const now = new Date();
-  return packages.map(({ bonusStartsAt, bonusEndsAt, ...pkg }) => ({ ...pkg, bonus: effectivePackageBonus({ ...pkg, bonusStartsAt, bonusEndsAt }, now) }));
+  return packages.map(({ bonusStartsAt, bonusEndsAt, benefitsJson, ...pkg }) => {
+    const bonus = effectivePackageBonus({ ...pkg, bonusStartsAt, bonusEndsAt }, now);
+    let benefits: string[] = [];
+    try { const value = JSON.parse(benefitsJson); if (Array.isArray(value)) benefits = value.filter(item => typeof item === 'string'); } catch { /* Invalid legacy data is shown as no claims. */ }
+    return { ...pkg, bonus, totalCoins: pkg.coins + bonus, benefits };
+  });
 }

@@ -524,6 +524,7 @@ try {
   await admin.getByLabel('人民币价格（元）').fill('9.99');
   await admin.getByLabel('基础金币').fill('100');
   await admin.getByLabel('赠送金币').fill('20');
+  await admin.getByLabel('权益说明（每行一条，最多 8 条）').fill('E2E 专属标识\nE2E 活动资格');
   await admin.getByLabel('排序').fill('99');
   await admin.getByLabel('上架套餐').uncheck();
   const packageCreates = [];
@@ -539,7 +540,9 @@ try {
   assert.equal(packageCreates.length, 1);
   await admin.reload();
   await admin.getByText('E2E 临时金币套餐', {exact: true}).waitFor({state: 'visible'});
-  assert.equal((await fixture.db.coinPackage.findUniqueOrThrow({where: {id: createdPackage.id}})).priceCnyCents, 999);
+  const createdPackageRow = await fixture.db.coinPackage.findUniqueOrThrow({where: {id: createdPackage.id}});
+  assert.equal(createdPackageRow.priceCnyCents, 999);
+  assert.equal(createdPackageRow.benefitsJson, '["E2E 专属标识","E2E 活动资格"]');
   await admin.getByRole('button', {name: '编辑 E2E 临时金币套餐'}).click();
   await admin.getByLabel('人民币价格（元）').fill('10.99');
   await admin.getByLabel('赠送金币').fill('30');
@@ -568,7 +571,7 @@ try {
   admin.off('request', countPackageDelete);
   assert.equal(packageDeletes.length, 1);
   assert.equal(await fixture.db.coinPackage.findUnique({where: {id: createdPackage.id}}), null);
-  recordOperation('/admin/finance', '金币套餐新增/刷新/编辑/下架删除', {precondition: 'finance.packages.write；不触发支付', api: 'POST/PUT/DELETE /api/admin/finance/packages', persistence: 'coin_packages + coin_package_changes + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: '零价格 400、过期版本 409', repeated: '同步双击新增/删除各仅一次请求', status: '通过'});
+  recordOperation('/admin/finance', '金币套餐新增/权益/刷新/编辑/下架删除', {precondition: 'finance.packages.write；不触发支付', api: 'POST/PUT/DELETE /api/admin/finance/packages', persistence: 'coin_packages（含权益） + coin_package_changes + admin_audit_logs', normal: '通过并清理', refresh: '权益与价格刷新持久化通过', failure: '零价格 400、过期版本 409', repeated: '同步双击新增/删除各仅一次请求', status: '通过'});
 
   // Accounts: edit profile, reload persistence, community ban/unban, suspend/restore,
   // session revocation, stale-version rejection, and synchronous duplicate protection.

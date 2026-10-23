@@ -9,14 +9,23 @@ export class PaymentOrderError extends Error {
 }
 
 export async function getUserPaymentOrderStatus(userId: string, orderNo: string) {
-  return db.paymentOrder.findFirst({
+  const order = await db.paymentOrder.findFirst({
     where: { orderNo, userId },
-    select: { orderNo: true, status: true, amountCnyCents: true, coinAmount: true, createdAt: true, paidAt: true },
+    select: { orderNo: true, status: true, amountCnyCents: true, packageCoins: true, packageBonus: true, packageBenefitsJson: true, coinAmount: true, createdAt: true, paidAt: true },
   });
+  if (!order) return null;
+  let benefits: string[] = [];
+  try { const parsed = JSON.parse(order.packageBenefitsJson); if (Array.isArray(parsed)) benefits = parsed.filter(item => typeof item === 'string'); } catch { /* keep an honest empty list */ }
+  const {packageBenefitsJson: _snapshot, ...view} = order;
+  return {...view, benefits};
 }
 
 function newOrderNumber(): string {
   return `KH${Date.now().toString(36).toUpperCase()}${randomBytes(8).toString('hex').toUpperCase()}`;
+}
+
+export function coinOrderSnapshot(pkg: {coins:number;bonus:number;benefitsJson:string;priceCnyCents:number}) {
+  return {packageCoins: pkg.coins, packageBonus: pkg.bonus, packageBenefitsJson: pkg.benefitsJson, coinAmount: pkg.coins + pkg.bonus, amountCnyCents: pkg.priceCnyCents};
 }
 
 function existingOrderResult(order: {
@@ -70,10 +79,7 @@ export async function createCoinPaymentOrder(input: {
         idempotencyKey: input.idempotencyKey,
         userId: input.userId,
         packageId: pkg.id,
-        packageCoins: pkg.coins,
-        packageBonus: pkg.bonus,
-        coinAmount,
-        amountCnyCents: pkg.priceCnyCents,
+        ...coinOrderSnapshot({coins: pkg.coins, bonus: pkg.bonus, benefitsJson: pkg.benefitsJson, priceCnyCents: pkg.priceCnyCents}),
         merchantRevisionId:paymentConfig.revisionId,
       },
     });

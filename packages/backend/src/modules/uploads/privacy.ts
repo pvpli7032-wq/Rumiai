@@ -10,6 +10,7 @@ async function hasSurvivingReference(url: string) {
     db.characterImage.count({ where: { url } }), db.characterEmoji.count({ where: { url } }),
     db.supportCharacter.count({ where: { avatarUrl: url } }), db.postMedia.count({ where: { url } }),
     db.postComment.count({ where: { imageUrl: url } }), db.message.count({ where: { imageUrl: url } }),
+    db.messageAttachment.count({where: {uploadAsset: {url}}}),
     db.uploadAsset.count({ where: { url } }),
   ]);
   return counts.some(count => count > 0);

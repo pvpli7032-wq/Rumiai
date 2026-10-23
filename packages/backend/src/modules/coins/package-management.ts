@@ -28,7 +28,14 @@ export function validatePackageConfiguration(input: unknown) {
   const bonusStartsAt = date(row.bonusStartsAt), bonusEndsAt = date(row.bonusEndsAt);
   if (!!bonusStartsAt !== !!bonusEndsAt || (bonusStartsAt && bonusEndsAt && bonusEndsAt <= bonusStartsAt)) throw new PackageManagementError('定时活动须同时填写开始与结束，且结束晚于开始。');
   if (bonus === 0 && bonusStartsAt) throw new PackageManagementError('定时活动须设置赠送金币。');
-  return { label: row.label.trim(), coins, bonus, priceCnyCents: integer(row.priceCnyCents, '人民币价格（分）', 1), sortOrder: integer(row.sortOrder, '排序', 0, 10000), isActive: row.isActive, bonusStartsAt, bonusEndsAt };
+  let benefitsJson: string | undefined;
+  if (row.benefits !== undefined) {
+    if (!Array.isArray(row.benefits) || row.benefits.length > 8 || row.benefits.some(item => typeof item !== 'string' || !item.trim() || item.trim().length > 80)) throw new PackageManagementError('权益说明最多 8 条，每条须为 1–80 字。');
+    const benefits = row.benefits.map(item => (item as string).trim());
+    if (new Set(benefits).size !== benefits.length) throw new PackageManagementError('权益说明不能重复。');
+    benefitsJson = JSON.stringify(benefits);
+  }
+  return { label: row.label.trim(), coins, bonus, ...(benefitsJson !== undefined ? {benefitsJson} : {}), priceCnyCents: integer(row.priceCnyCents, '人民币价格（分）', 1), sortOrder: integer(row.sortOrder, '排序', 0, 10000), isActive: row.isActive, bonusStartsAt, bonusEndsAt };
 }
 
 export async function readPackageManagement() {
@@ -39,8 +46,13 @@ export async function readPackageManagement() {
     const referenceCounts = new Map(references.map(item => [item.packageId, item._count._all]));
     const changes = await tx.coinPackageChange.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 20 });
     const now = new Date();
-    return { packages: packages.map(pkg => ({ ...pkg, referenceCount: referenceCounts.get(pkg.id) ?? 0, effectiveBonus: effectivePackageBonus(pkg, now) })), changes };
+    return { packages: packages.map(pkg => ({ ...pkg, benefits: parseBenefits(pkg.benefitsJson), referenceCount: referenceCounts.get(pkg.id) ?? 0, effectiveBonus: effectivePackageBonus(pkg, now), totalCoins: pkg.coins + effectivePackageBonus(pkg, now) })), changes };
   });
+}
+
+function parseBenefits(value: string): string[] {
+  try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string') : []; }
+  catch { return []; }
 }
 
 export async function createManagedPackage(actorId: string, input: unknown) {

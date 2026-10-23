@@ -12,10 +12,10 @@ import { Input } from '@rumiai/ui/input';
 import { formatCny } from '@rumiai/contracts/format/number';
 import { toDateTimeLocalInput } from '@rumiai/contracts/format/date-time';
 
-type Package = { id: string; label: string; coins: number; bonus: number; priceCnyCents: number | null; sortOrder: number; isActive: boolean; version: number; bonusStartsAt: string | null; bonusEndsAt: string | null; effectiveBonus: number; referenceCount: number };
+type Package = { id: string; label: string; coins: number; bonus: number; benefits: string[]; priceCnyCents: number | null; sortOrder: number; isActive: boolean; version: number; bonusStartsAt: string | null; bonusEndsAt: string | null; effectiveBonus: number; totalCoins: number; referenceCount: number };
 type Change = { id: string; packageId: string; actorId: string; createdAt: string; beforeJson: string | null; afterJson: string };
-type Form = { label: string; coins: string; bonus: string; price: string; sortOrder: string; isActive: boolean; start: string; end: string };
-const empty: Form = { label: '', coins: '60', bonus: '0', price: '6', sortOrder: '0', isActive: true, start: '', end: '' };
+type Form = { label: string; coins: string; bonus: string; benefits: string; price: string; sortOrder: string; isActive: boolean; start: string; end: string };
+const empty: Form = { label: '', coins: '60', bonus: '0', benefits: '', price: '6', sortOrder: '0', isActive: true, start: '', end: '' };
 
 export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boolean; canEdit: boolean }) {
   const [packages, setPackages] = useState<Package[]>([]), [changes, setChanges] = useState<Change[]>([]);
@@ -39,7 +39,7 @@ export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boo
   function edit(pkg: Package) {
     if (dirty && !window.confirm('当前套餐有未保存修改，切换套餐会放弃修改，继续吗？')) return;
     setDirty(false); setEditing(pkg); setError(''); setMessage('');
-    setForm({ label: pkg.label, coins: String(pkg.coins), bonus: String(pkg.bonus), price: pkg.priceCnyCents === null ? '' : (pkg.priceCnyCents / 100).toFixed(2), sortOrder: String(pkg.sortOrder), isActive: pkg.isActive, start: toDateTimeLocalInput(pkg.bonusStartsAt), end: toDateTimeLocalInput(pkg.bonusEndsAt) });
+    setForm({ label: pkg.label, coins: String(pkg.coins), bonus: String(pkg.bonus), benefits: pkg.benefits.join('\n'), price: pkg.priceCnyCents === null ? '' : (pkg.priceCnyCents / 100).toFixed(2), sortOrder: String(pkg.sortOrder), isActive: pkg.isActive, start: toDateTimeLocalInput(pkg.bonusStartsAt), end: toDateTimeLocalInput(pkg.bonusEndsAt) });
   }
 
   async function save(e: React.FormEvent) {
@@ -47,7 +47,7 @@ export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boo
     busyRef.current = true; setBusy(true); setError(''); setMessage('');
     try {
       if (!/^\d+(?:\.\d{1,2})?$/.test(form.price)) throw Error('人民币价格最多两位小数。');
-      const body = { label: form.label, coins: Number(form.coins), bonus: Number(form.bonus), priceCnyCents: Math.round(Number(form.price) * 100), sortOrder: Number(form.sortOrder), isActive: form.isActive, bonusStartsAt: form.start ? new Date(form.start).toISOString() : null, bonusEndsAt: form.end ? new Date(form.end).toISOString() : null, ...(editing ? { version: editing.version } : {}) };
+      const body = { label: form.label, coins: Number(form.coins), bonus: Number(form.bonus), benefits: form.benefits.split('\n').map(item => item.trim()).filter(Boolean), priceCnyCents: Math.round(Number(form.price) * 100), sortOrder: Number(form.sortOrder), isActive: form.isActive, bonusStartsAt: form.start ? new Date(form.start).toISOString() : null, bonusEndsAt: form.end ? new Date(form.end).toISOString() : null, ...(editing ? { version: editing.version } : {}) };
       const response = await fetch(editing ? `/api/admin/finance/packages/${encodeURIComponent(editing.id)}` : '/api/admin/finance/packages', { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
       if (!response.ok) { if (response.status === 409) await load(); throw Error(data.error || '保存失败。'); }
@@ -66,7 +66,7 @@ export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boo
       </div>
     ) },
     { id: 'price', header: '价格', width: '120px', cell: pkg => <span className="tabular-nums">{pkg.priceCnyCents === null ? '价格待配置' : formatCny(pkg.priceCnyCents)}</span> },
-    { id: 'coins', header: '金币', width: '180px', cell: pkg => <span className="tabular-nums">基础 {pkg.coins} · 当前赠送 {pkg.effectiveBonus}</span> },
+    { id: 'coins', header: '金币', width: '180px', cell: pkg => <span className="tabular-nums">基础 {pkg.coins} · 当前赠送 {pkg.effectiveBonus} · 总计 {pkg.totalCoins}</span> },
     { id: 'bonus', header: '赠送活动', cell: pkg => pkg.bonusStartsAt
       ? <span className="text-xs text-muted-foreground">{new Date(pkg.bonusStartsAt).toLocaleString('zh-CN')} 至 {new Date(pkg.bonusEndsAt!).toLocaleString('zh-CN')}</span>
       : <span className="text-xs text-muted-foreground">长期赠送 {pkg.bonus}</span> },
@@ -137,6 +137,10 @@ export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boo
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium">排序</span>
                 <Input required type="number" min="0" max="10000" value={form.sortOrder} onChange={e => field('sortOrder', e.target.value)} />
+              </label>
+              <label className="block space-y-1.5 sm:col-span-2 lg:col-span-3">
+                <span className="text-sm font-medium">权益说明（每行一条，最多 8 条）</span>
+                <Textarea rows={4} maxLength={648} value={form.benefits} onChange={e => field('benefits', e.target.value)} placeholder="不填写则不展示任何额外权益" />
               </label>
               <label className="flex items-center gap-2 self-end pb-2.5 text-sm font-medium">
                 <input type="checkbox" className="h-4 w-4 rounded border-border accent-brand" checked={form.isActive} onChange={e => field('isActive', e.target.checked)} />

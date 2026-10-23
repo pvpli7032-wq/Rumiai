@@ -290,8 +290,11 @@ model UploadAsset {
   ownerId   String   @map("owner_id")
   siteOwned Boolean  @default(false) @map("site_owned")
   url       String   @unique
+  mimeType  String?  @map("mime_type")
+  byteSize  Int?     @map("byte_size")
   createdAt DateTime @default(now()) @map("created_at")
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  messageAttachments MessageAttachment[]
 
   @@index([ownerId])
   @@map("upload_assets")
@@ -579,6 +582,8 @@ model Message {
   likedAt        DateTime? @map("liked_at")
   /// A picture generated alongside the reply, as the live greeting message carries.
   imageUrl       String?   @map("image_url")
+  mediaRequestId String?   @map("media_request_id")
+  mediaRequestHash String? @map("media_request_hash")
   createdAt      DateTime  @default(now()) @map("created_at")
 
   // Relationships
@@ -589,10 +594,31 @@ model Message {
   storyAssistantTurns StoryTurn[]      @relation("StoryAssistantMessage")
   storyEvents         StoryEvent[]     @relation("StorySourceMessage")
   storyShareTurns     StoryShareTurn[]
+  attachments         MessageAttachment[]
 
   @@index([conversationId])
   @@index([createdAt])
+  @@unique([conversationId, mediaRequestId])
   @@map("messages")
+}
+
+/// User-sent chat media. IMAGE points to an owned upload; STICKER points to the fixed catalog.
+/// AUDIO is deliberately absent until the voice-message product and processing rules exist.
+model MessageAttachment {
+  id            String      @id @default(cuid())
+  messageId     String      @map("message_id")
+  type          String
+  uploadAssetId String?     @map("upload_asset_id")
+  stickerId     String?     @map("sticker_id")
+  mimeType      String?     @map("mime_type")
+  byteSize      Int?        @map("byte_size")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  message       Message     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadAsset   UploadAsset? @relation(fields: [uploadAssetId], references: [id], onDelete: Restrict)
+
+  @@index([messageId])
+  @@index([uploadAssetId])
+  @@map("message_attachments")
 }
 
 /// Daily check-in activity log for tracking user streak and reward distribution
@@ -694,6 +720,8 @@ model PaymentOrder {
   packageId          String?                  @map("package_id")
   packageCoins       Int                      @map("package_coins")
   packageBonus       Int                      @map("package_bonus")
+  /// Immutable customer-facing benefits copied from the package at checkout.
+  packageBenefitsJson String                  @default("[]") @map("package_benefits_json")
   coinAmount         Int                      @map("coin_amount")
   amountCnyCents     Int                      @map("amount_cny_cents")
   currency           String                   @default("CNY")
@@ -1213,6 +1241,8 @@ model CoinPackage {
   priceThb      Int       @map("price_thb")
   priceCnyCents Int?      @map("price_cny_cents")
   bonus         Int       @default(0)
+  /// Customer-facing benefit statements configured by operators; never inferred from price.
+  benefitsJson  String    @default("[]") @map("benefits_json")
   bonusStartsAt DateTime? @map("bonus_starts_at")
   bonusEndsAt   DateTime? @map("bonus_ends_at")
   version       Int       @default(0)
