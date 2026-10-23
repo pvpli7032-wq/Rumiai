@@ -51,7 +51,7 @@ const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMI
 ], uncovered: [
   '未执行真实会员购买、退款、充值、支付商户验证。',
   '未执行后台任务、备份、恢复、维护模式、证书续签等危险运维动作。',
-  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的财务与运维操作仍需逐组补测，不能由路由快照推定通过。',
+  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的财务订单/退款/对账与运维操作仍需逐组补测，不能由路由快照推定通过。',
 ]};
 
 function recordOperation(route, operation, details) {
@@ -515,6 +515,60 @@ try {
   await admin.getByRole('tab', {name: '审计记录'}).click();
   await admin.getByText(/APPEAL_REVIEWED_ACCEPTED/).waitFor({state: 'visible'});
   recordOperation('/admin/moderation', '举报封禁/解封与申诉接受', {precondition: 'moderation.write + 隔离举报/申诉', api: 'PATCH /api/admin/moderation/reports|appeals/:id', persistence: 'users + reports/community_appeals + moderation_actions', normal: '三类动作通过并恢复用户状态', refresh: '队列与审计刷新通过', failure: '非法动作 400、重复申诉 409', repeated: '同步双击各仅一次 PATCH', status: '通过'});
+
+  // Finance packages are configuration only: no checkout, payment callback or refund
+  // provider is invoked. Exercise create/edit/reload/stale-write/delete on one inactive row.
+  await admin.goto(`${adminOrigin}/admin/finance?tab=packages`);
+  await admin.getByRole('tab', {name: '套餐'}).click();
+  await admin.getByLabel('套餐名称').fill('E2E 临时金币套餐');
+  await admin.getByLabel('人民币价格（元）').fill('9.99');
+  await admin.getByLabel('基础金币').fill('100');
+  await admin.getByLabel('赠送金币').fill('20');
+  await admin.getByLabel('排序').fill('99');
+  await admin.getByLabel('上架套餐').uncheck();
+  const packageCreates = [];
+  const countPackageCreate = request => { if (request.url().endsWith('/api/admin/finance/packages') && request.method() === 'POST') packageCreates.push(request); };
+  admin.on('request', countPackageCreate);
+  const packageCreateResponse = admin.waitForResponse(response => response.url().endsWith('/api/admin/finance/packages') && response.request().method() === 'POST');
+  await admin.getByRole('button', {name: '保存套餐'}).evaluate(button => {button.click(); button.click();});
+  const createdPackageResponse = await packageCreateResponse;
+  assert.equal(createdPackageResponse.status(), 201);
+  const createdPackage = await createdPackageResponse.json();
+  await admin.waitForTimeout(200);
+  admin.off('request', countPackageCreate);
+  assert.equal(packageCreates.length, 1);
+  await admin.reload();
+  await admin.getByText('E2E 临时金币套餐', {exact: true}).waitFor({state: 'visible'});
+  assert.equal((await fixture.db.coinPackage.findUniqueOrThrow({where: {id: createdPackage.id}})).priceCnyCents, 999);
+  await admin.getByRole('button', {name: '编辑 E2E 临时金币套餐'}).click();
+  await admin.getByLabel('人民币价格（元）').fill('10.99');
+  await admin.getByLabel('赠送金币').fill('30');
+  const packageUpdateResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/finance/packages/${createdPackage.id}`) && response.request().method() === 'PUT');
+  await admin.getByRole('button', {name: '保存套餐'}).click();
+  assert.equal((await packageUpdateResponse).status(), 200);
+  const updatedPackage = await fixture.db.coinPackage.findUniqueOrThrow({where: {id: createdPackage.id}});
+  assert.equal(updatedPackage.priceCnyCents, 1099);
+  assert.equal(updatedPackage.bonus, 30);
+  const invalidPackage = await admin.request.post(`${adminOrigin}/api/admin/finance/packages`, {data: {label: 'E2E 非法套餐', coins: 1, bonus: 0, priceCnyCents: 0, sortOrder: 0, isActive: false, bonusStartsAt: null, bonusEndsAt: null}});
+  assert.equal(invalidPackage.status(), 400);
+  const stalePackage = await admin.request.put(`${adminOrigin}/api/admin/finance/packages/${createdPackage.id}`, {data: {label: updatedPackage.label, coins: updatedPackage.coins, bonus: updatedPackage.bonus, priceCnyCents: updatedPackage.priceCnyCents, sortOrder: updatedPackage.sortOrder, isActive: false, bonusStartsAt: null, bonusEndsAt: null, version: createdPackage.version}});
+  assert.equal(stalePackage.status(), 409);
+  await admin.reload();
+  const packageRow = admin.getByText('E2E 临时金币套餐', {exact: true}).locator('xpath=ancestor::tr');
+  await packageRow.getByRole('button', {name: '删除'}).click();
+  const deletePackageDialog = admin.getByRole('dialog', {name: '删除已下架套餐'});
+  await deletePackageDialog.getByLabel('删除理由').fill('E2E 套餐配置验收完成后清理');
+  const packageDeletes = [];
+  const countPackageDelete = request => { if (request.url().endsWith(`/api/admin/finance/packages/${createdPackage.id}`) && request.method() === 'DELETE') packageDeletes.push(request); };
+  admin.on('request', countPackageDelete);
+  const packageDeleteResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/finance/packages/${createdPackage.id}`) && response.request().method() === 'DELETE');
+  await deletePackageDialog.getByRole('button', {name: '确认删除'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await packageDeleteResponse).status(), 200);
+  await admin.waitForTimeout(200);
+  admin.off('request', countPackageDelete);
+  assert.equal(packageDeletes.length, 1);
+  assert.equal(await fixture.db.coinPackage.findUnique({where: {id: createdPackage.id}}), null);
+  recordOperation('/admin/finance', '金币套餐新增/刷新/编辑/下架删除', {precondition: 'finance.packages.write；不触发支付', api: 'POST/PUT/DELETE /api/admin/finance/packages', persistence: 'coin_packages + coin_package_changes + admin_audit_logs', normal: '通过并清理', refresh: '通过', failure: '零价格 400、过期版本 409', repeated: '同步双击新增/删除各仅一次请求', status: '通过'});
 
   // Accounts: edit profile, reload persistence, community ban/unban, suspend/restore,
   // session revocation, stale-version rejection, and synchronous duplicate protection.

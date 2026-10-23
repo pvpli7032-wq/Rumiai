@@ -1,7 +1,7 @@
 'use client';
 
 import { Pencil } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminNotice, AdminPanel, AdminPanelGroup, AdminPlaceholder } from '@admin/components/admin-page';
 import { Badge } from '@rumiai/ui/badge';
 import { Button } from '@rumiai/ui/button';
@@ -21,6 +21,7 @@ export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boo
   const [packages, setPackages] = useState<Package[]>([]), [changes, setChanges] = useState<Change[]>([]);
   const [editing, setEditing] = useState<Package | null>(null), [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(''), [message, setMessage] = useState(''), [deleting, setDeleting] = useState<Package | null>(null), [deleteReason, setDeleteReason] = useState('');
+  const busyRef = useRef(false);
   const load = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     setLoading(true);
     try {
@@ -42,8 +43,8 @@ export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boo
   }
 
   async function save(e: React.FormEvent) {
-    e.preventDefault(); if (busy || !canEdit) return;
-    setBusy(true); setError(''); setMessage('');
+    e.preventDefault(); if (busyRef.current || !canEdit) return;
+    busyRef.current = true; setBusy(true); setError(''); setMessage('');
     try {
       if (!/^\d+(?:\.\d{1,2})?$/.test(form.price)) throw Error('人民币价格最多两位小数。');
       const body = { label: form.label, coins: Number(form.coins), bonus: Number(form.bonus), priceCnyCents: Math.round(Number(form.price) * 100), sortOrder: Number(form.sortOrder), isActive: form.isActive, bonusStartsAt: form.start ? new Date(form.start).toISOString() : null, bonusEndsAt: form.end ? new Date(form.end).toISOString() : null, ...(editing ? { version: editing.version } : {}) };
@@ -52,7 +53,7 @@ export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boo
       if (!response.ok) { if (response.status === 409) await load(); throw Error(data.error || '保存失败。'); }
       setEditing(null); setForm(empty); setDirty(false); setMessage('套餐已保存，新订单使用最新配置。');
       if (!await load()) setError('套餐已保存，但列表刷新失败，请手动刷新。');
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    } catch (e) { setError((e as Error).message); } finally { busyRef.current = false; setBusy(false); }
   }
 
   const field = (key: keyof Form, value: string | boolean) => { setDirty(true); setForm(previous => ({ ...previous, [key]: value })); };
@@ -150,7 +151,7 @@ export function FinancePackages({ sessionActive, canEdit }: { sessionActive: boo
           </form>
         </AdminPanel>
       )}
-      <Dialog open={!!deleting} onClose={() => { if (!busy) setDeleting(null); }} title="删除已下架套餐" description="仅允许删除没有订单快照引用的套餐；删除后不可恢复。" size="md" footer={<><Button variant="ghost" disabled={busy} onClick={() => setDeleting(null)}>取消</Button><Button variant="danger" loading={busy} disabled={busy || !deleteReason.trim()} onClick={async () => { if (!deleting) return; setBusy(true); setError(''); try { const response = await fetch(`/api/admin/finance/packages/${encodeURIComponent(deleting.id)}`, {method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({version: deleting.version, reason: deleteReason.trim()})}); const data = await response.json(); if (!response.ok) throw Error(data.error || '套餐删除失败。'); setDeleting(null); setMessage('套餐已删除。'); await load(); } catch (e) { setError(e instanceof Error ? e.message : '套餐删除失败。'); } finally { setBusy(false); } }}>确认删除</Button></>}>
+      <Dialog open={!!deleting} onClose={() => { if (!busy) setDeleting(null); }} title="删除已下架套餐" description="仅允许删除没有订单快照引用的套餐；删除后不可恢复。" size="md" footer={<><Button variant="ghost" disabled={busy} onClick={() => setDeleting(null)}>取消</Button><Button variant="danger" loading={busy} disabled={busy || !deleteReason.trim()} onClick={async () => { if (!deleting || busyRef.current) return; busyRef.current = true; setBusy(true); setError(''); try { const response = await fetch(`/api/admin/finance/packages/${encodeURIComponent(deleting.id)}`, {method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({version: deleting.version, reason: deleteReason.trim()})}); const data = await response.json(); if (!response.ok) throw Error(data.error || '套餐删除失败。'); setDeleting(null); setMessage('套餐已删除。'); await load(); } catch (e) { setError(e instanceof Error ? e.message : '套餐删除失败。'); } finally { busyRef.current = false; setBusy(false); } }}>确认删除</Button></>}>
         {deleting && <p className="mb-3 text-sm text-muted-foreground">当前订单快照引用：{deleting.referenceCount} 条。</p>}{error && <AdminNotice tone="error" title={error} className="mb-3" />}<label className="block space-y-1.5"><span className="text-sm font-medium">删除理由</span><Textarea required maxLength={500} rows={3} value={deleteReason} onChange={event => setDeleteReason(event.target.value)} /></label>
       </Dialog>
     </AdminPanelGroup>
