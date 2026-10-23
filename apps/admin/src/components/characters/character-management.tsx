@@ -52,6 +52,11 @@ export function CharacterManagement() {
     try {await request(`/api/admin/characters/${encodeURIComponent(detail.id)}/publication`, 'POST', {action, reason, updatedAt: detail.updatedAt}); setRefresh(value => value + 1); setMessage(action === 'PUBLISH' ? '角色已公开，前台可见性已更新。' : '角色已下架，前台可见性已更新。'); return true;}
     catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
   }
+  async function removeDraft(reason: string) {
+    if (busy || !detail) return false; setBusy(true); setError(''); setMessage('');
+    try {await request(`/api/admin/characters/${encodeURIComponent(detail.id)}`, 'DELETE', {updatedAt: detail.updatedAt, reason}); setDetailDirty(false); setCreating(false); setSelected(null); setDetail(null); setRefresh(value => value + 1); setMessage('未使用的站点角色草稿已删除。'); return true;}
+    catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
+  }
   async function bulkPublish(action: 'PUBLISH' | 'UNPUBLISH', reason: string, items: CharacterSummary[]) {
     if (busy) return false; setBusy(true); setError(''); setMessage('');
     try {await request('/api/admin/characters/publication', 'POST', {action, reason, items: items.map(character => ({id: character.id, updatedAt: character.updatedAt}))}); setRefresh(value => value + 1); setMessage('批量角色操作已完成。'); return true;}
@@ -134,7 +139,7 @@ export function CharacterManagement() {
       {message && <AdminNotice tone="success" title={message} className="mb-4 py-3" />}
       {detailLoading && <AdminNotice tone="loading" title="正在读取角色详情…" />}
       {selected && !detail && !detailLoading && <AdminNotice tone="error" title={error || '角色详情读取失败。'} action={<Button variant="outline" onClick={() => setRefresh(value => value + 1)}>重新读取</Button>} />}
-      {(creating || detail) && <CharacterEditor key={creating ? 'new' : `${detail!.id}:${detail!.updatedAt}`} character={creating ? null : detail} canEdit={canEdit} canPublish={canPublish} busy={busy} onSave={save} onPublish={publish} onClose={closeDetail} onDirtyChange={setDetailDirty} error={error} />}
+      {(creating || detail) && <CharacterEditor key={creating ? 'new' : `${detail!.id}:${detail!.updatedAt}`} character={creating ? null : detail} canEdit={canEdit} canPublish={canPublish} busy={busy} onSave={save} onPublish={publish} onDelete={removeDraft} onClose={closeDetail} onDirtyChange={setDetailDirty} error={error} />}
       {detail&&!creating&&<CharacterModelAccess key={detail.id} characterId={detail.id} deleted={detail.reviewStatus==='DELETED'}/>}
     </DetailDrawer>
   </AdminPage>;

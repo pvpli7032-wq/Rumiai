@@ -31,6 +31,19 @@ export async function readAiProviders(actorId:string){
   return db.$transaction(async tx=>{await requirePermission(actorId,'ai.providers.read',tx);const rows=await tx.aiProvider.findMany({select:{...publicSelect,...secretSelect},orderBy:[{sortOrder:'asc'},{id:'asc'}],take:100});const models=rows.length?await tx.aiModel.findMany({where:{providerId:{in:rows.map(row=>row.id)}},select:{providerId:true,isActive:true}}):[];return rows.map(row=>{const owned=models.filter(model=>model.providerId===row.id);const references={models:owned.length,activeModels:owned.filter(model=>model.isActive).length};return {...publicProvider(row),references,canDelete:!row.isActive&&!references.models};});});
 }
 
+export async function readAiProviderDeletion(actorId:string,id:string){
+  if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))throw new AiProviderError('供应商编号无效。');
+  await requirePermission(actorId,'ai.providers.read');
+  return db.$transaction(async tx=>{
+    await requirePermission(actorId,'ai.providers.read',tx);
+    const row=await tx.aiProvider.findUnique({where:{id},select:{...publicSelect,...secretSelect}});
+    if(!row)throw new AiProviderError('供应商不存在。',404);
+    const references=await providerReferences(tx,id);
+    const blockers=[...(row.isActive?['ACTIVE'] as const:[]),...(references.models?['MODELS'] as const:[])];
+    return {...publicProvider(row),references,blockers,canDelete:blockers.length===0};
+  });
+}
+
 export async function deleteAiProvider(actorId:string,id:string,input:unknown){
   const row=object(input),reasonText=explanation(row.reason),version=expectedVersion(row.version);
   if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))throw new AiProviderError('供应商编号无效。');

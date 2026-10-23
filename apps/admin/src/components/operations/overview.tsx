@@ -1,6 +1,7 @@
 'use client';
 
-import {useEffect,useState} from 'react';
+import {useCallback,useEffect,useState} from 'react';
+import {useRouter,useSearchParams} from 'next/navigation';
 import {MaintenanceSettings} from './maintenance-settings';
 import {CertificateStatus} from './certificate-status';
 import {BackupCatalog} from './backup-catalog';
@@ -12,15 +13,21 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from '@rumiai/ui/tabs';
 
 type Report={generatedAt:string;runtime:{installation:string;environment:string;nodeVersion:string;uptimeSeconds:number};database:{connected:boolean;engine:string;migrations:{appliedCount:number;availableCount:number|null;pendingCount:number|null;unexpectedCount:number|null;failedCount:number;lastMigration:string|null;lastAppliedAt:string|null}};backups:{directoryPresent:boolean;singleFileBackups:number;stateBundles:number;newestAt:string|null};alerts:Array<{code:string;severity:'error'|'warning';title:string;detail:string}>;capabilities:{backupCreation:string;restore:string;certificateRenewal:string;externalAlerts:string}};
 const time=(value:string|null)=>value?new Date(value).toLocaleString('zh-CN'):'暂无记录';
+const OPERATION_TABS=['status','maintenance','backup'] as const;
+type OperationTab=(typeof OPERATION_TABS)[number];
 
 export function OperationsOverview({sessionActive}:{sessionActive: boolean}){
+  const router=useRouter(),searchParams=useSearchParams(),requestedTab=searchParams.get('tab');
+  const tab:OperationTab=OPERATION_TABS.includes(requestedTab as OperationTab)?requestedTab as OperationTab:'status';
   const [report,setReport]=useState<Report|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('');
+  const selectTab=useCallback((value:string,replace=false)=>{const next=OPERATION_TABS.includes(value as OperationTab)?value as OperationTab:'status';const params=new URLSearchParams(searchParams.toString());if(next==='status')params.delete('tab');else params.set('tab',next);const href=params.size?`/admin/operations?${params}`:'/admin/operations';if(replace)router.replace(href,{scroll:false});else router.push(href,{scroll:false});},[router,searchParams]);
+  useEffect(()=>{if(requestedTab&&!OPERATION_TABS.includes(requestedTab as OperationTab))selectTab('status',true);},[requestedTab,selectTab]);
   useEffect(()=>{const controller=new AbortController();void fetch('/api/admin/operations',{credentials: 'include',cache:'no-store',signal:controller.signal}).then(async response=>{const data=await response.json();if(!response.ok)throw Error(data.error);return data as Report;}).then(setReport).catch(reason=>{if(!controller.signal.aborted)setError(reason instanceof Error?reason.message:'运维状态读取失败。');}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});return()=>controller.abort();},[sessionActive]);
   return <AdminPage>
     <AdminPageHeader eyebrow="系统与安全" title="系统与运维" description="运行状态、维护模式和备份清单；备份创建、恢复与证书续签由受控运维流程执行。" />
     {loading&&<AdminNotice tone="loading" title="正在检查服务与备份状态…" />}
     {error&&<AdminNotice tone="error" title={error} />}
-    <Tabs defaultValue="status">
+    <Tabs value={tab} onValueChange={value=>selectTab(value)}>
       <TabsList aria-label="运维工作区">
         <TabsTrigger value="status">运行状态</TabsTrigger>
         <TabsTrigger value="maintenance">维护与证书</TabsTrigger>

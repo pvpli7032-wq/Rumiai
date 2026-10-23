@@ -29,9 +29,39 @@ export async function listManagedCharacters(actor: string, query: {q?: string; s
 }
 export async function readManagedCharacter(actor: string, id: string) {
   await requirePermission(actor, 'characters.read');
-  const character = await db.character.findUnique({where: {id}, include: {creator: {select: {id: true, username: true, deletedAt: true}}, images: {orderBy: {sortOrder: 'asc'}}, emojis: {orderBy: {sortOrder: 'asc'}}, supportCast: {orderBy: {sortOrder: 'asc'}}}});
-  if (!character) throw new CharacterManagementError('角色不存在。', 404);
-  return character;
+  return db.$transaction(async tx => {
+    await requirePermission(actor, 'characters.read', tx);
+    const character = await tx.character.findUnique({where: {id}, include: {creator: {select: {id: true, username: true, deletedAt: true}}, images: {orderBy: {sortOrder: 'asc'}}, emojis: {orderBy: {sortOrder: 'asc'}}, supportCast: {orderBy: {sortOrder: 'asc'}}}});
+    if (!character) throw new CharacterManagementError('角色不存在。', 404);
+    return {...character, deletion: await characterDeletionState(tx, character)};
+  });
+}
+
+type CharacterDeletionTarget = {id: string; creatorId: string | null; reviewStatus: string; isPublic: boolean; publicationRequested: boolean};
+async function characterReferences(tx: Prisma.TransactionClient, id: string) {
+  const [conversations, gifts, likes, bookmarks, comments, posts, questProgress, reports, mirrorResults, disputes] = await Promise.all([
+    tx.conversation.count({where: {characterId: id}}),
+    tx.gift.count({where: {characterId: id}}),
+    tx.characterLike.count({where: {characterId: id}}),
+    tx.characterBookmark.count({where: {characterId: id}}),
+    tx.comment.count({where: {characterId: id}}),
+    tx.post.count({where: {characterId: id}}),
+    tx.userCharacterQuest.count({where: {quest: {characterId: id}}}),
+    tx.report.count({where: {targetType: 'CHARACTER', targetId: id}}),
+    tx.mirrorResult.count({where: {characterId: id}}),
+    tx.disputeCase.count({where: {characterId: id}}),
+  ]);
+  return {conversations, gifts, likes, bookmarks, comments, posts, questProgress, reports, mirrorResults, disputes};
+}
+async function characterDeletionState(tx: Prisma.TransactionClient, character: CharacterDeletionTarget) {
+  const references = await characterReferences(tx, character.id);
+  const referenceCount = Object.values(references).reduce((total, count) => total + count, 0);
+  const blockers = [
+    ...(character.creatorId !== null ? ['CREATOR_OWNED'] as const : []),
+    ...(character.reviewStatus !== 'DRAFT' || character.isPublic || character.publicationRequested ? ['NOT_UNUSED_DRAFT'] as const : []),
+    ...(referenceCount ? ['REFERENCES'] as const : []),
+  ];
+  return {references, referenceCount, blockers, canDelete: blockers.length === 0};
 }
 async function payload(input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new CharacterManagementError('角色数据格式错误。');
@@ -81,6 +111,30 @@ export async function saveManagedCharacter(actor: string, id: string | null, inp
     } catch (error) {if (error instanceof CharacterAssetError) throw new CharacterManagementError(error.message); throw error;}
     await recordAdminAudit(tx, actor, before ? 'CHARACTER_EDITED' : 'CHARACTER_CREATED', saved.id, reason, {fields: [...Object.keys(content), ...['images', 'emojis', 'supportCast'].filter(key => assets[key] !== undefined)], before: before ? {status: before.reviewStatus, isPublic: before.isPublic, updatedAt: before.updatedAt} : null, after: {status: saved.reviewStatus, isPublic: saved.isPublic, updatedAt, siteAssetsRetained}});
     return saved;
+  });
+}
+
+export async function deleteManagedCharacterDraft(actor: string, id: string, input: unknown) {
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) throw new CharacterManagementError('角色编号无效。');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new CharacterManagementError('删除请求格式错误。');
+  const body = input as Record<string, unknown>;
+  if (typeof body.updatedAt !== 'string' || !Number.isFinite(Date.parse(body.updatedAt))) throw new CharacterManagementError('缺少有效角色版本。');
+  if (typeof body.reason !== 'string' || !body.reason.trim() || body.reason.trim().length > 500) throw new CharacterManagementError('请填写1–500字删除理由。');
+  const expectedUpdatedAt = body.updatedAt, explanation = body.reason.trim();
+  await pragmasReady;
+  return db.$transaction(async tx => {
+    await tx.$executeRaw`UPDATE users SET account_version = account_version WHERE id = ${actor}`;
+    await requirePermission(actor, 'characters.write', tx);
+    const before = await tx.character.findUnique({where: {id}, select: {id: true, name: true, creatorId: true, reviewStatus: true, isPublic: true, publicationRequested: true, updatedAt: true}});
+    if (!before) throw new CharacterManagementError('角色不存在。', 404);
+    if (before.updatedAt.getTime() !== Date.parse(expectedUpdatedAt)) throw new CharacterManagementError('角色已被修改，请刷新后重试。', 409);
+    const deletion = await characterDeletionState(tx, before);
+    if (before.creatorId !== null) throw new CharacterManagementError('个人作者草稿应由作者自行管理，后台不能物理删除用户角色。', 409);
+    if (before.reviewStatus !== 'DRAFT' || before.isPublic || before.publicationRequested) throw new CharacterManagementError('只允许删除从未发布、从未提交审核的站点草稿；已发布或有审核历史的角色请保持下架。', 409);
+    if (deletion.referenceCount) throw new CharacterManagementError(`角色仍有业务引用（对话 ${deletion.references.conversations}、赠礼 ${deletion.references.gifts}、点赞 ${deletion.references.likes}、收藏 ${deletion.references.bookmarks}、评论 ${deletion.references.comments}、帖子 ${deletion.references.posts}、任务进度 ${deletion.references.questProgress}、举报 ${deletion.references.reports}、玩法结果 ${deletion.references.mirrorResults}、评理案例 ${deletion.references.disputes}），历史必须保留。`, 409);
+    await tx.character.delete({where: {id}});
+    await recordAdminAudit(tx, actor, 'DELETE_UNUSED_CHARACTER_DRAFT', id, explanation, {before, references: deletion.references});
+    return {id, deleted: true};
   });
 }
 type PublicationTarget = {id: string; updatedAt: string};

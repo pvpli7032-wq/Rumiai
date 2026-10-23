@@ -46,7 +46,7 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller,
   canWrite: boolean;
   controller: ReturnType<typeof useSettingsGroup>;
   sectionId?: string;
-  onSectionChange?: (sectionId: string) => void;
+  onSectionChange?: (sectionId: string, history?: 'push' | 'replace') => void;
   focus?: {key: string; nonce: number} | null;
 }) {
   const {definitions, values, draft, dirtyKeys, fieldErrors, loading, loadError, savedAt} = controller;
@@ -70,8 +70,8 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller,
   useEffect(() => {
     setQuery('');
     setSavedNotice('');
-    if (sections[0]) onSectionChange?.(sections[0].id);
-  }, [activeGroup, onSectionChange, sections]);
+    if (sections[0] && !sections.some(section => section.id === sectionId)) onSectionChange?.(sections[0].id, 'replace');
+  }, [activeGroup, onSectionChange, sectionId, sections]);
 
   useEffect(() => {
     if (!focus || focus.nonce === handledFocusNonce || loading || loadError || !values[focus.key]) return;
@@ -79,7 +79,7 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller,
     if (!definition) return;
     const section = sectionForKey(activeGroup, focus.key);
     if (query !== definition.label) {
-      if (section) onSectionChange?.(section.id);
+      if (section) onSectionChange?.(section.id, 'replace');
       setQuery(definition.label);
       return;
     }
@@ -191,7 +191,7 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller,
             <div className="flex gap-1 overflow-x-auto lg:block lg:overflow-visible">
               {sections.map(section => {
                 const selected = selectedSection?.id === section.id;
-                return <button key={section.id} type="button" onClick={() => onSectionChange?.(section.id)} aria-current={selected ? 'page' : undefined}
+                return <button key={section.id} type="button" onClick={() => onSectionChange?.(section.id, 'push')} aria-current={selected ? 'page' : undefined}
                   className={`flex min-h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-left text-sm transition-colors lg:mb-1 lg:w-full ${selected ? 'bg-brand-soft font-semibold text-brand' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                   <span>{section.title}</span><span className="text-xs opacity-70">{section.definitions.length}</span>
                 </button>;

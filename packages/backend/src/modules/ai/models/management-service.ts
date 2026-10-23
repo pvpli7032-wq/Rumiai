@@ -51,6 +51,20 @@ export async function readAiModels(actorId:string){
   return db.$transaction(async tx=>{await requirePermission(actorId,'ai.models.read',tx);const rows=await tx.aiModel.findMany({include:{provider:{select:{id:true,name:true,isActive:true}}},orderBy:[{sortOrder:'asc'},{key:'asc'}],take:200});const references=modelReferencesBatch(tx,rows);return Promise.resolve(references).then(referenceMap=>rows.map(row=>{const refs=referenceMap.get(row.id)??{characterBindings:0,conversationBindings:0,modelPrices:0,coinPrices:0,aiCalls:0,taskSettings:0};const hasReferences=Object.values(refs).some(value=>value>0);return {...view(row),references:refs,canDelete:!row.isActive&&!row.isDefault&&!row.isFallback&&!hasReferences};}));});
 }
 
+export async function readAiModelDeletion(actorId:string,id:string){
+  if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))throw new AiModelError('模型编号无效。');
+  await requirePermission(actorId,'ai.models.read');
+  return db.$transaction(async tx=>{
+    await requirePermission(actorId,'ai.models.read',tx);
+    const row=await tx.aiModel.findUnique({where:{id},include:{provider:{select:{id:true,name:true,isActive:true}}}});
+    if(!row)throw new AiModelError('模型不存在。',404);
+    const references=await modelReferences(tx,row);
+    const hasReferences=Object.values(references).some(value=>value>0);
+    const blockers=[...(row.isActive?['ACTIVE'] as const:[]),...(row.isDefault?['DEFAULT'] as const:[]),...(row.isFallback?['FALLBACK'] as const:[]),...(hasReferences?['REFERENCES'] as const:[])];
+    return {...view(row),references,blockers,canDelete:blockers.length===0};
+  });
+}
+
 export async function deleteAiModel(actorId:string,id:string,input:unknown){
   const row=object(input),reasonText=reason(row.reason),version=expected(row.version);
   if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))throw new AiModelError('模型编号无效。');

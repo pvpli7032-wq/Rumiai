@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import {useRouter} from 'next/navigation';
+import {useRouter, useSearchParams} from 'next/navigation';
 import {ArrowDownUp, Search} from 'lucide-react';
-import {useCallback, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {AdminNotice, AdminPage} from '@admin/components/admin-page';
 import {AdminPageHeader} from '@admin/components/layout/admin-page-header';
 import {SaveBar} from '@admin/components/layout/save-bar';
@@ -17,7 +17,20 @@ import {ExportImportDialog} from './export-import-dialog';
 import {SettingsPanel} from './settings-panel';
 import {useSettingsGroup} from './use-settings-group';
 import {useUnsavedGuard} from './use-unsaved-guard';
-import {buildSettingSearchIndex, searchSettings, shouldConfirmSettingNavigation} from './search';
+import {buildSettingSearchIndex, searchSettings} from './search';
+import {sectionsOfGroup} from './sections';
+
+function settingsGroup(value: string | null): SettingsGroupId {
+  return SETTING_GROUPS.some(group => group.id === value) ? value as SettingsGroupId : 'chat';
+}
+
+function settingsHref(group: SettingsGroupId, section?: string): string {
+  const params = new URLSearchParams();
+  if (group !== 'chat') params.set('tab', group);
+  const targetSection = section ?? sectionsOfGroup(group)[0]?.id;
+  if (targetSection) params.set('section', targetSection);
+  return params.size ? `/admin/settings?${params}` : '/admin/settings';
+}
 
 /**
  * 设置中心：单内容区 + 顶部分类标签（V3 §16）。
@@ -30,8 +43,13 @@ import {buildSettingSearchIndex, searchSettings, shouldConfirmSettingNavigation}
 export function SettingsCenter() {
   const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const router = useRouter();
-  const [activeGroup, setActiveGroup] = useState<SettingsGroupId>('chat');
-  const [sectionId, setSectionId] = useState<string | undefined>();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const requestedSection = searchParams.get('section') ?? undefined;
+  const urlGroup = settingsGroup(requestedTab);
+  const urlSection = requestedSection && sectionsOfGroup(urlGroup).some(section => section.id === requestedSection) ? requestedSection : undefined;
+  const [activeGroup, setActiveGroup] = useState<SettingsGroupId>(urlGroup);
+  const [sectionId, setSectionId] = useState<string | undefined>(urlSection);
   const [globalQuery, setGlobalQuery] = useState('');
   const [focus, setFocus] = useState<{key: string; nonce: number} | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -41,30 +59,57 @@ export function SettingsCenter() {
   const controller = useSettingsGroup(sessionActive ?? undefined, activeGroup, Boolean(sessionActive && canRead));
   const {definitions, dirtyKeys, loading, loadError, saving, saveError} = controller;
 
-  useUnsavedGuard(dirtyKeys.length > 0);
+  const applyNavigation = useCallback((href: string) => {
+    const target = new URL(href, window.location.origin);
+    if (target.pathname !== '/admin/settings') return;
+    const group = settingsGroup(target.searchParams.get('tab'));
+    const requested = target.searchParams.get('section') ?? undefined;
+    const section = requested && sectionsOfGroup(group).some(item => item.id === requested) ? requested : undefined;
+    setActiveGroup(group);
+    setSectionId(section);
+  }, []);
+
+  const shouldConfirmNavigation = useCallback((from: URL, to: URL) => {
+    if (to.pathname !== '/admin/settings') return true;
+    return settingsGroup(from.searchParams.get('tab')) !== settingsGroup(to.searchParams.get('tab'));
+  }, []);
+
+  const guardedNavigate = useUnsavedGuard(dirtyKeys.length > 0, {
+    location: settingsHref(activeGroup, sectionId),
+    shouldConfirm: shouldConfirmNavigation,
+    onNavigate: applyNavigation,
+  });
+
+  useEffect(() => {
+    const invalid = (requestedTab !== null && requestedTab !== urlGroup) || (requestedSection !== undefined && requestedSection !== urlSection);
+    if (dirtyKeys.length === 0 && (activeGroup !== urlGroup || sectionId !== urlSection)) {
+      setActiveGroup(urlGroup);
+      setSectionId(urlSection);
+    }
+    if (invalid) router.replace(settingsHref(urlGroup, urlSection), {scroll: false});
+  }, [activeGroup, dirtyKeys.length, requestedSection, requestedTab, router, sectionId, urlGroup, urlSection]);
 
   // 分类标签是「切换视图」而不是离开页面：分类之间切换时先确认一次，避免悄悄丢掉草稿。
   const switchGroup = useCallback((next: SettingsGroupId) => {
     if (next === activeGroup) return;
-    if (dirtyKeys.length > 0 && !window.confirm('当前分类有未保存的修改，切换分类会放弃这些修改，继续吗？')) return;
-    setActiveGroup(next);
-    setSectionId(undefined);
-  }, [activeGroup, dirtyKeys.length]);
+    guardedNavigate(settingsHref(next));
+  }, [activeGroup, guardedNavigate]);
+
+  const switchSection = useCallback((next: string, history: 'push' | 'replace' = 'push') => {
+    guardedNavigate(settingsHref(activeGroup, next), {replace: history === 'replace'});
+  }, [activeGroup, guardedNavigate]);
 
   const searchIndex = useMemo(() => buildSettingSearchIndex(SETTING_GROUPS, permissions.includes('ai.costs.read')), [permissions]);
   const searchMatches = useMemo(() => searchSettings(searchIndex, globalQuery), [globalQuery, searchIndex]);
   const searchResults = searchMatches.slice(0, 20);
 
   function openSearchResult(item: typeof searchIndex[number]) {
-    const leavingPage = Boolean(item.specialHref);
-    if (shouldConfirmSettingNavigation(dirtyKeys.length > 0, activeGroup, item.group.id, item.specialHref) && !window.confirm(leavingPage ? '当前页面有未保存的修改，确定离开吗？' : '当前分类有未保存的修改，切换分类会放弃这些修改，继续吗？')) return;
-    setGlobalQuery('');
     if (item.specialHref) {
-      router.push(item.specialHref);
+      if (guardedNavigate(item.specialHref)) setGlobalQuery('');
       return;
     }
-    setActiveGroup(item.group.id);
-    setSectionId(item.section?.id);
+    if (!guardedNavigate(settingsHref(item.group.id, item.section?.id))) return;
+    setGlobalQuery('');
     setFocus({key: item.definition.key, nonce: Date.now()});
   }
 
@@ -174,7 +219,7 @@ export function SettingsCenter() {
         <p className="mt-2 text-xs text-muted-foreground">跨分类搜索只展示当前账号可见的登记项；AI 模型路由等专属项仅提供跳转，不读取参数值。</p>
       </div>
 
-      <SettingsPanel activeGroup={activeGroup} sessionActive={sessionActive} canWrite={canWrite} controller={controller} sectionId={sectionId} onSectionChange={setSectionId} focus={focus} />
+      <SettingsPanel activeGroup={activeGroup} sessionActive={sessionActive} canWrite={canWrite} controller={controller} sectionId={sectionId} onSectionChange={switchSection} focus={focus} />
 
       {transferOpen && (
         <ExportImportDialog open sessionActive={sessionActive} canWrite={canWrite} onClose={() => setTransferOpen(false)} onImported={() => controller.reload()} />

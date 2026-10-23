@@ -16,7 +16,7 @@ import { contentFrom, emptyContent, statusLabels, type CharacterContent, type Ma
 const textFields = [['name', '角色名称'], ['tagline', '简介'], ['personality', '人设'], ['background', '背景'], ['greeting', '开场白'], ['scenario', '场景'], ['roleTemplate', '扮演指引'], ['tags', '标签'], ['badges', '徽章'], ['avatarUrl', '头像地址'], ['copyrightStatement', '版权声明'], ['relationshipStatus', '初始关系']] as const;
 const WIDE_FIELDS = ['background', 'copyrightStatement'];
 
-export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, onPublish, onClose, onDirtyChange, error }: { character: ManagedCharacter | null; canEdit: boolean; canPublish: boolean; busy: boolean; onSave: (content: CharacterContent, reason: string) => Promise<boolean>; onPublish: (action: 'PUBLISH' | 'UNPUBLISH', reason: string) => Promise<boolean>; onClose: () => void; onDirtyChange?: (dirty: boolean) => void; error?: string }) {
+export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, onPublish, onDelete, onClose, onDirtyChange, error }: { character: ManagedCharacter | null; canEdit: boolean; canPublish: boolean; busy: boolean; onSave: (content: CharacterContent, reason: string) => Promise<boolean>; onPublish: (action: 'PUBLISH' | 'UNPUBLISH', reason: string) => Promise<boolean>; onDelete: (reason: string) => Promise<boolean>; onClose: () => void; onDirtyChange?: (dirty: boolean) => void; error?: string }) {
   const uiConfig = useUiConfig();
   // 配置未返回时不设置 HTML maxLength；0 会禁止输入，不能当成「不限」。服务端仍校验真实配置。
   const CHARACTER_LIMITS = useMemo(() => buildCharacterLimits(key => {
@@ -24,7 +24,7 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }), [uiConfig]);
   const [content, setContent] = useState<CharacterContent>(character ? contentFrom(character) : { ...emptyContent });
-  const [reason, setReason] = useState(''), [preview, setPreview] = useState(false), [pending, setPending] = useState<'PUBLISH' | 'UNPUBLISH' | null>(null);
+  const [reason, setReason] = useState(''), [preview, setPreview] = useState(false), [pending, setPending] = useState<'PUBLISH' | 'UNPUBLISH' | null>(null), [deleteOpen, setDeleteOpen] = useState(false), [deleteReason, setDeleteReason] = useState('');
   const original = character ? contentFrom(character) : { ...emptyContent };
   const dirty = original !== null && JSON.stringify(content) !== JSON.stringify(original);
   const deleted = character?.reviewStatus === 'DELETED';
@@ -36,6 +36,7 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
     if (!reason.trim()) return;
     if (await onPublish(action, reason)) setReason('');
   }
+  async function removeDraft() {if (!deleteReason.trim()) return; if (await onDelete(deleteReason.trim())) {setDeleteOpen(false); setDeleteReason('');}}
 
   return (
     <>
@@ -151,6 +152,7 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
                         <Button variant="danger" disabled={busy || dirty || !reason.trim() || !character.isPublic} onClick={() => setPending('UNPUBLISH')}>下架角色</Button>
                       </>
                     )}
+                    {character && canEdit && <Button type="button" variant="danger" disabled={busy} onClick={() => {setDeleteOpen(true); setDeleteReason('');}}>删除草稿 / 查看原因</Button>}
                   </div>
                   <p className="text-xs text-muted-foreground">保存公开角色的内容会先撤下并进入待审核；编辑权限不等于发布权限。</p>
                 </div>
@@ -172,6 +174,9 @@ export function CharacterEditor({ character, canEdit, canPublish, busy, onSave, 
           </>
         }
       />
+      <Dialog open={deleteOpen} onClose={() => {if (!busy) setDeleteOpen(false);}} title="删除角色草稿" description="只有后台新建、从未提交审核且没有任何业务引用的站点草稿可以物理删除。" size="md" footer={<><Button variant="ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>取消</Button><Button variant="danger" loading={busy} disabled={busy||!character?.deletion.canDelete||!deleteReason.trim()} onClick={() => void removeDraft()}>确认删除</Button></>}>
+        {character&&<div className="space-y-3">{error&&<AdminNotice tone="error" title={error} />}{character.deletion.blockers.includes('CREATOR_OWNED')&&<AdminNotice tone="warning" title="这是个人作者的角色" description="后台不会物理删除用户角色；由作者自行管理，后台仅可按审核与下架流程处置。" />}{character.deletion.blockers.includes('NOT_UNUSED_DRAFT')&&<AdminNotice tone="warning" title="此角色已有发布或审核生命周期" description="已发布、已提交审核或已下架的角色应保留状态与历史，不能按未使用草稿删除。" />}{character.deletion.blockers.includes('REFERENCES')&&<AdminNotice tone="warning" title={`仍有 ${character.deletion.referenceCount} 条业务引用`} description="对话、赠礼、互动、内容或玩法历史必须保留；可以下架角色，但不能级联删除历史。" />}{character.deletion.canDelete&&<AdminNotice tone="success" title="当前满足删除条件" description="确认后删除此站点草稿及其草稿素材关系，管理审计会保留。" />}<p className="text-xs text-muted-foreground">引用明细：对话 {character.deletion.references.conversations} · 赠礼 {character.deletion.references.gifts} · 点赞 {character.deletion.references.likes} · 收藏 {character.deletion.references.bookmarks} · 评论 {character.deletion.references.comments} · 帖子 {character.deletion.references.posts} · 任务进度 {character.deletion.references.questProgress} · 举报 {character.deletion.references.reports} · 玩法结果 {character.deletion.references.mirrorResults} · 评理案例 {character.deletion.references.disputes}</p><label className="block space-y-1.5"><span className="text-sm font-medium">删除理由</span><Textarea required maxLength={500} rows={3} disabled={!character.deletion.canDelete} value={deleteReason} onChange={event => setDeleteReason(event.target.value)} placeholder={character.deletion.canDelete?'请说明删除原因':'当前条件不可删除'} /></label></div>}
+      </Dialog>
     </>
   );
 }

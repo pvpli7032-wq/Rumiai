@@ -12,6 +12,7 @@ import {EmptyState} from '@rumiai/ui/empty-state';
 import {Input} from '@rumiai/ui/input';
 import {Pagination} from '@rumiai/ui/pagination';
 import {Textarea} from '@rumiai/ui/textarea';
+import {Dialog} from '@rumiai/ui/dialog';
 import {PermissionPicker} from './operators/permission-picker';
 
 type Role = {id: string; name: string; system: boolean; version: number; permissions: {permission: string}[]; _count: {assignments: number}};
@@ -26,6 +27,7 @@ export function OperatorManagement() {
   const [query, setQuery] = useState(''), [search, setSearch] = useState(''), [page, setPage] = useState(1);
   const [lookup, setLookup] = useState(''), [selection, setSelection] = useState<Selection | null>(null);
   const [role, setRole] = useState<Role | null>(null), [roleName, setRoleName] = useState(''), [rolePermissions, setRolePermissions] = useState<string[]>([]);
+  const [deletingRole, setDeletingRole] = useState<Role | null>(null), [deleteRoleReason, setDeleteRoleReason] = useState('');
   const [staffReason, setStaffReason] = useState(''), [roleReason, setRoleReason] = useState('');
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [reading, setReading] = useState(false);
 
@@ -62,13 +64,22 @@ export function OperatorManagement() {
     try {await request('/api/admin/roles', {name: roleName, permissions: rolePermissions, reason: roleReason, ...(role ? {id: role.id, version: role.version} : {})}); editRole(null); setMessage('角色已保存，权限立即生效。'); await load(); refreshAccess();}
     catch (value) {setError((value as Error).message);} finally {setBusy(false);}
   }
+  async function removeRole() {
+    if (busy || !deletingRole || deletingRole.system || deletingRole._count.assignments || !deleteRoleReason.trim()) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await apiFetch(`/api/admin/roles/${encodeURIComponent(deletingRole.id)}`, {method: 'DELETE', credentials: 'same-origin', body: {version: deletingRole.version, reason: deleteRoleReason.trim()}});
+      if (role?.id === deletingRole.id) editRole(null);
+      setDeletingRole(null); setDeleteRoleReason(''); setMessage('未分配的自定义角色已删除。'); await load(); refreshAccess();
+    } catch (value) {setError((value as Error).message);} finally {setBusy(false);}
+  }
   if (loading) return <AdminPage><AdminNotice tone="loading" title="正在读取管理权限…" /></AdminPage>;
   if (!sessionActive || !access?.staff) return <AdminPage><AdminNotice tone="denied" title={accessError || '当前账号没有权限查看管理人员。'} /></AdminPage>;
   return <AdminPage width="default">
     <AdminPageHeader eyebrow="系统与安全" title="管理员与角色" description="为已有账号分配管理身份，按职责授予权限。" />
     {error && <AdminNotice tone="error" title={error} className="py-6" />}
     {message && <AdminNotice tone="success" title={message} className="py-6" />}
-    <AdminPanel title="管理人员" description="搜索用户名或邮箱定位已有管理账号。" badge={report && <Badge>{report.total} 人</Badge>}>
+    <div id="operator-list"><AdminPanel title="管理人员" description="搜索用户名或邮箱定位已有管理账号。" badge={report && <Badge>{report.total} 人</Badge>}>
       <form className="flex flex-wrap items-end gap-3" onSubmit={event => {event.preventDefault(); setPage(1); setSearch(query);}}>
         <label className="block min-w-0 flex-1 space-y-1.5">
           <span className="text-sm font-medium">搜索用户名或邮箱</span>
@@ -101,7 +112,7 @@ export function OperatorManagement() {
         />
         <Pagination page={page} pageCount={Math.max(1, Math.ceil(report.total / report.pageSize))} onPageChange={value => setPage(value)} summary={`共 ${report.total} 人`} disabled={reading} className="mt-4" />
       </>}
-    </AdminPanel>
+    </AdminPanel></div>
     {report?.canManageStaff && <AdminPanel title="分配管理身份" description="先按完整用户名或登录邮箱查找已有账号，再启用身份与分配角色。">
       <form className="flex flex-wrap items-end gap-3" onSubmit={findUser}>
         <label className="block min-w-0 flex-1 space-y-1.5">
@@ -125,7 +136,7 @@ export function OperatorManagement() {
       </form>}
     </AdminPanel>}
     {report && <AdminPanel title="角色与权限" description="每个角色显式列出其包含的业务权限；系统角色不可编辑。">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{report.roles.map(item => <article key={item.id} className="space-y-2 rounded-lg border border-border p-4"><h3 className="text-sm font-semibold text-foreground">{item.name}</h3><p className="text-xs text-muted-foreground">{item.system ? '系统角色' : '自定义角色'} · {item._count.assignments} 人</p><ul className="space-y-1 text-sm text-muted-foreground">{item.permissions.map(permission => <li key={permission.permission}>{report.definitions[permission.permission] ?? permission.permission}</li>)}</ul>{report.canManageRoles && !item.system && <Button size="sm" variant="outline" disabled={busy} onClick={() => editRole(item)}>编辑角色</Button>}</article>)}</div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{report.roles.map(item => <article key={item.id} className="space-y-2 rounded-lg border border-border p-4"><h3 className="text-sm font-semibold text-foreground">{item.name}</h3><p className="text-xs text-muted-foreground">{item.system ? '系统角色' : '自定义角色'} · {item._count.assignments} 人</p><ul className="space-y-1 text-sm text-muted-foreground">{item.permissions.map(permission => <li key={permission.permission}>{report.definitions[permission.permission] ?? permission.permission}</li>)}</ul>{report.canManageRoles && !item.system && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => editRole(item)}>编辑角色</Button><Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={() => {setDeletingRole(item); setDeleteRoleReason(''); setError('');}}>删除 / 查看原因</Button></div>}</article>)}</div>
       {report.canManageRoles && <form className="mt-5 space-y-4 border-t border-border pt-4" onSubmit={saveRole}>
         <h3 className="text-sm font-semibold text-foreground">{role ? `编辑角色：${role.name}` : '新增自定义角色'}</h3>
         <label className="block space-y-1.5 text-sm font-medium text-foreground">角色名称
@@ -142,5 +153,8 @@ export function OperatorManagement() {
         </div>
       </form>}
     </AdminPanel>}
+    <Dialog open={!!deletingRole} onClose={() => {if (!busy) setDeletingRole(null);}} title="删除自定义管理角色" description="系统角色永久保留；只有未分配给任何管理账号的自定义角色可以删除。" size="md" footer={<><Button variant="ghost" disabled={busy} onClick={() => setDeletingRole(null)}>取消</Button>{Boolean(deletingRole?._count.assignments)&&<Button variant="outline" disabled={busy} onClick={() => {setDeletingRole(null); document.getElementById('operator-list')?.scrollIntoView({behavior: 'smooth'});}}>查看管理人员</Button>}<Button variant="danger" loading={busy} disabled={busy||Boolean(deletingRole?._count.assignments)||!deleteRoleReason.trim()} onClick={() => void removeRole()}>确认删除</Button></>}>
+      {deletingRole&&<div className="space-y-3">{error&&<AdminNotice tone="error" title={error}/>}<p className="text-sm">将删除：<strong>{deletingRole.name}</strong></p>{deletingRole._count.assignments>0?<AdminNotice tone="warning" title={`仍分配给 ${deletingRole._count.assignments} 个管理账号`} description="请先在管理人员列表中取消此角色分配；管理身份和会话不会随角色删除。" />:<AdminNotice tone="success" title="当前未分配给任何管理账号" description="确认后删除角色定义与权限清单，管理审计会保留。" />}<label className="block space-y-1.5"><span className="text-sm font-medium">删除理由</span><Textarea required maxLength={300} rows={3} disabled={deletingRole._count.assignments>0} value={deleteRoleReason} onChange={event=>setDeleteRoleReason(event.target.value)} placeholder={deletingRole._count.assignments?'先取消角色分配':'请说明删除原因'} /></label></div>}
+    </Dialog>
   </AdminPage>;
 }

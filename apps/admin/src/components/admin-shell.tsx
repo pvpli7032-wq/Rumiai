@@ -1,7 +1,7 @@
 'use client';
-import {useCallback, useEffect, useState, type ReactNode} from 'react';
+import {Suspense, useCallback, useEffect, useState, type ReactNode} from 'react';
 import Link from 'next/link';
-import {usePathname, useRouter} from 'next/navigation';
+import {usePathname, useRouter, useSearchParams} from 'next/navigation';
 import {
   ArrowLeft, ChevronDown, ChevronRight, ExternalLink, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Sparkles, UserCog, X,
 } from 'lucide-react';
@@ -17,12 +17,20 @@ import {AdminNavigationSearch} from './layout/admin-navigation-search';
 const SIDEBAR_STATE_KEY = 'admin.sidebar.collapsed';
 
 export function AdminShell({children, storefrontOrigin = ''}: {children: ReactNode; storefrontOrigin?: string}) {
+  return <Suspense fallback={<div className="flex h-dvh items-center justify-center bg-background text-sm text-muted-foreground">正在加载管理中心…</div>}>
+    <AdminShellContent storefrontOrigin={storefrontOrigin}>{children}</AdminShellContent>
+  </Suspense>;
+}
+
+function AdminShellContent({children, storefrontOrigin = ''}: {children: ReactNode; storefrontOrigin?: string}) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const location = searchParams.size ? `${pathname}?${searchParams}` : pathname;
   const router = useRouter();
   const {permissions, session, loading: accessLoading, refreshAccess} = useAdminAccess();
   const user = session?.user;
   const groups = visibleGroups(permissions);
-  const current = findEntry(pathname, permissions);
+  const current = findEntry(location, permissions);
   const {pins, notice: pinNotice, toggle: togglePin} = useNavPins(user?.id ?? null);
   const [drawer, setDrawer] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -97,9 +105,10 @@ export function AdminShell({children, storefrontOrigin = ''}: {children: ReactNo
         {brand}
         <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-4">
           <AdminNav
-            pathname={pathname}
+            location={location}
             groups={groups}
             permissions={permissions}
+            storageScope={user?.id ?? null}
             pins={pins}
             onTogglePin={togglePin}
             pinNotice={pinNotice}
@@ -147,7 +156,9 @@ export function AdminShell({children, storefrontOrigin = ''}: {children: ReactNo
                 </>
               )}
               <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="truncate font-semibold text-foreground">{current?.entry.label ?? '管理后台'}</span>
+              <span className="truncate font-semibold text-foreground">
+                {current?.child ? `${current.entry.label} · ${current.child.label}` : current?.entry.label ?? '管理后台'}
+              </span>
             </nav>
           </div>
 
@@ -230,9 +241,10 @@ export function AdminShell({children, storefrontOrigin = ''}: {children: ReactNo
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
               <AdminNav
-                pathname={pathname}
+                location={location}
                 groups={groups}
                 permissions={permissions}
+                storageScope={user?.id ?? null}
                 pins={pins}
                 onTogglePin={togglePin}
                 pinNotice={pinNotice}

@@ -2,7 +2,8 @@
 
 import {RefreshCw} from 'lucide-react';
 import Link from 'next/link';
-import {useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
+import {useRouter, useSearchParams} from 'next/navigation';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel, AdminStat, AdminStatGrid} from '@admin/components/admin-page';
 import {useAdminAccess} from '@admin/components/use-admin-access';
 import {Badge} from '@rumiai/ui/badge';
@@ -21,6 +22,9 @@ import {NOT_ENOUGH_SAMPLE, formatAmount, formatCoins, type ModelPriceRow} from '
 import {usePriceCostData} from './use-price-cost-data';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@rumiai/ui/tabs';
 
+const COST_TABS = ['pricing','analysis','budget'] as const;
+type CostTab = (typeof COST_TABS)[number];
+
 /**
  * 「价格与成本」（V3 §17、§28）。
  *
@@ -29,6 +33,9 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from '@rumiai/ui/tabs';
  * 缺成本价写「待配置」，样本不够写「样本不足」，没登记汇率时不编毛利、不给建议价。
  */
 export function PriceCostAdmin() {
+  const router=useRouter(),searchParams=useSearchParams();
+  const requestedTab=searchParams.get('tab');
+  const tab:CostTab=COST_TABS.includes(requestedTab as CostTab)?requestedTab as CostTab:'pricing';
   const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('ai.costs.read');
   const canManage = permissions.includes('ai.costs.manage');
@@ -44,6 +51,8 @@ export function PriceCostAdmin() {
   const [notice, setNotice] = useState('');
   const [editing, setEditing] = useState<ModelPriceRow | null>(null);
   const [busy, setBusy] = useState(false);
+  const selectTab=useCallback((value:string,replace=false)=>{const next=COST_TABS.includes(value as CostTab)?value as CostTab:'pricing';const params=new URLSearchParams(searchParams.toString());if(next==='pricing')params.delete('tab');else params.set('tab',next);const href=params.size?`/admin/ai/costs?${params}`:'/admin/ai/costs';if(replace)router.replace(href,{scroll:false});else router.push(href,{scroll:false});},[router,searchParams]);
+  useEffect(()=>{if(requestedTab&&!COST_TABS.includes(requestedTab as CostTab))selectTab('pricing',true);},[requestedTab,selectTab]);
 
   const pricing = coinView?.pricing ?? null;
   const minSampleText = pricing ? `样本少于 ${pricing.minSample} 条显示「样本不足」` : '样本阈值来自设置中心';
@@ -192,7 +201,7 @@ export function PriceCostAdmin() {
       {notice && <AdminNotice tone="success" title={notice} className="py-6" />}
       {loading && !costView && <AdminNotice tone="loading" title="正在读取价格与成本…" />}
 
-      <Tabs defaultValue="pricing">
+      <Tabs value={tab} onValueChange={value => selectTab(value)}>
         <TabsList aria-label="价格与成本工作区">
           <TabsTrigger value="pricing">AI 币价</TabsTrigger>
           <TabsTrigger value="analysis">成本分析</TabsTrigger>

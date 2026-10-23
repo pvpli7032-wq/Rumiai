@@ -145,6 +145,24 @@ export async function saveRole(actorId: string, input: unknown) {
   });
 }
 
+export async function deleteRole(actorId: string, id: string, input: unknown) {
+  const body = object(input), expected = version(body.version), explanation = reason(body.reason);
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) throw new AdminManagementError('角色编号无效。');
+  await pragmasReady;
+  return db.$transaction(async tx => {
+    await claimWriter(tx, actorId);
+    await requirePermission(actorId, 'admin.roles.manage', tx);
+    const before = await tx.adminRole.findUnique({where: {id}, include: {permissions: true, _count: {select: {assignments: true}}}});
+    if (!before) throw new AdminManagementError('角色不存在。', 404);
+    if (before.system) throw new AdminManagementError('系统角色是权限基线，不能删除。', 409);
+    if (before.version !== expected) throw new AdminManagementError('角色已被其他人修改，请刷新。', 409);
+    if (before._count.assignments) throw new AdminManagementError(`仍有 ${before._count.assignments} 个管理账号分配了此角色，请先在管理人员列表中调整分配。`, 409);
+    await tx.adminRole.delete({where: {id}});
+    await recordAdminAudit(tx, actorId, 'DELETE_ROLE', id, explanation, {before: {name: before.name, code: before.code, permissions: before.permissions.map(item => item.permission), version: before.version}, assignments: before._count.assignments});
+    return {id, deleted: true};
+  });
+}
+
 /**
  * 后台列表统一的日期区间：from / until 都是 YYYY-MM-DD 的 UTC 日，含结束日期当天
  * （上界取 until 次日零点，用 lt）。

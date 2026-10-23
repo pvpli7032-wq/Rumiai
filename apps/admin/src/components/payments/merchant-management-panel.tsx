@@ -5,6 +5,7 @@ import {Plus} from 'lucide-react';
 import {AdminNotice, AdminPanel} from '@admin/components/admin-page';
 import {Button} from '@rumiai/ui/button';
 import {Dialog} from '@rumiai/ui/dialog';
+import {Select} from '@rumiai/ui/select';
 import {apiFetch} from '@admin/lib/api-client';
 import {API} from '@rumiai/contracts/api-paths';
 import {CheckoutSettings} from './checkout-settings';
@@ -15,6 +16,7 @@ import {draftFromMerchant, newDraft, type Merchant, type MerchantDraft} from './
 /** Shared merchant controller/presentation used by the embedded and standalone routes. */
 export function MerchantManagementPanel({sessionActive, permissions, embedded = false}: {sessionActive: boolean; permissions: string[]; embedded?: boolean}) {
   const [rows, setRows] = useState<Merchant[]>([]);
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [draft, setDraft] = useState<MerchantDraft | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -64,6 +66,8 @@ export function MerchantManagementPanel({sessionActive, permissions, embedded = 
   }
 
   if (!canRead) return <AdminNotice tone="denied" title="当前账号没有支付商户查看权限。" />;
+  const visibleRows = rows.filter(merchant => statusFilter === 'ALL' || statusFilter === 'ACTIVE' && merchant.isActive || statusFilter === 'INACTIVE' && !merchant.isActive);
+  const inactiveCount = rows.filter(merchant => !merchant.isActive).length;
 
   const content = (
     <>
@@ -71,10 +75,12 @@ export function MerchantManagementPanel({sessionActive, permissions, embedded = 
       {error && <AdminNotice tone="error" title={error} />}
       {notice && <AdminNotice tone="success" title={notice} />}
       {!loaded && !error && <AdminNotice tone="loading" title="正在读取商户配置…" />}
+      {loaded && rows.length > 0 && <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-border bg-card p-4"><div><p className="text-sm font-medium">商户配置生命周期</p><p className="mt-1 text-xs text-muted-foreground">启用 {rows.length - inactiveCount} 个 · 已停用 {inactiveCount} 个。停用配置仍保留不可变版本供历史订单引用，不提供伪归档或物理删除。</p></div><label className="space-y-1 text-xs font-medium"><span className="block">状态筛选</span><Select aria-label="商户状态筛选" value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof statusFilter)}><option value="ALL">全部状态</option><option value="ACTIVE">已启用</option><option value="INACTIVE">已停用</option></Select></label></div>}
       <div className="grid gap-4 lg:grid-cols-2">
-        {rows.map(merchant => <MerchantCard key={merchant.id} merchant={merchant} canManage={canManage} canTest={canTest} busy={busy} onEdit={() => setDraft(draftFromMerchant(merchant))} onTest={() => void testMerchant(merchant)} />)}
+        {visibleRows.map(merchant => <MerchantCard key={merchant.id} merchant={merchant} canManage={canManage} canTest={canTest} busy={busy} onEdit={() => setDraft(draftFromMerchant(merchant))} onTest={() => void testMerchant(merchant)} />)}
       </div>
       {loaded && rows.length === 0 && <AdminNotice tone="info" title="尚无后台商户配置" description="环境变量配置仍支持旧订单；新订单只有在后台正式商户启用并通过服务器支付开关后才会使用该渠道。" />}
+      {loaded && rows.length > 0 && visibleRows.length === 0 && <AdminNotice tone="info" title="当前筛选没有商户配置" description="切换状态筛选后查看其他配置。" />}
     </>
   );
 

@@ -1,5 +1,6 @@
 'use client';
 import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useRouter, useSearchParams} from 'next/navigation';
 import {Plus} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {ContentEditor} from './content-editor';
@@ -13,13 +14,21 @@ import {EmptyState} from '@rumiai/ui/empty-state';
 import {DetailDrawer} from '@admin/components/layout/detail-drawer';
 
 const statusLabel = {PUBLISHED:'已发布',UNPUBLISHED:'已下架',DRAFT:'草稿',SCHEDULED:'定时'} as const;
+const CONTENT_TABS: Record<string, ContentType> = {tag:'TAG',badge:'BADGE',section:'SECTION',navigation:'NAVIGATION',page:'PAGE',branding:'BRANDING'};
+const TAB_BY_TYPE: Partial<Record<ContentType,string>> = {TAG:'tag',BADGE:'badge',SECTION:'section',NAVIGATION:'navigation',PAGE:'page',BRANDING:'branding'};
 export function SiteContentManagement() {
+  const router=useRouter(),searchParams=useSearchParams();
+  const requestedType=searchParams.get('tab');
+  const type:ContentType=requestedType&&CONTENT_TABS[requestedType]?CONTENT_TABS[requestedType]:'BANNER';
   const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('site.content.read'), canManage = permissions.includes('site.content.manage'), canPublish = permissions.includes('site.content.publish');
-  const [type,setType] = useState<ContentType>('BANNER'), [result,setResult] = useState<ManagedSiteContent|null>(null), [selected,setSelected] = useState<string|null>(null), [creating,setCreating] = useState(false);
+  const [result,setResult] = useState<ManagedSiteContent|null>(null), [selected,setSelected] = useState<string|null>(null), [creating,setCreating] = useState(false);
   const [revision,setRevision] = useState(0), [revisions,setRevisions] = useState<Revision[]>([]), [revisionLoading,setRevisionLoading] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(''), [message,setMessage] = useState('');
   const [editorDirty,setEditorDirty] = useState(false);
   const request = useCallback(<T,>(url:string, init?:{method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; signal?: AbortSignal}) => apiFetch<T>(url,{credentials: 'same-origin',cache:'no-store',...init}),[sessionActive]);
+  const selectType=useCallback((next:ContentType,replace=false)=>{const params=new URLSearchParams(searchParams.toString());const tab=TAB_BY_TYPE[next];if(tab)params.set('tab',tab);else params.delete('tab');const href=params.size?`/admin/site-content?${params}`:'/admin/site-content';if(replace)router.replace(href,{scroll:false});else router.push(href,{scroll:false});},[router,searchParams]);
+  useEffect(()=>{if(requestedType&&!CONTENT_TABS[requestedType])selectType('BANNER',true);},[requestedType,selectType]);
+  useEffect(()=>{setSelected(null);setCreating(false);setRevisions([]);setError('');setMessage('');},[type]);
   useEffect(()=>{setSelected(null);setCreating(false);setRevisions([]);setError('');setMessage('');},[sessionActive]);
   useEffect(()=>{setResult(null);if(!sessionActive||!canRead)return;const controller=new AbortController();void request<ManagedSiteContent>('/api/admin/site-content',{signal:controller.signal}).then(data=>{if(!controller.signal.aborted)setResult(data);}).catch(value=>{if(!controller.signal.aborted)setError(value.message);});return()=>controller.abort();},[request,sessionActive,canRead,revision]);
   const rows=result?.[type].items??[];
@@ -40,7 +49,7 @@ export function SiteContentManagement() {
         key={option.id}
         type="button"
         aria-pressed={type===option.id}
-        onClick={()=>{setType(option.id);setSelected(null);setCreating(false);setRevisions([]);setError('');}}
+        onClick={()=>selectType(option.id)}
         className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors ${type===option.id?'border-brand/50 bg-brand-soft text-brand':'border-border text-muted-foreground hover:bg-accent hover:text-foreground'}`}
       >
         {option.label}

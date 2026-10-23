@@ -29,8 +29,18 @@ export function AdminNavigationSearch({groups}: {groups: AdminNavGroup[]}) {
     return () => { document.removeEventListener('keydown', key); document.removeEventListener('pointerdown', outside); };
   }, [open]);
   const term = query.trim().toLowerCase();
-  const entries = groups.flatMap(group => group.entries.map(entry => ({...entry, group: group.label})))
-    .filter(entry => `${entry.label} ${entry.group} ${entry.description}`.toLowerCase().includes(term));
+  const entries = groups.flatMap(group => group.entries.flatMap(entry => {
+    const keywords = entry.keywords?.join(' ') ?? '';
+    if (!entry.children?.length) return [{href: entry.href, label: entry.label, parent: '', group: group.label, description: entry.description, keywords}];
+    return entry.children.map(child => ({
+      href: child.href,
+      label: child.label,
+      parent: entry.label,
+      group: group.label,
+      description: child.description,
+      keywords: `${keywords} ${entry.description}`,
+    }));
+  })).filter(entry => `${entry.label} ${entry.parent} ${entry.group} ${entry.description} ${entry.keywords}`.toLowerCase().includes(term));
   return <div ref={root} className="relative">
     <button ref={trigger} type="button" aria-label="搜索后台栏目" aria-expanded={open} onClick={() => setOpen(value => !value)} className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2.5 text-sm text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground">
       <Search className="h-4 w-4" aria-hidden />
@@ -45,7 +55,7 @@ export function AdminNavigationSearch({groups}: {groups: AdminNavGroup[]}) {
       </div>
       <div className="max-h-[60dvh] overflow-y-auto p-2">
         {entries.length ? entries.map(entry => <Link key={entry.href} href={entry.href} onClick={() => { setOpen(false); setQuery(''); }} className="group flex min-h-12 items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-brand-soft focus-visible:bg-brand-soft">
-          <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{entry.label}<span className="ml-2 text-xs font-normal text-muted-foreground">{entry.group}</span></span><span className="mt-1 block truncate text-xs text-muted-foreground">{entry.description}</span></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{entry.parent ? `${entry.parent} · ${entry.label}` : entry.label}<span className="ml-2 text-xs font-normal text-muted-foreground">{entry.group}</span></span><span className="mt-1 block truncate text-xs text-muted-foreground">{entry.description}</span></span>
           <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-brand" />
         </Link>) : <p className="p-6 text-center text-sm text-muted-foreground">未找到可访问的栏目</p>}
       </div>

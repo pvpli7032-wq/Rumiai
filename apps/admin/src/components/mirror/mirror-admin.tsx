@@ -2,6 +2,7 @@
 
 import {RefreshCw} from 'lucide-react';
 import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useRouter, useSearchParams} from 'next/navigation';
 import {AdminNotice, AdminPage, AdminPageHeader, AdminPanel, AdminStat, AdminStatGrid} from '@admin/components/admin-page';
 import {DataTable} from '@admin/components/layout/data-table';
 import {FilterBar} from '@admin/components/layout/filter-bar';
@@ -27,6 +28,8 @@ import {
 } from './types';
 
 const PAGE_LIMIT = 20;
+const MIRROR_TABS = ['results','config','stats'] as const;
+type MirrorTab = (typeof MIRROR_TABS)[number];
 
 /**
  * 「他眼中的你」后台三个标签（V3 §23 表 19）：结果 / 配置 / 统计。
@@ -39,11 +42,13 @@ const PAGE_LIMIT = 20;
  * 列表每行只保留「查看详情」。
  */
 export function MirrorAdmin() {
+  const router=useRouter(),searchParams=useSearchParams();
+  const requestedTab=searchParams.get('tab');
+  const tab:MirrorTab=MIRROR_TABS.includes(requestedTab as MirrorTab)?requestedTab as MirrorTab:'results';
   const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const canRead = permissions.includes('mirror.read');
   const canManage = permissions.includes('mirror.manage');
 
-  const [tab, setTab] = useState<'results' | 'config' | 'stats'>('results');
   const [status, setStatus] = useState<MirrorStatus | 'ALL'>('ALL');
   const [page, setPage] = useState<MirrorResultPage | null>(null);
   const [config, setConfig] = useState<MirrorConfigPayload | null>(null);
@@ -54,6 +59,8 @@ export function MirrorAdmin() {
   const [selected, setSelected] = useState<MirrorResultItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const selectTab=useCallback((value:string,replace=false)=>{const next=MIRROR_TABS.includes(value as MirrorTab)?value as MirrorTab:'results';const params=new URLSearchParams(searchParams.toString());if(next==='results')params.delete('tab');else params.set('tab',next);const href=params.size?`/admin/mirror?${params}`:'/admin/mirror';if(replace)router.replace(href,{scroll:false});else router.push(href,{scroll:false});},[router,searchParams]);
+  useEffect(()=>{if(requestedTab&&!MIRROR_TABS.includes(requestedTab as MirrorTab))selectTab('results',true);},[requestedTab,selectTab]);
 
   const loadList = useCallback(async (cursor: string | null, append: boolean) => {
     if (!sessionActive) return;
@@ -161,7 +168,7 @@ export function MirrorAdmin() {
       {error && <AdminNotice tone="error" title={error} className="py-6" />}
       {notice && <AdminNotice tone="success" title={notice} className="py-6" />}
 
-      <Tabs value={tab} onValueChange={value => setTab(value === 'config' ? 'config' : value === 'stats' ? 'stats' : 'results')}>
+      <Tabs value={tab} onValueChange={value => selectTab(value)}>
         <TabsList aria-label="他眼中的你视图">
           <TabsTrigger value="results">结果列表</TabsTrigger>
           <TabsTrigger value="config">配置</TabsTrigger>
@@ -180,7 +187,7 @@ export function MirrorAdmin() {
               tone="info"
               title="成功率只在「统计」标签给出"
               description="统计标签复用运营分析口径，与结果列表的条数不是一回事；这里不再按样本另算一份比例，避免两个数字对不上。"
-              action={<Button variant="outline" size="sm" onClick={() => setTab('stats')}>去看统计</Button>}
+              action={<Button variant="outline" size="sm" onClick={() => selectTab('stats')}>去看统计</Button>}
             />
 
             <AdminPanel

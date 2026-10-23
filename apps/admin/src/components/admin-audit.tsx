@@ -11,7 +11,7 @@ import {EmptyState} from '@rumiai/ui/empty-state';
 import {Input} from '@rumiai/ui/input';
 
 type Audit = {id: string; actorId: string; action: string; targetId: string; reason: string; changes: string; createdAt: string};
-const actionNames: Record<string, string> = {...auditLabels, BOOTSTRAP_OWNER: '初始化所有者', SAVE_OPERATOR: '修改管理身份', CREATE_ROLE: '新增角色', UPDATE_ROLE: '修改角色', ACCOUNT_CLOSED: '注销管理账号', CHARACTER_CREATED: '新增角色', CHARACTER_EDITED: '修改角色内容', CHARACTER_APPROVED: '角色审核通过', CHARACTER_REJECTED: '角色退回或下架', CIRCLE_CREATED: '新增站点圈子', CIRCLE_SAVE: '修改圈子内容', CIRCLE_HIDE: '隐藏圈子', CIRCLE_RESTORE: '恢复圈子公开', CIRCLE_FEATURE: '推荐圈子', CIRCLE_UNFEATURE: '取消圈子推荐', CIRCLE_MEMBER_REMOVE: '移除圈子成员', CIRCLE_MEMBER_BLOCK: '限制圈子加入', CIRCLE_MEMBER_UNBLOCK: '解除圈子加入限制'};
+const actionNames: Record<string, string> = {...auditLabels, BOOTSTRAP_OWNER: '初始化所有者', SAVE_OPERATOR: '修改管理身份', CREATE_ROLE: '新增角色', UPDATE_ROLE: '修改角色', DELETE_ROLE: '删除自定义管理角色', ACCOUNT_CLOSED: '注销管理账号', CHARACTER_CREATED: '新增角色', CHARACTER_EDITED: '修改角色内容', CHARACTER_APPROVED: '角色审核通过', CHARACTER_REJECTED: '角色退回或下架', DELETE_UNUSED_CHARACTER_DRAFT: '删除未使用角色草稿', CIRCLE_CREATED: '新增站点圈子', CIRCLE_SAVE: '修改圈子内容', CIRCLE_HIDE: '隐藏圈子', CIRCLE_RESTORE: '恢复圈子公开', CIRCLE_FEATURE: '推荐圈子', CIRCLE_UNFEATURE: '取消圈子推荐', CIRCLE_MEMBER_REMOVE: '移除圈子成员', CIRCLE_MEMBER_BLOCK: '限制圈子加入', CIRCLE_MEMBER_UNBLOCK: '解除圈子加入限制'};
 export function AdminAudit() {
   const {sessionActive, access, loading, error: accessError} = useAdminAccess();
   const [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
