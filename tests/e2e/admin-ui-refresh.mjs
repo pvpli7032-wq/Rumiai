@@ -51,7 +51,7 @@ const report = {generatedAt: new Date().toISOString(), artifacts, navCount: ADMI
 ], uncovered: [
   '未执行真实会员购买、退款、充值、支付商户验证。',
   '未执行后台任务、备份、恢复、维护模式、证书续签等危险运维动作。',
-  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的举报申诉、财务与运维操作仍需逐组补测，不能由路由快照推定通过。',
+  '本报告按 operationMatrix 列出已做 UI→API→数据库验收的唯一业务操作；未列出的财务与运维操作仍需逐组补测，不能由路由快照推定通过。',
 ]};
 
 function recordOperation(route, operation, details) {
@@ -250,7 +250,10 @@ async function seedMembershipFixture() {
   await fixture.db.circleMember.create({data: {circleId: circle.id, userId: fixture.user.id}});
   const post = await fixture.db.post.create({data: {circleId: circle.id, authorId: contentUsers[0].id, characterId: character.id, content: 'E2E 后台帖子详情内容。', status: 'VISIBLE'}});
   const comment = await fixture.db.postComment.create({data: {postId: post.id, authorId: contentUsers[1].id, content: 'E2E 后台评论详情内容。', status: 'VISIBLE'}});
-  seededContent = {contentUsers, character, circle, post, comment};
+  const moderationReport = await fixture.db.report.create({data: {reporterId: contentUsers[2].id, targetType: 'USER', targetId: contentUsers[3].id, category: 'harassment', details: 'E2E 举报封禁与解封验收。'}});
+  await fixture.db.user.update({where: {id: contentUsers[4].id}, data: {communityBannedAt: new Date(), communityBanReason: 'E2E 申诉前置封禁'}});
+  const moderationAppeal = await fixture.db.communityAppeal.create({data: {userId: contentUsers[4].id, reason: 'E2E 社区封禁申诉验收。'}});
+  seededContent = {contentUsers, character, circle, post, comment, moderationReport, moderationAppeal};
 }
 
 try {
@@ -464,6 +467,54 @@ try {
   const staleSiteContent = await admin.request.patch(`${adminOrigin}/api/admin/site-content/BANNER/${createdSiteContent.id}`, {data: {action: 'SAVE', reason: 'E2E 过期内容版本', version: Math.max(0, siteContentRow.version - 1), content: siteContentRow.content}});
   assert.equal(staleSiteContent.status(), 409);
   recordOperation('/admin/site-content', '横幅草稿新增/刷新/发布/历史/下架', {precondition: 'site.content.manage + site.content.publish', api: 'POST/PATCH/GET /api/admin/site-content', persistence: '站点横幅 + site_content_drafts/revisions + admin_audit_logs', normal: '通过（隔离数据库）', refresh: '通过', failure: '外部链接 400、过期版本 409', repeated: '同步双击仅一次 POST/PATCH', status: '通过'});
+
+  // Moderation: execute reversible user restriction and an appeal decision through
+  // the real queues. Both target accounts are isolated fixtures.
+  await admin.goto(`${adminOrigin}/admin/moderation`);
+  let reportArticle = admin.locator('article').filter({hasText: 'E2E 举报封禁与解封验收。'});
+  await reportArticle.waitFor({state: 'visible'});
+  await reportArticle.getByLabel('处置记录说明').fill('E2E 根据隔离举报暂时封禁');
+  const moderationWrites = [];
+  const countModerationWrite = request => { if (request.url().endsWith(`/api/admin/moderation/reports/${seededContent.moderationReport.id}`) && request.method() === 'PATCH') moderationWrites.push(request); };
+  admin.on('request', countModerationWrite);
+  const banResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/moderation/reports/${seededContent.moderationReport.id}`) && response.request().method() === 'PATCH');
+  await reportArticle.getByRole('button', {name: '封禁社区发言'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await banResponse).status(), 200);
+  await admin.waitForTimeout(200);
+  admin.off('request', countModerationWrite);
+  assert.equal(moderationWrites.length, 1);
+  assert.ok((await fixture.db.user.findUniqueOrThrow({where: {id: seededContent.contentUsers[3].id}})).communityBannedAt);
+  await admin.getByLabel('举报状态').selectOption('ALL');
+  reportArticle = admin.locator('article').filter({hasText: 'E2E 举报封禁与解封验收。'});
+  await reportArticle.waitFor({state: 'visible'});
+  await reportArticle.getByLabel('处置记录说明').fill('E2E 验收后解除隔离封禁');
+  const unbanResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/moderation/reports/${seededContent.moderationReport.id}`) && response.request().method() === 'PATCH');
+  await reportArticle.getByRole('button', {name: '解除封禁'}).click();
+  assert.equal((await unbanResponse).status(), 200);
+  assert.equal((await fixture.db.user.findUniqueOrThrow({where: {id: seededContent.contentUsers[3].id}})).communityBannedAt, null);
+  const invalidModeration = await admin.request.patch(`${adminOrigin}/api/admin/moderation/reports/${seededContent.moderationReport.id}`, {data: {action: 'UNKNOWN', reason: 'E2E 非法动作'}});
+  assert.equal(invalidModeration.status(), 400);
+
+  await admin.getByRole('tab', {name: '申诉队列'}).click();
+  const appealArticle = admin.locator('article').filter({hasText: 'E2E 社区封禁申诉验收。'});
+  await appealArticle.waitFor({state: 'visible'});
+  await appealArticle.getByLabel('复核说明').fill('E2E 接受申诉并解除隔离封禁');
+  const appealWrites = [];
+  const countAppealWrite = request => { if (request.url().endsWith(`/api/admin/moderation/appeals/${seededContent.moderationAppeal.id}`) && request.method() === 'PATCH') appealWrites.push(request); };
+  admin.on('request', countAppealWrite);
+  const appealResponse = admin.waitForResponse(response => response.url().endsWith(`/api/admin/moderation/appeals/${seededContent.moderationAppeal.id}`) && response.request().method() === 'PATCH');
+  await appealArticle.getByRole('button', {name: '接受申诉并解封'}).evaluate(button => {button.click(); button.click();});
+  assert.equal((await appealResponse).status(), 200);
+  await admin.waitForTimeout(200);
+  admin.off('request', countAppealWrite);
+  assert.equal(appealWrites.length, 1);
+  assert.equal((await fixture.db.communityAppeal.findUniqueOrThrow({where: {id: seededContent.moderationAppeal.id}})).status, 'ACCEPTED');
+  assert.equal((await fixture.db.user.findUniqueOrThrow({where: {id: seededContent.contentUsers[4].id}})).communityBannedAt, null);
+  const duplicateAppeal = await admin.request.patch(`${adminOrigin}/api/admin/moderation/appeals/${seededContent.moderationAppeal.id}`, {data: {status: 'REJECTED', resolution: 'E2E 重复处理'}});
+  assert.equal(duplicateAppeal.status(), 409);
+  await admin.getByRole('tab', {name: '审计记录'}).click();
+  await admin.getByText(/APPEAL_REVIEWED_ACCEPTED/).waitFor({state: 'visible'});
+  recordOperation('/admin/moderation', '举报封禁/解封与申诉接受', {precondition: 'moderation.write + 隔离举报/申诉', api: 'PATCH /api/admin/moderation/reports|appeals/:id', persistence: 'users + reports/community_appeals + moderation_actions', normal: '三类动作通过并恢复用户状态', refresh: '队列与审计刷新通过', failure: '非法动作 400、重复申诉 409', repeated: '同步双击各仅一次 PATCH', status: '通过'});
 
   // Accounts: edit profile, reload persistence, community ban/unban, suspend/restore,
   // session revocation, stale-version rejection, and synchronous duplicate protection.
