@@ -23,6 +23,12 @@ async function readInterestTags(): Promise<string[]> {
   return raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map(item => item.trim());
 }
 
+/** Auth responses use the same gate as the onboarding page, without loading recommendations. */
+export async function shouldStartOnboarding(onboardedAt: Date | null): Promise<boolean> {
+  if (onboardedAt) return false;
+  return await readSettingValue<boolean>('growth.onboardingEnabled').catch(() => false) === true;
+}
+
 function parseInterests(raw: string | null): string[] {
   if (!raw) return [];
   try {

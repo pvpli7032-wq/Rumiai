@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@web/lib/auth-context';
-import { afterLoginTarget } from '@web/lib/next-path';
+import { afterLoginTarget, onboardingTarget } from '@web/lib/next-path';
 import { AlertCircle, ArrowRight, Bot, Eye, EyeOff, MessagesSquare, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from '@rumiai/ui/button';
 import { Input } from '@rumiai/ui/input';
@@ -43,7 +43,7 @@ export default function LoginPage() {
     const result = await login(email, password);
     setLoading(false);
     if (result.success) {
-      router.push(afterLoginTarget());
+      router.push(result.onboardingRequired ? onboardingTarget(afterLoginTarget()) : afterLoginTarget());
     } else {
       setError(zhError(result.error || '') || "登录失败");
     }
@@ -128,7 +128,10 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="login-password" className="block text-sm font-medium text-foreground">密码</label>
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="login-password" className="block text-sm font-medium text-foreground">密码</label>
+                  <Link href="/forgot-password" className="text-xs font-medium text-brand underline-offset-4 hover:underline">忘记密码？</Link>
+                </div>
                 <div className="relative">
                   <Input
                     id="login-password"

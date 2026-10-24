@@ -31,7 +31,7 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
     {id: 'chat-frequency', title: '其他频率限制', description: '关注、举报和登录等操作的窗口与次数。', matches: starts('limits.upload.', 'limits.follow.', 'limits.report.', 'limits.login.')},
   ],
   billing: [
-    {id: 'billing-base', title: '计费基础', description: '聊天收费、免费回复、用户倍率与取消策略。', matches: exact('billing.chargingEnabled', 'billing.freeDailyMessages', 'billing.priceMultiplier', 'billing.cancelPolicy', 'billing.freeCancelPerDay')},
+    {id: 'billing-base', title: '计费基础', description: '聊天收费、免费回复、价格系数与取消策略。', matches: exact('billing.chargingEnabled', 'billing.freeDailyMessages', 'billing.priceMultiplier', 'billing.cancelPolicy', 'billing.freeCancelPerDay')},
     {id: 'billing-settlement', title: '结算与额度', description: '预扣核对、毛利提示、业务日和其他结算口径。', matches: exact('billing.holdTimeoutMinutes', 'billing.targetMarginPercent', 'billing.marginAlertPercent', 'billing.dayTimezone')},
     {id: 'billing-story', title: '故事入口与收费', description: '故事入口、故事回合收费和故事币价。', matches: exact('story.enabled', 'story.chargingEnabled', 'story.coinPrice')},
     {id: 'billing-story-runtime', title: '故事运行参数', description: '故事模板、动作建议、状态批处理和重试参数。', matches: starts('story.enabledTemplates', 'story.actionSuggestions', 'story.stateBatchSize', 'story.stateMaxAttempts')},
@@ -41,6 +41,7 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
   growth: [
     {id: 'growth-grant', title: '赠币', description: '注册赠币与全站、单用户日发币上限。', matches: starts('grant.')},
     {id: 'growth-invite', title: '引导与邀请', description: '新手引导、兴趣标签、邀请入口与奖励。', matches: either(starts('growth.onboardingEnabled', 'growth.interestTags', 'growth.inviteEnabled', 'growth.inviteRewardCoins'), exact('growth.eventRetentionDays'))},
+    {id: 'growth-affiliate', title: '一级分销', description: '直接上级佣金比例、参与订单、结算等待与人工处理门槛；修改仅影响新订单。', matches: starts('affiliate.')},
     {id: 'growth-mirror-entry', title: 'Mirror 使用额度', description: '他眼中的你入口、题目数量、匿名与登录次数。', matches: exact('mirror.enabled', 'mirror.questionCount', 'mirror.answerMaxChars', 'mirror.anonymousDailyLimit', 'mirror.userDailyLimit', 'mirror.compareLimit')},
     {id: 'growth-mirror-purchase', title: 'Mirror 超额与购买', description: '超额处理、购买价格、购买上限和匿名 IP 限制。', matches: exact('mirror.overLimitPolicy', 'mirror.purchaseEnabled', 'mirror.purchaseCoins', 'mirror.purchaseDailyCap', 'mirror.anonymousIpDailyLimit')},
     {id: 'growth-mirror-content', title: 'Mirror 内容与结果', description: '推广角色、问题、观察风格、结果版式与保留规则。', matches: starts('mirror.featuredCharacterIds', 'mirror.observationStyle', 'mirror.resultLayout', 'mirror.questions', 'mirror.exampleResults', 'mirror.resultRetentionDays', 'mirror.titleMaxChars', 'mirror.observationMaxChars', 'mirror.quoteMaxChars')},

@@ -12,8 +12,16 @@ import {Badge} from '@rumiai/ui/badge';
 const ROWS = [
   {key: 'billing.chargingEnabled', label: '聊天收费', format: (value: unknown) => (value === true ? '已开启' : '关闭')},
   {key: 'billing.freeDailyMessages', label: '每日免费回复', format: (value: unknown) => (typeof value === 'number' ? `${value} 条` : '—')},
-  {key: 'billing.priceMultiplier', label: '用户收费倍率', format: (value: unknown) => (typeof value === 'number' ? `${value} / 1000` : '—')},
+  {key: 'billing.priceMultiplier', label: '聊天价格系数', format: (value: unknown) => formatPriceFactor(value)},
 ] as const;
+
+function formatPriceFactor(value: unknown): string {
+  if (typeof value !== 'number') return '—';
+  if (value === 0) return '免费（系数 0）';
+  if (value === 1000) return '原价（系数 1000）';
+  if (value < 1000) return `${Number((value / 100).toFixed(2))} 折（系数 ${value}）`;
+  return `原价的 ${Number((value / 1000).toFixed(2))} 倍（系数 ${value}）`;
+}
 
 export function BillingSummaryPanel({values}: {values: Partial<Record<string, unknown>> | null}) {
   return (

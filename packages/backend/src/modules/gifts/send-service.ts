@@ -1,6 +1,7 @@
 import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {spendCoins} from '@rumiai/backend/modules/coins/reward-ledger';
+import {growthModuleAdapter} from '@rumiai/backend/modules/growth/modules/registry';
 
 export class GiftSendError extends Error{
   constructor(message:string,public status=400){super(message);this.name='GiftSendError';}
@@ -9,6 +10,7 @@ export class GiftSendError extends Error{
 function inputObject(input:unknown){if(!input||typeof input!=='object'||Array.isArray(input))throw new GiftSendError('礼物请求格式无效。');return input as Record<string,unknown>;}
 
 async function send(tx:Prisma.TransactionClient,userId:string,characterId:string,input:Record<string,unknown>){
+  if(!await growthModuleAdapter('gifts').isEnabled(tx))throw new GiftSendError('礼物玩法当前已停用，历史赠送记录仍会保留。',409);
   const catalogId=input.giftId,rawCode=input.giftCode??input.giftType??input.type??(catalogId===undefined?'rose':undefined);
   if(catalogId!==undefined&&(typeof catalogId!=='string'||catalogId.length>100))throw new GiftSendError('礼物编号无效。');
   if(rawCode!==undefined&&(typeof rawCode!=='string'||!/^[-a-z0-9_]{2,40}$/i.test(rawCode)))throw new GiftSendError('礼物代码无效。');

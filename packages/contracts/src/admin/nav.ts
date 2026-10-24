@@ -70,9 +70,11 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     ]},
     {href: '/admin/disputes', label: '评理广场', description: '案例、投票、截止时间与结案结果', icon: 'disputes', permission: 'disputes.read'},
     {href: '/admin/growth', label: '活动奖励', description: '任务、签到、礼物与奖励预算', icon: 'growth', permission: 'growth.read', children: [
+      tab('/admin/growth?tab=modules', '玩法模块', '注册、启停与查看玩法模块边界'),
       tab('/admin/growth', '任务配置', '成长任务与发放条件', true),
       tab('/admin/growth?tab=checkin', '签到奖励', '连续签到档位'),
       tab('/admin/growth?tab=gifts', '礼物目录', '互动礼物与金币价格'),
+      tab('/admin/growth?tab=referrals', '邀请与分销', '邀请关系、一级分销规则与账本'),
     ]},
   ]},
   {id: 'ai', label: 'AI 平台', entries: [

@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {listManagedAccounts} from '@rumiai/backend/modules/accounts/management-service';
+import {createManagedAccount, listManagedAccounts} from '@rumiai/backend/modules/accounts/management-service';
 import {jsonError, privateHeaders, requireAdminUser, unauthorized} from '@rumiai/backend/infrastructure/http';
 
 export async function GET(request: Request) {
@@ -11,4 +11,11 @@ export async function GET(request: Request) {
   } catch (error) {
     return jsonError(error, 'GET /api/admin/accounts', '用户管理操作失败，请稍后重试。');
   }
+}
+
+export async function POST(request: Request) {
+  try {
+    const actor = await requireAdminUser(request); if (!actor) return unauthorized();
+    return NextResponse.json(await createManagedAccount(actor.userId, await request.json().catch(() => null)), {status: 201, headers: privateHeaders});
+  } catch (error) { return jsonError(error, 'POST /api/admin/accounts', '账号创建失败。'); }
 }

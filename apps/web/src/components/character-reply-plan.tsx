@@ -62,7 +62,9 @@ export function CharacterReplyPlan({characterId, compact = false}: {characterId:
       </ul>
       {plan.defaultLine && (
         <p className="mt-2 text-xs text-zinc-500">
-          {plan.chargingEnabled
+          {plan.chargingEnabled && plan.models.some(item => item.pricing === 'NO_PRICE')
+            ? '收费已开启，但未完成定价的模型暂不可用；系统不会把配置缺失当作免费。'
+            : plan.chargingEnabled
             ? '按条计费：每次生成一条回复扣一次，取消按当前取消策略处理。登录后还能看到每日免费条数与余额。'
             : '当前未开启按条收费，可以免费开始。登录后仍能看到每日请求上限。'}
         </p>
@@ -71,10 +73,10 @@ export function CharacterReplyPlan({characterId, compact = false}: {characterId:
   );
 }
 
-/** 一句价：收费中写金额，关闭收费或未定价时写原因，不写「0 币」。 */
+/** 一句价：收费中写金额，明确免费写免费，缺价格写不可用。 */
 function describePrice(item: ReplyPlan['models'][number], plan: ReplyPlan): string {
   if (!plan.chargingEnabled) return '当前免费';
-  if (item.pricing === 'NO_PRICE') return '未定价';
+  if (item.pricing === 'NO_PRICE') return '暂不可用（未配置价格）';
   if (item.pricing === 'FREE_MULTIPLIER') return '当前免费';
   return `每条 ${item.coins} 币`;
 }

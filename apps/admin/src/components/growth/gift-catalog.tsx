@@ -1,7 +1,7 @@
 'use client';
 
 import { Pencil, Plus } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminNotice, AdminPanel } from '../admin-page';
 import { Badge } from '@rumiai/ui/badge';
 import { Button } from '@rumiai/ui/button';
@@ -16,6 +16,7 @@ const blank = () => ({ code: '', name: '', description: '', emoji: '🎁', coinP
 
 export function GiftCatalogManagement({ sessionActive, canManage }: { sessionActive: boolean; canManage: boolean }) {
   const [items, setItems] = useState<GiftItem[]>([]), [draft, setDraft] = useState<Draft>(blank), [editing, setEditing] = useState<GiftItem | null>(null), [error, setError] = useState(''), [saving, setSaving] = useState(false), [loaded, setLoaded] = useState(false), [dirty, setDirty] = useState(false), [deleting, setDeleting] = useState<GiftItem | null>(null), [deleteReason, setDeleteReason] = useState('');
+  const savingRef = useRef(false);
   const refresh = useCallback(async () => {
     const response = await fetch('/api/admin/growth/gifts', {credentials: 'include', cache: 'no-store' });
     const data = await response.json();
@@ -27,6 +28,8 @@ export function GiftCatalogManagement({ sessionActive, canManage }: { sessionAct
   function startEdit(item: GiftItem) { if (saving || (dirty && !window.confirm('当前礼物有未保存修改，切换礼物会放弃修改，继续吗？'))) return; setDirty(false); setEditing(item); setError(''); setDraft({ code: item.code, name: item.name, description: item.description ?? '', emoji: item.emoji, coinPrice: item.coinPrice, isActive: item.isActive, sortOrder: item.sortOrder, reason: '' }); }
 
   async function save() {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true); setError('');
     try {
       const url = editing ? `/api/admin/growth/gifts/${editing.id}` : '/api/admin/growth/gifts';
@@ -35,7 +38,7 @@ export function GiftCatalogManagement({ sessionActive, canManage }: { sessionAct
       if (!response.ok) throw Error(data.error);
       setEditing(null); setDraft(blank()); setDirty(false);
       try { await refresh(); } catch { setError('礼物已保存，但列表刷新失败，请手动刷新。'); }
-    } catch (e) { setError(e instanceof Error ? e.message : '礼物保存失败。'); } finally { setSaving(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : '礼物保存失败。'); } finally { savingRef.current = false; setSaving(false); }
   }
 
   const columns: DataTableColumn<GiftItem>[] = [

@@ -2,6 +2,7 @@ import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {grantEarnedCoins} from '@rumiai/backend/modules/coins/reward-ledger';
 import type {MissionCondition,MissionPeriod} from '@rumiai/backend/modules/missions/management-service';
+import {growthModuleAdapter} from '@rumiai/backend/modules/growth/modules/registry';
 
 export class MissionClaimError extends Error{
   constructor(message:string,public status=409,public progress?:number,public target?:number){super(message);this.name='MissionClaimError';}
@@ -35,6 +36,7 @@ async function countProgress(tx:Prisma.TransactionClient,userId:string,condition
 export async function readUserMissions(userId:string){
   await pragmasReady;
   return db.$transaction(async tx=>{
+    if(!await growthModuleAdapter('missions').isEnabled(tx))return [];
     const now=new Date();
     const missions=await tx.mission.findMany({where:{isActive:true,OR:[{startsAt:null},{startsAt:{lte:now}}],AND:[{OR:[{endsAt:null},{endsAt:{gt:now}}]}]},orderBy:[{sortOrder:'asc'},{createdAt:'desc'}],take:200});
     const claims=missions.length?await tx.userMission.findMany({where:{userId,missionId:{in:missions.map(row=>row.id)}},select:{missionId:true,periodKey:true,completedAt:true}}):[];
@@ -58,6 +60,7 @@ export async function claimMissionReward(userId:string,missionId:string){
   await pragmasReady;
   try{
     return await db.$transaction(async tx=>{
+      if(!await growthModuleAdapter('missions').isEnabled(tx))throw new MissionClaimError('任务玩法当前已停用，历史领取记录仍会保留。',409);
       const mission=await tx.mission.findUnique({where:{id:missionId}});
       if(!mission)throw new MissionClaimError('任务不存在。',404);
       const now=new Date();

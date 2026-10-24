@@ -17,6 +17,8 @@ interface CoinPackage {
   priceCnyCents: number | null;
   bonus: number;
   label: string;
+  totalCoins: number;
+  benefits: string[];
 }
 
 /** 未配价时给运营看的说明；配了价就用全局的 formatCny，别在页面里再实现一次。 */
@@ -204,7 +206,8 @@ export default function ShopPage() {
                   )}
                   <div className="mb-4 text-center">
                     <div className="mb-2 text-4xl">🪙</div>
-                    <p className="text-2xl font-bold text-yellow-400">{pkg.coins.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-yellow-400">{pkg.totalCoins.toLocaleString()} 金币</p>
+                    <p className="text-[11px] text-zinc-400">基础 {pkg.coins.toLocaleString()} + 赠送 {pkg.bonus.toLocaleString()}</p>
                     {pkg.bonus > 0 && <p className="text-xs text-green-400">额外赠送 {pkg.bonus.toLocaleString()} 金币</p>}
                     <p className="mt-1 text-sm text-zinc-400">{pkg.label}</p>
                   </div>
@@ -214,6 +217,7 @@ export default function ShopPage() {
                     共到账 {(pkg.coins + pkg.bonus).toLocaleString()} 金币
                     {perYuanOf(pkg) !== null && <> · 每 1 元约 {perYuanOf(pkg)!.toLocaleString('zh-CN', { maximumFractionDigits: 1 })} 金币</>}
                   </p>
+                  {pkg.benefits.length > 0 && <ul className="mb-4 space-y-1 text-xs text-zinc-300">{pkg.benefits.map(item => <li key={item}>✓ {item}</li>)}</ul>}
                   <button
                     onClick={() => void handlePurchase(pkg)}
                     disabled={!canBuy || purchasing === pkg.id}

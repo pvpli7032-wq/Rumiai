@@ -6,11 +6,13 @@ import {api, ApiError} from '@web/lib/api-client';
 import {API} from '@rumiai/contracts/api-paths';
 import {useAuth} from '@web/lib/auth-context';
 import {Button, Card, EmptyState, ErrorState, Skeleton} from '@rumiai/ui';
-import type {InvitePayload} from './types';
+import type {InvitePayload, ReferralPayload} from './types';
 
 export function InviteCard() {
   const {token} = useAuth();
   const [payload, setPayload] = useState<InvitePayload | null>(null);
+  const [referrals, setReferrals] = useState<ReferralPayload | null>(null);
+  const [expiresAt, setExpiresAt] = useState(''), [maxUses, setMaxUses] = useState(''), [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
   const [copyState, setCopyState] = useState<'code' | 'link' | 'failed' | null>(null);
@@ -20,10 +22,9 @@ export function InviteCard() {
     const controller = new AbortController();
     setPayload(null);
     setLoadError('');
-    api
-      .get<InvitePayload>(API.growth.invite, {token, signal: controller.signal})
-      .then(data => {
-        if (!controller.signal.aborted) setPayload(data);
+    Promise.all([api.get<InvitePayload>(API.growth.invite, {token, signal: controller.signal}), api.get<ReferralPayload>(API.growth.referrals, {token, signal: controller.signal})])
+      .then(([data, relations]) => {
+        if (!controller.signal.aborted) {setPayload(data); setReferrals(relations); setExpiresAt(relations.code.expiresAt?.slice(0, 10) ?? ''); setMaxUses(relations.code.maxUses?.toString() ?? '');}
       })
       .catch(cause => {
         if (controller.signal.aborted) return;
@@ -39,6 +40,16 @@ export function InviteCard() {
     } catch {
       setCopyState('failed');
     }
+  }
+  async function saveInvite(enabled: boolean) {
+    if (!referrals || saving) return; setSaving(true); setLoadError('');
+    try {
+      const code = await api.patch<ReferralPayload['code']>(API.growth.referrals, {id: referrals.code.id, version: referrals.code.version, enabled, expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59.999Z`).toISOString() : null, maxUses: maxUses ? Number(maxUses) : null}, {token});
+      setReferrals(current => current ? {...current, code} : current);
+      setExpiresAt(code.expiresAt?.slice(0, 10) ?? '');
+      setMaxUses(code.maxUses?.toString() ?? '');
+    }
+    catch (cause) {setLoadError(cause instanceof ApiError ? cause.message : '邀请码更新失败。');} finally {setSaving(false);}
   }
 
   if (!token) return null;
@@ -105,6 +116,13 @@ export function InviteCard() {
                 好友通过你的邀请注册并完成首次聊天后，你获得 {payload.rewardCoins} 金币。
               </p>
             )}
+            {referrals && <div className="space-y-3 rounded-lg border border-border p-3">
+              <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs text-muted-foreground">有效截止日（UTC，可留空）<input className="mt-1 block h-9 w-full rounded-md border border-border bg-background px-2 text-sm" type="date" value={expiresAt} onChange={event => setExpiresAt(event.target.value)} /></label><label className="text-xs text-muted-foreground">最多使用次数（可留空）<input className="mt-1 block h-9 w-full rounded-md border border-border bg-background px-2 text-sm" type="number" min={Math.max(1, referrals.code.usedCount)} value={maxUses} onChange={event => setMaxUses(event.target.value)} /></label></div>
+              <p className="text-xs text-muted-foreground">已使用 {referrals.code.usedCount}{referrals.code.maxUses === null ? ' 次（不限总次数）' : ` / ${referrals.code.maxUses} 次`}；状态：{referrals.code.status === 'ACTIVE' ? '启用' : '停用'}</p>
+              <div className="flex gap-2"><Button size="sm" onClick={() => void saveInvite(true)} disabled={saving}>保存并启用</Button><Button size="sm" variant="outline" onClick={() => void saveInvite(false)} disabled={saving}>停用邀请码</Button></div>
+              {referrals.parent && <p className="text-xs text-muted-foreground">我的直接上级：{referrals.parent.inviter.displayName || referrals.parent.inviter.username}</p>}
+              <div><p className="text-xs font-medium">直接邀请用户（{referrals.children.length}）</p>{referrals.children.length ? <ul className="mt-1 space-y-1 text-xs text-muted-foreground">{referrals.children.map(item => <li key={item.invitee.id}>@{item.invitee.username} · {new Date(item.boundAt).toLocaleDateString('zh-CN')}</li>)}</ul> : <p className="mt-1 text-xs text-muted-foreground">还没有直接下级。</p>}</div>
+            </div>}
             {copyState && (
               <p role="status" className="text-xs text-muted-foreground">
                 {copyState === 'failed' ? '复制失败，请长按上面的内容手动复制。' : copyState === 'code' ? '邀请码已复制。' : '分享链接已复制。'}

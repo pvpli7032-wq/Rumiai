@@ -6,7 +6,7 @@ import {isPublicSiteContentImageReference} from '@rumiai/backend/modules/site-co
 import type {Prisma} from '@prisma/client';
 import { uploadDirectory, UploadError } from './storage-service';
 
-export type UploadReader = Pick<Prisma.TransactionClient, 'user' | 'character' | 'post' | 'postComment' | 'postMedia' | 'message' | 'uploadAsset' | 'banner' | 'siteContentDraft'>;
+export type UploadReader = Pick<Prisma.TransactionClient, 'user' | 'character' | 'post' | 'postComment' | 'postMedia' | 'message' | 'messageAttachment' | 'uploadAsset' | 'banner' | 'siteContentDraft'>;
 
 async function publicReference(url: string, ownerId?: string, reader: UploadReader = db, includeUserAvatar = true) {
   const counts = await Promise.all([
@@ -27,6 +27,7 @@ async function privateLegacyReference(url: string, userId: string, reader: Uploa
     reader.postMedia.count({ where: { url, post: { authorId: userId } } }),
     reader.postComment.count({ where: { imageUrl: url, authorId: userId } }),
     reader.message.count({ where: { imageUrl: url, conversation: { userId } } }),
+    reader.messageAttachment.count({where: {uploadAsset: {url, ownerId: userId}}}),
   ]);
   return counts.some(count => count > 0);
 }

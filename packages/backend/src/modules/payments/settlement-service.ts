@@ -3,6 +3,7 @@ import { parseCnyCents, uniqueUrlParams, verifyEzfpParams } from './ezfp-v2';
 import {resolveOrderPaymentConfiguration} from './merchant-config-service';
 import {notifyCoinsReceived} from '@rumiai/backend/modules/notifications/write';
 import {notifySafely} from '@rumiai/backend/modules/notifications/emit';
+import {recordAffiliateOrderPaidInTransaction} from '@rumiai/backend/modules/affiliate/service';
 
 export class PaymentNotificationError extends Error {
   constructor(message: string, readonly reason: string, readonly status = 400) {
@@ -79,6 +80,7 @@ export async function settleEzfpNotification(callbackUrl: string): Promise<{ dup
       },
       select: { id: true },
     });
+    await recordAffiliateOrderPaidInTransaction(tx, {sourceType: 'COIN', sourceOrderId: order.id, buyerId: order.userId, amountCents: order.amountCnyCents, currency: order.currency, paidAt: new Date()});
     await tx.paymentCallbackEvent.create({data:{
       paymentOrderId:order.id,provider:'EZFP',providerTradeNo:params.trade_no,outcome:'SETTLED',
     }});

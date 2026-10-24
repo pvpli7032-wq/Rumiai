@@ -7,7 +7,7 @@ import { MessageActions } from '@/components/chat/message-actions';
 import { HiddenReply } from '@/components/chat/hidden-reply';
 import { ScrollToLatest, type ChatScroll } from '@/components/chat/chat-interaction';
 import { containsBannedWord } from '@web/lib/preferences';
-import type { ChatMessage as Message } from '@rumiai/contracts/api-types/conversations';
+import { CHAT_STICKERS, type ChatMessage as Message } from '@rumiai/contracts/api-types/conversations';
 
 /** 消息流：更早一页、空态开场、每条消息、流式气泡、回到最新。 */
 export function ChatMessageList({
@@ -107,8 +107,11 @@ export function ChatMessageList({
                     ? 'bg-linear-to-br/srgb from-purple-600 to-pink-600 text-white rounded-br-sm'
                     : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
                 }`}>
+                  {msg.attachments?.map(attachment => attachment.type === 'IMAGE'
+                    ? <img key={attachment.id} src={attachment.url} alt="用户发送的图片" className="mb-2 max-h-72 w-auto max-w-full rounded-xl object-contain" />
+                    : <span key={attachment.id} role="img" aria-label={CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.label || '表情包'} className="block text-6xl">{CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.glyph || '❔'}</span>)}
                   {msg.role === 'USER' ? (
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
+                    msg.content ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p> : null
                   ) : containsBannedWord(msg.content, bannedWords) ? (
                     <HiddenReply>
                       <RoleplayText text={msg.content} />
@@ -117,7 +120,7 @@ export function ChatMessageList({
                     <RoleplayText text={msg.content} />
                   )}
                 </div>
-                <MessageActions
+                {msg.content && <MessageActions
                   role={msg.role}
                   content={msg.content}
                   liked={likedIds.has(msg.id)}
@@ -129,7 +132,7 @@ export function ChatMessageList({
                   onEdit={() => { setEditingId(msg.id); setEditDraft(msg.content); }}
                   onSpeak={() => onSpeak(msg.id, msg.content)}
                   onReport={msg.role==='ASSISTANT'?()=>onReportMessage(msg.id):undefined}
-                />
+                />}
               </>
             )}
           </div>

@@ -113,6 +113,9 @@ export async function quoteReplyPrice(input: QuoteInput): Promise<QuoteResult> {
   let coins = 0;
   const gateOpen = isMirror ? mirrorPurchaseEnabled === true : chargingEnabled === true;
   if (!gateOpen) pricing = 'FREE_MODE';
+  // An explicit zero multiplier is an intentional free policy and does not need a
+  // model price. Any non-zero policy must still fail closed when the price is absent.
+  else if (configuredMultiplier === 0) pricing = 'FREE_MULTIPLIER';
   else if (baseCoins === null) pricing = 'NO_PRICE';
   else {
     coins = applyPriceMultiplier(baseCoins, multiplier);

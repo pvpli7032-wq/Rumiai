@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin, privateHeaders, unauthorized, forbidden, readJsonBody } from '@rumiai/backend/infrastructure/http';
-import { readMembershipCatalogue, saveMembershipPlan, saveMembershipPolicy, MembershipError } from '@rumiai/backend/modules/memberships/service';
+import { deleteMembershipPlan, readMembershipCatalogue, saveMembershipPlan, saveMembershipPolicy, MembershipError } from '@rumiai/backend/modules/memberships/service';
 import {logRouteError} from '@rumiai/backend/infrastructure/logging/logger';
 import type {MembershipAdminPlanInput,MembershipAdminPolicyInput} from '@rumiai/contracts/memberships';
 
@@ -39,4 +39,12 @@ export async function PATCH(request: Request) {
     logRouteError('PATCH /api/admin/memberships',error);
     return NextResponse.json({error:'会员配置保存失败，请稍后重试。'}, {status:500, headers:privateHeaders});
   }
+}
+
+export async function DELETE(request: Request) {
+  const access = await requireAdmin(request, 'finance.packages.write');
+  if (!access.ok) return access.reason === 'anonymous' ? unauthorized() : forbidden('没有删除会员套餐的权限。');
+  const body = await readJsonBody(request, {maxBytes: 10_000}); if (body.response) return body.response;
+  try { return NextResponse.json(await deleteMembershipPlan(access.user.userId, body.input as never), {headers: privateHeaders}); }
+  catch (error) { if (error instanceof MembershipError) return NextResponse.json({error: error.message, code: error.code}, {status: error.status, headers: privateHeaders}); throw error; }
 }

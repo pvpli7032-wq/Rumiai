@@ -1,4 +1,5 @@
 import {db} from '@rumiai/backend/infrastructure/database/client';
+import type {Prisma} from '@prisma/client';
 import {SETTINGS_BY_KEY, definitionsOfGroup, isUserOverridable} from '@rumiai/contracts/settings/registry';
 import {PUBLIC_KEYS} from '@rumiai/contracts/settings/public-keys';
 import {cacheKey, clearKeyEverywhere, readCache, writeCache} from '@rumiai/backend/modules/settings/cache';
@@ -18,6 +19,17 @@ export class SettingConflictError extends Error {
     super('设置已被其他管理员修改，请刷新后重试。');
     this.name = 'SettingConflictError';
   }
+}
+
+const AFFILIATE_KEYS = ['affiliate.enabled', 'affiliate.commissionPercent', 'affiliate.eligibleOrderTypes', 'affiliate.settlementDelayHours', 'affiliate.minimumWithdrawalCents'] as const;
+async function validateAffiliateConfiguration(tx: Prisma.TransactionClient, overrides: Map<string, JsonValue>) {
+  if (![...overrides].some(([key]) => key.startsWith('affiliate.'))) return;
+  const rows = await tx.operationSetting.findMany({where: {key: {in: [...AFFILIATE_KEYS]}}});
+  const value = (key: typeof AFFILIATE_KEYS[number]) => overrides.has(key) ? overrides.get(key)! : (() => {const row = rows.find(item => item.key === key), def = SETTINGS_BY_KEY[key]; return row ? parseStoredValue(def, row.value) : def.default;})();
+  const enabled = value('affiliate.enabled') === true, percent = value('affiliate.commissionPercent'), types = value('affiliate.eligibleOrderTypes'), delay = value('affiliate.settlementDelayHours'), minimum = value('affiliate.minimumWithdrawalCents');
+  if (typeof percent === 'number' && !Number.isInteger(percent * 100)) throw new SettingValidationError('affiliate.commissionPercent', '佣金比例最多保留两位小数。');
+  if (!Array.isArray(types) || types.some(item => typeof item !== 'string' || !['COIN', 'MEMBERSHIP'].includes(item)) || new Set(types).size !== types.length) throw new SettingValidationError('affiliate.eligibleOrderTypes', '订单类别只能是不重复的 COIN、MEMBERSHIP 数组。');
+  if (enabled && (percent === null || delay === null || minimum === null || types.length === 0)) throw new SettingValidationError('affiliate.enabled', '启用一级分销前必须明确比例、订单类别、结算等待期和最低人工处理金额。');
 }
 
 function toSettingValue(def: SettingDefinition, value: JsonValue, source: SettingValue['source'], version: number, expiresAt?: Date | null, updatedAt?: Date | null): SettingValue {
@@ -101,6 +113,7 @@ export async function saveChanges(input: {
 
   const versions: Record<string, number> = {};
   await db.$transaction(async tx => {
+    await validateAffiliateConfiguration(tx, new Map(normalized.map(item => [item.def.key, item.value])));
     for (const {def, value} of normalized) {
       const current = await tx.operationSetting.findUnique({where: {key: def.key}});
       const currentVersion = current?.version ?? 0;
@@ -164,18 +177,5 @@ export async function restoreRevision(input: {key: string; revisionId: string; o
   if (revision.scope !== 'GLOBAL') throw new SettingValidationError(input.key, '只能恢复公共设置的历史版本。');
   const value = normalizeSettingValue(def, JSON.parse(revision.newValue));
   const current = await db.operationSetting.findUnique({where: {key: input.key}});
-  const nextVersion = (current?.version ?? 0) + 1;
-  const serialized = serializeSettingValue(value);
-  await db.$transaction(async tx => {
-    await tx.operationSetting.upsert({
-      where: {key: input.key},
-      create: {key: input.key, group: def.group, value: serialized, version: nextVersion, updatedBy: input.operatorId},
-      update: {value: serialized, version: nextVersion, updatedBy: input.operatorId},
-    });
-    await tx.settingRevision.create({
-      data: {key: input.key, scope: 'GLOBAL', oldValue: current?.value ?? null, newValue: serialized, operatorId: input.operatorId},
-    });
-  });
-  clearKeyEverywhere(input.key);
-  return {saved: [input.key], versions: {[input.key]: nextVersion}};
+  return saveChanges({changes: [{key: input.key, value}], expectedVersions: {[input.key]: current?.version ?? 0}, operatorId: input.operatorId});
 }

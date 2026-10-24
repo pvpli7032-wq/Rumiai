@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {useAdminAccess} from '@admin/components/use-admin-access';
 import {AdminNotice, AdminPanel} from '@admin/components/admin-page';
@@ -29,6 +29,7 @@ export function CommunityModeration() {
   const [resolutions, setResolutions] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const busyRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!sessionActive) return;
@@ -46,27 +47,27 @@ export function CommunityModeration() {
   useEffect(() => { if (!loading) void load(); }, [loading, load]);
 
   async function moderateReport(report: ReportRow, action: string) {
-    if (!canModerate || busy) return;
+    if (!canModerate || busyRef.current) return;
     const reason = reasons[report.id]?.trim() || (action === 'REVIEWING' ? '开始核查' : '根据举报完成复核');
-    setBusy(report.id); setError('');
+    busyRef.current = true; setBusy(report.id); setError('');
     try {
       const response = await fetch(`/api/admin/moderation/reports/${report.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, reason }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || '处置失败。');
       await load();
     } catch (value) { setError(value instanceof Error ? value.message : '处置失败。'); }
-    finally { setBusy(''); }
+    finally { busyRef.current = false; setBusy(''); }
   }
   async function reviewAppeal(appeal: AppealRow, status: 'ACCEPTED' | 'REJECTED') {
-    if (!canModerate || busy) return;
+    if (!canModerate || busyRef.current) return;
     const resolution = resolutions[appeal.id]?.trim();
     if (!resolution) { setError('请先填写申诉复核说明。'); return; }
-    setBusy(appeal.id); setError('');
+    busyRef.current = true; setBusy(appeal.id); setError('');
     try {
       const response = await fetch(`/api/admin/moderation/appeals/${appeal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, resolution }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || '复核失败。');
       await load();
     } catch (value) { setError(value instanceof Error ? value.message : '复核失败。'); }
-    finally { setBusy(''); }
+    finally { busyRef.current = false; setBusy(''); }
   }
 
   return (

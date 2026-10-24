@@ -1,8 +1,8 @@
-import {randomBytes} from 'node:crypto';
 import {db, pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {readSettingValue} from '@rumiai/backend/modules/settings/index';
 import {grantEarnedCoins, isDuplicateReward} from '@rumiai/backend/modules/coins/reward-ledger';
 import {recordProductEvent} from '@rumiai/backend/modules/analytics/product-events';
+import {ensureActiveInviteCode, resolveInvitation} from '@rumiai/backend/modules/referrals/service';
 
 /**
  * 邀请归属与邀请码（V3 表 9 增长「邀请奖励」、表 22「邀请与分享：记录分享来源、
@@ -11,16 +11,6 @@ import {recordProductEvent} from '@rumiai/backend/modules/analytics/product-even
  * 邀请码是账号自带的稳定标识，首次需要时生成一次后长期复用；不用随机串每次现算，
  * 否则同一个用户每刷新一次「我的」页就换一个码，已发出去的链接全部失效。
  */
-const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-const CODE_LENGTH = 8;
-
-function randomCode(): string {
-  const bytes = randomBytes(CODE_LENGTH);
-  let out = '';
-  for (let i = 0; i < CODE_LENGTH; i += 1) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return out;
-}
-
 /** 读当前邀请开关；关闭时前端不展示入口，注册也不记录归属。 */
 export async function readInviteSettings() {
   const [enabled, rewardCoins] = await Promise.all([
@@ -36,28 +26,7 @@ export async function readInviteSettings() {
  * 唯一约束兜底并发：两个请求同时生成时只有一个写入成功，失败的一方重新读回。
  */
 export async function ensureInviteCode(userId: string): Promise<string> {
-  await pragmasReady;
-  const current = await db.user.findUnique({where: {id: userId}, select: {inviteCode: true}});
-  if (!current) throw new Error('账号不存在。');
-  if (current.inviteCode) return current.inviteCode;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const code = randomCode();
-    try {
-      // 条件写入：只有当前还没有码时才写。并发时后到的那次改不动任何行，
-      // 于是回读先写成功的那个码 —— 否则每个并发请求都返回自己生成的码，
-      // 已发出去的链接就会指向不存在的邀请码。
-      const written = await db.user.updateMany({where: {id: userId, inviteCode: null}, data: {inviteCode: code}});
-      if (written.count === 1) return code;
-      const existing = await db.user.findUnique({where: {id: userId}, select: {inviteCode: true}});
-      if (existing?.inviteCode) return existing.inviteCode;
-      continue;
-    } catch (error) {
-      // 唯一冲突：撞了别人的码，换一个再试。
-      if (typeof error === 'object' && error !== null && (error as {code?: string}).code === 'P2002') continue;
-      throw error;
-    }
-  }
-  throw new Error('邀请码生成失败，请重试。');
+  return (await ensureActiveInviteCode(userId)).code;
 }
 
 /**
@@ -91,15 +60,13 @@ export async function grantInviteRewardIfDue(invitedUserId: string): Promise<boo
 /**
  * 把注册账号归属到邀请码对应的邀请人。
  *
- * 返回邀请人 id 或 null。自己邀请自己、邀请码不存在、邀请人已注销都不记录归属，
- * 也不报错 —— 注册不能因为邀请码写错而失败。
+ * 返回邀请人 id 或 null。调用方决定是否允许无效码；注册服务把显式邀请码视为
+ * 用户要求的归属并返回可见错误，访问埋点则可安全忽略不存在或已注销的邀请码。
  */
 export async function resolveInviterId(inviteCode: string | null | undefined, newUserId: string): Promise<string | null> {
-  const code = typeof inviteCode === 'string' ? inviteCode.trim().toUpperCase() : '';
-  if (!code) return null;
-  const inviter = await db.user.findUnique({where: {inviteCode: code}, select: {id: true, deletedAt: true}});
-  if (!inviter || inviter.deletedAt || inviter.id === newUserId) return null;
-  return inviter.id;
+  if (!inviteCode) return null;
+  try { const invite = await resolveInvitation(inviteCode); return invite.ownerId === newUserId ? null : invite.ownerId; }
+  catch { return null; }
 }
 /**
  * 邀请漏斗的两端：访问与首次聊天（V3 表 22「记录分享来源、访问、注册及首次聊天」）。
@@ -126,8 +93,8 @@ export async function recordInviteVisit(input: {inviteCode: string | null | unde
   if (!code) return false;
   if (!input.userId && !input.anonymousSubject) return false;
   await pragmasReady;
-  const inviter = await db.user.findUnique({where: {inviteCode: code}, select: {id: true, deletedAt: true}});
-  if (!inviter || inviter.deletedAt) return false;
+  let inviter: {id: string};
+  try { inviter = {id: (await resolveInvitation(code)).ownerId}; } catch { return false; }
   const seen = await db.productEvent.findFirst({
     where: {name: 'invite_visited', subjectKey: inviter.id, ...(input.userId ? {userId: input.userId} : {anonymousSubject: input.anonymousSubject})},
     select: {id: true},

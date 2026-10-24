@@ -186,9 +186,9 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller,
 
       {!loading && !loadError && !searching && sections.length > 0 && (
         <div className="grid min-w-0 gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
-          <nav aria-label={`${activeLabel}小节`} className="rounded-xl border border-border bg-card p-2 shadow-sm lg:sticky lg:top-4">
+          <nav aria-label={`${activeLabel}小节`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card p-2 shadow-sm lg:sticky lg:top-4 lg:overflow-visible">
             <p className="px-3 pb-2 pt-1 text-xs font-medium text-muted-foreground">本类目录</p>
-            <div className="flex gap-1 overflow-x-auto lg:block lg:overflow-visible">
+            <div className="flex max-w-full gap-1 overflow-x-auto overscroll-x-contain lg:block lg:overflow-visible">
               {sections.map(section => {
                 const selected = selectedSection?.id === section.id;
                 return <button key={section.id} type="button" onClick={() => onSectionChange?.(section.id, 'push')} aria-current={selected ? 'page' : undefined}

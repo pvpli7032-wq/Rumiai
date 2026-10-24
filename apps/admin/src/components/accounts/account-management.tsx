@@ -1,5 +1,5 @@
 'use client';
-import {useCallback, useEffect, useState, type FormEvent} from 'react';
+import {useCallback, useEffect, useRef, useState, type FormEvent} from 'react';
 import {RefreshCw, Search} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {AccountTable} from './account-table';
@@ -25,7 +25,9 @@ export function AccountManagement() {
    */
   const [registered, setRegistered] = useState<{from: string; until: string} | null>(null);
   const [list, setList] = useState<AccountList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<AccountDetail | null>(null);
+  const [createForm, setCreateForm] = useState({email: '', username: '', displayName: '', reason: ''});
   const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [detailError, setDetailError] = useState(''), [message, setMessage] = useState(''), [refresh, setRefresh] = useState(0), [detailDirty, setDetailDirty] = useState(false);
+  const actionBusyRef = useRef(false);
   const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object) => apiFetch<T>(url, {method: body ? 'PATCH' : 'GET', credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   useEffect(() => {setList(null); setSelected(null); setDetail(null); setMessage('');}, [sessionActive]);
   useEffect(() => {
@@ -48,10 +50,17 @@ export function AccountManagement() {
     return () => controller.abort();
   }, [selected, allowed, request, refresh]);
   async function applyAction(action: AccountAction, reason: string) {
-    if (!detail || busy) return false;
+    if (!detail || actionBusyRef.current) return false;
+    actionBusyRef.current = true;
     setBusy(true); setError(''); setMessage('');
     try {await request(`/api/admin/accounts/${encodeURIComponent(detail.user.id)}`, undefined, {action, reason, version: detail.user.accountVersion}); setMessage(`${actionLabels[action]}已完成。`); setRefresh(value => value + 1); return true;}
-    catch (value) {setError((value as Error).message); setRefresh(value => value + 1); return false;} finally {setBusy(false);}
+    catch (value) {setError((value as Error).message); setRefresh(value => value + 1); return false;} finally {actionBusyRef.current = false; setBusy(false);}
+  }
+  async function createAccount(event: FormEvent) {
+    event.preventDefault(); if (actionBusyRef.current || !permissions.includes('accounts.manage')) return;
+    actionBusyRef.current = true; setBusy(true); setError(''); setMessage('');
+    try { await apiFetch('/api/admin/accounts', {method: 'POST', credentials: 'same-origin', body: createForm}); setMessage('账号已创建为待激活状态，一次性激活邮件已进入已配置的发送通道。'); setCreateForm({email: '', username: '', displayName: '', reason: ''}); setRefresh(value => value + 1); }
+    catch (value) {setError((value as Error).message);} finally {actionBusyRef.current = false; setBusy(false);}
   }
   function search(event: FormEvent) {event.preventDefault(); setError(''); setPage(1); setQuery(q); setRefresh(value => value + 1);}
   function closeDetail() {
@@ -65,6 +74,15 @@ export function AccountManagement() {
     <AdminPageHeader eyebrow="用户与客服" title="用户管理" description="查询用户、管理账号状态和社区权限，查看关联业务记录。" />
     {error && <AdminNotice tone="error" title={error} className="py-6" />}
     {message && <AdminNotice tone="success" title={message} className="py-6" />}
+    {permissions.includes('accounts.manage') && <AdminPanel title="新增网站账号" description="账号初始保持停用；用户只能通过 24 小时一次性激活链接设置密码。生产环境未配置邮件时会明确失败，不会伪装已发送。">
+      <form className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4" onSubmit={createAccount}>
+        <label className="space-y-1.5 text-sm font-medium">邮箱<Input type="email" required value={createForm.email} onChange={event => setCreateForm(value => ({...value, email: event.target.value}))} /></label>
+        <label className="space-y-1.5 text-sm font-medium">用户名（可留空自动生成）<Input value={createForm.username} onChange={event => setCreateForm(value => ({...value, username: event.target.value}))} /></label>
+        <label className="space-y-1.5 text-sm font-medium">显示名称<Input required value={createForm.displayName} onChange={event => setCreateForm(value => ({...value, displayName: event.target.value}))} /></label>
+        <label className="space-y-1.5 text-sm font-medium">创建理由<Input required value={createForm.reason} onChange={event => setCreateForm(value => ({...value, reason: event.target.value}))} /></label>
+        <Button type="submit" disabled={busy} className="sm:col-span-2 xl:col-span-1">{busy ? '创建中…' : '创建并发送激活'}</Button>
+      </form>
+    </AdminPanel>}
     <AdminPanel title="筛选检索" description="按用户身份、状态与注册时间组合检索；选中用户后在详情面板继续处理资料和关联资产。" badge={list && <Badge variant="brand">{list.total} 人</Badge>}>
       <form className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-5" onSubmit={search}>
         <label className="space-y-1.5 text-sm font-medium text-foreground sm:col-span-2">搜索用户

@@ -28,11 +28,12 @@ export async function collectStreamText(
         const data = trimmed.slice(5).trim();
         if (data === '[DONE]') continue;
         try {
-          const parsed = JSON.parse(data) as {choices?: Array<{delta?: {content?: unknown}}>; usage?: {prompt_tokens?: number; completion_tokens?: number}};
+          const parsed = JSON.parse(data) as {choices?: Array<{delta?: {content?: unknown}}>; usage?: {prompt_tokens?: number; completion_tokens?: number;prompt_tokens_details?:{cached_tokens?:number}}};
           const content = parsed.choices?.[0]?.delta?.content;
           if (typeof content === 'string') text += content;
           if (metrics && Number.isInteger(parsed.usage?.prompt_tokens)) metrics.inputTokens = parsed.usage!.prompt_tokens;
           if (metrics && Number.isInteger(parsed.usage?.completion_tokens)) metrics.outputTokens = parsed.usage!.completion_tokens;
+          if (metrics && Number.isInteger(parsed.usage?.prompt_tokens_details?.cached_tokens)) metrics.cachedInputTokens = parsed.usage!.prompt_tokens_details!.cached_tokens;
         } catch { /* keep-alive 或半行，忽略 */ }
       }
     }

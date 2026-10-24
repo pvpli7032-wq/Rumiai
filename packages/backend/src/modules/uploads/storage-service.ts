@@ -40,7 +40,7 @@ export async function saveAccountUpload(userId: string, file: File) {
     await db.$transaction(async tx => {
       if (!await tx.user.findFirst({ where: { id: userId, deletedAt: null }, select: { id: true } })) throw new UploadError('账号已注销，请重新登录。', 401);
       // Claim the writer transaction before touching disk; closure sees every committed asset.
-      await tx.uploadAsset.upsert({ where: { url }, create: { ownerId: userId, url }, update: { url } });
+      await tx.uploadAsset.upsert({ where: { url }, create: { ownerId: userId, url, mimeType: file.type, byteSize: file.size }, update: {mimeType: file.type, byteSize: file.size} });
       await mkdir(uploadDirectory(), { recursive: true });
       await writeFile(target, buffer);
     });
@@ -50,5 +50,6 @@ export async function saveAccountUpload(userId: string, file: File) {
     if (owner?.deletedAt) await rm(target, { force: true }).catch(() => {});
     throw error;
   }
-  return { url, size: file.size };
+  const asset = await db.uploadAsset.findUniqueOrThrow({where: {url}, select: {id: true, mimeType: true, byteSize: true}});
+  return { id: asset.id, url, size: asset.byteSize!, mimeType: asset.mimeType! };
 }

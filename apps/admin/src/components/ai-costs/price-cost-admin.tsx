@@ -73,6 +73,7 @@ export function PriceCostAdmin() {
       draft.inputPricePerMillion.trim() !== (row.costPrice?.inputPricePerMillion ?? '')
       || draft.outputPricePerMillion.trim() !== (row.costPrice?.outputPricePerMillion ?? '')
       || draft.currency !== (row.costPrice?.currency ?? '')
+      || JSON.stringify(draft.tiers.map(tier=>({minInputTokens:Number(tier.minInputTokens),maxInputTokens:tier.maxInputTokens?Number(tier.maxInputTokens):null,inputPricePerMillion:tier.inputPricePerMillion.trim(),outputPricePerMillion:tier.outputPricePerMillion.trim(),cachedInputPricePerMillion:tier.cachedInputPricePerMillion.trim()||null})))!==JSON.stringify((row.costPrice?.tiers??[]).map(({minInputTokens,maxInputTokens,inputPricePerMillion,outputPricePerMillion,cachedInputPricePerMillion})=>({minInputTokens,maxInputTokens,inputPricePerMillion,outputPricePerMillion,cachedInputPricePerMillion})))
     );
 
     if (!coinChanged && !costChanged) {
@@ -108,6 +109,7 @@ export function PriceCostAdmin() {
             effectiveAt,
             source: draft.source.trim(),
             reason: draft.reason.trim(),
+            ...(draft.tiers.length?{tiers:draft.tiers.map(tier=>({minInputTokens:Number(tier.minInputTokens),maxInputTokens:tier.maxInputTokens?Number(tier.maxInputTokens):null,inputPricePerMillion:tier.inputPricePerMillion.trim(),outputPricePerMillion:tier.outputPricePerMillion.trim(),cachedInputPricePerMillion:tier.cachedInputPricePerMillion.trim()||null}))}:{}),
           },
         });
         saved.push('供应商成本价');
@@ -182,7 +184,7 @@ export function PriceCostAdmin() {
   return (
     <AdminPage>
       <AdminPageHeader
-        eyebrow="AI 与商业"
+        eyebrow="AI 平台"
         title="价格与成本"
         description="用户付多少币、平台花多少钱、有没有收益，三个问题分开回答；收费币价与供应商成本价分列，互不覆盖。"
         actions={

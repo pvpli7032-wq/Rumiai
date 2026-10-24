@@ -55,6 +55,8 @@ model User {
   interestsJson        String?   @map("interests_json")
   /// 引导完成时间；为空表示还没走完或跳过。
   onboardedAt          DateTime? @map("onboarded_at")
+  /// 邮箱验证完成时间；验证令牌只保存摘要，见 AccountActionToken。
+  emailVerifiedAt      DateTime? @map("email_verified_at")
   /// 本人的邀请码；分享链接带它进入注册。
   inviteCode           String?   @unique @map("invite_code")
   /// 注册时归属的邀请人。只做归属与发奖判断，不建外键关系（不参与级联）。
@@ -113,11 +115,111 @@ model User {
   membershipGrants   MembershipGrant[]
   membershipOrders   MembershipOrder[]
   membershipUsage    MembershipUsage[]
+  accountActionTokens AccountActionToken[]
+  ownedInviteCode     InviteCode?               @relation("InviteCodeOwner")
+  referralParent      ReferralRelationship?     @relation("ReferralInvitee")
+  referralChildren    ReferralRelationship[]    @relation("ReferralInviter")
+  affiliateAccruals   AffiliateAccrual[]        @relation("AffiliateBeneficiary")
+  referredAccruals    AffiliateAccrual[]        @relation("AffiliateReferredUser")
 
   @@index([createdAt, id])
   @@index([suspendedAt, deletedAt])
   @@index([invitedByUserId])
   @@map("users")
+}
+
+/// One-time, short-lived account verification/recovery token. Raw tokens are never stored.
+model AccountActionToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   String
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, purpose, expiresAt])
+  @@map("account_action_tokens")
+}
+
+/// Revocable, expiring invitation. Legacy User.inviteCode remains as a compatibility alias.
+model InviteCode {
+  id          String    @id @default(cuid())
+  ownerId     String    @unique @map("owner_id")
+  code        String    @unique
+  status      String    @default("ACTIVE")
+  expiresAt   DateTime? @map("expires_at")
+  maxUses     Int?      @map("max_uses")
+  usedCount   Int       @default(0) @map("used_count")
+  version     Int       @default(0)
+  disabledAt  DateTime? @map("disabled_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  owner       User      @relation("InviteCodeOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  relationships ReferralRelationship[]
+
+  @@map("invite_codes")
+}
+
+/// Immutable, direct-only inviter -> invitee attribution. One invitee can bind once.
+model ReferralRelationship {
+  id           String     @id @default(cuid())
+  inviterId    String     @map("inviter_id")
+  inviteeId    String     @unique @map("invitee_id")
+  inviteCodeId String     @map("invite_code_id")
+  boundAt      DateTime   @default(now()) @map("bound_at")
+  inviter      User       @relation("ReferralInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+  invitee      User       @relation("ReferralInvitee", fields: [inviteeId], references: [id], onDelete: Restrict)
+  inviteCode   InviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Restrict)
+  accruals     AffiliateAccrual[]
+
+  @@unique([inviterId, inviteeId])
+  @@index([inviterId, boundAt])
+  @@map("referral_relationships")
+}
+
+/// Immutable commission snapshot for one paid order. sourceType+sourceOrderId is idempotent.
+model AffiliateAccrual {
+  id                 String               @id @default(cuid())
+  sourceType         String               @map("source_type")
+  sourceOrderId      String               @map("source_order_id")
+  beneficiaryUserId String               @map("beneficiary_user_id")
+  referredUserId    String               @map("referred_user_id")
+  relationshipId    String               @map("relationship_id")
+  baseAmountCents    Int                  @map("base_amount_cents")
+  commissionBps      Int                  @map("commission_bps")
+  commissionCents    Int                  @map("commission_cents")
+  currency           String
+  status             String               @default("PENDING")
+  availableAt        DateTime             @map("available_at")
+  processedAt        DateTime?            @map("processed_at")
+  refundedBaseCents  Int                  @default(0) @map("refunded_base_cents")
+  reversedCents      Int                  @default(0) @map("reversed_cents")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  beneficiary        User                 @relation("AffiliateBeneficiary", fields: [beneficiaryUserId], references: [id], onDelete: Restrict)
+  referredUser       User                 @relation("AffiliateReferredUser", fields: [referredUserId], references: [id], onDelete: Restrict)
+  relationship       ReferralRelationship @relation(fields: [relationshipId], references: [id], onDelete: Restrict)
+  reversals          AffiliateReversal[]
+
+  @@unique([sourceType, sourceOrderId])
+  @@index([beneficiaryUserId, status, availableAt])
+  @@index([referredUserId, createdAt])
+  @@map("affiliate_accruals")
+}
+
+model AffiliateReversal {
+  id                      String           @id @default(cuid())
+  accrualId               String           @map("accrual_id")
+  refundKey               String           @unique @map("refund_key")
+  refundBaseAmountCents   Int              @map("refund_base_amount_cents")
+  reversedCommissionCents Int              @map("reversed_commission_cents")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  accrual                 AffiliateAccrual @relation(fields: [accrualId], references: [id], onDelete: Restrict)
+
+  @@index([accrualId, createdAt])
+  @@map("affiliate_reversals")
 }
 
 model AdminOperator {
@@ -272,8 +374,11 @@ model UploadAsset {
   ownerId   String   @map("owner_id")
   siteOwned Boolean  @default(false) @map("site_owned")
   url       String   @unique
+  mimeType  String?  @map("mime_type")
+  byteSize  Int?     @map("byte_size")
   createdAt DateTime @default(now()) @map("created_at")
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  messageAttachments MessageAttachment[]
 
   @@index([ownerId])
   @@map("upload_assets")
@@ -561,6 +666,8 @@ model Message {
   likedAt        DateTime? @map("liked_at")
   /// A picture generated alongside the reply, as the live greeting message carries.
   imageUrl       String?   @map("image_url")
+  mediaRequestId String?   @map("media_request_id")
+  mediaRequestHash String? @map("media_request_hash")
   createdAt      DateTime  @default(now()) @map("created_at")
 
   // Relationships
@@ -571,10 +678,31 @@ model Message {
   storyAssistantTurns StoryTurn[]      @relation("StoryAssistantMessage")
   storyEvents         StoryEvent[]     @relation("StorySourceMessage")
   storyShareTurns     StoryShareTurn[]
+  attachments         MessageAttachment[]
 
   @@index([conversationId])
   @@index([createdAt])
+  @@unique([conversationId, mediaRequestId])
   @@map("messages")
+}
+
+/// User-sent chat media. IMAGE points to an owned upload; STICKER points to the fixed catalog.
+/// AUDIO is deliberately absent until the voice-message product and processing rules exist.
+model MessageAttachment {
+  id            String      @id @default(cuid())
+  messageId     String      @map("message_id")
+  type          String
+  uploadAssetId String?     @map("upload_asset_id")
+  stickerId     String?     @map("sticker_id")
+  mimeType      String?     @map("mime_type")
+  byteSize      Int?        @map("byte_size")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  message       Message     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadAsset   UploadAsset? @relation(fields: [uploadAssetId], references: [id], onDelete: Restrict)
+
+  @@index([messageId])
+  @@index([uploadAssetId])
+  @@map("message_attachments")
 }
 
 /// Daily check-in activity log for tracking user streak and reward distribution
@@ -676,6 +804,8 @@ model PaymentOrder {
   packageId          String?                  @map("package_id")
   packageCoins       Int                      @map("package_coins")
   packageBonus       Int                      @map("package_bonus")
+  /// Immutable customer-facing benefits copied from the package at checkout.
+  packageBenefitsJson String                  @default("[]") @map("package_benefits_json")
   coinAmount         Int                      @map("coin_amount")
   amountCnyCents     Int                      @map("amount_cny_cents")
   currency           String                   @default("CNY")
@@ -1050,6 +1180,19 @@ model CheckinRewardRule {
   @@map("checkin_reward_rules")
 }
 
+/// Operator-owned state for built-in growth modules. Executable code is never loaded
+/// from this table: module_id must resolve through the static, trusted registry.
+model GrowthModuleState {
+  moduleId   String   @id @map("module_id")
+  isEnabled  Boolean  @default(true) @map("is_enabled")
+  configJson String   @default("{}") @map("config_json")
+  version    Int      @default(0)
+  updatedBy  String?  @map("updated_by")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("growth_module_states")
+}
+
 // ==========================================
 // SITE CONTENT (everything the UI renders is DB-driven)
 // ==========================================
@@ -1195,6 +1338,8 @@ model CoinPackage {
   priceThb      Int       @map("price_thb")
   priceCnyCents Int?      @map("price_cny_cents")
   bonus         Int       @default(0)
+  /// Customer-facing benefit statements configured by operators; never inferred from price.
+  benefitsJson  String    @default("[]") @map("benefits_json")
   bonusStartsAt DateTime? @map("bonus_starts_at")
   bonusEndsAt   DateTime? @map("bonus_ends_at")
   version       Int       @default(0)
@@ -1330,6 +1475,10 @@ model AiCall {
   estimatedCost    Float?        @map("estimated_cost")
   modelPriceId     String?       @map("model_price_id")
   modelPrice       AiModelPrice? @relation(fields: [modelPriceId], references: [id], onDelete: SetNull)
+  modelPriceTierId String?           @map("model_price_tier_id")
+  modelPriceTier   AiModelPriceTier? @relation(fields: [modelPriceTierId], references: [id], onDelete: SetNull)
+  /// Immutable calculator inputs/rates/range chosen for this call; no prompts or responses.
+  costAuditJson    String?           @map("cost_audit_json")
   currency         String
   errorCode        String?       @map("error_code")
   startedAt        DateTime      @default(now()) @map("started_at")
@@ -1340,6 +1489,7 @@ model AiCall {
   @@index([userId, startedAt])
   @@index([currency, startedAt])
   @@index([taskType, startedAt])
+  @@index([modelPriceTierId])
   @@map("ai_calls")
 }
 
@@ -1430,9 +1580,29 @@ model AiModelPrice {
   createdBy              String   @map("created_by")
   createdAt              DateTime @default(now()) @map("created_at")
   calls                  AiCall[]
+  tiers                  AiModelPriceTier[]
 
   @@unique([modelId, effectiveAt])
   @@map("ai_model_prices")
+}
+
+/// Optional context-size tiers attached to one append-only provider price version.
+/// Ranges are [min_input_tokens, max_input_tokens); NULL max means no upper bound.
+model AiModelPriceTier {
+  id                          String       @id @default(cuid())
+  priceId                     String       @map("price_id")
+  price                       AiModelPrice @relation(fields: [priceId], references: [id], onDelete: Cascade)
+  minInputTokens              Int          @map("min_input_tokens")
+  maxInputTokens              Int?         @map("max_input_tokens")
+  inputPerMillionMicros       BigInt       @map("input_per_million_micros")
+  outputPerMillionMicros      BigInt       @map("output_per_million_micros")
+  cachedInputPerMillionMicros BigInt?      @map("cached_input_per_million_micros")
+  sortOrder                   Int          @map("sort_order")
+  calls                       AiCall[]
+
+  @@unique([priceId, minInputTokens])
+  @@index([priceId, sortOrder])
+  @@map("ai_model_price_tiers")
 }
 
 /// Creating a circle does not automatically subscribe its owner.

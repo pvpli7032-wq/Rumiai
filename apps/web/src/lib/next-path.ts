@@ -71,3 +71,16 @@ export function afterLoginTarget(): string {
   if (typeof window === 'undefined') return DEFAULT_AFTER_LOGIN;
   return safeNextPath(new URLSearchParams(window.location.search).get('next'));
 }
+
+/** Route through the optional onboarding gate while preserving the reader's intended page. */
+export function onboardingTarget(next = afterLoginTarget()): string {
+  const destination = safeNextPath(next);
+  return `/onboarding?next=${encodeURIComponent(destination.startsWith('/onboarding') ? DEFAULT_AFTER_LOGIN : destination)}`;
+}
+
+/** Destination used when onboarding is disabled, completed or skipped. */
+export function afterOnboardingTarget(): string {
+  if (typeof window === 'undefined') return DEFAULT_AFTER_LOGIN;
+  const destination = safeNextPath(new URLSearchParams(window.location.search).get('next'));
+  return destination.startsWith('/onboarding') ? DEFAULT_AFTER_LOGIN : destination;
+}

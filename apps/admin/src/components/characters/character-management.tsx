@@ -1,5 +1,5 @@
 'use client';
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {Plus, RefreshCw, Search} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {CharacterBulkActions} from './character-bulk-actions';
@@ -24,6 +24,7 @@ export function CharacterManagement() {
   const [list, setList] = useState<{items: CharacterSummary[]; total: number; pageSize: number} | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<ManagedCharacter | null>(null), [creating, setCreating] = useState(false);
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false);
   const [detailDirty, setDetailDirty] = useState(false);
+  const busyRef = useRef(false);
   const request = useCallback(<T,>(url: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET', body?: object, signal?: AbortSignal) => apiFetch<T>(url, {method, credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   useEffect(() => {setList(null); setDetail(null); setSelected(null); setCreating(false);}, [sessionActive]);
   useEffect(() => {
@@ -40,27 +41,27 @@ export function CharacterManagement() {
     return () => controller.abort();
   }, [selected, allowed, request, refresh]);
   async function save(content: CharacterContent, reason: string) {
-    if (busy) return false; setBusy(true); setError(''); setMessage('');
+    if (busyRef.current) return false; busyRef.current = true; setBusy(true); setError(''); setMessage('');
     try {
       const id = detail?.id;
       const result = await request<{id: string}>(id ? `/api/admin/characters/${encodeURIComponent(id)}` : '/api/admin/characters', id ? 'PUT' : 'POST', {content, reason, ...(id ? {updatedAt: detail!.updatedAt} : {})});
       setCreating(false); setSelected(result.id); setRefresh(value => value + 1); setMessage('角色内容已保存，公开状态由发布流程管理。'); return true;
-    } catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
+    } catch (value) {setError((value as Error).message); return false;} finally {busyRef.current = false; setBusy(false);}
   }
   async function publish(action: 'PUBLISH' | 'UNPUBLISH', reason: string) {
-    if (busy || !detail) return false; setBusy(true); setError(''); setMessage('');
+    if (busyRef.current || !detail) return false; busyRef.current = true; setBusy(true); setError(''); setMessage('');
     try {await request(`/api/admin/characters/${encodeURIComponent(detail.id)}/publication`, 'POST', {action, reason, updatedAt: detail.updatedAt}); setRefresh(value => value + 1); setMessage(action === 'PUBLISH' ? '角色已公开，前台可见性已更新。' : '角色已下架，前台可见性已更新。'); return true;}
-    catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
+    catch (value) {setError((value as Error).message); return false;} finally {busyRef.current = false; setBusy(false);}
   }
   async function removeDraft(reason: string) {
-    if (busy || !detail) return false; setBusy(true); setError(''); setMessage('');
+    if (busyRef.current || !detail) return false; busyRef.current = true; setBusy(true); setError(''); setMessage('');
     try {await request(`/api/admin/characters/${encodeURIComponent(detail.id)}`, 'DELETE', {updatedAt: detail.updatedAt, reason}); setDetailDirty(false); setCreating(false); setSelected(null); setDetail(null); setRefresh(value => value + 1); setMessage('未使用的站点角色草稿已删除。'); return true;}
-    catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
+    catch (value) {setError((value as Error).message); return false;} finally {busyRef.current = false; setBusy(false);}
   }
   async function bulkPublish(action: 'PUBLISH' | 'UNPUBLISH', reason: string, items: CharacterSummary[]) {
-    if (busy) return false; setBusy(true); setError(''); setMessage('');
+    if (busyRef.current) return false; busyRef.current = true; setBusy(true); setError(''); setMessage('');
     try {await request('/api/admin/characters/publication', 'POST', {action, reason, items: items.map(character => ({id: character.id, updatedAt: character.updatedAt}))}); setRefresh(value => value + 1); setMessage('批量角色操作已完成。'); return true;}
-    catch (value) {setError((value as Error).message); return false;} finally {setBusy(false);}
+    catch (value) {setError((value as Error).message); return false;} finally {busyRef.current = false; setBusy(false);}
   }
   const closeDetail = useCallback(() => {
     if (busy) return;

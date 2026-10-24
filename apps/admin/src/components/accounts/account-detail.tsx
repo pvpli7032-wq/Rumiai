@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { AdminPermission } from '@rumiai/contracts/admin/permissions';
 import { AdminStat, AdminStatGrid, AdminPanel } from '../admin-page';
 import { Avatar } from '@rumiai/ui/avatar';
@@ -46,6 +46,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   const [reason, setReason] = useState('');
   const [profileReason, setProfileReason] = useState('');
   const [profileBusy, setProfileBusy] = useState(false);
+  const profileBusyRef = useRef(false);
   const [profileError, setProfileError] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
   const [profile, setProfile] = useState({username: user.username, displayName: user.displayName ?? '', avatarUrl: user.avatarUrl ?? ''});
@@ -55,7 +56,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   const profileDirty = profile.username !== user.username || profile.displayName !== (user.displayName ?? '') || profile.avatarUrl !== (user.avatarUrl ?? '') || Boolean(profileReason.trim());
   const actionDirty = Boolean(reason.trim());
   useEffect(() => onDirtyChange?.(profileDirty || actionDirty || quotaDirty), [profileDirty, actionDirty, quotaDirty, onDirtyChange]);
-  const actions: AccountAction[] = user.deletedAt ? [] : [...(permissions.includes('accounts.manage') ? [user.suspendedAt ? 'RESTORE' as const : 'SUSPEND' as const] : []), ...(permissions.includes('accounts.community.manage') ? [user.communityBannedAt ? 'UNBAN_COMMUNITY' as const : 'BAN_COMMUNITY' as const] : []), ...(permissions.includes('accounts.sessions.revoke') ? ['REVOKE_SESSIONS' as const] : [])];
+  const actions: AccountAction[] = user.deletedAt ? [] : [...(permissions.includes('accounts.manage') ? [user.suspendedAt ? 'RESTORE' as const : 'SUSPEND' as const, 'CLOSE' as const] : []), ...(permissions.includes('accounts.community.manage') ? [user.communityBannedAt ? 'UNBAN_COMMUNITY' as const : 'BAN_COMMUNITY' as const] : []), ...(permissions.includes('accounts.sessions.revoke') ? ['REVOKE_SESSIONS' as const] : [])];
   const [action, setAction] = useState<AccountAction | ''>(actions[0] ?? '');
   const selectedAction = actions.includes(action as AccountAction) ? action as AccountAction : actions[0];
   async function run(target: AccountAction) {
@@ -64,18 +65,19 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!selectedAction || busy) return;
-    if (selectedAction === 'SUSPEND' || selectedAction === 'REVOKE_SESSIONS') { setConfirming(selectedAction); return; }
+    if (selectedAction === 'SUSPEND' || selectedAction === 'CLOSE' || selectedAction === 'REVOKE_SESSIONS') { setConfirming(selectedAction); return; }
     await run(selectedAction);
   }
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
-    if (profileBusy || !sessionActive || user.deletedAt) return;
+    if (profileBusyRef.current || !sessionActive || user.deletedAt) return;
+    profileBusyRef.current = true;
     setProfileBusy(true); setProfileError(''); setProfileMessage('');
     try {
       await apiFetch(`/api/admin/accounts/${encodeURIComponent(user.id)}/profile`, {method: 'PATCH', credentials: 'same-origin', body: {...profile, avatarUrl: profile.avatarUrl || null, reason: profileReason, version: user.accountVersion}});
       setProfileReason(''); setProfileMessage('用户资料已保存，前台关联数据会按新资料读取。'); onProfileSaved();
     } catch (error) { setProfileError(error instanceof Error ? error.message : '用户资料保存失败。'); }
-    finally { setProfileBusy(false); }
+    finally { profileBusyRef.current = false; setProfileBusy(false); }
   }
   const displayName = user.displayName?.trim() || user.username;
   const assets = detail.assets;

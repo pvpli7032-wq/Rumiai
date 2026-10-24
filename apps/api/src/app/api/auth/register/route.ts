@@ -4,6 +4,7 @@ import { logRouteError } from '@rumiai/backend/infrastructure/logging/logger';
 import { signToken, AuthConfigurationError } from '@rumiai/backend/infrastructure/auth/auth';
 import { formatUser } from '@rumiai/backend/infrastructure/auth/user-identity';
 import { AccountRegistrationError, registerAccount } from '@rumiai/backend/modules/accounts/registration-service';
+import {shouldStartOnboarding} from '@rumiai/backend/modules/growth/onboarding-service';
 
 export async function POST(request: Request) {
   try {
@@ -20,7 +21,8 @@ export async function POST(request: Request) {
     const user = await registerAccount(body);
 
     const token = await signToken({ userId: user.id, email: user.email, tokenVersion: user.tokenVersion });
-    return setMediaSessionCookie(NextResponse.json({ user: formatUser(user), token }, { status: 201 }), token);
+    const onboardingRequired = await shouldStartOnboarding(null);
+    return setMediaSessionCookie(NextResponse.json({ user: formatUser(user), token, onboardingRequired }, { status: 201 }), token);
   } catch (error) {
     if (error instanceof AccountRegistrationError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof AuthConfigurationError) return NextResponse.json({ error: '账号服务尚未配置，请联系管理员。' }, { status: 503 });

@@ -11,10 +11,10 @@ function cell(value: unknown) {
 }
 
 export function buildPaymentOrdersCsv(rows: Awaited<ReturnType<typeof exportPaymentOrders>>) {
-  const header = ['订单号', '订单类型', '会员订单号', '订单状态', '支付渠道', '渠道单号', '币种', '金额分', '套餐金币', '赠送金币', '入账金币', '创建时间', '支付时间', '退款单号', '会员退款记录', '退款状态', '退款金额分'];
+  const header = ['订单号', '订单类型', '会员订单号', '订单状态', '支付渠道', '渠道单号', '币种', '金额分', '套餐金币', '赠送金币', '入账金币', '权益快照JSON', '创建时间', '支付时间', '退款单号', '会员退款记录', '退款状态', '退款金额分'];
   const records = rows.map(order => [
     order.orderNo, order.orderType, order.membershipOrder?.orderNo ?? '', order.status, order.provider, order.providerTradeNo, order.currency,
-    order.amountCnyCents, order.packageCoins, order.packageBonus, order.coinAmount,
+    order.amountCnyCents, order.packageCoins, order.packageBonus, order.coinAmount, order.packageBenefitsJson,
     order.createdAt.toISOString(), order.paidAt?.toISOString() ?? '', order.refund?.refundNo ?? '', order.refund?.membershipRefundId ?? '', order.refund?.status ?? '', order.refund?.amountCnyCents ?? '',
   ]);
   return '\uFEFF' + [header, ...records].map(row => row.map(cell).join(',')).join('\r\n');

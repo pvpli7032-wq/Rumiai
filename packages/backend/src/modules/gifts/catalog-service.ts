@@ -3,6 +3,7 @@ import type {Prisma} from '@prisma/client';
 import {db,pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {hasAdminPermission} from '@rumiai/backend/modules/admin/authorization';
 import {claimWriter, recordAdminAudit} from '@rumiai/backend/modules/admin/management-service';
+import {growthModuleAdapter} from '@rumiai/backend/modules/growth/modules/registry';
 
 export class GiftCatalogError extends Error{
   constructor(message:string,public status=400){super(message);this.name='GiftCatalogError';}
@@ -14,6 +15,7 @@ const publicSelect={id:true,code:true,name:true,description:true,emoji:true,coin
 
 export async function readPublicGiftCatalog(){
   await pragmasReady;
+  if(!await growthModuleAdapter('gifts').isEnabled(db))return [];
   return db.giftCatalogItem.findMany({where:{isActive:true},orderBy:[{sortOrder:'asc'},{id:'asc'}],take:100,select:publicSelect});
 }
 

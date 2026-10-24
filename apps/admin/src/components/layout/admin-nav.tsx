@@ -7,7 +7,7 @@ import {
   Landmark, LayoutDashboard, LayoutTemplate, MessageSquare, Pin, PinOff, RefreshCw, Scale, ScrollText, Settings,
   ShieldCheck, Sparkles, UserCog, Users, Wallet, Crown, type LucideIcon,
 } from 'lucide-react';
-import {activeNavHref, findEntry, type AdminNavEntry, type AdminNavGroup, type AdminNavIcon} from '@rumiai/contracts/admin/nav';
+import {findEntry, type AdminNavEntry, type AdminNavGroup, type AdminNavIcon} from '@rumiai/contracts/admin/nav';
 import type {AdminPermission} from '@rumiai/contracts/admin/permissions';
 import {cn} from '@rumiai/ui/cn';
 import {pinnedEntries} from '../nav-pins';
@@ -78,46 +78,12 @@ function NavLinkRow({entry, active, pinned, onTogglePin, onNavigate}: {
   </div>;
 }
 
-function NavBranch({entry, currentHref, currentEntry, open, pinned, onToggleOpen, onTogglePin, onNavigate}: {
-  entry: AdminNavEntry; currentHref: string | null; currentEntry: boolean; open: boolean; pinned: boolean;
-  onToggleOpen: () => void; onTogglePin: (entry: AdminNavEntry) => void; onNavigate?: () => void;
-}) {
-  const Icon = ICONS[entry.icon];
-  return <div className="rounded-lg">
-    <div className="flex items-center gap-1 pr-1">
-      <button type="button" aria-expanded={open} onClick={onToggleOpen} className={cn(
-        'flex min-h-10 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-accent',
-        currentEntry ? 'text-brand' : 'text-muted-foreground hover:text-foreground',
-      )}>
-        <Icon className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">{entry.label}</span>
-        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-      </button>
-      <PinButton entry={entry} pinned={pinned} onToggle={onTogglePin} />
-    </div>
-    {open && <div className="mb-1 ml-5 space-y-0.5 border-l border-border pl-2">
-      {entry.children?.map(child => {
-        const active = currentEntry && currentHref === child.href;
-        return <Link key={child.href} href={child.href} onClick={onNavigate} aria-current={active ? 'page' : undefined} className={cn(
-          'relative flex min-h-9 items-center rounded-md px-3 text-xs transition-colors',
-          active ? 'bg-brand-soft font-semibold text-brand' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-        )}>
-          {active && <span aria-hidden className="absolute -left-[9px] top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-brand" />}
-          <span className="truncate">{child.label}</span>
-        </Link>;
-      })}
-    </div>}
-  </div>;
-}
-
 export function AdminNav({location, groups, permissions, storageScope, pins, onTogglePin, pinNotice, rail = false, onNavigate}: AdminNavProps) {
   const current = findEntry(location, permissions);
-  const currentHref = activeNavHref(location, permissions);
   const [open, setOpen] = useState<OpenState>({groups: [], entries: [], lastActiveBranch: null});
   const [hydratedScope, setHydratedScope] = useState<string | null>(null);
   const activeBranch = current ? `${current.group.id}:${current.entry.href}` : null;
   const currentGroupId = current?.group.id ?? null;
-  const currentEntryHref = current?.entry.href ?? null;
-  const currentEntryHasChildren = Boolean(current?.entry.children?.length);
   const pinned = pinnedEntries(pins, permissions);
   const pinnedHrefs = useMemo(() => new Set(pinned.map(entry => entry.href)), [pinned]);
 
@@ -127,7 +93,6 @@ export function AdminNav({location, groups, permissions, storageScope, pins, onT
     const enteringNewBranch = Boolean(activeBranch && (!saved.hasLastActiveBranch || saved.state.lastActiveBranch !== activeBranch));
     // 首次进入或旧格式没有 lastActiveBranch 时帮助操作者看见当前位置；同一分支的明确收起保持不变。
     if (enteringNewBranch && current && !state.groups.includes(current.group.id)) state.groups.push(current.group.id);
-    if (enteringNewBranch && current?.entry.children?.length && !state.entries.includes(current.entry.href)) state.entries.push(current.entry.href);
     if (activeBranch) state.lastActiveBranch = activeBranch;
     setOpen(state);
     setHydratedScope(storageScope);
@@ -142,12 +107,10 @@ export function AdminNav({location, groups, permissions, storageScope, pins, onT
       return {
         lastActiveBranch: activeBranch,
         groups: currentGroupId && !value.groups.includes(currentGroupId) ? [...value.groups, currentGroupId] : value.groups,
-        entries: currentEntryHasChildren && currentEntryHref && !value.entries.includes(currentEntryHref)
-          ? [...value.entries, currentEntryHref]
-          : value.entries,
+        entries: value.entries,
       };
     });
-  }, [activeBranch, currentEntryHasChildren, currentEntryHref, currentGroupId, hydratedScope, storageScope]);
+  }, [activeBranch, currentGroupId, hydratedScope, storageScope]);
 
   useEffect(() => {
     if (!storageScope || hydratedScope !== storageScope) return;
@@ -157,14 +120,12 @@ export function AdminNav({location, groups, permissions, storageScope, pins, onT
   function toggleGroup(id: string) {
     setOpen(value => ({...value, groups: value.groups.includes(id) ? value.groups.filter(item => item !== id) : [...value.groups, id]}));
   }
-  function toggleEntry(href: string) {
-    setOpen(value => ({...value, entries: value.entries.includes(href) ? value.entries.filter(item => item !== href) : [...value.entries, href]}));
-  }
   function renderEntry(entry: AdminNavEntry) {
     const isCurrent = current?.entry.href === entry.href;
-    return entry.children?.length
-      ? <NavBranch key={entry.href} entry={entry} currentHref={currentHref} currentEntry={isCurrent} open={open.entries.includes(entry.href)} pinned={pins.includes(entry.href)} onToggleOpen={() => toggleEntry(entry.href)} onTogglePin={onTogglePin} onNavigate={onNavigate} />
-      : <NavLinkRow key={entry.href} entry={entry} active={isCurrent} pinned={pins.includes(entry.href)} onTogglePin={onTogglePin} onNavigate={onNavigate} />;
+    // Secondary destinations remain in the contract for search, breadcrumbs and deep links,
+    // but the page's own tabs are their only visual navigation. Repeating the same tabs in
+    // the global sidebar made seven sections require two identical clicks.
+    return <NavLinkRow key={entry.href} entry={entry} active={isCurrent} pinned={pins.includes(entry.href)} onTogglePin={onTogglePin} onNavigate={onNavigate} />;
   }
 
   if (rail) {

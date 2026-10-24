@@ -3,6 +3,17 @@ import { db } from '@rumiai/backend/infrastructure/database/client';
 import { invalidateMemoryForMessages } from '@rumiai/backend/modules/memory/invalidation';
 import { encodeCursor } from '@rumiai/backend/infrastructure/http/pagination';
 
+const attachmentSelect = {id: true, type: true, stickerId: true, mimeType: true, byteSize: true, uploadAsset: {select: {url: true}}} as const;
+function messageView<T extends {attachments: Array<{id:string;type:string;stickerId:string|null;mimeType:string|null;byteSize:number|null;uploadAsset:{url:string}|null}>}>(row:T) {
+  const attachments: Array<{id:string;type:'IMAGE';url:string;mimeType:string;byteSize:number}|{id:string;type:'STICKER';stickerId:string}> = [];
+  for (const item of row.attachments) {
+    if (item.type === 'IMAGE' && item.uploadAsset && item.mimeType && item.byteSize) attachments.push({id: item.id, type: 'IMAGE', url: item.uploadAsset.url, mimeType: item.mimeType, byteSize: item.byteSize});
+    else if (item.type === 'STICKER' && item.stickerId) attachments.push({id: item.id, type: 'STICKER', stickerId: item.stickerId});
+  }
+  const {attachments: _raw, ...message} = row;
+  return {...message, attachments};
+}
+
 /**
  * Dependency inversion for story history（V3 第 16 章）：the single
  * direction rule forbids conversations → stories imports, so the story side
@@ -31,10 +42,11 @@ export async function readConversationMessages(userId: string, conversationId: s
   // id is the tiebreaker: two rows written in the same millisecond (a turn's user message
   // and its reply can commit together) would otherwise come back in an arbitrary order,
   // and "delete this and everything after it" would then delete the wrong rows.
-  return db.message.findMany({
+  const rows = await db.message.findMany({
     where: {conversationId}, orderBy: [{createdAt: 'asc'}, {id: 'asc'}],
-    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true},
+    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true, attachments: {select: attachmentSelect}},
   });
+  return rows.map(messageView);
 }
 
 /** 历史分页的稳定游标：createdAt 是主序，id 破同毫秒并列。 */
@@ -87,13 +99,13 @@ export async function readConversationMessagePage(
     // 多取一条只用来判断还有没有更早的，不返回给调用方。
     orderBy: [{createdAt: 'desc'}, {id: 'desc'}],
     take: take + 1,
-    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true},
+    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true, attachments: {select: attachmentSelect}},
   });
   const hasMore = rows.length > take;
   const page = (hasMore ? rows.slice(0, take) : rows).reverse();
   const oldest = page[0];
   return {
-    messages: page,
+    messages: page.map(messageView),
     hasMore,
     nextCursor: hasMore && oldest ? encodeCursor({createdAt: oldest.createdAt.toISOString(), id: oldest.id}) : null,
   };

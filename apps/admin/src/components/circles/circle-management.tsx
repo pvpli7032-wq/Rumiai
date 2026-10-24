@@ -1,5 +1,5 @@
 'use client';
-import {useCallback, useEffect, useState, type FormEvent} from 'react';
+import {useCallback, useEffect, useRef, useState, type FormEvent} from 'react';
 import {Plus, RefreshCw, Search} from 'lucide-react';
 import {useAdminAccess} from '../use-admin-access';
 import {CircleEditor} from './circle-editor';
@@ -22,6 +22,7 @@ export function CircleManagement() {
   const [list, setList] = useState<CircleList | null>(null), [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<ManagedCircle | null>(null), [creating, setCreating] = useState(false), [detailRetry, setDetailRetry] = useState(0);
   const [reading, setReading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const [detailDirty, setDetailDirty] = useState(false);
+  const busyRef = useRef(false);
   const request = useCallback(<T,>(url: string, signal?: AbortSignal, body?: object, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET') => apiFetch<T>(url, {method, credentials: 'same-origin', body, signal, cache: 'no-store'}), [sessionActive]);
   useEffect(() => {setList(null); setSelected(null); setDetail(null); setCreating(false); setError(''); setMessage('');}, [sessionActive]);
   useEffect(() => {
@@ -39,15 +40,15 @@ export function CircleManagement() {
     return () => controller.abort();
   }, [request, selected, allowed, detailRetry]);
   async function apply(action: CircleAction, reason: string, content?: CircleContent) {
-    if (busy || !creating && !detail) return;
-    setBusy(true); setError(''); setMessage('');
+    if (busyRef.current || !creating && !detail) return;
+    busyRef.current = true; setBusy(true); setError(''); setMessage('');
     try {
       const saved = await request<ManagedCircle>(creating ? '/api/admin/circles' : `/api/admin/circles/${encodeURIComponent(detail!.id)}`, undefined, {action, reason, ...(content ? {content} : {}), ...(detail ? {updatedAt: detail.updatedAt} : {})}, creating ? 'POST' : 'PATCH');
       setCreating(false); setSelected(saved.id); setDetail(saved); setRevision(value => value + 1); setMessage('圈子操作已完成。');
     } catch (value) {
       setError((value as Error).message);
       setRevision(value => value + 1);
-    } finally {setBusy(false);}
+    } finally {busyRef.current = false; setBusy(false);}
   }
   function membersChanged() {
     setRevision(value => value + 1);

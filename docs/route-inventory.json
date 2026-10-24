@@ -1,9 +1,9 @@
 {
   "description": "Current source route map. Authentication calls are an inventory, not proof of permission coverage. Listed routes are not automatically functionally verified.",
   "counts": {
-    "web": 39,
+    "web": 43,
     "admin": 26,
-    "api": 199
+    "api": 210
   },
   "routes": [
     {
@@ -245,7 +245,8 @@
       "kind": "handler",
       "url": "/api/admin/accounts",
       "methods": [
-        "GET"
+        "GET",
+        "POST"
       ],
       "source": "apps/api/src/app/api/admin/accounts/route.ts",
       "backendServices": [
@@ -373,6 +374,8 @@
       "kind": "handler",
       "url": "/api/admin/ai/models/[id]",
       "methods": [
+        "DELETE",
+        "GET",
         "PATCH"
       ],
       "source": "apps/api/src/app/api/admin/ai/models/[id]/route.ts",
@@ -431,6 +434,8 @@
       "kind": "handler",
       "url": "/api/admin/ai/providers/[id]",
       "methods": [
+        "DELETE",
+        "GET",
         "PATCH"
       ],
       "source": "apps/api/src/app/api/admin/ai/providers/[id]/route.ts",
@@ -615,6 +620,7 @@
       "kind": "handler",
       "url": "/api/admin/characters/[id]",
       "methods": [
+        "DELETE",
         "GET",
         "PUT"
       ],
@@ -945,6 +951,7 @@
       "kind": "handler",
       "url": "/api/admin/finance/packages/[id]",
       "methods": [
+        "DELETE",
         "PUT"
       ],
       "source": "apps/api/src/app/api/admin/finance/packages/[id]/route.ts",
@@ -1004,6 +1011,22 @@
     {
       "application": "api",
       "kind": "handler",
+      "url": "/api/admin/growth/affiliate",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/affiliate/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/affiliate/service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
       "url": "/api/admin/growth/checkins",
       "methods": [
         "GET",
@@ -1038,6 +1061,7 @@
       "kind": "handler",
       "url": "/api/admin/growth/gifts/[id]",
       "methods": [
+        "DELETE",
         "PATCH"
       ],
       "source": "apps/api/src/app/api/admin/growth/gifts/[id]/route.ts",
@@ -1069,6 +1093,7 @@
       "kind": "handler",
       "url": "/api/admin/growth/missions/[id]",
       "methods": [
+        "DELETE",
         "PATCH"
       ],
       "source": "apps/api/src/app/api/admin/growth/missions/[id]/route.ts",
@@ -1078,6 +1103,38 @@
         "@rumiai/backend/modules/missions/management-service"
       ],
       "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/growth/modules",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/modules/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/growth/modules/state-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/admin/growth/referrals",
+      "methods": [
+        "GET"
+      ],
+      "source": "apps/api/src/app/api/admin/growth/referrals/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/referrals/service"
+      ],
+      "authenticationCalls": [
+        "requireAdmin"
+      ]
     },
     {
       "application": "api",
@@ -1099,6 +1156,7 @@
       "kind": "handler",
       "url": "/api/admin/memberships",
       "methods": [
+        "DELETE",
         "GET",
         "PATCH"
       ],
@@ -1443,6 +1501,20 @@
     {
       "application": "api",
       "kind": "handler",
+      "url": "/api/admin/roles/[id]",
+      "methods": [
+        "DELETE"
+      ],
+      "source": "apps/api/src/app/api/admin/roles/[id]/route.ts",
+      "backendServices": [
+        "@rumiai/backend/modules/admin-auth/request",
+        "@rumiai/backend/modules/admin/management-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
       "url": "/api/admin/settings",
       "methods": [
         "GET",
@@ -1712,6 +1784,53 @@
     {
       "application": "api",
       "kind": "handler",
+      "url": "/api/auth/account/activate",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/auth/account/activate/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/accounts/account-recovery-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/auth/email/resend",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/auth/email/resend/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/email/account-email-delivery",
+        "@rumiai/backend/infrastructure/http/rate-limit",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/account-recovery-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/auth/email/verify",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/auth/email/verify/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/account-recovery-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
       "url": "/api/auth/login",
       "methods": [
         "POST"
@@ -1765,6 +1884,37 @@
     {
       "application": "api",
       "kind": "handler",
+      "url": "/api/auth/password/forgot",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/auth/password/forgot/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/email/account-email-delivery",
+        "@rumiai/backend/infrastructure/http/client-ip",
+        "@rumiai/backend/infrastructure/http/rate-limit",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/account-recovery-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/auth/password/reset",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/auth/password/reset/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/accounts/account-recovery-service"
+      ],
+      "authenticationCalls": []
+    },
+    {
+      "application": "api",
+      "kind": "handler",
       "url": "/api/auth/register",
       "methods": [
         "POST"
@@ -1775,7 +1925,8 @@
         "@rumiai/backend/infrastructure/auth/auth-cookies",
         "@rumiai/backend/infrastructure/auth/user-identity",
         "@rumiai/backend/infrastructure/logging/logger",
-        "@rumiai/backend/modules/accounts/registration-service"
+        "@rumiai/backend/modules/accounts/registration-service",
+        "@rumiai/backend/modules/growth/onboarding-service"
       ],
       "authenticationCalls": []
     },
@@ -2391,6 +2542,23 @@
         "@rumiai/backend/infrastructure/auth/auth",
         "@rumiai/backend/infrastructure/logging/logger",
         "@rumiai/backend/modules/conversations/chat-application-service"
+      ],
+      "authenticationCalls": [
+        "getAuthUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
+      "url": "/api/conversations/[id]/messages/attachments",
+      "methods": [
+        "POST"
+      ],
+      "source": "apps/api/src/app/api/conversations/[id]/messages/attachments/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/auth/auth",
+        "@rumiai/backend/infrastructure/logging/logger",
+        "@rumiai/backend/modules/conversations/attachments/attachment-service"
       ],
       "authenticationCalls": [
         "getAuthUser"
@@ -3097,6 +3265,23 @@
     {
       "application": "api",
       "kind": "handler",
+      "url": "/api/referrals/me",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "source": "apps/api/src/app/api/referrals/me/route.ts",
+      "backendServices": [
+        "@rumiai/backend/infrastructure/http",
+        "@rumiai/backend/modules/referrals/service"
+      ],
+      "authenticationCalls": [
+        "requireUser"
+      ]
+    },
+    {
+      "application": "api",
+      "kind": "handler",
       "url": "/api/reports",
       "methods": [
         "GET",
@@ -3530,6 +3715,15 @@
     {
       "application": "web",
       "kind": "page",
+      "url": "/activate-account",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/activate-account/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
       "url": "/ai-usage",
       "methods": [],
       "source": "apps/web/src/app/(app)/ai-usage/page.tsx",
@@ -3605,6 +3799,15 @@
       "url": "/discover",
       "methods": [],
       "source": "apps/web/src/app/(app)/discover/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/forgot-password",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/forgot-password/page.tsx",
       "backendServices": [],
       "authenticationCalls": []
     },
@@ -3719,6 +3922,15 @@
     {
       "application": "web",
       "kind": "page",
+      "url": "/reset-password",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/reset-password/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
       "url": "/share/chat/[id]",
       "methods": [],
       "source": "apps/web/src/app/share/chat/[id]/page.tsx",
@@ -3780,6 +3992,15 @@
       "url": "/stories/[slug]",
       "methods": [],
       "source": "apps/web/src/app/(app)/stories/[slug]/page.tsx",
+      "backendServices": [],
+      "authenticationCalls": []
+    },
+    {
+      "application": "web",
+      "kind": "page",
+      "url": "/verify-email",
+      "methods": [],
+      "source": "apps/web/src/app/(app)/verify-email/page.tsx",
       "backendServices": [],
       "authenticationCalls": []
     }

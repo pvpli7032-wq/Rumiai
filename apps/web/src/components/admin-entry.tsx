@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import {ShieldCheck} from 'lucide-react';
 
 /**
@@ -8,7 +7,7 @@ import {ShieldCheck} from 'lucide-react';
  */
 export function AdminEntry() {
   return (
-    <Link
+    <a
       href="/admin/login"
       className="flex min-h-12 items-center justify-between rounded-xl border border-border p-4"
     >
@@ -17,6 +16,6 @@ export function AdminEntry() {
         管理后台
       </span>
       <span className="text-sm text-muted-foreground">进入管理 →</span>
-    </Link>
+    </a>
   );
 }

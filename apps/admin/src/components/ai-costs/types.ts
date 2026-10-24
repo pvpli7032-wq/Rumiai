@@ -48,9 +48,19 @@ export interface CostPrice {
   currency: string;
   inputPricePerMillion: string;
   outputPricePerMillion: string;
+  tiers: CostPriceTier[];
   effectiveAt: string;
   source: string;
   createdAt: string;
+}
+
+export interface CostPriceTier {
+  id: string;
+  minInputTokens: number;
+  maxInputTokens: number | null;
+  inputPricePerMillion: string;
+  outputPricePerMillion: string;
+  cachedInputPricePerMillion: string | null;
 }
 
 export interface PriceModel {

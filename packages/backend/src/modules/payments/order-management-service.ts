@@ -49,7 +49,7 @@ export async function listPaymentOrders(input:{page?:unknown;pageSize?:unknown;s
       take:filter.pageSize,
       select:{
         orderNo:true,status:true,provider:true,providerTradeNo:true,currency:true,
-        amountCnyCents:true,packageCoins:true,packageBonus:true,coinAmount:true,
+        amountCnyCents:true,packageCoins:true,packageBonus:true,packageBenefitsJson:true,coinAmount:true,
         createdAt:true,paidAt:true,
         refund:{select:{refundNo:true,status:true,amountCnyCents:true,coinAmount:true,errorCode:true,createdAt:true,completedAt:true}},
         membershipOrder:{select:{orderNo:true,amountCents:true,status:true,refund:{select:{id:true,amountCents:true,status:true,createdAt:true,completedAt:true,providerRefundNo:true}}}},
@@ -95,7 +95,7 @@ export async function exportPaymentOrders(input:{status?:unknown;query?:unknown}
     where,orderBy:[{createdAt:'desc'},{id:'desc'}],take:PAYMENT_ORDER_EXPORT_LIMIT+1,
     select:{
       orderNo:true,status:true,provider:true,providerTradeNo:true,currency:true,
-      amountCnyCents:true,packageCoins:true,packageBonus:true,coinAmount:true,createdAt:true,paidAt:true,
+      amountCnyCents:true,packageCoins:true,packageBonus:true,packageBenefitsJson:true,coinAmount:true,createdAt:true,paidAt:true,
       refund:{select:{refundNo:true,status:true,amountCnyCents:true,coinAmount:true}},
       membershipOrder:{select:{orderNo:true,amountCents:true,status:true,refund:{select:{id:true,amountCents:true,status:true,createdAt:true,completedAt:true,providerRefundNo:true}}}},
     },

@@ -50,6 +50,10 @@ test('every nested area exposes one default and unique URL-addressable leaves', 
   assert.deepEqual(nested.map(entry => entry.href), [
     '/admin/site-content','/admin/mirror','/admin/growth','/admin/ai/costs','/admin/finance','/admin/settings','/admin/operations',
   ]);
+  assert.deepEqual(nested.map(entry => [entry.href, entry.children?.length]), [
+    ['/admin/site-content', 7], ['/admin/mirror', 3], ['/admin/growth', 5], ['/admin/ai/costs', 3],
+    ['/admin/finance', 5], ['/admin/settings', 5], ['/admin/operations', 3],
+  ]);
   for (const entry of nested) {
     const children = entry.children ?? [];
     assert.equal(children.filter(child => child.default).length, 1, entry.href);

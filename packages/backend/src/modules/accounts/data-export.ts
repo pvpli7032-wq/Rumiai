@@ -18,6 +18,7 @@ export async function exportAccountData(userId: string) {
       updatedAt: true, archivedAt: true,
       messages: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: {
         id: true, role: true, content: true, imageUrl: true, createdAt: true,
+        attachments: {select: {type: true, stickerId: true, mimeType: true, byteSize: true, uploadAsset: {select: {url: true}}}},
       } },
     } });
     const characters = await tx.character.findMany({ where: { creatorId: userId }, include: {
@@ -35,7 +36,7 @@ export async function exportAccountData(userId: string) {
     } });
     const transactions = await tx.coinTransaction.findMany({ where: { userId } });
     const orders = await tx.paymentOrder.findMany({ where: { userId }, select: {
-      orderNo: true, status: true, amountCnyCents: true, coinAmount: true, createdAt: true, paidAt: true,
+      orderNo: true, status: true, amountCnyCents: true, coinAmount: true, packageCoins: true, packageBonus: true, packageBenefitsJson: true, createdAt: true, paidAt: true,
       refund: { select: { refundNo: true, status: true, amountCnyCents: true, coinAmount: true, createdAt: true, completedAt: true } },
     } });
     const uploads = await tx.uploadAsset.findMany({ where: { ownerId: userId, siteOwned: false }, select: { url: true, createdAt: true } });

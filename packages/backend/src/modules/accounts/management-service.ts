@@ -6,6 +6,10 @@ import {setCommunityRestriction} from '@rumiai/backend/modules/community/restric
 import {readMembershipAccountAssets} from '@rumiai/backend/modules/memberships/service';
 import type {AdminAccountAssets} from '@rumiai/contracts/admin/account-assets';
 import type {AdminPermission} from '@rumiai/contracts/admin/permissions';
+import bcrypt from 'bcryptjs';
+import {randomBytes} from 'node:crypto';
+import {allocateHandle, validateUsername} from '@rumiai/backend/infrastructure/auth/user-identity';
+import {requestAccountActivation} from './account-recovery-service';
 
 export class AccountManagementError extends Error {
   constructor(message: string, public status = 400) {super(message);}
@@ -78,7 +82,7 @@ export async function readManagedAccount(actorId: string, userId: string) {
   };
 }
 
-const actions = {SUSPEND: 'accounts.manage', RESTORE: 'accounts.manage', REVOKE_SESSIONS: 'accounts.sessions.revoke', BAN_COMMUNITY: 'accounts.community.manage', UNBAN_COMMUNITY: 'accounts.community.manage'} as const;
+const actions = {SUSPEND: 'accounts.manage', RESTORE: 'accounts.manage', CLOSE: 'accounts.manage', REVOKE_SESSIONS: 'accounts.sessions.revoke', BAN_COMMUNITY: 'accounts.community.manage', UNBAN_COMMUNITY: 'accounts.community.manage'} as const;
 export async function updateManagedAccount(actorId: string, userId: string, input: unknown) {
   id(userId);
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new AccountManagementError('用户操作数据格式错误。');
@@ -102,6 +106,11 @@ export async function updateManagedAccount(actorId: string, userId: string, inpu
       if (!before.suspendedAt) throw new AccountManagementError('账号当前未停用。', 409);
       try {await assertAdministrativeAccountManagementAllowed(tx, actorId, userId);} catch (error) {if (error instanceof AdminManagementError) throw new AccountManagementError(error.message, error.status); throw error;}
       await tx.user.update({where: {id: userId}, data: {suspendedAt: null, suspensionReason: null, accountVersion: {increment: 1}}});
+    } else if (action === 'CLOSE') {
+      if (actorId === userId) throw new AccountManagementError('不能在当前会话中关闭自己的账号。', 409);
+      try {await assertAccountSuspensionAllowed(tx, actorId, userId);} catch (error) {if (error instanceof AdminManagementError) throw new AccountManagementError(error.message, error.status); throw error;}
+      await tx.user.update({where: {id: userId}, data: {deletedAt: new Date(), suspendedAt: new Date(), suspensionReason: reason, tokenVersion: {increment: 1}, accountVersion: {increment: 1}}});
+      await tx.adminSession.deleteMany({where: {userId}});
     } else if (action === 'REVOKE_SESSIONS') {
       try {await assertAdministrativeAccountManagementAllowed(tx, actorId, userId);} catch (error) {if (error instanceof AdminManagementError) throw new AccountManagementError(error.message, error.status); throw error;}
       await tx.user.update({where: {id: userId}, data: {tokenVersion: {increment: 1}, accountVersion: {increment: 1}}});
@@ -117,4 +126,27 @@ export async function updateManagedAccount(actorId: string, userId: string, inpu
     await recordAdminAudit(tx, actorId, `ACCOUNT_${action}`, userId, reason, {before: {suspendedAt: before.suspendedAt, communityBannedAt: before.communityBannedAt, version: before.accountVersion}, after: {suspendedAt: after.suspendedAt, communityBannedAt: after.communityBannedAt, version: after.accountVersion}});
     return after;
   });
+}
+
+/** Creates a disabled account and sends a one-use activation link through the configured adapter. */
+export async function createManagedAccount(actorId: string, input: unknown) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new AccountManagementError('账号数据格式错误。');
+  const body = input as Record<string, unknown>, email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '', displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '', requested = typeof body.username === 'string' ? body.username.trim() : '', explanation = typeof body.reason === 'string' ? body.reason.trim() : '';
+  if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254 || !displayName || displayName.length > 80 || !explanation || explanation.length > 500) throw new AccountManagementError('请填写有效邮箱、昵称与操作理由。');
+  if (requested) {const error = validateUsername(requested); if (error) throw new AccountManagementError(error);}
+  await requirePermission(actorId, 'accounts.manage');
+  const username = requested || await allocateHandle(email.split('@')[0]);
+  const unusableHash = await bcrypt.hash(randomBytes(32).toString('base64url'), 10);
+  const created = await db.$transaction(async tx => {
+    await requirePermission(actorId, 'accounts.manage', tx);
+    const user = await tx.user.create({data: {email, username, displayName, passwordHash: unusableHash, suspendedAt: new Date(), suspensionReason: '等待一次性激活'}});
+    await recordAdminAudit(tx, actorId, 'ACCOUNT_CREATE_PENDING_ACTIVATION', user.id, explanation, {email, username});
+    return user;
+  }).catch(error => {if (typeof error === 'object' && error && (error as {code?: string}).code === 'P2002') throw new AccountManagementError('邮箱或用户名已存在。', 409); throw error;});
+  try {await requestAccountActivation(created.id);}
+  catch {
+    await db.adminAuditLog.create({data: {actorId, action: 'ACCOUNT_ACTIVATION_DELIVERY_FAILED', targetId: created.id, reason: '激活邮件未发送，账号保持停用', changes: '{}'}});
+    throw new AccountManagementError('账号已安全创建并保持停用，但邮件服务未配置或发送失败；请配置邮件后重发激活。', 503);
+  }
+  return {id: created.id, email: created.email, username: created.username, status: 'PENDING_ACTIVATION'};
 }
