@@ -1,27 +1,33 @@
-# 多应用项目运行与发布检查
+# 运行、验证与发布
 
-## 本机开发
+## 批准环境与初始化
 
-要求 Node.js 22.13 或更高版本。首次安装执行 `npm ci`，将根目录 `.env.example` 复制为本机 `.env`，填写本机数据库和至少 32 字符的随机 JWT_SECRET。不要复制线上数据库、上传目录或支付密钥做本机验收。
+所有检查、开发、调试、测试和发布仅在 AGENTS.md 允许的云环境或明确授权的宝塔项目执行，不使用用户本机或本机副本。执行位置和运行模式必须先核对；命令存在不代表允许它对线上数据写入。
 
-`npm run db:generate` 根据 database/schema.prisma 生成 Prisma 客户端；修改模型后必须重新生成。根目录构建及会员集成测试会先执行此步骤。Windows 若提示 query_engine 文件 EPERM，应先停止当前工作区占用客户端的 API、worker 或测试进程，不应删除客户端绕过错误或终止无关 Node 进程。
+要求 Node.js 22.13 或更高版本。新工作区先执行 npm ci --include=dev，再按根 .env.example 准备该环境自己的配置。不要把真实数据库、环境配置、上传文件或密钥复制进 Git。生产 worker 通过 tsx 加载源码，安装时需要 devDependencies。
 
-`npm run db:init` 对配置的数据库执行迁移并写入可重复执行的种子数据。该命令会写数据库，不能将它当只读检查，也不要指向不准备修改的数据库。
+npm run db:generate 从 database/schema.prisma 生成客户端。根 build 和 test:memberships 会先生成客户端；其他测试按自己的入口要求执行。npm run db:init 会执行迁移和种子写入，只用于明确授权的新数据库，不是只读检查或发布检查。
 
-`npm run dev` 启动四个独立进程：web 3010、admin 3011、api 3012、worker。浏览器从 web 入口访问，后台可经 `/admin` 代理访问或使用独立 admin 地址；API 和 worker 不承载前台页面。
+npm run dev 编排 web、admin、api、worker。默认 HTTP 端口分别为3010、3011、3012，可由 WEB_PORT、ADMIN_PORT、API_PORT 覆盖；worker不监听HTTP。后台可经前台/admin代理或独立后台来源访问。
 
-## 地址与状态归属
+## 环境与持久数据
 
-- INTERNAL_API_ORIGIN、ADMIN_API_INTERNAL_URL：web/admin 服务端调用 API 的内部地址。
-- INTERNAL_ADMIN_ORIGIN：web 代理后台及后台静态资源的内部地址。
-- NEXT_PUBLIC_SITE_URL：浏览器可访问的前台地址，也是支付回调地址生成的基础。
-- ADMIN_PUBLIC_ORIGIN：浏览器可访问的后台来源，用于独立后台 Cookie 写入校验，不是 API 内部地址。
-- DATABASE_URL：相对路径以 database/schema.prisma 为基准；四个进程由统一环境加载器规范化为同一个绝对文件。
-- UPLOADS_DIRECTORY、BACKUPS_DIRECTORY：生产环境应使用发布目录之外的持久目录，不能在切换版本时丢失。
+| 配置 | 用途 |
+| --- | --- |
+| INTERNAL_API_ORIGIN、ADMIN_API_INTERNAL_URL | 前后台服务端调用API的内部地址 |
+| INTERNAL_ADMIN_ORIGIN | 前台代理后台及其静态资源的地址 |
+| NEXT_PUBLIC_SITE_URL | 浏览器可访问的前台来源 |
+| ADMIN_PUBLIC_ORIGIN | 独立后台Cookie来源校验 |
+| DATABASE_URL | 四个进程使用的数据库地址 |
+| UPLOADS_DIRECTORY、BACKUPS_DIRECTORY | 上传与备份的持久目录 |
 
-Next 的代理 rewrite 在构建时写入产物。必须用目标内部地址构建；只在启动时修改端口不能重写已有构建产物。前台 `_next` 与后台 `/admin-assets` 分开，不能让反向代理将两者的资源路径混用。
+环境统一由 ops/runtime/environment.mjs 加载；SQLite相对地址以database/schema.prisma为基准转换为绝对地址。实际配置、数据库和上传文件位于服务器shared持久目录，发布切换不得将其覆盖。文件名、路径和权限以实际运行配置为准；不在文档或Git保存凭据与运行快照。
 
-## 验证命令与边界
+Next代理rewrite会固化到构建产物。构建前设置目标内部地址，启动时改端口不能修正旧产物。前台_next与后台/admin-assets资源分开；候选使用独立NEXT_DIST_DIR时，不把该候选类型路径带入通用源码配置。
+
+## 检查入口与结果
+
+在不会占用生产端口、写生产数据的批准工作区按本次改动选择检查：
 
 ```text
 npm run architecture:check
@@ -32,98 +38,39 @@ npm run test:memberships
 npm run test:worker
 npm run test:tasks
 npm run test:restore
-npm run test:startup
 npm run test:migration-upgrade
 npm run build
-npm run test:e2e:membership
+npm run test:startup
 ```
 
-会员集成测试、worker 测试自建临时 SQLite，拒绝外部 DATABASE_URL；运行前不要向它们注入生产环境变量。测试用本机签名支付桩证明状态机，不代表正式商户实际支付、到账和退款已经验收。
+路由清单由architecture:routes写入artifacts/route-inventory.json。会员、worker、tasks及迁移升级结果由对应runner写入artifacts/validation-*.json；这些结果文件不入Git。路由可打开、构建通过和结构清单不能替代受影响业务实际验收。
 
-`test:startup` 使用真实安装入口创建临时数据库，然后由正式启动入口拉起四个进程；仍是本机隔离验证，不是线上部署。它与浏览器流程占用相同的默认端口，且安装会生成 Prisma 客户端，不要与其他服务或客户端生成测试并行运行。Windows 下生成客户端前须释放 DLL 占用。
+npm run test:startup需要先完成npm run build并具备API、Admin、Web三个BUILD_ID，随后使用专用隔离端口3430、3431、3432，不占用默认生产端口。测试以Web静态manifest检查readiness，避免构建时固定的rewrite把隔离探测发到线上API。执行前确认这三个隔离端口空闲；不要把启动检查移动到build之前。
 
-浏览器流程位于 tests/e2e；独立后台登录页探测与带隔离账户的管理功能测试是不同脚本。运行 `npx playwright install chromium` 安装测试浏览器，三个应用以默认内部地址构建后，停止占用 3010/3011/3012 的服务，再执行 `npm run test:e2e:admin`；脚本自建账户和数据库并启动三个生产测试服务。仅登录页通过不能证明资料保存、配置联动或权益消费通过。具体覆盖与未覆盖项见各 validation 文档，不以路由清单代替逐项操作。
+领域和浏览器测试入口见package.json与tests/e2e。测试需要Playwright Chromium；在批准环境安装浏览器，先检查服务端口是否空闲。隔离runner会自建SQLite和测试账户、启动服务并清理；不要向它们注入生产DATABASE_URL，不要与占用相同端口或生成同一Prisma客户端的测试并行。
 
-`npm run test:e2e:membership` 是前台已购会员专项验收：脚本自建临时 SQLite、会员套餐、已支付订单和续费订单，使用真实 `createMembershipOrder` / `markMembershipPaid` 及 billing `holdCharge` / `settleCharge` 准备测试状态，再启动隔离 API/Web 服务。PAID fixture 是测试数据，不是实际商户付款，不会调用真实支付或退款渠道；测试商户快照的退款开关保持关闭，并验证退款确认返回 `503 / REFUNDS_DISABLED`、前台不撤销权益。脚本结束会关闭浏览器和子进程并删除临时数据库。
+npm run test:e2e:admin验证独立后台登录、权限与真实表单联动；npm run test:e2e:membership验证隔离已购会员、退款试算、取消确认和关闭渠道的失败状态。PAID fixture、签名桩和临时RSA密钥均不代表真实商户收款、到账或退款。前台改动先完成build，再运行npm run test:e2e:frontend及相关domain脚本；该入口加载tsx并使用当前工作区产物，缺失构建时明确失败，不再需要历史M6阶段开关。按其环境参数使用独立fixture；截图覆盖实际页面、空/单项/错误等相关状态，手机布局核对360/390/430px及浅深色。
 
-## 生产发布与回滚闸门
+tests/e2e/server-membership-config.mjs等server脚本会修改实际配置，必须有明确指定的测试目标、账号和写入授权，不能当作只读巡检直接运行。不要删除测试，仅因它未被业务代码import；使用测试命令和覆盖责任判断用途。
 
-1. 保留当前运行版本与数据库、上传文件的联合备份；先在隔离目录验证恢复与候选版本运行。
-2. 在目标构建环境安装锁定依赖、生成客户端、设置目标内部地址并构建三个应用。worker 直接复用同一 backend 模块，不复制业务实现。
-3. 明确本次数据库迁移和回滚方案。迁移不能因为应用目录切换而自动倒退；旧代码是否兼容新数据库必须单独验证。
-4. 对目标数据库及候选发布目录执行 `npm run release:check -- <数据库绝对路径> <候选发布目录绝对路径>`。命令只读，遇到待应用、未知或失败迁移即拒绝兼容结论。
-5. 迁移、功能、代理、资源路径和持久目录验收均通过后再安排切换。`npm start` 再做迁移一致性检查，设置 SQLite WAL，然后启动四个应用；它不会自动迁移数据库。
-6. 正式支付和退款仍受服务器开关及商户配置控制。未经授权及正式渠道验收，不开启真实收款；页面显示订单成功不能代替验签回调入账。
+## 服务器优先发布
 
-正式渠道条件：商户需开启退款 API，并确认所选支付渠道支持部分金额退款。易支付的[退款文档](https://www.ezfp.cn/doc/pay_refund.html)列出了退款单号去重字段，也说明少数第三方插件不支持部分退款；不能只凭下单成功就认定可执行会员扣一天费用后的退款。当前实现使用新版[统一下单](https://www.ezfp.cn/doc/pay_create.html)和[支付通知](https://www.ezfp.cn/doc/pay_notify.html)接口，不混用旧版 MD5 接口约定。正式商户的实际到账、退款与权限开关仍需要单独验收。
+默认流程为服务器核对有效源码与运行基线、在独立源码/构建目录修改和验证、按授权切换、检查公开站点与资源、再同步已发布源码到GitHub。不要覆盖正在运行的生成文件，也不要用开发热更新服务作为公网正式服务。
 
-当前工作区的本地通过记录不表示线上已发布。阶段状态以 architecture-plan.json 及当前执行输出为准。
+1. 核对current的realpath、运行进程cwd、各应用构建路径、公开地址、持久目录和开关。保留旧有效产物及恢复信息。小改动只构建受影响应用，跨模块与数据结构变更扩大验证。
+2. 构建前设置目标地址、安装锁定依赖并生成客户端。无迁移的前台改动不执行数据库迁移或种子；不重建未改动服务来冒充前台验收。
+3. 有新迁移时，先明确授权、停写、联合备份和隔离恢复验证，再决定目标迁移。npm run release:check -- <数据库绝对路径> <候选发布目录>只检查迁移兼容性；npm start再次检查迁移一致性，不会自动迁移。
+4. 候选功能、代理与静态资源验证通过后按本次授权切换。检查HTTPS页面、构建ID和真实静态资源，确认API/Admin/Web正常、worker唯一、持久目录和商业开关未意外变化。
+5. 记录有效源码、构建产物、切换地址、进程cwd、验证结果与未覆盖边界。失败时恢复最后有效应用产物；不能通过删迁移记录或把旧代码直接指向不兼容的新数据库来回滚。
 
-## Linux / PM2 人工发布步骤
+全量新安装的标准启动入口为npm start，使用ops/scripts/start-production.mjs与ops/runtime/run-apps.mjs编排四个应用。PM2按现有部署方式管理root launcher，不另外重复启动worker；PM2 online本身不证明子服务readiness。既有分应用发布应保留实际有效cwd/构建配置，不用默认示例覆盖。
 
-以下步骤只描述人工操作顺序，不代表已经连接或验证任何线上环境。`<release-absolute>`、`<database-absolute>`、`<uploads-absolute>` 和 `<backups-absolute>` 必须由实际运维环境明确填写，不能使用猜测路径。
+生产备份/恢复使用npm run state:backup、npm run state:restore，数据库单项工具为db:backup、db:restore；均先读对应ops/scripts入口和参数并明确目标。数据迁移和恢复属于写操作，不能由本手册自动授权。
 
-1. 保留正在运行的旧 release，不覆盖其目录。将候选源码放到新的固定绝对路径 `<release-absolute>`，确认该路径包含 `apps/`、`packages/`、`database/` 和 `ops/`。
+## Git同步与商业边界
 
-2. 在安装和构建前先准备候选环境。Next rewrite 会在构建时固化内部地址，不能构建完成后才修改这些值：
+Git只提交源码、必要配置、迁移与可重复运行的测试。排除node_modules、.next*、env、数据库、上传/备份、tsbuildinfo、artifacts及private-data历史快照。迁移目录是源码，不能因为“排除数据库”而误删；上传相关业务模块同样是源码，不能广泛按uploads名称排除。
 
-   ```text
-   DATABASE_URL=file:<database-absolute>
-   UPLOADS_DIRECTORY=<uploads-absolute>
-   BACKUPS_DIRECTORY=<backups-absolute>
-   NEXT_PUBLIC_SITE_URL=<web-origin>
-   INTERNAL_API_ORIGIN=<api-origin>
-   ADMIN_API_INTERNAL_URL=<api-origin>
-   INTERNAL_ADMIN_ORIGIN=<admin-origin>
-   ADMIN_PUBLIC_ORIGIN=<admin-origin>
-   EZFP_ENABLED=false
-   EZFP_REFUNDS_ENABLED=false
-   ```
+同步前检查线上独有改动、源分支、目标main和实际diff，避免把旧服务器修复误报为单次前台变更。校验允许路径与敏感数据边界后提交，推送前重新核对远端main与祖先关系，使用普通快进push。凭据由授权会话瞬态提供，不打印、不写入仓库；不force push，不把Git同步等同重新部署。
 
-   这些值必须指向本次候选环境；上传和备份目录不能位于候选 release 内。支付开关只有在另行完成正式商户验收并获得明确授权后才可改变。
-
-3. 在候选目录安装完整锁定依赖（生产 worker 当前通过 `tsx` 加载源码，因此不能省略 devDependencies）：
-
-   ```text
-   cd <release-absolute>
-   npm ci --include=dev
-   npm run db:generate
-   npm run build
-   ```
-
-4. 若候选包含新迁移，先停止写入，完成数据库与上传目录联合备份，并在隔离恢复目录验证候选版本。只有隔离验证和变更授权都通过后，才允许对目标数据库执行迁移：
-
-   ```text
-   cd <release-absolute>
-   npx prisma migrate deploy --schema database/schema.prisma
-   ```
-
-   `release:check` 只检查迁移历史兼容性，不会执行迁移；没有完成停写、备份和授权时不得运行 `migrate deploy`。
-
-5. 发布前执行只读迁移闸门：
-
-   ```text
-   npm run release:check -- <database-absolute> <release-absolute>
-   ```
-
-   该命令失败时停止发布。不要用 `db:init` 代替 release check；`db:init` 会写入数据库并执行种子。
-
-6. PM2 只管理一个默认 fork 模式的 root launcher，不要另外启动 API、Admin、Web 或 worker。根入口会编排四个子进程，重复启动 worker 会造成多个任务执行 owner。直接管理 Node 脚本，不使用 npm shell wrapper：
-
-   ```text
-   pm2 start <release-absolute>/ops/scripts/start-production.mjs --interpreter node --name xingban-root --cwd <release-absolute> --kill-timeout 30000
-   ```
-
-   PM2 显示 online 只代表 root launcher 进程存在，不代表四个应用已经 readiness。发布人员必须从实际可访问地址逐项检查 API、Admin 和 Web：
-
-   ```text
-   curl -fS <api-origin>/api/memberships
-   curl -fS <admin-origin>/admin/login
-   curl -fS <web-origin>/api/memberships
-   ```
-
-   任一检查失败，先停止候选 PM2 进程并保留旧 release；不要先覆盖旧目录，也不要在候选未通过时切换反向代理。
-
-7. 若本次包含新迁移，不能直接把代码目录回滚到旧版本继续写同一个数据库。必须先停止写入，确认旧版本与当前数据库迁移兼容；若不兼容，只能依据联合备份在隔离目录恢复并核验数据库与上传文件，再决定是否切换旧版本。禁止用删除迁移记录或手工倒退 `_prisma_migrations` 的方式回滚。
-
-8. 三项 readiness 均通过后再执行 `pm2 save`，并记录 release 路径、数据库绝对路径、上传/备份持久目录、迁移闸门结果和 readiness 结果。收款开关仍保持关闭，直到正式支付、回调到账和部分退款能力另行完成验收。
+真实收款、退款和付费AI调用按现有服务器开关及明确授权执行。套餐金额、权益和退款参数来自后台与订单快照，不由文档或前台编造。正式渠道还需单独验证验签回调、真实到账与部分金额退款；隔离测试通过不能代替商户验收。

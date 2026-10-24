@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useState} from 'react';
 import {Plus} from 'lucide-react';
-import {AdminNotice, AdminPanel} from '@admin/components/admin-page';
+import {AdminNotice} from '@admin/components/admin-page';
 import {Button} from '@rumiai/ui/button';
 import {Dialog} from '@rumiai/ui/dialog';
 import {Select} from '@rumiai/ui/select';
@@ -13,8 +13,8 @@ import {MerchantCard} from './merchant-card';
 import {MerchantForm} from './merchant-form';
 import {draftFromMerchant, newDraft, type Merchant, type MerchantDraft} from './merchant-types';
 
-/** Shared merchant controller/presentation used by the embedded and standalone routes. */
-export function MerchantManagementPanel({sessionActive, permissions, embedded = false}: {sessionActive: boolean; permissions: string[]; embedded?: boolean}) {
+/** Merchant controller and presentation for the payment-merchant page. */
+export function MerchantManagementPanel({sessionActive, permissions}: {sessionActive: boolean; permissions: string[]}) {
   const [rows, setRows] = useState<Merchant[]>([]);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [draft, setDraft] = useState<MerchantDraft | null>(null);
@@ -86,7 +86,7 @@ export function MerchantManagementPanel({sessionActive, permissions, embedded = 
 
   return (
     <>
-      {embedded ? <AdminPanel title="支付商户" description="密钥采用独立加密主密钥保存；每次保存生成不可变配置版本，新订单固定引用对应版本。" actions={canManage && canManageSecrets && <Button leadingIcon={<Plus className="h-4 w-4" />} onClick={() => setDraft(newDraft())}>新增商户配置</Button>}>{content}</AdminPanel> : <div className="flex flex-col gap-5">{canManage && canManageSecrets && <div className="flex justify-end"><Button leadingIcon={<Plus className="h-4 w-4" />} onClick={() => setDraft(newDraft())}>新增商户配置</Button></div>}{content}</div>}
+      <div className="flex flex-col gap-5">{canManage && canManageSecrets && <div className="flex justify-end"><Button leadingIcon={<Plus className="h-4 w-4" />} onClick={() => setDraft(newDraft())}>新增商户配置</Button></div>}{content}</div>
       <Dialog open={!!draft} onClose={() => setDraft(null)} title={draft?.id ? '编辑商户并生成新版本' : '新增商户'} description="密钥独立加密保存，每次保存生成不可变配置版本。" size="lg" footer={<><Button variant="ghost" disabled={busy} onClick={() => setDraft(null)}>取消</Button><Button type="submit" form="merchant-form" loading={busy} disabled={busy || !canManage || (!canManageSecrets && !draft?.id)}>保存并生成版本</Button></>}>
         {draft && <MerchantForm key={draft.id ?? 'new'} initial={draft} canManageSecrets={canManageSecrets} onSave={saveMerchant} />}
       </Dialog>

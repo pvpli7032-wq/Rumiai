@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import {DEFAULT_ACCENT_FROM, DEFAULT_ACCENT_TO, DEFAULT_BRAND_LOGO, DEFAULT_BRAND_NAME} from '@rumiai/contracts/site-content/brand-defaults';
-import type {SiteBanner, SiteTag, SiteBadge, SiteSection, SiteNavigationItem, SiteBranding, SitePageBlock, SitePage, SiteContent} from '@rumiai/contracts/site-content/types';
+import type {SiteBranding, SiteContent} from '@rumiai/contracts/site-content/types';
 export type {SiteBanner, SiteTag, SiteBadge, SiteSection, SiteNavigationItem, SiteBranding, SitePageBlock, SitePage, SiteContent} from '@rumiai/contracts/site-content/types';
 
 

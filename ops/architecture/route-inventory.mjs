@@ -32,5 +32,6 @@ for(const application of ['web','admin','api']){
 }
 routes.sort((a,b)=>a.application.localeCompare(b.application)||a.url.localeCompare(b.url));
 const report={description:'Current source route map. Authentication calls are an inventory, not proof of permission coverage. Listed routes are not automatically functionally verified.',counts:Object.fromEntries(['web','admin','api'].map(app=>[app,routes.filter(route=>route.application===app).length])),routes};
-fs.writeFileSync(path.join(root,'docs/route-inventory.json'),JSON.stringify(report,null,2)+'\n');
+fs.mkdirSync(path.join(root,'artifacts'),{recursive:true});
+fs.writeFileSync(path.join(root,'artifacts/route-inventory.json'),JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify(report.counts));

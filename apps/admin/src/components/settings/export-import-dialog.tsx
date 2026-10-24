@@ -40,7 +40,7 @@ function showValue(key: string, value: JsonValue | null): string {
   return formatSettingValue(definition, value);
 }
 
-export function ExportImportDialog({open, sessionActive, canWrite, onClose, onImported}: {
+export function ExportImportDialog({open, canWrite, onClose, onImported}: {
   open: boolean;
   sessionActive: boolean;
   canWrite: boolean;

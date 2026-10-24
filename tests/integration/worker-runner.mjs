@@ -64,8 +64,8 @@ try {
       new Promise(resolvePromise => setTimeout(resolvePromise, 2_000)),
     ]);
   }
-  mkdirSync(join(root, 'docs'), {recursive: true});
-  const docPath = join(root, 'docs/validation-worker.json');
+  mkdirSync(join(root, 'artifacts'), {recursive: true});
+  const docPath = join(root, 'artifacts/validation-worker.json');
   let document = {sourceState: 'local working tree; not deployed', runs: {}};
   try { document = JSON.parse(readFileSync(docPath, 'utf8')); } catch {}
   document.runs ??= {};

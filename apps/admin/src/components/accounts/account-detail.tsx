@@ -41,7 +41,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
  * 用户详情（V3 §15）：默认只看头像、昵称、状态与余额；额度特例放单独标签，
  * 默认「继承公共值」。只改一个用户时不用跳到全局特例列表。
  */
-export function ManagedAccountDetail({ detail, sessionActive, permissions, busy, onAction, onProfileSaved, onDirtyChange, onClose }: { detail: AccountDetail; sessionActive: boolean; permissions: AdminPermission[]; busy: boolean; onAction: (action: AccountAction, reason: string) => Promise<boolean>; onProfileSaved: () => void; onDirtyChange?: (dirty: boolean) => void; onClose: () => void }) {
+export function ManagedAccountDetail({ detail, sessionActive, permissions, busy, onAction, onProfileSaved, onDirtyChange }: { detail: AccountDetail; sessionActive: boolean; permissions: AdminPermission[]; busy: boolean; onAction: (action: AccountAction, reason: string) => Promise<boolean>; onProfileSaved: () => void; onDirtyChange?: (dirty: boolean) => void; onClose: () => void }) {
   const { user } = detail;
   const [reason, setReason] = useState('');
   const [profileReason, setProfileReason] = useState('');

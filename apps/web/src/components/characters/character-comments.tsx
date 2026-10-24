@@ -14,7 +14,7 @@ import { useCharacterComments } from './use-character-comments';
 const DEFAULT_MAX_BODY = 2_000;
 
 export function CharacterComments({ characterId }: { characterId: string }) {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const router = useRouter();
   const maxBody = readNumber(useUiConfig(), 'content.comment.maxChars') ?? DEFAULT_MAX_BODY;
   const [draft, setDraft] = useState('');

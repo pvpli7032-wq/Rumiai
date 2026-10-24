@@ -70,8 +70,5 @@ artifacts/
 .git-commit-msg.txt
 .msg.txt
 
-# Personal/export encryption keys stay local; authorized runtime files are added explicitly.
-private-data/*.key
-private-data/*.db*
-private-data/*.env*
-private-data/*decrypted*
+# Runtime snapshots and credentials belong in shared storage, never source control.
+/private-data/

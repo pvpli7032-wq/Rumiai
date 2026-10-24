@@ -64,7 +64,7 @@ function ChatContent() {
   const messageListRef = useRef<HTMLDivElement>(null);
 
   // 流式输出只在贴底时跟随；用户上翻回看时不被打断（V3 §19）。
-  const chatScroll = useChatScroll(messageListRef, messagesEndRef);
+  const chatScroll = useChatScroll(messagesEndRef);
   const composer = useCompositionGuard(chatScroll.revealComposer);
 
   const requireLogin = () => router.push(loginWithNext());

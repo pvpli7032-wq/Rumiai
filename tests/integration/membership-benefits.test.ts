@@ -1,4 +1,4 @@
-import test, {after, before, beforeEach} from 'node:test';
+import test, {after, before} from 'node:test';
 import assert from 'node:assert/strict';
 
 const enabled = Boolean(process.env.MEMBERSHIP_INTEGRATION_DB);

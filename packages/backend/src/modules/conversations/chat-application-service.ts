@@ -134,7 +134,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
       try {
         // 「已输出」在首个内容片段写入响应流的那一刻成立，而不是整段生成结束之后。
         const markDelivered = (event: Record<string, unknown>) => { if ('content' in event) billing.sawOutput(); return event; };
-        if (usingRealAi) assistantContent = await streamOpenAIResponse(controller, conversation.character, history ?? [], content, conversation.aiModel, {signal: abort.signal, onMetrics: value => { metrics = value; }, providers: configuredProviders, models: modelPlan ?? undefined, mapEvent: markDelivered});
+        if (usingRealAi) assistantContent = await streamOpenAIResponse(controller, conversation.character, history ?? [], content, conversation.aiModel, {signal: abort.signal, onMetrics: value => { metrics = value; }, providers: configuredProviders, models: modelPlan ?? undefined, mapEvent: markDelivered, context: memoryContext});
         else assistantContent = await streamMockResponse(controller, conversation.character, content, abort.signal, {mapEvent: markDelivered});
       } catch (error) {
         failure = error; logRouteError(input.mode === 'SEND' ? 'POST /api/conversations/[id]/messages' : 'POST /api/conversations/[id]/messages/[messageId]/regenerate', error);

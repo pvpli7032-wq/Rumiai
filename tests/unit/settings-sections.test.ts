@@ -7,8 +7,9 @@ import {buildSettingSearchIndex, searchSettings, shouldConfirmSettingNavigation}
 test('settings display sections cover every visible registry key exactly once', () => {
   const all = SETTING_GROUPS.flatMap(group => visibleDefinitionsOfGroup(group.id));
   const covered = SETTING_GROUPS.flatMap(group => sectionCoverage(group.id).sections.flatMap(section => section.definitions));
-  assert.equal(all.length, 107, 'visible registry count must remain explicit');
+  assert.equal(all.length, 112, 'visible registry count must remain explicit');
   assert.equal(covered.length, all.length);
+  assert.deepEqual(covered.map(item => item.key).sort(), all.map(item => item.key).sort());
   assert.equal(new Set(covered.map(item => item.key)).size, all.length);
   for (const group of SETTING_GROUPS) {
     const coverage = sectionCoverage(group.id);
@@ -21,7 +22,7 @@ test('settings display sections cover every visible registry key exactly once', 
 test('large groups expose focused subsections', () => {
   assert.deepEqual(sectionsOfGroup('chat').map(item => item.id), ['chat-input', 'chat-posts', 'chat-comments', 'chat-characters', 'chat-upload', 'chat-frequency']);
   assert.deepEqual(sectionsOfGroup('billing').map(item => item.id), ['billing-base', 'billing-settlement', 'billing-story', 'billing-story-runtime', 'billing-cost', 'billing-ai-budget']);
-  assert.deepEqual(sectionsOfGroup('growth').map(item => item.id), ['growth-grant', 'growth-invite', 'growth-mirror-entry', 'growth-mirror-purchase', 'growth-mirror-content', 'growth-dispute-entry', 'growth-dispute-resolution', 'growth-memory', 'growth-tasks']);
+  assert.deepEqual(sectionsOfGroup('growth').map(item => item.id), ['growth-grant', 'growth-invite', 'growth-affiliate', 'growth-mirror-entry', 'growth-mirror-purchase', 'growth-mirror-content', 'growth-dispute-entry', 'growth-dispute-resolution', 'growth-memory', 'growth-tasks']);
 });
 
 test('global search respects the AI cost permission and dirty navigation boundary', () => {
@@ -35,4 +36,13 @@ test('global search respects the AI cost permission and dirty navigation boundar
   assert.equal(shouldConfirmSettingNavigation(true, 'chat', 'billing'), true);
   assert.equal(shouldConfirmSettingNavigation(true, 'billing', 'billing', '/admin/ai/costs'), true);
   assert.equal(shouldConfirmSettingNavigation(false, 'chat', 'billing'), false);
+});
+
+test('affiliate settings have one explicit display section with the exact configured keys', () => {
+  const section = sectionsOfGroup('growth').find(item => item.id === 'growth-affiliate');
+  assert.ok(section);
+  assert.deepEqual(section.definitions.map(item => item.key).sort(), [
+    'affiliate.enabled', 'affiliate.commissionPercent', 'affiliate.eligibleOrderTypes',
+    'affiliate.settlementDelayHours', 'affiliate.minimumWithdrawalCents',
+  ].sort());
 });

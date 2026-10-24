@@ -12,8 +12,6 @@ import type {SharedConversationProjection} from '@rumiai/contracts/public-api';
 
 export const metadata: Metadata = {title: '分享的对话 | 星伴', robots: {index: false, follow: false}};
 
-/** 公开链接里显示几条；与分享接口的 EXCERPT_TURNS 同一个量级，只截最近的一段。 */
-const VISIBLE_TURNS = 12;
 
 /**
  * 分享出来的对话（V3 表 15 聊天页「分享」的落地页）。

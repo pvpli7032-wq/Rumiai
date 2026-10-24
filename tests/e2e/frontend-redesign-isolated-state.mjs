@@ -17,15 +17,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright')
 // keeps the harness portable without triggering a Playwright browser download.
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ?? '/usr/lib64/chromium-browser/headless_shell';
 const root = fileURLToPath(new URL('../..', import.meta.url));
-const apiRoot = process.env.FRONTEND_REDESIGN_API_RELEASE || '/www/wwwroot/khui-ai/releases/github-6adf331-20261024';
-const webDistDir = process.env.FRONTEND_REDESIGN_WEB_DIST_DIR || '.next-web-candidate';
+const apiRoot = process.env.FRONTEND_REDESIGN_API_RELEASE || root;
+const webDistDir = process.env.FRONTEND_REDESIGN_WEB_DIST_DIR || '.next-build';
 const apiDistDir = process.env.FRONTEND_REDESIGN_API_DIST_DIR || '.next-api';
 const webPort = Number(process.env.FRONTEND_REDESIGN_WEB_PORT || 3310);
 const candidateWebPort = Number(process.env.FRONTEND_REDESIGN_CANDIDATE_WEB_PORT || 3314);
 const apiPort = Number(process.env.FRONTEND_REDESIGN_API_PORT || 3312);
 const webOrigin = 'http://127.0.0.1:' + webPort;
 const apiOrigin = 'http://127.0.0.1:' + apiPort;
-const artifacts = path.resolve(process.env.FRONTEND_REDESIGN_ARTIFACTS || path.join('/tmp', 'rumiai-frontend-redesign-isolated'));
+const artifacts = path.resolve(process.env.FRONTEND_REDESIGN_ARTIFACTS || path.join(root, 'artifacts', 'frontend'));
 const runId = process.env.FRONTEND_REDESIGN_RUN_ID || 'unspecified';
 const requiredBuilds = [
   path.join(root, 'apps', 'web', webDistDir),
@@ -36,27 +36,12 @@ if (process.env.DATABASE_URL) {
   throw new Error('frontend-redesign fixture refuses an external DATABASE_URL');
 }
 
-if (process.env.FRONTEND_REDESIGN_M6_READY !== '1') {
-  console.log(JSON.stringify({
-    status: 'SKIPPED',
-    reason: 'M6 source and final candidate web artifact are not declared ready',
-    requiredBuilds,
-    requiredEnv: 'FRONTEND_REDESIGN_M6_READY=1',
-  }));
-  process.exit(0);
-}
-
-if (requiredBuilds.some(build => !existsSync(build))) {
-  console.log(JSON.stringify({
-    status: 'SKIPPED',
-    reason: 'M6 candidate web/API artifacts are not available; this harness never builds them',
-    requiredBuilds,
-  }));
-  process.exit(0);
+if (requiredBuilds.some(build => !existsSync(path.join(build, 'BUILD_ID')))) {
+  throw new Error('Build the web and API applications before running test:e2e:frontend');
 }
 
 mkdirSync(artifacts, { recursive: true });
-writeFileSync(path.join(artifacts, 'state-harness-start.json'), JSON.stringify({runId, startedAt: new Date().toISOString(), m6Ready: process.env.FRONTEND_REDESIGN_M6_READY, matrixSkipped: process.env.FRONTEND_REDESIGN_SKIP_MATRIX === '1'}, null, 2));
+writeFileSync(path.join(artifacts, 'state-harness-start.json'), JSON.stringify({runId, startedAt: new Date().toISOString(), matrixSkipped: process.env.FRONTEND_REDESIGN_SKIP_MATRIX === '1'}, null, 2));
 
 const children = [];
 const proxyServers = [];

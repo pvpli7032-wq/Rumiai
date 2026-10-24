@@ -64,7 +64,7 @@ function sendEvent(controller: ReadableStreamDefaultController, event: Record<st
   controller.enqueue(ENCODER.encode(`data: ${JSON.stringify(event)}\n\n`));
 }
 
-export async function streamMockResponse(controller: ReadableStreamDefaultController, character: { name: string; personality: string }, userMessage: string, signal?:AbortSignal, options: StreamWireOptions = {}): Promise<string> {
+export async function streamMockResponse(controller: ReadableStreamDefaultController, character: { name: string; personality: string }, _userMessage: string, signal?:AbortSignal, options: StreamWireOptions = {}): Promise<string> {
   const fullResponse = '【模拟 AI 回复，仅供测试】\n\n' + mockBeat(character.name);
   // Clients MUST be able to distinguish demo output from real model content.
   sendEvent(controller, options.mapEvent ? options.mapEvent({demo: true}) : {demo: true});

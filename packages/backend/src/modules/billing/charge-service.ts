@@ -117,10 +117,7 @@ export async function holdCharge(input: HoldInput): Promise<ChargeHoldResult> {
   }
 
   const [timezone, freeLimit, publicFreeLimit] = await Promise.all([readBillingTimezone(input.userId), readFreeDailyLimit(input.userId), readSettingValue<number>('billing.freeDailyMessages', input.userId)]);
-  const [membershipDaily, membershipMultiplier] = await Promise.all([
-    readMembershipBenefit(input.userId, 'DAILY_FREE_REPLIES'),
-    input.operation === 'CHAT_SEND' || input.operation === 'CHAT_REGENERATE' ? readMembershipBenefit(input.userId, 'CHAT_PRICE_MULTIPLIER') : Promise.resolve(null),
-  ]);
+  const membershipDaily = await readMembershipBenefit(input.userId, 'DAILY_FREE_REPLIES');
   const boundary = resolveBillingDayBoundary(now, timezone);
 
   try {

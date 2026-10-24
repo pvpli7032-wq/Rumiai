@@ -101,8 +101,8 @@ try {
   console.error(JSON.stringify(summary));
   process.exitCode = 1;
 } finally {
-  mkdirSync(join(root, 'docs'), { recursive: true });
-  const docPath = join(root, 'docs/validation-tasks.json');
+  mkdirSync(join(root, 'artifacts'), { recursive: true });
+  const docPath = join(root, 'artifacts/validation-tasks.json');
   let document = { sourceState: 'local working tree; not deployed', runs: {} };
   try { document = JSON.parse(readFileSync(docPath, 'utf8')); } catch {}
   document.runs ??= {};

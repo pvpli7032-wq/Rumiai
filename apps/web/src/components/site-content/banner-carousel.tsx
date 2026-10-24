@@ -28,17 +28,19 @@ export function BannerCarousel({
 }) {
   const [index, setIndex] = useState(0);
   const count = banners.length;
+  const activeIndex = Math.min(index, Math.max(count - 1, 0));
 
-  const go = useCallback((next: number) => setIndex(((next % count) + count) % count), [count]);
+  const go = useCallback((next: number) => setIndex(count ? ((next % count) + count) % count : 0), [count]);
 
   useEffect(() => {
+    setIndex(current => Math.min(current, Math.max(count - 1, 0)));
     if (count < 2) return;
     const timer = setInterval(() => setIndex(i => (i + 1) % count), 6000);
     return () => clearInterval(timer);
   }, [count]);
 
   if (count === 0) return null;
-  const active = banners[index];
+  const active = banners[activeIndex];
 
   return (
     <section className="relative mx-auto w-full max-w-3xl px-4">
@@ -57,7 +59,7 @@ export function BannerCarousel({
             <button
               type="button"
               aria-label={labels.prev}
-              onClick={() => go(index - 1)}
+              onClick={() => go(activeIndex - 1)}
               className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/30 p-2 text-white transition-colors hover:bg-black/50"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -65,7 +67,7 @@ export function BannerCarousel({
             <button
               type="button"
               aria-label={labels.next}
-              onClick={() => go(index + 1)}
+              onClick={() => go(activeIndex + 1)}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/30 p-2 text-white transition-colors hover:bg-black/50"
             >
               <ChevronRight className="h-5 w-5" />
@@ -81,9 +83,9 @@ export function BannerCarousel({
               key={banner.id}
               type="button"
               aria-label={labels.dots[i]}
-              aria-current={i === index}
+              aria-current={i === activeIndex}
               onClick={() => go(i)}
-              className={`h-2 rounded-full transition-all ${i === index ? 'w-6 bg-white' : 'w-2 bg-white/30'}`}
+              className={`h-2 rounded-full transition-all ${i === activeIndex ? 'w-6 bg-white' : 'w-2 bg-white/30'}`}
             />
           ))}
         </div>

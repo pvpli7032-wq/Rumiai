@@ -1,6 +1,6 @@
 import {db} from '@rumiai/backend/infrastructure/database/client';
 import {readSetting, readSettingValue} from '@rumiai/backend/modules/settings/service';
-import {isValidTimezone, resolveZonedDay, resolveZonedDayBoundary} from '@rumiai/backend/infrastructure/time/zoned-day';
+import {isValidTimezone, resolveZonedDayBoundary} from '@rumiai/backend/infrastructure/time/zoned-day';
 import type {DailyAllowanceView} from '@rumiai/contracts/billing/types';
 import {readMembershipBenefit} from '@rumiai/backend/modules/memberships/service';
 

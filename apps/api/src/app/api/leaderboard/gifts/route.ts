@@ -4,7 +4,7 @@ import { getAuthUser } from '@rumiai/backend/infrastructure/auth/auth';
 import {GiftSendError,sendCatalogGift} from '@rumiai/backend/modules/gifts/send-service';
 import { listGiftLeaderboard } from '@rumiai/backend/modules/gifts/read-service';
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   try {
     return NextResponse.json(await listGiftLeaderboard());
   } catch (error) {

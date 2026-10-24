@@ -40,7 +40,6 @@ export interface ChatScroll {
 }
 
 export function useChatScroll(
-  listRef: RefObject<HTMLDivElement | null>,
   endRef: RefObject<HTMLDivElement | null>,
 ): ChatScroll {
   const [atBottom, setAtBottom] = useState(true);

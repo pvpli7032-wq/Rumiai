@@ -22,7 +22,7 @@ const PERIOD_LABELS = { ONCE: '一次', DAILY: '每日', WEEKLY: '每周' } as R
 
 const newDraft = (sortOrder: number): Draft => ({ version: 0, title: '', description: '', rewardCoins: 0, category: 'DAILY', conditionType: 'CHECKIN_COUNT', conditionTarget: 1, period: 'DAILY', isActive: false, sortOrder, startsAt: '', endsAt: '', reason: '' });
 
-export function MissionManagement({ sessionActive, canManage, missions, onSaved }: { sessionActive: boolean; canManage: boolean; missions: Mission[]; onSaved: () => void }) {
+export function MissionManagement({ canManage, missions, onSaved }: { sessionActive: boolean; canManage: boolean; missions: Mission[]; onSaved: () => void }) {
   const [draft, setDraft] = useState<Draft | null>(null), [saving, setSaving] = useState(false), [error, setError] = useState('');
   const savingRef = useRef(false);
   const [dirty, setDirty] = useState(false), [deleting, setDeleting] = useState<Mission | null>(null), [deleteReason, setDeleteReason] = useState('');

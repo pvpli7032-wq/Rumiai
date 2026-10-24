@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+// Compose story invalidation in this API process before edit/delete handlers run.
+import '@rumiai/backend/modules/stories/lifecycle/invalidation';
 import { logRouteError } from '@rumiai/backend/infrastructure/logging/logger';
 import { getAuthUser } from '@rumiai/backend/infrastructure/auth/auth';
 import { ConversationMessageError, deleteMessageAndFollowing, editUserMessage } from '@rumiai/backend/modules/conversations/message-service';

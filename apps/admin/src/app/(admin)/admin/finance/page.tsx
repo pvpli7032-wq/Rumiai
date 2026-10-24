@@ -16,7 +16,7 @@ import { ChannelReconciliation } from '@admin/components/finance/channel-reconci
 import { ChargeReconciliationPanel } from '@admin/components/finance/charge-reconciliation-panel';
 
 /**
- * 财务支付（V3 表 14）：订单为默认标签，退款／套餐／对账／商户各自成标签。
+ * 财务支付：订单为默认标签，退款／套餐／对账各自成标签；旧商户标签转到独立商户页。
  *
  * 每个标签只放自己那一件事：订单标签是经营概览 + 订单列表，
  * 退款处理在订单详情抽屉内，套餐表单不再堆在订单页上。

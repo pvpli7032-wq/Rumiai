@@ -12,7 +12,7 @@
   "scripts": {
     "architecture:check": "node ops/architecture/check-boundaries.mjs",
     "architecture:routes": "node ops/architecture/route-inventory.mjs",
-    "test:unit": "node --import tsx --test tests/unit/runtime-paths.test.mjs tests/unit/release-compatibility.test.mjs tests/unit/admin-cookies.test.ts tests/unit/environment.test.mjs",
+    "test:unit": "node --import tsx --test tests/unit/*.test.mjs tests/unit/*.test.ts",
     "test:memberships": "node tests/integration/run-memberships.mjs",
     "test:e2e:admin": "node --import tsx tests/e2e/admin-live-workflows.mjs",
     "test:e2e:admin-ui": "node --import tsx tests/e2e/admin-ui-refresh.mjs",
@@ -51,7 +51,9 @@
     "state:backup": "node ops/scripts/backup-state.mjs",
     "state:restore": "node ops/scripts/restore-state.mjs",
     "ops:closure-files": "node --import tsx ops/scripts/retry-closure-files.mjs",
-    "ops:health": "node --import tsx ops/scripts/check-site-health.mjs"
+    "ops:health": "node --import tsx ops/scripts/check-site-health.mjs",
+    "test:chat-context": "node --import tsx --test tests/integration/story-history-invalidation.test.ts tests/integration/chat-memory-injection.test.ts",
+    "test:e2e:frontend": "node --import tsx tests/e2e/frontend-redesign-isolated-state.mjs"
   },
   "prisma": {
     "schema": "database/schema.prisma",

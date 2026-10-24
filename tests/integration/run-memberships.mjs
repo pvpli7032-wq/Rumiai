@@ -1,4 +1,4 @@
-import {mkdtempSync, rmSync, readFileSync, writeFileSync, readdirSync} from 'node:fs';
+import {mkdtempSync, rmSync, readFileSync, writeFileSync, readdirSync, mkdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -58,7 +58,8 @@ for (const relative of tests) {
 }
 
 const summary = {generatedAt: new Date().toISOString(), platform: process.platform, node: process.version, migrationCount: migrations.length, database: 'temporary SQLite per test; removed after each run', sourceState: 'local working tree; not deployed', results};
-const outPath = join(root, 'docs/validation-memberships.json');
+mkdirSync(join(root, 'artifacts'), {recursive: true});
+const outPath = join(root, 'artifacts/validation-memberships.json');
 writeFileSync(outPath, JSON.stringify(summary, null, 2) + '\n', 'utf8');
 console.info(`Validation report: ${outPath}`);
 if (results.some(result => result.status !== 'passed' || !result.counts || result.counts.fail > 0 || result.counts.skipped > 0)) process.exitCode = 1;

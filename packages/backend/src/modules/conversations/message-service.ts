@@ -18,7 +18,7 @@ function messageView<T extends {attachments: Array<{id:string;type:string;sticke
  * Dependency inversion for story history（V3 第 16 章）：the single
  * direction rule forbids conversations → stories imports, so the story side
  * registers its invalidation handler here at module load (see
- * src/lib/stories/lifecycle/invalidation.ts). Ordinary conversations never call
+ * @rumiai/backend/modules/stories/lifecycle/invalidation). Ordinary conversations never call
  * it. Fail closed: a story conversation without a registered handler refuses
  * the change instead of silently skipping derived-state invalidation.
  */
@@ -232,8 +232,9 @@ export async function editUserMessage(userId: string, conversationId: string, me
       select: {id: true},
     });
     await invalidateMemoryForMessages(tx, conversationId, affected.map(row => row.id), 'MESSAGE_EDITED');
-    const dropped = await tx.message.deleteMany({where: {conversationId, createdAt: {gt: message.createdAt}}});
+    // Resolve story/share message links before cascading deletes clear those references.
     await invalidateStoryHistory(tx, storyRunId, messageId);
+    const dropped = await tx.message.deleteMany({where: {conversationId, createdAt: {gt: message.createdAt}}});
     return {message: updated, droppedReplies: dropped.count};
   });
 }

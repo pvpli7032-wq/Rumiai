@@ -82,7 +82,7 @@ function readReasonAndVersion(input: unknown) {
   return {body, reason: body.reason.trim(), version: body.version as number};
 }
 function versionConflict() {throw new SiteContentError('站点内容已被其他操作修改，请刷新后重试。', 409);}
-async function validateReferences(tx: Tx, actor: string, type: SiteContentType, contentId: string | null, content: Record<string, unknown>) {
+async function validateReferences(tx: Tx, _actor: string, type: SiteContentType, contentId: string | null, content: Record<string, unknown>) {
   if (type === 'BANNER' && typeof content.imageUrl === 'string' && content.imageUrl.startsWith('/uploads/') && !await mayAttachSiteOwnedUpload(content.imageUrl,tx)) throw new SiteContentError('横幅只能引用站点素材。');
   if (type === 'BRANDING' && typeof content.logoUrl === 'string' && content.logoUrl.startsWith('/uploads/') && !await mayAttachSiteOwnedUpload(content.logoUrl,tx)) throw new SiteContentError('品牌图标只能引用站点素材。');
   if (type === 'PAGE' && Array.isArray(content.blocks)) {

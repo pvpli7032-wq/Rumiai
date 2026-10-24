@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
+import { createServer } from 'node:net';
 
 const root = path.resolve(import.meta.dirname, '../..');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -31,6 +32,17 @@ function directChildren(pid) {
 }
 
 test('formal production entry starts isolated api/admin/web/worker', async t => {
+  const ports = {web: 3430, admin: 3431, api: 3432};
+  for (const [app, dist] of Object.entries({web: '.next-build', admin: '.next-admin', api: '.next-api'})) {
+    assert.ok(existsSync(path.join(root, 'apps', app, dist, 'BUILD_ID')), `Build ${app} before running test:startup`);
+  }
+  for (const port of Object.values(ports)) {
+    await new Promise((resolve, reject) => {
+      const probe = createServer();
+      probe.once('error', reject);
+      probe.listen(port, '127.0.0.1', () => probe.close(resolve));
+    });
+  }
   const dir = mkdtempSync(path.join(tmpdir(), 'rumiai-production-'));
   const dbPath = path.join(dir, 'database.sqlite');
   const uploads = path.join(dir, 'uploads');
@@ -51,7 +63,10 @@ test('formal production entry starts isolated api/admin/web/worker', async t => 
     EZFP_MERCHANT_PRIVATE_KEY: '',
     EZFP_PLATFORM_PUBLIC_KEY: '',
     STORY_WORKER_DISABLED: '1',
-    WEB_PORT: '3010', ADMIN_PORT: '3011', API_PORT: '3012',
+    WEB_PORT: String(ports.web), ADMIN_PORT: String(ports.admin), API_PORT: String(ports.api),
+    INTERNAL_API_ORIGIN: `http://127.0.0.1:${ports.api}`,
+    ADMIN_API_INTERNAL_URL: `http://127.0.0.1:${ports.api}`,
+    INTERNAL_ADMIN_ORIGIN: `http://127.0.0.1:${ports.admin}`,
   };
   const init = spawnSync(process.execPath, ['ops/scripts/initialize-db.mjs'], {cwd: root, env, encoding: 'utf8'});
   assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
@@ -75,9 +90,10 @@ test('formal production entry starts isolated api/admin/web/worker', async t => 
   child.stderr.on('data', chunk => { stderr += chunk; });
 
   const [api, admin, web] = await Promise.all([
-    get('http://127.0.0.1:3012/api/memberships'),
-    get('http://127.0.0.1:3011/admin/login'),
-    get('http://127.0.0.1:3010/api/memberships'),
+    get(`http://127.0.0.1:${ports.api}/api/memberships`),
+    get(`http://127.0.0.1:${ports.admin}/admin/login`),
+    // Static web readiness avoids build-time API rewrites aimed at the deployed service.
+    get(`http://127.0.0.1:${ports.web}/manifest.webmanifest`),
   ]);
   assert.equal(api.status, 200);
   assert.equal(admin.status, 200);

@@ -4,7 +4,7 @@ import { Badge } from '@rumiai/ui/badge';
 import { Button } from '@rumiai/ui/button';
 import { accountState, formatTime, type ManagedAccount } from './types';
 
-const columns = (selected: string | null, onSelect: (id: string) => void, canReadFinance: boolean, compact: boolean): DataTableColumn<ManagedAccount>[] => [
+const columns = (onSelect: (id: string) => void, canReadFinance: boolean, compact: boolean): DataTableColumn<ManagedAccount>[] => [
   { id: 'user', header: '用户', width: compact ? '180px' : '280px', cell: user => (
     <div className="min-w-0">
       <p className="font-medium text-foreground">{user.displayName || user.username}</p>
@@ -34,7 +34,7 @@ export function AccountTable({ items, selected, onSelect, loading, pagination, c
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
     <DataTable
-      columns={columns(selected, onSelect, canReadFinance, compact)}
+      columns={columns(onSelect, canReadFinance, compact)}
       rows={items}
       getRowId={user => user.id}
       rowClassName={user => selected === user.id ? 'bg-emerald-50/80 ring-1 ring-inset ring-emerald-200' : 'transition-colors hover:bg-emerald-50/30'}

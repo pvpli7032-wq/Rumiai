@@ -13,7 +13,7 @@ type ReviewStatus = 'APPROVED' | 'REJECTED';
 /** 单次批量上限，与后端 `/api/admin/moderation/characters/batch` 一致。 */
 const BATCH_LIMIT = 25;
 
-export function BulkCharacterReview({selected, sessionActive, disabled, onStart, onFinish, onSaved}: {selected: ReviewCharacter[]; sessionActive: boolean; disabled: boolean; onStart: () => void; onFinish: () => void; onSaved: () => Promise<void>}) {
+export function BulkCharacterReview({selected, disabled, onStart, onFinish, onSaved}: {selected: ReviewCharacter[]; sessionActive: boolean; disabled: boolean; onStart: () => void; onFinish: () => void; onSaved: () => Promise<void>}) {
   const [reason, setReason] = useState(''), [error, setError] = useState('');
   const [pending, setPending] = useState<ReviewStatus | null>(null);
   const tooMany = selected.length > BATCH_LIMIT;

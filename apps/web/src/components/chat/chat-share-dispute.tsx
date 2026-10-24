@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useState} from 'react';
 import {Flag, Share2} from 'lucide-react';
 import {apiFetch} from '@web/lib/api-client';
 import {API} from '@rumiai/contracts/api-paths';

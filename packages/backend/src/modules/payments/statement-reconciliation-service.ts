@@ -7,7 +7,6 @@ export class StatementReconciliationError extends Error{
   constructor(message:string,readonly status:number=400){super(message);this.name='StatementReconciliationError';}
 }
 
-type InputRow={lineNumber:number;providerTradeNo:string;orderNo:string;grossCnyCents:number;feeCnyCents:number;paidAt:Date};
 type ReconciliationOrder={id:string;orderNo:string;providerTradeNo:string|null;provider:string;currency:string;status:string;amountCnyCents:number};
 const HEADER=['trade_no','out_trade_no','money','fee','paid_at','status'];
 const MATCH_LABELS:Record<string,string>={

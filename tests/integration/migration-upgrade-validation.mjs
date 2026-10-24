@@ -71,7 +71,7 @@ try {
   process.exitCode = 1;
 } finally {
   if (prisma) await prisma.$disconnect().catch(() => {});
-  mkdirSync(join(root, 'docs'), { recursive: true });
-  writeFileSync(join(root, 'docs/validation-migration-upgrade.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+  mkdirSync(join(root, 'artifacts'), { recursive: true });
+  writeFileSync(join(root, 'artifacts/validation-migration-upgrade.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   rmSync(dir, { recursive: true, force: true });
 }

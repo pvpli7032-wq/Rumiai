@@ -4,7 +4,6 @@ import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { cn } from './cn';
 import { EmptyState } from './empty-state';
-import { ErrorState } from './error-state';
 import { Pagination } from './pagination';
 import { Skeleton } from './skeleton';
 

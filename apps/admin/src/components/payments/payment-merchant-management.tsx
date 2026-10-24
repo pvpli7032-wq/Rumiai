@@ -4,7 +4,7 @@ import {useAdminAccess} from '@admin/components/use-admin-access';
 import {AdminNotice, AdminPage, AdminPageHeader} from '@admin/components/admin-page';
 import {MerchantManagementPanel} from './merchant-management-panel';
 
-/** Standalone payment-merchant route; business controller is shared with FinanceMerchants. */
+/** Payment-merchant route with its page-level permission boundary. */
 export function PaymentMerchantManagement() {
   const {sessionActive, permissions, loading} = useAdminAccess();
   if (loading) return <AdminPage><AdminNotice tone="loading" title="正在验证管理权限…" /></AdminPage>;
