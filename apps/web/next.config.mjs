@@ -17,5 +17,5 @@ export default {
     {source:'/admin/:path*',destination:`${adminOrigin}/admin/:path*`},
   ]};},
   async headers(){return [{source:'/sw.js',headers:[{key:'Cache-Control',value:'no-cache'}]},{source:'/manifest.webmanifest',headers:[{key:'Cache-Control',value:'no-cache'}]}];},
-  images:{localPatterns:[{pathname:'/brand/**'}],remotePatterns:[]},
+  images:{localPatterns:[{pathname:'/brand/**'},{pathname:'/illustrations/**'}],remotePatterns:[]},
 };

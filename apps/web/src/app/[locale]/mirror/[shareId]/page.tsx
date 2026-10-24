@@ -2,7 +2,7 @@ import type {Metadata} from 'next';
 import {notFound} from 'next/navigation';
 import {headers} from 'next/headers';
 import {DEFAULT_LOCALE, SITE_URL, alternateLanguages, getDictionary, isLocale, type Locale} from '@web/lib/i18n';
-import {PublicHeader} from '@/components/public-header';
+import {PublicHeader} from '@/components/layout/public-header';
 import {MirrorResultLoader} from '@/components/mirror/mirror-result-loader';
 import type {MirrorView} from '@/components/mirror/client-types';
 import {fetchPublicApi, PublicApiError} from '@/lib/server-api';

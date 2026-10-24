@@ -34,14 +34,14 @@ export function StreamCancelRow({cancelPolicy, freeCancelRemaining, outputStarte
   const hint = billingHint(cancelPolicy, outputStarted, freeCancelRemaining);
   return (
     <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center justify-between gap-2">
-      <p className="min-w-0 flex-1 text-xs leading-5 text-zinc-400" role="status">
+      <p className="min-w-0 flex-1 text-xs leading-5 text-muted-foreground" role="status">
         {hint || '正在生成回复…'}
       </p>
       <button
         type="button"
         onClick={onCancel}
         aria-label="停止生成"
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+        className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-secondary hover:text-foreground"
       >
         <Square aria-hidden className="h-3.5 w-3.5" />
         停止生成

@@ -1,4 +1,4 @@
-import { CreatorConnections } from '@/components/creator-connections';
+import { CreatorConnections } from '@/components/creator/creator-connections';
 
 export const dynamic = 'force-dynamic';
 export default async function CreatorConnectionsPage({ params: paramsPromise, searchParams: searchParamsPromise }: { params: Promise<{ username: string }>; searchParams: Promise<{ type?: string }> }) {

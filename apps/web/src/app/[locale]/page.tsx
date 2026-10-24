@@ -1,8 +1,8 @@
 import type {Metadata} from 'next';
 import Link from 'next/link';
 import {getDictionary, isLocale, type Locale, DEFAULT_LOCALE, SITE_URL, alternateLanguages} from '@web/lib/i18n';
-import {PublicHeader} from '@/components/public-header';
-import {BannerCarousel, type HeroBanner} from '@/components/banner-carousel';
+import {PublicHeader} from '@/components/layout/public-header';
+import {BannerCarousel, type HeroBanner} from '@/components/site-content/banner-carousel';
 import {PublicFooter} from '@/components/site-content/public-footer';
 import {SignedInRedirect} from './signed-in-redirect';
 import {compactNumber} from '@rumiai/contracts/i18n/format';
@@ -41,7 +41,7 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
   const banners = site.banners.hero as HeroBanner[];
 
   return (
-    <main className="flex min-h-[100svh] flex-col">
+    <main className="flex min-h-[100svh] flex-col bg-background text-foreground">
       <SignedInRedirect/>
       <PublicHeader locale={locale} signInLabel={dict.signIn}/>
 
@@ -57,8 +57,8 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
 
       {/* 1. 价值主张 */}
       <section className="mx-auto w-full max-w-5xl px-6 pb-10 pt-8 text-center">
-        <h1 className="text-3xl font-bold leading-tight text-white desktop:text-5xl">{copy.headline}</h1>
-        <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-zinc-400 desktop:text-base">{copy.subhead}</p>
+        <h1 className="text-3xl font-bold leading-tight text-foreground desktop:text-5xl">{copy.headline}</h1>
+        <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground desktop:text-base">{copy.subhead}</p>
         <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
           <Link
             href={`/${locale}/auth`}
@@ -68,12 +68,12 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
           </Link>
           <Link
             href={`/${locale}/explore`}
-            className="inline-flex min-h-12 items-center rounded-full border border-white/20 px-6 text-sm font-semibold text-zinc-200 transition-colors hover:border-white/40 hover:text-white"
+            className="inline-flex min-h-12 items-center rounded-full border border-border px-6 text-sm font-semibold text-foreground transition-colors hover:border-primary/40 hover:text-foreground"
           >
             {copy.secondaryCta}
           </Link>
         </div>
-        <p className="mt-4 text-xs text-zinc-500">{copy.aiNotice}</p>
+        <p className="mt-4 text-xs text-muted-foreground">{copy.aiNotice}</p>
       </section>
 
       {/* 2. 热门角色：直接给真实数据，不用假图 */}
@@ -81,10 +81,10 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
         <section className="mx-auto w-full max-w-6xl px-6 py-8">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-white desktop:text-2xl">{copy.featuredTitle}</h2>
-              <p className="mt-1 text-xs text-zinc-500">{copy.featuredHint}</p>
+              <h2 className="text-xl font-bold text-foreground desktop:text-2xl">{copy.featuredTitle}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">{copy.featuredHint}</p>
             </div>
-            <Link href={`/${locale}/explore`} className="shrink-0 text-xs font-semibold text-zinc-400 hover:text-white">
+            <Link href={`/${locale}/explore`} className="shrink-0 text-xs font-semibold text-muted-foreground hover:text-foreground">
               {copy.featuredMore}
             </Link>
           </div>
@@ -93,19 +93,19 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
               <li key={character.id}>
                 <Link
                   href={`/${locale}/character/${character.id}`}
-                  className="group flex h-full gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:border-white/25"
+                  className="group flex h-full gap-3 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-white/25"
                 >
-                  <span className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-800">
+                  <span className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted">
                     {character.avatarUrl
                       ? <img src={character.avatarUrl} alt="" width={64} height={64} className="h-full w-full object-cover"/>
                       : <span aria-hidden className="text-2xl">🎭</span>}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-white">{character.name}</span>
-                    <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-zinc-400">
+                    <span className="block truncate text-sm font-bold text-foreground">{character.name}</span>
+                    <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">
                       {character.tagline || character.personality}
                     </span>
-                    <span className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-500">
+                    <span className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                       <span>💬 {compactNumber(character.chatCount)}</span>
                       {character.creator && <span className="truncate">@{character.creator.displayName || character.creator.username}</span>}
                     </span>
@@ -122,13 +122,13 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
         <section className="mx-auto w-full max-w-5xl px-6 py-4">
           <Link
             href={`/${locale}/mirror`}
-            className="group flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/25"
+            className="group flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 transition-colors hover:border-white/25"
           >
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-white">{copy.mirrorTitle}</h2>
-              <p className="mt-1 max-w-xl text-sm leading-relaxed text-zinc-400">{copy.mirrorBody}</p>
+              <h2 className="text-lg font-bold text-foreground">{copy.mirrorTitle}</h2>
+              <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted-foreground">{copy.mirrorBody}</p>
             </div>
-            <span className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-white/20 px-5 text-sm font-semibold text-zinc-100 transition-colors group-hover:border-white/40 group-hover:text-white">
+            <span className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-border px-5 text-sm font-semibold text-foreground transition-colors group-hover:border-white/40 group-hover:text-foreground">
               {copy.mirrorCta}
             </span>
           </Link>
@@ -137,13 +137,13 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
 
       {/* 4. 三步玩法 */}
       <section className="mx-auto w-full max-w-5xl px-6 py-8">
-        <h2 className="text-xl font-bold text-white desktop:text-2xl">{copy.stepsTitle}</h2>
+        <h2 className="text-xl font-bold text-foreground desktop:text-2xl">{copy.stepsTitle}</h2>
         <ol className="mt-5 grid gap-4 desktop:grid-cols-3">
           {copy.steps.map((step, index) => (
-            <li key={step.title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-gradient text-sm font-bold text-white">{index + 1}</span>
-              <h3 className="mt-3 text-base font-bold text-white">{step.title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">{step.body}</p>
+            <li key={step.title} className="rounded-2xl border border-border bg-card p-5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-gradient text-sm font-bold text-foreground">{index + 1}</span>
+              <h3 className="mt-3 text-base font-bold text-foreground">{step.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
             </li>
           ))}
         </ol>
@@ -151,13 +151,13 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
 
       {/* 4. 示例对话：明确标注是示例，不是真实生成内容 */}
       <section className="mx-auto w-full max-w-3xl px-6 py-8">
-        <h2 className="text-xl font-bold text-white desktop:text-2xl">{copy.sampleTitle}</h2>
-        <p className="mt-1 text-xs text-zinc-500">{copy.sampleHint}</p>
-        <div className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <h2 className="text-xl font-bold text-foreground desktop:text-2xl">{copy.sampleTitle}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{copy.sampleHint}</p>
+        <div className="mt-5 space-y-3 rounded-2xl border border-border bg-card p-5">
           <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-brand-gradient px-4 py-2.5 text-sm leading-relaxed text-white">
             {copy.sample.user}
           </p>
-          <p className="max-w-[85%] rounded-2xl rounded-bl-sm bg-zinc-800 px-4 py-2.5 text-sm leading-relaxed text-zinc-100">
+          <p className="max-w-[85%] rounded-2xl rounded-bl-sm bg-muted px-4 py-2.5 text-sm leading-relaxed text-foreground">
             {copy.sample.character}
           </p>
         </div>
@@ -165,33 +165,33 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
 
       {/* 5. 安全与合规 */}
       <section className="mx-auto w-full max-w-5xl px-6 py-8">
-        <h2 className="text-xl font-bold text-white desktop:text-2xl">{copy.safetyTitle}</h2>
+        <h2 className="text-xl font-bold text-foreground desktop:text-2xl">{copy.safetyTitle}</h2>
         <ul className="mt-4 space-y-2.5">
           {copy.safety.map(item => (
-            <li key={item} className="flex gap-2.5 text-sm leading-relaxed text-zinc-300">
+            <li key={item} className="flex gap-2.5 text-sm leading-relaxed text-muted-foreground">
               <span aria-hidden className="mt-0.5 shrink-0 text-brand-2">✓</span>
               <span>{item}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-4 text-sm text-zinc-400">
-          <Link href={`/${locale}/terms-and-policy`} className="underline underline-offset-4 hover:text-white">{dict.termsHeading}</Link>
-          <span className="mx-2 text-zinc-600">·</span>
-          <Link href={`/${locale}/about`} className="underline underline-offset-4 hover:text-white">{dict.aboutHeading}</Link>
+        <p className="mt-4 text-sm text-muted-foreground">
+          <Link href={`/${locale}/terms-and-policy`} className="underline underline-offset-4 hover:text-foreground">{dict.termsHeading}</Link>
+          <span className="mx-2 text-muted-foreground">·</span>
+          <Link href={`/${locale}/about`} className="underline underline-offset-4 hover:text-foreground">{dict.aboutHeading}</Link>
         </p>
       </section>
 
       {/* 6. FAQ：用原生 details，无脚本也能展开 */}
       <section className="mx-auto w-full max-w-3xl px-6 py-8">
-        <h2 className="text-xl font-bold text-white desktop:text-2xl">{copy.faqTitle}</h2>
-        <div className="mt-4 divide-y divide-white/10 border-y border-white/10">
+        <h2 className="text-xl font-bold text-foreground desktop:text-2xl">{copy.faqTitle}</h2>
+        <div className="mt-4 divide-y divide-border border-y border-border">
           {copy.faq.map(item => (
             <details key={item.q} className="group py-3">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-zinc-100">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-foreground">
                 {item.q}
-                <span aria-hidden className="shrink-0 text-zinc-500 transition-transform group-open:rotate-45">＋</span>
+                <span aria-hidden className="shrink-0 text-muted-foreground transition-transform group-open:rotate-45">＋</span>
               </summary>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{item.a}</p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</p>
             </details>
           ))}
         </div>
@@ -199,8 +199,8 @@ export default async function LocaleHome({params}: {params: Promise<{locale: str
 
       {/* 7. 收尾 CTA */}
       <section className="mx-auto w-full max-w-3xl px-6 py-10 text-center">
-        <h2 className="text-xl font-bold text-white desktop:text-2xl">{copy.closingTitle}</h2>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-zinc-400">{copy.closingBody}</p>
+        <h2 className="text-xl font-bold text-foreground desktop:text-2xl">{copy.closingTitle}</h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{copy.closingBody}</p>
         <Link
           href={`/${locale}/auth`}
           className="mt-5 inline-flex min-h-12 items-center rounded-full bg-brand-gradient px-8 text-base font-semibold text-white shadow-lg transition-transform hover:scale-[1.02]"

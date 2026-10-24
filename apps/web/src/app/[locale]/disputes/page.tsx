@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {getDictionary, isLocale, type Locale, DEFAULT_LOCALE, SITE_URL, alternateLanguages} from '@web/lib/i18n';
-import {PublicHeader} from '@/components/public-header';
+import {PublicHeader} from '@/components/layout/public-header';
 import {DisputeBoard} from '@/components/disputes/dispute-board';
 
 export const dynamic = 'force-dynamic';

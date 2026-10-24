@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import {DEFAULT_LOCALE, SITE_URL, alternateLanguages, getDictionary, isLocale, type Locale} from '@web/lib/i18n';
-import {PublicHeader} from '@/components/public-header';
+import {PublicHeader} from '@/components/layout/public-header';
 import {MirrorHome} from '@/components/mirror/mirror-home';
 
 /**

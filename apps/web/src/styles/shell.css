@@ -1,0 +1,199 @@
+:root {
+  --app-height: 100dvh;
+}
+
+html {
+  background: var(--color-background);
+}
+
+.public-header {
+  padding-top: max(var(--space-3), env(safe-area-inset-top));
+}
+
+body {
+  min-height: 100%;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.app-frame {
+  min-height: var(--app-height);
+  padding-top: env(safe-area-inset-top);
+}
+
+.app-content {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+.mobile-primary-nav {
+  min-height: 64px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-primary-nav > div {
+  width: 100%;
+  min-width: 0;
+}
+
+.is-chat .app-content > div {
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
+html[data-keyboard='true'] .mobile-primary-nav {
+  display: none;
+}
+
+html[data-keyboard='true'] .app-content {
+  padding-bottom: env(safe-area-inset-bottom);
+  scroll-padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pwa-notice {
+  top: calc(env(safe-area-inset-top) + 4.5rem);
+  max-height: calc(100svh - env(safe-area-inset-top) - 5.5rem);
+  overflow: auto;
+  border-radius: var(--radius-sheet);
+  padding: var(--space-3);
+  box-shadow: var(--shadow-modal);
+  transition-duration: var(--motion-normal);
+}
+
+.web-display {
+  font-size: 32px;
+  line-height: 40px;
+}
+
+.web-page-title {
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.web-section-title {
+  font-size: 18px;
+  line-height: 26px;
+}
+
+.web-card-title {
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.web-body {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.web-small {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.web-meta {
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.web-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.web-control {
+  min-height: 44px;
+  border-radius: var(--radius-control);
+}
+
+.web-action {
+  background: var(--action);
+  color: var(--action-foreground);
+  transition-duration: var(--motion-fast);
+}
+
+.web-action:hover {
+  opacity: 0.9;
+}
+
+.web-section-header {
+  gap: var(--space-4);
+}
+
+.web-state {
+  padding-inline: var(--space-5);
+  padding-block: var(--space-6);
+}
+
+.web-toast {
+  padding: var(--space-4);
+}
+
+.web-card {
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.web-sheet {
+  border-radius: var(--radius-sheet);
+}
+
+.web-pill {
+  border-radius: var(--radius-pill);
+}
+
+.web-transition-fast {
+  transition-duration: var(--motion-fast);
+}
+
+.web-transition-normal {
+  transition-duration: var(--motion-normal);
+}
+
+.web-transition-slow {
+  transition-duration: var(--motion-slow);
+}
+
+:where(a, button, input, textarea, select, summary, [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+
+@media (min-width: 1024px) {
+  .app-content {
+    padding-bottom: 0;
+    scroll-padding-bottom: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .web-display {
+    font-size: 28px;
+    line-height: 36px;
+  }
+
+  input,
+  textarea,
+  select {
+    min-width: 0;
+    font-size: 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Detail conversations occupy the visible viewport; their composer owns the bottom edge. */
+.app-frame.is-chat { height: var(--app-height); min-height: 0; overflow: hidden; }
+.is-chat-detail .app-content { padding-bottom: env(safe-area-inset-bottom); scroll-padding-bottom: env(safe-area-inset-bottom); }
+.text-brand { color: var(--color-link); }
+@media (min-width: 1024px) { .is-chat-detail .app-content { padding-bottom: 0; } }
+
+/* Small action labels need readable contrast; button fills keep the supplied lavender. */
+.text-primary, .hover\:text-primary:hover { color: var(--color-link); }

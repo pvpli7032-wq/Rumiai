@@ -1,0 +1,133 @@
+:root {
+  color-scheme: light;
+
+  /* Mobile palette from the supplied visual brief and Sleek export. */
+  --color-background: #FBFBFD;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #F1EEFD;
+  --color-line: #E7E3F1;
+  --color-text-primary: #10022C;
+  --color-text-secondary: #514861;
+  --color-text-muted: #6E6889;
+  --color-text-disabled: #AAA5B3;
+  --color-lavender: #7E66F1;
+  --color-lavender-strong: #6248C5;
+  --color-warm-orange: #F17141;
+  --color-success: #2E9B72;
+  --color-warning: #B7791F;
+  --color-error: #C94A5A;
+  --color-warning-text: #92400E;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --radius-control: 10px;
+  --radius-card: 20px;
+  --radius-sheet: 24px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 2px 12px rgba(16, 2, 44, 0.025);
+  --shadow-modal: 0 16px 48px rgba(73, 57, 105, 0.14);
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-slow: 260ms;
+  --content-max: 1200px;
+
+  /* Existing Tailwind semantic tokens point at the approved palette. */
+  /* Semantic action/link colours: decorative lavender and orange remain above. */
+  --brand: #7E66F1;
+  --brand-2: #A13C1B;
+  --brand-foreground: #10022C;
+  --brand-soft: #F1EEFD;
+  --brand-gradient: linear-gradient(#7E66F1, #7E66F1);
+  --brand-strong: #6248C5;
+  --color-link: #6248C5;
+  --color-action-text: #A13C1B;
+  --brand-accent-1: #F17141;
+  --brand-accent-2: #C94A5A;
+  --brand-gradient-accent: linear-gradient(90deg, #F59E0B, #C94A5A);
+  --theme-color: #FBFBFD;
+
+  --background: 240.000 33.333% 98.824%;
+  --foreground: 260.000 91.304% 9.020%;
+  --card: 0 0% 100%;
+  --card-foreground: 260.000 91.304% 9.020%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 260.000 91.304% 9.020%;
+  --primary: 250.360 83.234% 67.255%;
+  --primary-foreground: 260.000 91.304% 9.020%;
+  --secondary: 252.000 78.947% 96.275%;
+  --secondary-foreground: 260.000 91.304% 9.020%;
+  --muted: 255.000 44.444% 96.471%;
+  --muted-foreground: 250.909 13.693% 47.255%;
+  --accent: 252.000 78.947% 96.275%;
+  --accent-foreground: 260.000 91.304% 9.020%;
+  --destructive: 350 67% 42%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 257.143 33.333% 91.765%;
+  --input: 257.143 33.333% 91.765%;
+  --ring: 250.360 83.234% 67.255%;
+  --radius: var(--radius-control);
+
+  /* Raw hex token: consumers use var(--action), not hsl(var(--action)). */
+  --action: #F17141;
+  --action-foreground: #10022C;
+}
+
+.dark {
+  color-scheme: dark;
+  --color-background: #0D0D12;
+  --color-surface: #15151D;
+  --color-surface-raised: #1D1D27;
+  --color-line: rgba(255, 255, 255, 0.10);
+  --color-text-primary: #F8F7F2;
+  --color-text-secondary: #C7C5D0;
+  --color-text-muted: #8F8C9A;
+  --color-text-disabled: #5E5B67;
+  --color-lavender: #A78BFA;
+  --color-lavender-strong: #A78BFA;
+  --color-warm-orange: #F59E0B;
+  --color-success: #2E9B72;
+  --color-warning: #B7791F;
+  --color-error: #C94A5A;
+  --color-warning-text: #F59E0B;
+  --brand: #A78BFA;
+  --brand-2: #F59E0B;
+  --brand-foreground: #17151F;
+  --brand-soft: rgba(167, 139, 250, 0.20);
+  --brand-gradient: linear-gradient(135deg, #A78BFA 0%, #F59E0B 100%);
+  --brand-strong: #A78BFA;
+  --color-link: #A78BFA;
+  --color-action-text: #F59E0B;
+  --brand-accent-1: #F59E0B;
+  --brand-accent-2: #C94A5A;
+  --brand-gradient-accent: linear-gradient(90deg, #F59E0B, #C94A5A);
+  --theme-color: #0D0D12;
+  --background: 240 16% 6%;
+  --foreground: 48 33% 96%;
+  --card: 240 16% 10%;
+  --card-foreground: 48 33% 96%;
+  --popover: 240 16% 10%;
+  --popover-foreground: 48 33% 96%;
+  --primary: 255 92% 76%;
+  --primary-foreground: 240 16% 6%;
+  --secondary: 240 15% 13%;
+  --secondary-foreground: 48 33% 96%;
+  --muted: 240 15% 13%;
+  --muted-foreground: 250 7% 58%;
+  --accent: 240 15% 17%;
+  --accent-foreground: 48 33% 96%;
+  --destructive: 350 89% 71%;
+  --destructive-foreground: 252 19% 10%;
+  --border: 0 0% 100% / 10%;
+  --input: 0 0% 100% / 10%;
+  --ring: 255 92% 76%;
+  --action: #F59E0B;
+  --action-foreground: #17151F;
+}

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { compactNumber } from '@web/lib/i18n';
-import { CreatorCommunity } from '@/components/creator-community';
+import { CreatorCommunity } from '@/components/creator/creator-community';
 import type {CreatorProfileProjection} from '@rumiai/contracts/public-api';
 import {fetchPublicApi, PublicApiError} from '@/lib/server-api';
 
@@ -58,14 +58,14 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
             className="h-20 w-20 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 text-2xl font-bold text-white">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500 text-2xl font-bold text-foreground">
             {name[0]?.toUpperCase()}
           </div>
         )}
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold text-white">{name}</h1>
-          <p className="text-sm text-zinc-400">@{creator.username}</p>
-          <p className="mt-1 text-xs text-zinc-500">
+          <h1 className="truncate text-2xl font-bold text-foreground">{name}</h1>
+          <p className="text-sm text-muted-foreground">@{creator.username}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
             {creator.tier} · {compactNumber(creator.followerCount)} {"位关注者 ·"}{' '}
             {compactNumber(creator.publicCharacterCount)} {"个角色 ·"}{' '}
             {compactNumber(creator.chatCount)} {"聊天"}</p>
@@ -74,19 +74,19 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
 
       <CreatorCommunity username={creator.username} initialFollowerCount={creator.followerCount} />
 
-      <h2 className="mb-4 mt-8 text-lg font-semibold text-white">{"角色"}</h2>
+      <h2 className="mb-4 mt-8 text-lg font-semibold text-foreground">{"角色"}</h2>
 
       {characters.length === 0 ? (
-        <p className="text-zinc-500">{"这位创作者还没有公开角色"}</p>
+        <p className="text-muted-foreground">{"这位创作者还没有公开角色"}</p>
       ) : (
         <ul className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-5">
           {characters.map(character => (
             <li key={character.id}>
               <Link
                 href={`/chat?character=${character.id}`}
-                className="group block overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/60 transition-colors hover:border-white/25"
+                className="group block overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-white/25"
               >
-                <div className="aspect-square w-full overflow-hidden bg-zinc-800">
+                <div className="aspect-square w-full overflow-hidden bg-muted">
                   {character.avatarUrl ? (
                     <img
                       src={character.avatarUrl}
@@ -97,11 +97,11 @@ export default async function CreatorProfilePage({ params: paramsPromise }: { pa
                   ) : null}
                 </div>
                 <div className="p-3">
-                  <p className="truncate text-sm font-semibold text-white">{character.name}</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{character.name}</p>
                   {character.tagline && (
-                    <p className="mt-0.5 truncate text-xs text-zinc-500">{character.tagline}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{character.tagline}</p>
                   )}
-                  <div className="mt-2 flex items-center gap-3 text-[11px] text-zinc-500">
+                  <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
                     <span title={"点赞"}>{compactNumber(character.likeCount)}</span>
                     <span title={"聊天"}>{compactNumber(character.chatCount)}</span>
                     {character.isAdult && <span className="text-amber-500/80">18+</span>}

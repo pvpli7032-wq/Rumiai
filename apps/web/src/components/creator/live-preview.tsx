@@ -20,11 +20,11 @@ export function LivePreview({ data, tagLabel }: { data: PreviewData; tagLabel?: 
   return (
     <div className="space-y-4">
       <div className="mx-auto w-[190px]">
-        <div className="relative aspect-[160/213] w-full overflow-hidden rounded-2xl bg-[#1A1A2E]">
+        <div className="relative aspect-[160/213] w-full overflow-hidden rounded-2xl bg-secondary">
           {data.avatarUrl ? (
             <img src={data.avatarUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-linear-to-br/srgb from-[#3b1d4d] to-[#141428] text-white/40">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-secondary text-muted-foreground">
               <User className="h-8 w-8" />
               <span className="text-[11px]">{"尚未添加图片"}</span>
             </div>

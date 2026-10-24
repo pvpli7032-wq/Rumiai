@@ -12,21 +12,21 @@ export default function NotFound() {
 
   return (
     <main className="flex min-h-[100svh] flex-col items-center justify-center gap-5 bg-background px-6 text-center">
-      <p className="text-6xl font-bold text-white/20">404</p>
-      <h1 className="text-xl font-semibold text-white">页面不存在</h1>
-      <p className="max-w-sm text-zinc-400">
+      <p className="text-6xl font-bold text-muted-foreground/40">404</p>
+      <h1 className="text-xl font-semibold text-foreground">页面不存在</h1>
+      <p className="max-w-sm text-muted-foreground">
         页面可能已移动或删除，请返回发现页。
       </p>
       <div className="mt-2 flex gap-3">
         <Link
           href={`/${DEFAULT_LOCALE}`}
-          className="rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-6 py-2.5 font-semibold text-white"
+          className="web-control rounded-full bg-primary px-6 py-2.5 font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {dict.chatNow}
         </Link>
         <Link
           href={`/${DEFAULT_LOCALE}/explore`}
-          className="rounded-full border border-white/15 px-6 py-2.5 text-white transition-colors hover:bg-white/5"
+          className="web-control rounded-full border border-border px-6 py-2.5 text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {dict.charactersSection}
         </Link>

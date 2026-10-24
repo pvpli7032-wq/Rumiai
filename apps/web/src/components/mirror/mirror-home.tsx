@@ -149,7 +149,7 @@ export function MirrorHome({initialPage, locale}: {initialPage: MirrorPageRespon
             </CardHeader>
             <CardContent>
               {missingQuestions > 0 ? (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-600">
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
                   题目还没配够：当前需要 {rules.questionCount} 道，只配了 {questions.length} 道。
                   请在设置中心补齐「三道问题」后再开始，这里不会用默认题代替。
                 </div>

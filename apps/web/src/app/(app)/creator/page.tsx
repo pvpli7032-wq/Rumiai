@@ -1,5 +1,3 @@
-import CreatorForm from './creator-form';
-export default async function CreatorPage({ searchParams: searchParamsPromise }: { searchParams: Promise<{ edit?: string }> }) {
-  const searchParams = await searchParamsPromise;
-  return <CreatorForm key={searchParams.edit || 'new'} editId={typeof searchParams.edit === 'string' ? searchParams.edit : undefined} />;
-}
+import CreatorForm from '@/components/creator/creator-form';
+import {CreatorDashboard} from '@/components/creator/creator-dashboard';
+export default async function CreatorPage({ searchParams: query }: { searchParams: Promise<{ edit?: string; new?: string }> }) { const searchParams=await query; const editId=typeof searchParams.edit==='string'?searchParams.edit:undefined; return editId||searchParams.new==='1'?<CreatorForm key={editId||'new'} editId={editId}/>:<CreatorDashboard/>; }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Providers } from './providers';
 import { DEFAULT_LOCALE, HTML_LANG, SITE_URL, getDictionary } from '@web/lib/i18n';
 import '@rumiai/ui/styles.css';
+import '../styles/index.css';
 
 // theme-color follows the OS appearance; the --theme-color token in globals.css mirrors these values.
 export const viewport: Viewport = {
@@ -9,8 +10,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#09090b' },
+    { media: '(prefers-color-scheme: light)', color: '#FAF9F6' },
+    { media: '(prefers-color-scheme: dark)', color: '#0D0D12' },
   ],
   interactiveWidget: 'resizes-content',
 };
@@ -32,7 +33,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang={HTML_LANG[DEFAULT_LOCALE]} suppressHydrationWarning>
-<body className="font-sans antialiased">
+      <body className="min-h-[100svh] bg-background font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

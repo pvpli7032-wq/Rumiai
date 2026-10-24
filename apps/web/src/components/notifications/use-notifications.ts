@@ -10,6 +10,7 @@ export interface NotificationState {
   unreadCount: number;
   loading: boolean;
   error: boolean;
+  actionBusy: boolean;
   hasMore: boolean;
   refresh: () => Promise<void>;
   loadMore: () => Promise<void>;
@@ -37,6 +38,8 @@ export function useNotifications(token: string | null): NotificationState {
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const actionRef = useRef(false);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -81,7 +84,11 @@ export function useNotifications(token: string | null): NotificationState {
 
   const markRead = useCallback(
     async (id: string) => {
-      if (!token) return;
+      if (!token || actionRef.current) return;
+      const previousItems = items;
+      const previousUnread = unreadCount;
+      setActionBusy(true);
+      actionRef.current = true;
       const now = new Date().toISOString();
       // 先本地置已读，点进业务对象时红点立刻减一；再用服务端计数校准。
       setItems(previous => previous.map(item => (item.id === id && !item.readAt ? {...item, readAt: now} : item)));
@@ -89,14 +96,21 @@ export function useNotifications(token: string | null): NotificationState {
         const result = await apiFetch<{unreadCount: number}>(API.me.notification(id), {method: 'PATCH', token});
         if (mounted.current) setUnreadCount(result.unreadCount);
       } catch {
-        if (mounted.current) setError(true);
+        if (mounted.current) { setItems(previousItems); setUnreadCount(previousUnread); setError(true); }
+      } finally {
+        actionRef.current = false;
+        if (mounted.current) setActionBusy(false);
       }
     },
-    [token],
+    [token, actionBusy, items, unreadCount],
   );
 
   const markAllRead = useCallback(async () => {
-    if (!token) return;
+    if (!token || actionRef.current) return;
+    const previousItems = items;
+    const previousUnread = unreadCount;
+    setActionBusy(true);
+    actionRef.current = true;
     const now = new Date().toISOString();
     setItems(previous => previous.map(item => (item.readAt ? item : {...item, readAt: now})));
     setUnreadCount(0);
@@ -104,9 +118,12 @@ export function useNotifications(token: string | null): NotificationState {
       const result = await apiFetch<{unreadCount: number}>(API.me.notifications, {method: 'POST', token});
       if (mounted.current) setUnreadCount(result.unreadCount);
     } catch {
-      if (mounted.current) setError(true);
+      if (mounted.current) { setItems(previousItems); setUnreadCount(previousUnread); setError(true); }
+    } finally {
+      actionRef.current = false;
+      if (mounted.current) setActionBusy(false);
     }
-  }, [token]);
+  }, [token, actionBusy, items, unreadCount]);
 
   useEffect(() => {
     if (!token) {
@@ -134,5 +151,5 @@ export function useNotifications(token: string | null): NotificationState {
     };
   }, [token, refresh]);
 
-  return {items, unreadCount, loading, error, hasMore: cursor !== null, refresh, loadMore, markRead, markAllRead};
+  return {items, unreadCount, loading, error, actionBusy, hasMore: cursor !== null, refresh, loadMore, markRead, markAllRead};
 }

@@ -2,7 +2,7 @@
 import {useCallback, useEffect, useState} from 'react';
 import {Flag} from 'lucide-react';
 import {Button, Textarea} from '@rumiai/ui';
-import {ReportDialog} from '@/components/report-dialog';
+import {ReportDialog} from '@/components/moderation';
 import {useAuth} from '@web/lib/auth-context';
 import {MAX_COMMENT_CHARS, formatTime} from './shared';
 

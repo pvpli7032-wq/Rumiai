@@ -77,7 +77,7 @@ export interface NotificationDrawerProps {
 
 /** 顶栏通知抽屉：列表、翻页、全部已读。 */
 export function NotificationDrawer({open, onClose, notifications}: NotificationDrawerProps) {
-  const {items, unreadCount, loading, error, hasMore, refresh, loadMore, markRead, markAllRead} = notifications;
+  const {items, unreadCount, loading, error, actionBusy, hasMore, refresh, loadMore, markRead, markAllRead} = notifications;
   const firstLoad = loading && items.length === 0;
 
   return (
@@ -91,7 +91,7 @@ export function NotificationDrawer({open, onClose, notifications}: NotificationD
           <Button variant="ghost" size="sm" onClick={() => void refresh()}>
             刷新
           </Button>
-          <Button variant="secondary" size="sm" disabled={unreadCount === 0} onClick={() => void markAllRead()}>
+          <Button variant="secondary" size="sm" disabled={unreadCount === 0 || actionBusy} loading={actionBusy} onClick={() => void markAllRead()}>
             全部标记已读
           </Button>
         </>

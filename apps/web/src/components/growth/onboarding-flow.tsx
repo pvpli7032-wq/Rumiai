@@ -74,6 +74,10 @@ export function OnboardingFlow() {
       if (skipped || !characterId) router.replace(afterOnboardingTarget());
       else router.push(`/chat?character=${encodeURIComponent(characterId)}`);
     } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401) {
+        router.replace(loginWithNext());
+        return;
+      }
       setSubmitError(cause instanceof ApiError ? cause.message : '保存失败，请稍后重试。');
       setBusy(false);
     }

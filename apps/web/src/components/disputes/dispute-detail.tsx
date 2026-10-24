@@ -2,11 +2,11 @@
 import {useCallback, useEffect, useState} from 'react';
 import Link from 'next/link';
 import {Flag} from 'lucide-react';
-import {Badge, Button} from '@rumiai/ui';
+import {Badge, Button, Dialog} from '@rumiai/ui';
 import {API} from '@rumiai/contracts/api-paths';
 import {useAuth} from '@web/lib/auth-context';
 import type {DisputeCaseDetail, DisputeChoice} from '@rumiai/contracts/disputes/types';
-import {ReportDialog} from '@/components/report-dialog';
+import {ReportDialog} from '@/components/moderation';
 import {ExcerptView} from './excerpt-view';
 import {VotePanel} from './vote-panel';
 import {VerdictCard} from './verdict-card';
@@ -31,6 +31,7 @@ export function DisputeDetail({caseId, locale}: {caseId: string; locale: string}
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState(false);
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -57,7 +58,7 @@ export function DisputeDetail({caseId, locale}: {caseId: string; locale: string}
   }
 
   async function withdraw() {
-    if (!token || busy || !window.confirm('撤回后案例不再公开，评论与举报记录保留。确认撤回？')) return;
+    if (!token || busy) return;
     setBusy(true);
     setNotice('');
     try {
@@ -91,7 +92,7 @@ export function DisputeDetail({caseId, locale}: {caseId: string; locale: string}
         <h1 className="whitespace-pre-wrap break-words text-xl font-bold leading-snug">{detail.claim}</h1>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="ghost" onClick={() => setReport(true)}><Flag aria-hidden className="h-3.5 w-3.5" /> 举报案例</Button>
-          {detail.canWithdraw ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void withdraw()}>撤回案例</Button> : null}
+          {detail.canWithdraw ? <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirmWithdraw(true)}>撤回案例</Button> : null}
         </div>
         {notice ? <p role="status" className="break-words text-sm text-muted-foreground">{notice}</p> : null}
       </header>
@@ -110,6 +111,8 @@ export function DisputeDetail({caseId, locale}: {caseId: string; locale: string}
       <VerdictCard verdict={detail.verdict} closeStatus={detail.closeStatus} />
 
       {detail.canComment && !detail.withdrawn ? <DisputeComments postId={detail.postId} /> : null}
+
+      {confirmWithdraw ? <Dialog open onClose={() => !busy && setConfirmWithdraw(false)} title="撤回案例" description="撤回后案例不再公开，评论与举报记录会保留。" footer={<><Button variant="outline" disabled={busy} onClick={() => setConfirmWithdraw(false)}>保留案例</Button><Button variant="danger" loading={busy} onClick={() => void withdraw()}>确认撤回</Button></>}>此操作无法撤销。</Dialog> : null}
 
       {report ? <ReportDialog targetType="POST" targetId={detail.postId} targetName={detail.claim.slice(0, 20)} onClose={() => setReport(false)} /> : null}
     </article>

@@ -27,7 +27,7 @@ export function MirrorCharacterPicker({characters, value, onChange, disabled}: {
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-foreground">{character.name}</span>
-                {character.tagline && <span className="block truncate text-xs text-muted-foreground">{character.tagline}</span>}
+                {character.tagline && <span className="block truncate text-xs text-foreground/75">{character.tagline}</span>}
               </span>
             </button>
           </li>

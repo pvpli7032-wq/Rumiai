@@ -10,13 +10,13 @@
 export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <html lang="zh-CN">
-      <body className="flex min-h-[100svh] flex-col items-center justify-center gap-5 bg-zinc-950 px-6 text-center">
-        <h1 className="text-xl font-semibold text-white">页面出了点问题</h1>
-        <p className="max-w-sm text-zinc-400">请重新加载这个页面</p>
+      <body className="flex min-h-[100svh] flex-col items-center justify-center gap-5 bg-background px-6 text-center text-foreground">
+        <h1 className="text-xl font-semibold text-foreground">页面出了点问题</h1>
+        <p className="max-w-sm text-muted-foreground">请重新加载这个页面</p>
         <button
           type="button"
           onClick={() => reset()}
-          className="rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-6 py-2.5 font-semibold text-white"
+          className="web-control rounded-full bg-primary px-6 py-2.5 font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           重试
         </button>

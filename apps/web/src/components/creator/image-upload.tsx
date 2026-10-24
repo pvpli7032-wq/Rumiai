@@ -44,10 +44,12 @@ export function ImageUpload({
   value,
   onChange,
   token,
+  onBusyChange,
 }: {
   value: string;
   onChange: (url: string) => void;
   token: string | null;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -95,31 +97,37 @@ export function ImageUpload({
     }
 
     setBusy(true);
-    const body = new FormData();
-    body.append('file', file);
-    const res = await fetch(API.upload, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false);
-
-    if (!res.ok) {
-      setError(zhError(data.error || '') || "图片上传失败");
-      return;
+    onBusyChange?.(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch(API.upload, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(zhError(data.error || '') || "图片上传失败");
+        return;
+      }
+      setMeta({ w: size.w, h: size.h, kb: Math.round(file.size / 1024) });
+      onChange(data.url);
+    } catch {
+      setError('网络连接失败，图片尚未上传，请重试。');
+    } finally {
+      setBusy(false);
+      onBusyChange?.(false);
     }
-    setMeta({ w: size.w, h: size.h, kb: Math.round(file.size / 1024) });
-    onChange(data.url);
   }
 
   return (
     <div className="space-y-3">
       {/* Dropzone / preview */}
       {value ? (
-        <div className="flex gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-[#2A2A2A] dark:bg-[#141414]">
-          <div className="relative h-[104px] w-[78px] shrink-0 overflow-hidden rounded-lg bg-[#1A1A2E]">
+        <div className="flex gap-3 rounded-xl border border-border bg-secondary/50 p-3">
+          <div className="relative h-[104px] w-[78px] shrink-0 overflow-hidden rounded-lg bg-secondary">
             <img src={value} alt={"已选图片"} className="h-full w-full object-cover" />
           </div>
           <div className="flex min-w-0 flex-1 flex-col justify-between">
             <div className="min-w-0">
-              <p className="flex items-center gap-1 text-sm font-medium text-emerald-500">
+              <p className="flex items-center gap-1 text-sm font-medium text-foreground">
                 <Check className="h-3.5 w-3.5" /> {"已添加图片"}</p>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{value}</p>
               {meta && (
@@ -132,7 +140,7 @@ export function ImageUpload({
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                className="h-8 rounded-lg border border-input px-3 text-xs font-medium transition-colors hover:bg-accent"
+                className="min-h-11 rounded-full border border-input px-3 text-xs font-medium transition-colors hover:bg-accent"
               >
                 {"更换图片"}</button>
               <button
@@ -142,7 +150,7 @@ export function ImageUpload({
                   setMeta(null);
                   setWarn(null);
                 }}
-                className="flex h-8 items-center gap-1 rounded-lg border border-input px-3 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10"
+                className="flex min-h-11 items-center gap-1 rounded-lg border border-input px-3 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10"
               >
                 <Trash2 className="h-3 w-3" /> {"删除"}</button>
             </div>
@@ -164,7 +172,7 @@ export function ImageUpload({
             if (f) handleFile(f);
           }}
           className={`flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors ${
-            dragging ? 'border-brand-strong bg-brand-strong/5' : 'border-zinc-300 hover:bg-accent/40 dark:border-[#2A2A2A]'
+            dragging ? 'border-brand-strong bg-brand-strong/5' : 'border-border hover:bg-secondary/60'
           }`}
         >
           {busy ? (
@@ -186,6 +194,7 @@ export function ImageUpload({
       <input
         ref={inputRef}
         type="file"
+        aria-label="角色头像图片"
         accept={ACCEPT.join(',')}
         className="hidden"
         onChange={(e) => {
@@ -196,7 +205,7 @@ export function ImageUpload({
       />
 
       {error && (
-        <p className="flex items-start gap-1.5 text-xs text-red-500">
+        <p role="alert" className="flex items-start gap-1.5 text-xs text-destructive">
           <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
           {error}
         </p>
@@ -224,6 +233,7 @@ export function ImageUpload({
       {showUrl ? (
         <div className="flex gap-2">
           <input
+            aria-label="头像图片链接"
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={"https://… 或 /uploads/你的图片.png"}
@@ -240,7 +250,7 @@ export function ImageUpload({
         <button
           type="button"
           onClick={() => setShowUrl(true)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           <Link2 className="h-3 w-3" />
           {"也可以填写图片链接"}</button>

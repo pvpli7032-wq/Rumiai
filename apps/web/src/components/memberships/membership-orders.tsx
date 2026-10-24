@@ -15,8 +15,9 @@ export function MembershipOrders({orders,busy,onRefund}:{orders:MembershipOrderP
         <p className="font-medium">{order.planName} · ¥{(order.amountCents/100).toFixed(2)}</p>
         <p className="text-xs text-muted-foreground">{labels[order.status]??order.status} · {formatDateTime(order.paidAt??order.createdAt)}</p>
         {order.grant&&<p className="text-xs text-muted-foreground">本次有效期：{formatDateTime(order.grant.startsAt)} — {formatDateTime(order.grant.expiresAt)}{order.grant.status==='REVOKED'?'（已撤销）':''}</p>}
-        {order.refund&&<p className="text-xs text-muted-foreground">{refundLabels[order.refund.status]??order.refund.status} · 退款 ¥{(order.refund.amountCents/100).toFixed(2)}，扣费 ¥{(order.refund.deductedCents/100).toFixed(2)}</p>}
+        {order.refund&&<p className={`text-xs ${order.refund.status==='FAILED'?'text-destructive':order.refund.status==='COMPLETED'?'text-foreground':'text-muted-foreground'}`}>{refundLabels[order.refund.status]??order.refund.status} · 退款 ¥{(order.refund.amountCents/100).toFixed(2)}，扣费 ¥{(order.refund.deductedCents/100).toFixed(2)}</p>}
       </div>
+      {order.status==='PENDING'&&<p className="text-xs text-muted-foreground">等待支付确认；未确认前不会变更会员权益。</p>}
       {order.status==='PAID'&&order.refund?.status!=='COMPLETED'&&<Button size="sm" variant="outline" disabled={busy!==null} onClick={()=>onRefund(order.orderNo)}>
         {busy===order.orderNo?'处理中…':order.refund?.status==='PENDING'?'重试确认退款':order.refund?.status==='FAILED'?'重新申请退款':'查看退款金额'}
       </Button>}

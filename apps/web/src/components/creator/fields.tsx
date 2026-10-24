@@ -30,7 +30,7 @@ export function Field({
       </div>
       {children}
       {error && (
-        <p className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
+        <p role="alert" className="mt-1.5 flex items-center gap-1 text-xs text-destructive">
           <AlertCircle className="h-3 w-3 shrink-0" />
           {error}
         </p>
@@ -66,15 +66,9 @@ export function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${
-        checked ? 'bg-brand-strong' : 'bg-input'
-      }`}
+      className="inline-flex h-11 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full"
     >
-      <span
-        className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-0'
-        }`}
-      />
+      <span aria-hidden="true" className={`inline-flex h-6 w-11 items-center rounded-full border-2 border-transparent transition-colors ${checked?'bg-brand':'bg-muted'}`}><span className={`block h-5 w-5 rounded-full bg-card shadow-sm transition-transform ${checked?'translate-x-5':'translate-x-0'}`} /></span>
     </button>
   );
 }
@@ -84,7 +78,7 @@ export function Checklist({ items }: { items: { done: boolean; label: string }[]
   return (
     <ul className="mt-2 space-y-1">
       {items.map((it) => (
-        <li key={it.label} className={`flex items-center gap-1.5 text-xs ${it.done ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+        <li key={it.label} className={`flex items-center gap-1.5 text-xs ${it.done ? 'text-foreground' : 'text-muted-foreground'}`}>
           <span
             className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${
               it.done ? 'border-emerald-500 bg-emerald-500/15' : 'border-current opacity-50'

@@ -18,7 +18,7 @@ export function HiddenReply({ children }: { children: React.ReactNode }) {
   return (
     <button
       onClick={() => setShown(true)}
-      className="flex items-center gap-2 rounded-xl border border-dashed border-zinc-600 px-3 py-2 text-left text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+      className="flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2 text-left text-xs text-muted-foreground hover:border-zinc-500 hover:text-foreground"
     >
       <EyeOff className="h-3.5 w-3.5 shrink-0" />
       {"这条回复含有你屏蔽的词语，点击查看"}</button>

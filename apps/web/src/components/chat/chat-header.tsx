@@ -1,0 +1,11 @@
+'use client';
+import Link from 'next/link';
+import { DesignIcon } from '@/components/primitives/design-icon';
+import { CharacterAvatar, type Character } from './character-avatar';
+
+export function ChatHeader({character,streaming,onReport}:{character:Character|null;streaming:boolean;onReport:()=>void}) {
+  return <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2">
+    <Link href="/chat" aria-label="返回聊天列表" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-secondary"><DesignIcon name="ph:arrow-left" size={20} /></Link>
+    {character && <><CharacterAvatar character={character} size={40} /><div className="min-w-0 flex-1"><h1 className="truncate text-[15px] font-semibold">{character.name}</h1><p role={streaming ? 'status' : undefined} className="mt-0.5 text-xs text-muted-foreground">{streaming ? '正在输入…' : 'AI角色'}</p></div><button type="button" onClick={onReport} aria-label="举报角色" title="举报角色" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"><DesignIcon name="ph:flag" size={20} /></button></>}
+  </header>;
+}

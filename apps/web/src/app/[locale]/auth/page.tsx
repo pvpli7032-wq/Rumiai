@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import {SITE_URL, alternateLanguages, getDictionary, isLocale, type Locale, DEFAULT_LOCALE} from '@web/lib/i18n';
-import { PublicHeader } from '@/components/public-header';
+import { PublicHeader } from '@/components/layout/public-header';
 import { AuthForm } from './auth-form';
 
 export async function generateMetadata({ params: paramsPromise }: { params: Promise<{ locale: string }> }): Promise<Metadata> {

@@ -40,5 +40,5 @@ export default async function LocaleLayout({
 
   // An unknown segment must 404 rather than render an English page at a bogus URL.
   if (!isLocale(params.locale)) notFound();
-  return <div className="min-h-[100svh] bg-background">{children}</div>;
+  return <div className="min-h-[100svh] bg-background text-foreground">{children}</div>;
 }

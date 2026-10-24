@@ -1,6 +1,7 @@
 'use client';
 
-import { Heart, RotateCcw, Pencil, Volume2, VolumeX, Copy, Check, Flag } from 'lucide-react';
+import { Pencil, Volume2, VolumeX, Check } from 'lucide-react';
+import { DesignIcon } from '@/components/primitives/design-icon';
 import { useState } from 'react';
 import { speechSupported } from '@web/lib/speech';
 import { plainText } from '@web/lib/rp-markup';
@@ -49,21 +50,21 @@ export function MessageActions({
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-0.5">
+    <div className="flex max-w-full shrink-0 flex-wrap items-center gap-0.5">
       {isReply && onLike && (
         <Action
           label={liked ? "取消消息点赞" : "点赞消息"}
           onClick={onLike}
           // A set like must not fade out with the rest, or its state is invisible.
           alwaysVisible={liked}
-          className={liked ? 'text-pink-400' : ''}
+          className={liked ? 'text-brand' : ''}
         >
-          <Heart className={`h-3.5 w-3.5 ${liked ? 'fill-current' : ''}`} />
+          <DesignIcon name="ph:heart-straight" size={16} className={liked ? 'fill-current' : ''} />
         </Action>
       )}
 
       <Action label={copied ? "已复制" : "复制消息"} onClick={copy} alwaysVisible={copied}>
-        {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+        {copied ? <Check className="h-3.5 w-3.5 text-brand" /> : <DesignIcon name="ph:copy" size={16} />}
       </Action>
 
       {isReply && onSpeak && speechSupported() && (
@@ -79,11 +80,11 @@ export function MessageActions({
 
       {isReply && onRegenerate && (
         <Action label={"重新生成"} onClick={onRegenerate} disabled={disabled || busy}>
-          <RotateCcw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
+          <DesignIcon name="ph:arrows-clockwise" size={16} className={busy ? 'animate-spin' : ''} />
         </Action>
       )}
 
-      {isReply && onReport && <Action label="举报这条 AI 回复" onClick={onReport} disabled={disabled}><Flag className="h-3.5 w-3.5" /></Action>}
+      {isReply && onReport && <Action label="举报这条 AI 回复" onClick={onReport} disabled={disabled}><DesignIcon name="ph:flag" size={16} /></Action>}
 
       {!isReply && onEdit && (
         <Action label={"编辑消息"} onClick={onEdit} disabled={disabled || busy}>
@@ -115,8 +116,8 @@ function Action({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-1.5 text-zinc-500 md:min-h-0 md:min-w-0 transition-all hover:text-zinc-200 disabled:opacity-30 ${
-        alwaysVisible ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover/msg:opacity-100 focus-visible:opacity-100'
+      className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-1.5 text-muted-foreground md:min-h-0 md:min-w-0 transition-all hover:text-foreground disabled:opacity-30 ${
+        alwaysVisible ? 'opacity-100' : 'opacity-80 hover:opacity-100 focus-visible:opacity-100'
       } ${className}`}
     >
       {children}

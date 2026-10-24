@@ -43,7 +43,7 @@ export function RelationshipPanel({
 
   if (!state) {
     return (
-      <aside className="hidden w-80 min-w-80 border-l border-white/10 bg-zinc-900/40 desktop:block">
+      <aside className="hidden w-80 min-w-80 border-l border-border bg-card desktop:block">
         <div className="flex h-40 items-center justify-center">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-400" />
         </div>
@@ -56,7 +56,7 @@ export function RelationshipPanel({
   const archived = Boolean(state.archivedAt);
 
   return (
-    <aside className="hidden w-80 min-w-80 overflow-y-auto border-l border-white/10 bg-zinc-900/40 desktop:block">
+    <aside className="hidden w-80 min-w-80 overflow-y-auto border-l border-border bg-card desktop:block">
       <div className="space-y-5 p-4">
         {/* Who you are talking to */}
         {state.character && (
@@ -68,27 +68,27 @@ export function RelationshipPanel({
                 className="h-24 w-24 rounded-2xl object-cover"
               />
             ) : (
-              <span className="flex h-24 w-24 items-center justify-center rounded-2xl bg-zinc-800">
-                <User className="h-8 w-8 text-zinc-500" />
+              <span className="flex h-24 w-24 items-center justify-center rounded-2xl bg-secondary">
+                <User className="h-8 w-8 text-muted-foreground" />
               </span>
             )}
-            <p className="mt-2 text-sm font-bold text-white">{state.character.name}</p>
+            <p className="mt-2 text-sm font-bold text-foreground">{state.character.name}</p>
             {state.character.tagline && (
-              <p className="text-xs text-zinc-500">{state.character.tagline}</p>
+              <p className="text-xs text-muted-foreground">{state.character.tagline}</p>
             )}
             <Link
               href={`/chat?character=${state.character.id}&new=1`}
-              className="mt-2 rounded-full border border-white/15 px-3 py-1 text-[11px] font-bold text-zinc-300 hover:bg-white/5"
+              className="mt-2 rounded-full border border-border px-3 py-1 text-[11px] font-bold text-foreground hover:bg-secondary"
             >
               {"新建聊天"}</Link>
           </div>
         )}
 
         {/* Relationship meters */}
-        <div className="space-y-3 rounded-2xl border border-white/10 bg-zinc-800/40 p-3">
+        <div className="space-y-3 rounded-2xl border border-border bg-secondary/60 p-3">
           {state.relationshipStatus && (
-            <p className="text-xs text-zinc-400">
-              {"状态："}<span className="font-bold text-white">{state.relationshipStatus}</span>
+            <p className="text-xs text-muted-foreground">
+              {"状态："}<span className="font-bold text-foreground">{state.relationshipStatus}</span>
             </p>
           )}
           <Meter
@@ -99,7 +99,7 @@ export function RelationshipPanel({
             barClass="bg-linear-to-r/srgb from-pink-500 to-rose-400"
           />
           <Meter
-            icon={<Flame className="h-3.5 w-3.5 text-orange-400" />}
+            icon={<Flame className="h-3.5 w-3.5 text-brand" />}
             label={"亲密值"}
             raw={state.intimacy}
             tier={intimacy}
@@ -120,9 +120,9 @@ export function RelationshipPanel({
         {/* Relationship mode */}
         <button
           onClick={() => patch({ relationship_mode: !state.relationshipMode })}
-          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-zinc-800/40 px-3 py-2.5 text-left hover:border-white/25"
+          className="flex w-full items-center justify-between rounded-2xl border border-border bg-secondary/60 px-3 py-2.5 text-left hover:border-brand/40"
         >
-          <span className="text-xs text-zinc-300">{"关系模式"}</span>
+          <span className="text-xs text-foreground">{"关系模式"}</span>
           <span
             className={`flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${
               state.relationshipMode ? 'justify-end bg-brand-strong' : 'justify-start bg-zinc-600'
@@ -134,8 +134,8 @@ export function RelationshipPanel({
 
         {/* Model picker */}
         {models.length > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-zinc-800/40 p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-zinc-400">
+          <div className="rounded-2xl border border-border bg-secondary/60 p-3">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
               <Cpu className="h-3.5 w-3.5" />
               {"本次聊天使用的模型"}</p>
             <div className="space-y-1">
@@ -156,11 +156,11 @@ export function RelationshipPanel({
             </div>
           </div>
         )}
-        {modelsLoaded&&models.length===0&&<p className="rounded-xl border border-white/10 p-3 text-xs text-amber-400">此角色当前没有可用模型，请联系管理员。</p>}
+        {modelsLoaded&&models.length===0&&<p className="rounded-xl border border-border p-3 text-xs text-amber-400">此角色当前没有可用模型，请联系管理员。</p>}
 
         {/* Notes */}
-        <div className="rounded-2xl border border-white/10 bg-zinc-800/40 p-3">
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-zinc-400">
+        <div className="rounded-2xl border border-border bg-secondary/60 p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
             <NotebookPen className="h-3.5 w-3.5" />
             {"我的笔记"}</p>
           <textarea
@@ -168,7 +168,7 @@ export function RelationshipPanel({
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
             placeholder={"记录与这个角色的故事"}
-            className="w-full resize-none rounded-xl border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
+            className="w-full resize-none rounded-xl border border-border bg-card px-2.5 py-2 text-xs text-foreground placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
           />
           <button
             onClick={async () => {
@@ -176,7 +176,7 @@ export function RelationshipPanel({
               if (updated) setSavedNotes(notes);
             }}
             disabled={saving || notes === savedNotes}
-            className="mt-2 w-full rounded-full bg-zinc-700 py-1.5 text-xs font-bold text-white hover:bg-zinc-600 disabled:opacity-40"
+            className="mt-2 w-full rounded-full bg-zinc-700 py-1.5 text-xs font-bold text-foreground hover:bg-zinc-600 disabled:opacity-40"
           >
             {notes === savedNotes ? "已保存" : saving ? "正在保存…" : "保存"}
           </button>
@@ -187,7 +187,7 @@ export function RelationshipPanel({
             const updated = await patch({ archived: !archived }, archived ? "取消归档" : "已归档聊天");
             if (updated && !archived) onArchived?.();
           }}
-          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-white/10 py-2 text-xs font-bold text-zinc-300 hover:bg-white/5"
+          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-border py-2 text-xs font-bold text-foreground hover:bg-secondary"
         >
           <Archive className="h-3.5 w-3.5" />
           {archived ? "取消归档" : "归档聊天"}
@@ -220,17 +220,17 @@ function Meter({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-xs">
-        <span className="flex items-center gap-1 text-zinc-400">
+        <span className="flex items-center gap-1 text-muted-foreground">
           {icon}
           {label}
         </span>
         {/* The raw value, because the bar is relative to the current tier, not to 100. */}
-        <span className="font-bold text-white">{raw.toLocaleString('th-TH')}</span>
+        <span className="font-bold text-foreground">{raw.toLocaleString('th-TH')}</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-700">
         <div className={`h-full rounded-full ${barClass}`} style={{ width: `${tier.percent}%` }} />
       </div>
-      <p className="mt-1 text-[10px] text-zinc-500">
+      <p className="mt-1 text-[10px] text-muted-foreground">
         {tier.name}
         {tier.next ? ` → ${tier.next}` : ''}
       </p>
@@ -240,10 +240,10 @@ function Meter({
 
 function Fact({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-800/40 p-3 text-center">
-      <span className="mx-auto mb-1 flex justify-center text-zinc-500">{icon}</span>
-      <p className="text-sm font-bold text-white">{value}</p>
-      <p className="text-[10px] text-zinc-500">{label}</p>
+    <div className="rounded-2xl border border-border bg-secondary/60 p-3 text-center">
+      <span className="mx-auto mb-1 flex justify-center text-muted-foreground">{icon}</span>
+      <p className="text-sm font-bold text-foreground">{value}</p>
+      <p className="text-[10px] text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -261,7 +261,7 @@ function ModelOption({
     <button
       onClick={onClick}
       className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-[11px] transition-colors ${
-        selected ? 'bg-brand-strong/15 text-white' : 'text-zinc-400 hover:bg-white/5'
+        selected ? 'bg-brand-strong/15 text-foreground' : 'text-muted-foreground hover:bg-secondary'
       }`}
     >
       <span className="truncate">{label}</span>

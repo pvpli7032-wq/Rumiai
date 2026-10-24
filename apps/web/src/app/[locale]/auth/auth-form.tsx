@@ -1,6 +1,6 @@
 'use client';
 import { zhError } from '@rumiai/contracts/copy/zh';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@web/lib/auth-context';
@@ -39,14 +39,21 @@ export function AuthForm({ copy }: { copy: AuthCopy }) {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError('');
     setLoading(true);
-    const result =
-      mode === 'signIn' ? await login(email, password) : await register(name, email, password);
-    setLoading(false);
+    let result;
+    try {
+      result = mode === 'signIn' ? await login(email, password) : await register(name, email, password);
+    } finally {
+      submittingRef.current = false;
+      setLoading(false);
+    }
     if (result.success) router.push(result.onboardingRequired ? onboardingTarget(afterLoginTarget()) : afterLoginTarget());
     else setError(zhError(result.error || '') || copy.genericError);
   }

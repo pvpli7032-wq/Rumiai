@@ -1,7 +1,7 @@
 import type {Metadata} from 'next';
 import Link from 'next/link';
 import {getDictionary, isLocale, type Locale, DEFAULT_LOCALE} from '@web/lib/i18n';
-import {PublicHeader} from '@/components/public-header';
+import {PublicHeader} from '@/components/layout/public-header';
 import {DisputeComposer} from '@/components/disputes/dispute-composer';
 
 export const dynamic = 'force-dynamic';

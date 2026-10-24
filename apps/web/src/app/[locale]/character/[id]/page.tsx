@@ -2,10 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {SITE_URL, alternateLanguages, compactNumber, getDictionary, isLocale, type Locale, DEFAULT_LOCALE} from '@web/lib/i18n';
-import { PublicHeader } from '@/components/public-header';
+import { PublicHeader } from '@/components/layout/public-header';
 import { getSceneConfigByCharacterId } from '@rumiai/contracts/stories/scene-config';
 import { resolveScene } from '@rumiai/contracts/stories/scene-service';
-import { CharacterReplyPlan } from '@/components/character-reply-plan';
+import { CharacterReplyPlan } from '@/components/characters/character-reply-plan';
+import { CharacterVisual, resolveCharacterVisual } from '@/components/characters/character-visual';
 import type {PublicCharacterProjection} from '@rumiai/contracts/public-api';
 import {fetchPublicApi, PublicApiError} from '@/lib/server-api';
 export const dynamic = 'force-dynamic';
@@ -66,30 +67,24 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
   const availableScene = sceneResolution.kind === 'available' ? sceneResolution.scene : undefined;
 
   return (
-    <main className="flex min-h-[100svh] flex-col">
+    <main className="flex min-h-[100svh] flex-col bg-background text-foreground">
       <PublicHeader locale={locale} signInLabel={dict.signIn} />
 
       <article className="mx-auto w-full max-w-2xl px-6 py-10">
         <div className="flex flex-col items-center text-center">
-          {character.avatarUrl ? (
-            <img
-              src={character.avatarUrl}
-              alt={character.name}
-              className="h-40 w-40 rounded-full object-cover shadow-xl"
-            />
-          ) : (
-            <div className="h-40 w-40 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500" />
-          )}
+          {resolveCharacterVisual({ id: character.id, avatarUrl: character.avatarUrl }) ? (
+            <span className="relative h-40 w-40 overflow-hidden rounded-full shadow-xl"><CharacterVisual id={character.id} avatarUrl={character.avatarUrl} alt={character.name} sizes="160px" className="h-full w-full object-cover" /></span>
+          ) : <div className="h-40 w-40 rounded-full bg-linear-to-br/srgb from-purple-500 to-pink-500" />}
 
-          <h1 className="mt-5 text-2xl font-bold text-white">{character.name}</h1>
+          <h1 className="mt-5 text-2xl font-bold text-foreground">{character.name}</h1>
           {character.tagline && (
-            <p className="mt-2 text-zinc-400">&ldquo;{character.tagline}&rdquo;</p>
+            <p className="mt-2 text-muted-foreground">&ldquo;{character.tagline}&rdquo;</p>
           )}
 
           {availableScene && (
-            <section className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 text-left">
-              <p className="text-sm text-zinc-300">本角色有一个可体验的场景</p>
-              <p className="mt-1 font-semibold text-white">{availableScene.title}</p>
+            <section className="mt-5 rounded-xl border border-border bg-white/5 p-4 text-left">
+              <p className="text-sm text-muted-foreground">本角色有一个可体验的场景</p>
+              <p className="mt-1 font-semibold text-foreground">{availableScene.title}</p>
               <Link href={'/chat?character=' + encodeURIComponent(character.id) + '&scene=1'} className="mt-3 inline-flex min-h-10 items-center text-sm font-semibold text-brand-strong underline-offset-4 hover:underline">查看场景</Link>
             </section>
           )}
@@ -99,7 +94,7 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
               {tagLabels.map(label => (
                 <li
                   key={label}
-                  className="rounded-full bg-white/5 px-3 py-1 text-xs text-zinc-300"
+                  className="rounded-full bg-white/5 px-3 py-1 text-xs text-muted-foreground"
                 >
                   {label}
                 </li>
@@ -107,7 +102,7 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
             </ul>
           )}
 
-          <p className="mt-4 text-sm text-zinc-500">
+          <p className="mt-4 text-sm text-muted-foreground">
             {compactNumber(character.chatCount)} {dict.chatsLabel}
             {creatorName ? ` · @${creatorName}` : ''}
           </p>
@@ -125,15 +120,15 @@ export default async function CharacterPage({ params: paramsPromise }: { params:
         </div>
 
         {character.greeting && (
-          <blockquote className="mt-10 rounded-2xl border border-white/10 bg-zinc-900/60 p-5 leading-relaxed text-zinc-300">
+          <blockquote className="mt-10 rounded-2xl border border-border bg-card p-5 leading-relaxed text-muted-foreground">
             {character.greeting}
           </blockquote>
         )}
         {communityPosts.length > 0 && <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-white">社区相关帖子</h2>
-          <ul className="space-y-3">{communityPosts.map(post => <li key={post.id} className="rounded-xl border border-white/10 bg-zinc-900/60 p-4">
-            <p className="whitespace-pre-wrap break-words text-sm text-zinc-200">{post.content}</p>
-            <Link href={`/circles/${post.circle.id}#post-${post.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm text-orange-400">{post.circle.name} · 前往帖子</Link>
+          <h2 className="mb-3 text-lg font-semibold text-foreground">社区相关帖子</h2>
+          <ul className="space-y-3">{communityPosts.map(post => <li key={post.id} className="rounded-xl border border-border bg-card p-4">
+            <p className="whitespace-pre-wrap break-words text-sm text-foreground">{post.content}</p>
+            <Link href={`/circles/${post.circle.id}#post-${post.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm text-primary">{post.circle.name} · 前往帖子</Link>
           </li>)}</ul>
         </section>}
       </article>

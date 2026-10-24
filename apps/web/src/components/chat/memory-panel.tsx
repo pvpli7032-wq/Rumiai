@@ -28,10 +28,10 @@ interface MemoryFact {
   createdAt: string;
 }
 
-export function MemoryPanel({conversationId, token}: {conversationId: string; token: string}) {
+export function MemoryPanel({conversationId, token, defaultOpen = false}: {conversationId: string; token: string; defaultOpen?: boolean}) {
   const [facts, setFacts] = useState<MemoryFact[] | null>(null);
   const [enabled, setEnabled] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -109,28 +109,28 @@ export function MemoryPanel({conversationId, token}: {conversationId: string; to
   const pendingCount = list.filter(fact => fact.status === 'PENDING').length;
 
   return (
-    <section className="mx-auto mt-3 max-w-3xl rounded-2xl border border-white/10 bg-zinc-900/60">
+    <section className="mx-auto mt-3 max-w-3xl rounded-2xl border border-border bg-card">
       <button
         type="button"
         onClick={() => setOpen(prev => !prev)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-zinc-200 hover:text-white"
+        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-foreground hover:text-foreground"
       >
-        <Brain className="h-4 w-4 text-zinc-500" />
+        <Brain className="h-4 w-4 text-muted-foreground" />
         <span className="font-medium">记忆</span>
         {pendingCount > 0 && <Badge variant="warning" size="sm">待确认 {pendingCount}</Badge>}
-        <span className="ml-auto text-[11px] text-zinc-500">{facts === null ? '加载中…' : `${list.length} 条`}</span>
-        <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="ml-auto text-[11px] text-muted-foreground">{facts === null ? '加载中…' : `${list.length} 条`}</span>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="space-y-2 border-t border-white/10 px-4 py-3">
+        <div className="space-y-2 border-t border-border px-4 py-3">
           {facts === null && <Skeleton className="h-12 w-full" />}
           {facts !== null && list.length === 0 && (
-            <p className="text-xs text-zinc-500">还没有记住什么。聊得多一些，角色会记住你在意的事。</p>
+            <p className="text-xs text-muted-foreground">还没有记住什么。聊得多一些，角色会记住你在意的事。</p>
           )}
           {list.map(fact => (
-            <div key={fact.id} className="flex items-start gap-2 rounded-xl border border-white/10 bg-zinc-800/40 px-3 py-2">
+            <div key={fact.id} className="flex items-start gap-2 rounded-xl border border-border bg-secondary/60 px-3 py-2">
               <div className="min-w-0 flex-1">
                 {editingId === fact.id ? (
                   <Input
@@ -146,12 +146,12 @@ export function MemoryPanel({conversationId, token}: {conversationId: string; to
                     }}
                   />
                 ) : (
-                  <p className="text-sm text-zinc-100">
+                  <p className="text-sm text-foreground">
                     {fact.pinned && <Pin className="mr-1 inline h-3 w-3 text-amber-400" aria-hidden />}
                     {fact.text}
                   </p>
                 )}
-                <p className="mt-0.5 text-[10px] text-zinc-500">
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
                   {fact.status === 'PENDING' ? '待确认：确认后才会被角色记住' : '已记住'}
                   {fact.pinned ? ' · 已固定' : ''}
                 </p>
@@ -192,7 +192,7 @@ export function MemoryPanel({conversationId, token}: {conversationId: string; to
               </div>
             </div>
           ))}
-          {notice && <p className="text-[11px] text-zinc-400">{notice}</p>}
+          {notice && <p className="text-[11px] text-muted-foreground">{notice}</p>}
         </div>
       )}
     </section>
