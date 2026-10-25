@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowUpRight, ChevronRight, Scale, Sparkles } from 'lucide-react';
@@ -20,7 +20,8 @@ import { CharacterDetailDialog } from '@/components/characters/character-detail-
 import { DesignIcon } from '@/components/primitives/design-icon';
 import { DEFAULT_LOCALE } from '@web/lib/i18n';
 
-type Mode = '推荐' | '角色' | '世界观' | '创作者' | '榜单';
+import { openDiscoverCharacter, useDiscoverState } from './use-discover-state';
+import { useAppBack } from '@/components/layout/navigation-history';
 
 /**
  * Discover is the club foyer: CMS-controlled club hero first, then real characters and
@@ -29,8 +30,8 @@ type Mode = '推荐' | '角色' | '世界观' | '创作者' | '榜单';
  */
 export function DiscoverPage() {
   const data = useDiscoverData();
-  const [mode, setMode] = useState<Mode>('推荐');
-  const [batch, setBatch] = useState(0);
+  const { mode, setMode, batch, setBatch, detailId, detailFallback } = useDiscoverState();
+  const closeDetail = useAppBack(detailFallback);
   const conversations = useConversationState();
   const recent = conversations.active[0];
   const {
@@ -42,13 +43,13 @@ export function DiscoverPage() {
   const cards = (rows: ApiCharacter[], limit?: number) => rows.slice(0, limit).map((character, index) => (
     <CharacterCard key={character.id} character={{ ...character, tagLabels: labelsFor(character) }} index={index} />
   ));
-  const retry = <button type="button" onClick={() => window.location.reload()} className="web-control rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">重试</button>;
+  const retry = <button type="button" onClick={data.retry} className="web-control rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">重试</button>;
 
   return (
     <main data-discover-page className="min-h-screen bg-background pb-24 text-foreground">
       <div className="mx-auto w-full max-w-[1200px]">
         <header data-discover-header className="px-4 pt-1 md:px-6 md:pt-7">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between md:gap-4">
+          <div className="hidden desktop:flex desktop:items-center desktop:justify-between desktop:gap-4">
             <div className="hidden md:block">
               <p className="hidden text-2xl font-semibold tracking-tight md:block md:text-3xl">发现<span className="ml-1 text-primary">✦</span></p>
               <p className="mt-1 hidden text-sm text-muted-foreground md:block">找到聊得来的世界</p>
@@ -64,7 +65,7 @@ export function DiscoverPage() {
             <button type="button" onClick={() => { setQuery(''); setTypes([]); setRoles([]); setMode('推荐'); }} className={`relative min-h-11 shrink-0 px-1 transition-colors ${mode === '推荐' && !filtering ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>推荐{mode === '推荐' && !filtering && <span aria-hidden className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-[var(--action)]" />}</button>
             {typeFilters.slice(0, 4).map(tag => <button key={tag.key} type="button" onClick={() => { setTypes([tag.key]); setRoles([]); setMode('角色'); }} className={`relative min-h-11 shrink-0 px-1 transition-colors ${types.length === 1 && types[0] === tag.key ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{tag.label}{types.length === 1 && types[0] === tag.key && <span aria-hidden className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-[var(--action)]" />}</button>)}
           </nav>
-          <details className="group mt-1 shrink-0"><summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1 text-sm text-muted-foreground">更多兴趣 <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" /></summary><div className="absolute right-0 top-full z-20 flex min-w-52 flex-wrap gap-2 rounded-2xl border border-border bg-card p-2 shadow-[var(--shadow-modal)]">{(['角色','世界观','创作者','榜单'] as const).map(item => <button key={item} type="button" onClick={() => setMode(item)} className="min-h-11 rounded-xl px-3 text-sm hover:bg-muted">{item}</button>)}</div></details>
+          <details className="group mt-1 shrink-0"><summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1 text-sm text-muted-foreground">更多兴趣 <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" /></summary><div className="absolute right-0 top-full z-20 flex min-w-52 flex-wrap gap-2 rounded-2xl border border-border bg-card p-2 shadow-[var(--shadow-modal)]">{(['角色','世界观','创作者','榜单'] as const).map(item => <button key={item} type="button" onClick={event => { setMode(item); event.currentTarget.closest('details')?.removeAttribute('open'); }} className="min-h-11 rounded-xl px-3 text-sm hover:bg-muted">{item}</button>)}</div></details>
           </div>
         </header>
 
@@ -119,6 +120,7 @@ export function DiscoverPage() {
           </div>
         )}
       </div>
+      {detailId && <CharacterDetailDialog key={detailId} characterId={detailId} onClose={closeDetail} />}
     </main>
   );
 }
@@ -126,24 +128,24 @@ export function DiscoverPage() {
 function ClubHero({ banners, characters }: { banners: { id: string; title: string; description: string; href: string; imageUrl?: string | null; gradientFrom: string; gradientTo: string }[]; characters: ApiCharacter[] }) {
   const hero = banners[0];
   return <section data-discover-hero className="grid h-[340px] grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-3 md:h-[420px]">
-    {hero ? <Link data-discover-hero-story href={hero.href} className="flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-border bg-card">
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-muted" style={{backgroundImage: hero.imageUrl ? 'url('+JSON.stringify(hero.imageUrl)+')' : undefined, backgroundSize:'cover',backgroundPosition:'center'}}>{!hero.imageUrl && <Image src="/illustrations/env-arched-courtyard-envelope-v1.png" alt="" fill sizes="(max-width: 640px) 60vw, 50vw" className="object-cover" />}<div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent"/></div>
-      <div className="space-y-1.5 p-3 md:p-4"><h1 className="flex items-center gap-2 text-base font-semibold leading-snug md:text-xl"><DesignIcon name="ph:book-open-text" className="h-5 w-5 shrink-0 text-primary"/><span>{hero.title}</span></h1><p className="line-clamp-2 text-xs leading-5 text-muted-foreground">{hero.description}</p><span className="inline-flex min-h-8 items-center gap-1 text-sm font-medium text-[var(--color-action-text)]">进入看看 <ArrowUpRight className="h-4 w-4"/></span></div>
+    {hero ? <Link data-discover-hero-story href={hero.href} className="relative flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-border bg-muted text-white">
+      {hero.imageUrl ? <img src={hero.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <Image src="/illustrations/env-arched-courtyard-envelope-v1.png" alt="" fill sizes="(max-width: 640px) 60vw, 50vw" className="object-cover" />}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/15 to-transparent" />
+      <div className="relative space-y-3 p-4 md:p-6"><span className="inline-flex items-center gap-1.5 text-xs font-medium"><DesignIcon name="ph:book-open-text" className="h-4 w-4"/>精选内容</span><h2 className="text-[22px] font-semibold leading-tight md:text-3xl">{hero.title}</h2><p className="line-clamp-3 text-sm leading-6 text-white/95">{hero.description}</p><span className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-orange-200">进入看看 <ArrowUpRight className="h-4 w-4"/></span></div>
     </Link> : <State kind="empty" title="精选内容暂未开放"/>}
     <div data-discover-hero-characters className="grid min-h-0 grid-rows-2 gap-3">{characters.slice(0,2).map(character => <CompactCharacter key={character.id} character={character}/>)}{characters.length === 0 && <State kind="empty" title="暂无推荐角色"/>}</div>
   </section>;
 }
 
 function CompactCharacter({ character }: { character: ApiCharacter }) {
-  const [open,setOpen] = useState(false);
-  return <><button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="group flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-border bg-card text-left active:scale-[.98]">
+  return <><button type="button" onClick={() => openDiscoverCharacter(character.id)} aria-haspopup="dialog" className="group flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-border bg-card text-left active:scale-[.98]">
     <span className="relative block min-h-0 w-full flex-1 overflow-hidden bg-muted">
       <CharacterVisual id={character.id} avatarUrl={character.avatarUrl} alt={character.name} sizes="40vw" className="absolute inset-0 h-full w-full object-cover"/>
       <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"/>
       <span className="absolute inset-x-0 bottom-0 p-2.5 text-white"><span className="block truncate text-sm font-semibold">{character.name}</span><span className="mt-1 block truncate text-xs leading-4 text-white/90">AI角色 · {character.tagline || character.personality}</span></span>
       <span className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-primary"><DesignIcon name="ph:chat-circle-text-fill" className="h-4 w-4"/></span>
     </span><span className="block w-full truncate bg-muted px-2.5 py-1.5 text-xs leading-4 text-muted-foreground">{character.greeting || character.tagline || character.personality}</span>
-  </button>{open && <CharacterDetailDialog characterId={character.id} onClose={() => setOpen(false)}/>}</>;
+  </button></>;
 }
 
 function CharacterCatalogue(props: { types: string[]; setTypes: (values: string[]) => void; roles: string[]; setRoles: (values: string[]) => void; typeFilters: { key: string; label: string }[]; roleFilters: { key: string; label: string }[]; toggle: (list: string[], set: (v: string[]) => void, value: string) => void; loading: boolean; loadError: boolean; filtered: ApiCharacter[]; cards: (rows: ApiCharacter[], limit?: number) => ReactNode[]; retry: ReactNode; filtering: boolean }) {

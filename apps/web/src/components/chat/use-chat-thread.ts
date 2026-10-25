@@ -103,15 +103,17 @@ export function useChatThread(opts: {
     if (authLoading) return;
     // Carry where they were headed, so signing in lands on this chat and not the
     // marketing page.
-    if (!token) { requireLogin(); return; }
+    if (!token) { setLoading(false); requireLogin(); return; }
 
     const headers = { Authorization: `Bearer ${token}` };
     const loadJSON = async (response: Response) => { const data = await response.json(); if (!response.ok) throw Error(zhError(data.error || '')); return data; };
-    setChatError(null);
+    let active = true;
+    setLoading(true); setChatError(null); setCharacter(null); setConversationId(null); setMessages([]);
     Promise.all([
       fetch(`/api/characters/${charId}`, { headers }).then(loadJSON),
       (requestedConversation ? fetch('/api/conversations/'+encodeURIComponent(requestedConversation),{headers}) : fetch('/api/conversations', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ characterId: charId, newChat: wantsNewChat }) })).then(loadJSON),
     ]).then(([charData, convData]) => {
+      if (!active) return;
       if (charData.character) setCharacter(charData.character);
       if (convData.conversation) {
         setConversationId(convData.conversation.id);
@@ -120,12 +122,13 @@ export function useChatThread(opts: {
         return fetchLatestMessagePage(token, convData.conversation.id);
       }
     }).then(page => {
-      if (page) applyLatestPage(page);
-    }).catch(error => setChatError(error.message || '无法加载对话，请重试。'))
-      .finally(() => setLoading(false));
+      if (active && page) applyLatestPage(page);
+    }).catch(error => { if (active) setChatError(error.message || '无法加载对话，请重试。'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
     // requireLogin 与 applyLatestPage 每次渲染都是新引用，依赖只认输入。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [charId, token, authLoading, requestedConversation]);
+  }, [charId, token, authLoading, requestedConversation, wantsNewChat]);
 
   return {
     character, messages, setMessages, conversationId, likedIds, hasEarlier, loadingEarlier,

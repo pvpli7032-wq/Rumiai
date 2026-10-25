@@ -9,6 +9,7 @@ import {useSiteContent} from '@web/lib/use-site-content';
 import {useUiConfig} from '@web/lib/settings/use-ui-config';
 import {useAuth} from '@web/lib/auth-context';
 import {api} from '@web/lib/api-client';
+import {useDiscoverState} from './use-discover-state';
 import {API} from '@rumiai/contracts/api-paths';
 
 export interface ApiCharacter extends CharacterCardData {
@@ -28,14 +29,13 @@ export function useDiscoverData() {
   const config = useUiConfig();
   const mirrorEnabled = config['mirror.enabled'] === true;
   const disputeEnabled = config['dispute.enabled'] === true;
-  const [query, setQuery] = useState('');
+  const {query, setQuery, types, setTypes, roles, setRoles} = useDiscoverState();
+  const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [popular, setPopular] = useState<ApiCharacter[]>([]);
   const [fresh, setFresh] = useState<ApiCharacter[]>([]);
   const [following, setFollowing] = useState<ApiCharacter[]>([]);
-  const [types, setTypes] = useState<string[]>([]);
-  const [roles, setRoles] = useState<string[]>([]);
   const [stories, setStories] = useState<StoryCatalogEntry[]>([]);
 
   // 三个分区各自取数：热门按对话数、新角色按创建时间、关注的创作者按关注关系。
@@ -60,7 +60,7 @@ export function useDiscoverData() {
       }
     })();
     return () => controller.abort();
-  }, []);
+  }, [reload]);
 
   // 已发布的故事模板。公开目录，匿名也取；失败就不显示该分区，不影响发现页其它内容。
   useEffect(() => {
@@ -169,7 +169,7 @@ export function useDiscoverData() {
 
   return {
     banners, sections, token, mirrorEnabled, disputeEnabled, stories, following, popular,
-    query, setQuery, loading, loadError, types, setTypes, roles, setRoles,
+    query, setQuery, loading, loadError, types, setTypes, roles, setRoles, retry: () => setReload(value => value + 1),
     typeFilters, roleFilters, labelsFor, recommended, hot, newest, filtering,
     sceneCharacters, filtered, railItems, toggle,
   };

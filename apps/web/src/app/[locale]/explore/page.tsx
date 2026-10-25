@@ -1,108 +1,20 @@
-import type { Metadata } from 'next';
-import Link from 'next/link';
-import {SITE_URL, alternateLanguages, compactNumber, getDictionary, isLocale, type Locale, DEFAULT_LOCALE} from '@web/lib/i18n';
-import { PublicHeader } from '@/components/layout/public-header';
-import type {ExploreProjection} from '@rumiai/contracts/public-api';
-import {fetchPublicApi} from '@/lib/server-api';
-export const dynamic = 'force-dynamic';
+import { permanentRedirect } from 'next/navigation';
 
-export const revalidate = 300;
+type Query = Record<string, string | string[] | undefined>;
 
-export async function generateMetadata({ params: paramsPromise }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
-  const params = await paramsPromise;
-
-  if (!isLocale(params.locale)) return {};
-  const dict = getDictionary(params.locale);
-  return {
-    title: `${dict.charactersSection} | 星伴`,
-    description: dict.exploreSubhead,
-    alternates: {
-      canonical: `${SITE_URL}/${params.locale}/explore`,
-      languages: alternateLanguages('/explore'),
-    },
-  };
-}
-
-export default async function ExplorePage({ params: paramsPromise }: { params: Promise<{ locale: string }> }) {
-  const params = await paramsPromise;
-
-  const locale = (isLocale(params.locale) ? params.locale : DEFAULT_LOCALE) as Locale;
-  const dict = getDictionary(locale);
-
-  const {characters, total, labelByKey} = await fetchPublicApi<ExploreProjection>('/api/explore');
-
-  return (
-    <main className="flex min-h-[100svh] flex-col bg-background text-foreground">
-      <PublicHeader locale={locale} signInLabel={dict.signIn} />
-
-      <div className="px-4 pb-16 desktop:px-8">
-        <section className="py-10 text-center">
-          <h1 className="mx-auto max-w-2xl text-2xl font-bold text-foreground desktop:text-4xl">
-            {dict.exploreHeadline(compactNumber(total))}
-          </h1>
-          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">{dict.exploreSubhead}</p>
-          <Link
-            href={`/${locale}/auth`}
-            className="mt-6 inline-block rounded-full bg-linear-to-r/srgb from-purple-600 to-pink-600 px-8 py-3 font-semibold text-white shadow-lg transition-transform hover:scale-105"
-          >
-            {dict.chatNow}
-          </Link>
-        </section>
-
-        <h2 className="mb-4 text-lg font-semibold text-foreground">{dict.charactersSection}</h2>
-
-        <ul className="grid grid-cols-2 gap-4 tablet:grid-cols-3 desktop:grid-cols-5">
-          {characters.map(character => {
-            const tagLabels = (character.tags ?? '')
-              .split(',')
-              .map(key => labelByKey[key.trim()] ?? key.trim())
-              .filter(Boolean)
-              .slice(-2);
-
-            return (
-              <li key={character.id}>
-                <Link
-                  href={`/${locale}/character/${character.id}`}
-                  className="group block overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/35"
-                >
-                  <div className="aspect-square w-full overflow-hidden bg-muted">
-                    {character.avatarUrl ? (
-                      <img
-                        src={character.avatarUrl}
-                        alt={character.name}
-                        loading="lazy"
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      />
-                    ) : null}
-                  </div>
-
-                  <div className="p-3">
-                    <p className="truncate text-sm font-semibold text-foreground">{character.name}</p>
-
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {tagLabels.map(label => (
-                        <span
-                          key={label}
-                          className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-                        >
-                          {label}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="mt-2 flex gap-3 text-[11px] text-muted-foreground">
-                      <span title={dict.conversationsLabel}>
-                        {compactNumber(character.conversationCount)}
-                      </span>
-                      <span title={dict.chatsLabel}>{compactNumber(character.chatCount)}</span>
-                    </div>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </main>
-  );
+/** Old catalogue links retain their filters in the shared Discover directory. */
+export default async function ExplorePage({ searchParams }: { searchParams: Promise<Query> }) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams)) {
+    for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
+  }
+  query.set('view', 'characters');
+  if (!query.has('q') && query.has('search')) query.set('q', query.get('search')!);
+  const types = [...new Set([...query.getAll('type'), ...query.getAll('tag')]
+    .flatMap(value => value.split(',')).map(value => value.trim()).filter(Boolean))];
+  if (types.length) query.set('type', types.join(','));
+  else query.delete('type');
+  query.delete('search');
+  query.delete('tag');
+  permanentRedirect(`/discover?${query}`);
 }

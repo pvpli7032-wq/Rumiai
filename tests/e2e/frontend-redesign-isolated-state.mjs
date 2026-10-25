@@ -45,7 +45,7 @@ writeFileSync(path.join(artifacts, 'state-harness-start.json'), JSON.stringify({
 
 const children = [];
 const proxyServers = [];
-function startFixtureProxy() { const server=createServer((req,res)=>{ const target=(req.url||'').startsWith('/api/') ? apiOrigin : 'http://127.0.0.1:'+candidateWebPort; const upstream=proxyRequest(target+(req.url||'/'),{method:req.method,headers:{...req.headers,host:new URL(target).host}},reply=>{res.writeHead(reply.statusCode||502,reply.headers);reply.pipe(res);}); upstream.on('error',()=>{res.writeHead(502);res.end('fixture proxy upstream error');}); req.pipe(upstream); }); server.listen(webPort,'127.0.0.1'); proxyServers.push(server); }
+function startFixtureProxy() { const server=createServer((req,res)=>{ const target=(req.url||'').startsWith('/api/') ? apiOrigin : 'http://127.0.0.1:'+candidateWebPort; const upstream=proxyRequest(target+(req.url||'/'),{method:req.method,headers:{...req.headers,host:new URL(target).host,'x-forwarded-host':req.headers.host,'x-forwarded-proto':'http'}},reply=>{res.writeHead(reply.statusCode||502,reply.headers);reply.pipe(res);}); upstream.on('error',()=>{res.writeHead(502);res.end('fixture proxy upstream error');}); req.pipe(upstream); }); server.listen(webPort,'127.0.0.1'); proxyServers.push(server); }
 let fixture;
 let browser;
 let context;
@@ -109,10 +109,10 @@ async function runBrowserMatrix(manifestPath) {
   await new Promise((resolve, reject) => child.once('close', code => { writeFileSync(reportPath, output); code === 0 ? resolve() : reject(new Error(output)); }));
 }
 
-async function runDomain(name, manifestPath) {
+async function runDomain(name, manifestPath, scriptName = 'frontend-redesign-' + name + '.mjs') {
   const outputDir = path.join(artifacts, 'domains', name);
   mkdirSync(outputDir, {recursive: true});
-  const child = spawn(process.execPath, ['--import', 'tsx', path.join(root, 'tests', 'e2e', 'frontend-redesign-' + name + '.mjs')], {cwd: root, env: {...process.env, FRONTEND_REDESIGN_FIXTURE_MANIFEST: manifestPath, FRONTEND_REDESIGN_BASE_URL: webOrigin, FRONTEND_REDESIGN_OUTPUT_DIR: outputDir, PLAYWRIGHT_CHROMIUM_EXECUTABLE: chromiumExecutablePath}, stdio: ['ignore', 'pipe', 'pipe']});
+  const child = spawn(process.execPath, ['--import', 'tsx', path.join(root, 'tests', 'e2e', scriptName)], {cwd: root, env: {...process.env, FRONTEND_REDESIGN_FIXTURE_MANIFEST: manifestPath, FRONTEND_REDESIGN_BASE_URL: webOrigin, FRONTEND_REDESIGN_OUTPUT_DIR: outputDir, PLAYWRIGHT_CHROMIUM_EXECUTABLE: chromiumExecutablePath}, stdio: ['ignore', 'pipe', 'pipe']});
   let output = ''; child.stdout.on('data', value => { output += value; }); child.stderr.on('data', value => { output += value; });
   const code = await new Promise(resolve => child.once('close', resolve));
   writeFileSync(path.join(outputDir, 'runner.log'), output);
@@ -300,6 +300,7 @@ try {
   const evidence = {state: {checkinPosts: checkinRequests.length, missionPosts: missionRequests.length, initialCoins, afterCheckinCoins, afterMissionCoins}, matrix: null, domains: []};
   if (process.env.FRONTEND_REDESIGN_SKIP_MATRIX !== '1') { try { await runBrowserMatrix(manifestPath); evidence.matrix = 'PASS'; } catch (error) { evidence.matrix = {status: 'FAIL', error: error instanceof Error ? error.message : String(error)}; } }
   for (const domain of ['discovery', 'chat', 'commerce', 'community', 'account']) evidence.domains.push(await runDomain(domain, manifestPath));
+  evidence.domains.push(await runDomain('navigation', manifestPath, 'mobile-navigation.mjs'));
   writeFileSync(path.join(artifacts, 'aggregate.json'), JSON.stringify(evidence, null, 2));
   assert.ok(evidence.matrix !== 'FAIL' && evidence.matrix?.status !== 'FAIL' && !evidence.domains.some(item => item.status === 'FAIL'), 'one or more matrix/domain checks failed');
   console.log(JSON.stringify({

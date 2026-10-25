@@ -1,9 +1,12 @@
 'use client';
+import {useSearchParams} from 'next/navigation';
 import {useEffect, useRef, useState} from 'react';
 import Link from 'next/link';
+import {authPageHref} from '@web/lib/next-path';
 import {API} from '@rumiai/contracts/api-paths';
 
 export default function VerifyEmailPage() {
+  const authSearch=useSearchParams().toString();
   const [message, setMessage] = useState('正在验证邮箱…');
   const [ok, setOk] = useState<boolean | null>(null);
   const requested = useRef(false);
@@ -21,7 +24,7 @@ export default function VerifyEmailPage() {
     <section className="w-full rounded-2xl border border-border bg-card p-6 text-center shadow-sm sm:p-8">
       <h1 className="text-2xl font-bold">验证邮箱</h1>
       <p role={ok === false ? 'alert' : 'status'} className="mt-5 rounded-lg bg-muted px-4 py-3 text-sm leading-6">{message}</p>
-      <Link href={ok ? '/login' : '/'} className="mt-5 inline-block text-sm text-brand hover:underline">{ok ? '前往登录' : '返回首页'}</Link>
+      <Link replace href={ok ? authPageHref('/login',authSearch) : '/discover'} className="mt-5 inline-block text-sm text-brand hover:underline">{ok ? '前往登录' : '返回首页'}</Link>
     </section>
   </main>;
 }

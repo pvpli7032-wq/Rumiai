@@ -27,7 +27,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
       <section className="border-b border-border bg-secondary/50">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-5 md:px-8">
           <div><p className="text-sm font-semibold text-brand">创作工作区</p><h1 className="mt-1 text-2xl font-semibold">{editId ? '继续完善你的角色' : '把你的想象，写成一个角色。'}</h1><p className="mt-1 text-sm text-muted-foreground">草稿会保存在当前设备；公开作品将按服务端规则进入审核。</p></div>
-          <Link href="/creator" className="inline-flex min-h-11 items-center rounded-xl border border-input bg-card px-4 text-sm font-semibold hover:bg-accent">返回创作首页</Link>
+          <Link href="/my-characters" className="inline-flex min-h-11 items-center rounded-xl border border-input bg-card px-4 text-sm font-semibold hover:bg-accent">管理我的作品</Link>
         </div>
       </section>
       <CreatorToolbar

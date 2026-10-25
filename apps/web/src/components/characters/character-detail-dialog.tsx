@@ -39,19 +39,19 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
     return true;
   }
 
-  const { character, quests, giftOptions, pendingLike, pendingMark, claiming, sendingGift, notice, error, toggleLike, toggleBookmark, claimQuest, sendGift } = useCharacterDetail(characterId, requireLogin);
+  const { retry, character, quests, giftOptions, pendingLike, pendingMark, claiming, sendingGift, notice, error, toggleLike, toggleBookmark, claimQuest, sendGift } = useCharacterDetail(characterId, requireLogin);
 
 
   function startChat(newChat = false) {
-    if (requireLogin()) return;
     const scene = availableScene ? '&scene=1' : '';
-    router.push(`/chat?character=${characterId}${scene}${newChat ? '&new=1' : ''}`);
+    const target = `/chat?character=${encodeURIComponent(characterId)}${scene}${newChat ? '&new=1' : ''}`;
+    router.push(token ? target : loginWithNext(target));
   }
 
   if (error) {
     return (
       <Overlay onClose={onClose}>
-        <div className="p-6"><h2 className="text-lg font-semibold">角色暂时无法查看</h2><p role="alert" className="mt-2 text-sm text-muted-foreground">{error}</p><div className="mt-4 flex gap-3"><button type="button" onClick={() => window.location.reload()} className="min-h-11 rounded-full bg-primary px-4 text-sm text-primary-foreground">重新加载</button><button type="button" onClick={onClose} className="min-h-11 rounded-full border border-border px-4 text-sm">关闭</button></div></div>
+        <div className="p-6"><h2 className="text-lg font-semibold">角色暂时无法查看</h2><p role="alert" className="mt-2 text-sm text-muted-foreground">{error}</p><div className="mt-4 flex gap-3"><button type="button" onClick={retry} className="min-h-11 rounded-full bg-primary px-4 text-sm text-primary-foreground">重新加载</button><button type="button" onClick={onClose} className="min-h-11 rounded-full border border-border px-4 text-sm">关闭</button></div></div>
       </Overlay>
     );
   }
@@ -106,14 +106,14 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             )}
 
             {character.isAdult && (
-              <span className="absolute left-3 top-3 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-bold text-black">
+              <span className="absolute right-3 top-3 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-bold text-black">
                 18+
               </span>
             )}
             <button
               onClick={onClose}
-              aria-label={"关闭"}
-              className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-background/95 text-foreground hover:bg-background"
+              aria-label={"返回角色列表"}
+              className="absolute left-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-background/95 text-foreground hover:bg-background"
             >
               <DesignIcon name="ph:arrow-left" size={20}/>
             </button>

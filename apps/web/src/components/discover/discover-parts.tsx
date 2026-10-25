@@ -23,7 +23,7 @@ export function FilterRow({
             <button
               key={o.key}
               onClick={() => onToggle(o.key)}
-              className={`flex h-8 shrink-0 items-center rounded-full px-3 text-sm font-semibold transition-all ${
+              className={`flex min-h-11 shrink-0 items-center rounded-full px-3 text-sm font-semibold transition-all ${
                 active ? 'bg-brand-gradient text-white' : 'border border-border text-foreground dark:border-border'
               }`}
             >

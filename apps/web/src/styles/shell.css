@@ -17,7 +17,9 @@ body {
 }
 
 .app-frame {
-  min-height: var(--app-height);
+  height: var(--app-height);
+  min-height: 0;
+  overflow: hidden;
   padding-top: env(safe-area-inset-top);
 }
 

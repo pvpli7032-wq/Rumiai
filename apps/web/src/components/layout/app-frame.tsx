@@ -12,7 +12,14 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   const params = useSearchParams();
   const scroll = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
+  const scrollParams = new URLSearchParams(params.toString());
+  if (pathname === '/discover') {
+    scrollParams.delete('character');
+    scrollParams.delete('batch');
+  }
+  const routeKey = pathname + (scrollParams.toString() ? `?${scrollParams}` : '');
   const chat = pathname === '/chat';
+  const editorDetail = pathname === '/creator' && Boolean(params.get('edit') || params.get('new') === '1');
   const chatDetail = chat && ['character', 'conversation', 'storyRun'].some(key => Boolean(params.get(key)));
 
   useEffect(() => {
@@ -35,7 +42,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     const el = scroll.current;
     const inner = content.current;
     if (!el || !inner) return;
-    const key = `xingban-scroll:${pathname}`;
+    const key = `xingban-scroll:${routeKey}`;
     const target = Math.max(0, Number(sessionStorage.getItem(key) || 0));
     let restoring = target > 0;
     el.scrollTop = 0;
@@ -58,6 +65,8 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     el.addEventListener('pointerdown', takeControl);
     el.addEventListener('keydown', takeControl);
     return () => {
+      // Route content has already changed here; its shorter height can clamp scrollTop.
+      // Keep the position saved by the previous page scroll events.
       cancelAnimationFrame(frame);
       observer.disconnect();
       el.removeEventListener('scroll', save);
@@ -66,7 +75,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       el.removeEventListener('pointerdown', takeControl);
       el.removeEventListener('keydown', takeControl);
     };
-  }, [pathname, chatDetail]);
+  }, [routeKey, chatDetail]);
 
   return (
     <ChatConversationProvider>
@@ -74,7 +83,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div ref={scroll} className={`app-content min-h-0 min-w-0 flex-1 bg-background ${chatDetail ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`}>
         <div ref={content} className={chatDetail ? 'flex min-h-0 flex-1 flex-col' : 'min-h-full'}>
-          {!chatDetail && <Topbar />}<MaintenanceNotice/>{chatDetail?<div className="min-h-0 flex-1">{children}</div>:children}
+          {!chatDetail && !editorDetail && <Topbar />}<MaintenanceNotice/>{chatDetail?<div className="min-h-0 flex-1">{children}</div>:children}
         </div>
       </div>
         {!chatDetail && <MobileNav />}

@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useRef, useState} from 'react';
 import Link from 'next/link';
+import {BackButton} from '@/components/layout/back-button';
 import {ArrowLeft, Coins, Loader2} from 'lucide-react';
 import {useAuth} from '@web/lib/auth-context';
 import {loginWithNext} from '@web/lib/next-path';
@@ -76,9 +77,9 @@ export default function CoinLedgerPage() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="sticky top-16 z-20 border-b bg-background/95 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-2xl items-center gap-3 px-4">
-          <Link href="/shop" aria-label="返回商城" className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-accent">
+          <BackButton fallback="/shop" ariaLabel="返回上一页" className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-accent">
             <ArrowLeft className="h-4 w-4" />
-          </Link>
+          </BackButton>
           <h1 className="flex-1 text-base font-bold">金币流水</h1>
           <Link href="/shop" className="text-xs font-semibold text-muted-foreground hover:text-foreground">去充值</Link>
         </div>

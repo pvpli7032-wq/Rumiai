@@ -1,6 +1,7 @@
 'use client';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@web/lib/auth-context';
+import { NavigationHistoryBoundary } from '@/components/layout/navigation-history';
 import { PwaController } from '@/components/layout/pwa-controller';
 
 /**
@@ -11,6 +12,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" storageKey="theme" defaultTheme="light" enableSystem>
       <AuthProvider>
+        <NavigationHistoryBoundary />
         {children}
         <PwaController />
       </AuthProvider>

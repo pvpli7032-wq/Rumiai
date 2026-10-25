@@ -55,6 +55,7 @@ export function useCharacterDetail(characterId: string, requireLogin: () => bool
   const [sendingGift,setSendingGift]=useState<string|null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [reload, setReload] = useState(0);
   // State updates are asynchronous; refs close the double-tap window before React rerenders.
   const likeBusyRef = useRef(false);
   const bookmarkBusyRef = useRef(false);
@@ -68,6 +69,7 @@ export function useCharacterDetail(characterId: string, requireLogin: () => bool
 
   useEffect(() => {
     let alive = true;
+    setError('');
     // Both requests carry the token when there is one: the detail response includes
     // whether *this* viewer liked or bookmarked it, and the quest list includes their
     // per-quest progress. Without the header both come back in the anonymous shape.
@@ -87,7 +89,7 @@ export function useCharacterDetail(characterId: string, requireLogin: () => bool
     return () => {
       alive = false;
     };
-  }, [characterId, authHeaders]);
+  }, [characterId, authHeaders, reload]);
 
   async function toggleLike() {
     if (requireLogin() || !character || pendingLike || likeBusyRef.current) return;
@@ -148,5 +150,5 @@ export function useCharacterDetail(characterId: string, requireLogin: () => bool
     finally { giftBusyRef.current = false; setSendingGift(null); }
   }
 
-  return { character, quests, giftOptions, pendingLike, pendingMark, claiming, sendingGift, notice, error, toggleLike, toggleBookmark, claimQuest, sendGift };
+  return { retry: () => setReload(value => value + 1), character, quests, giftOptions, pendingLike, pendingMark, claiming, sendingGift, notice, error, toggleLike, toggleBookmark, claimQuest, sendGift };
 }

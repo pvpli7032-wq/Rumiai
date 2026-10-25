@@ -1,5 +1,7 @@
 'use client';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { openDiscoverCharacter } from '@/components/discover/use-discover-state';
 import { Tag } from 'lucide-react';
 import { CharacterDetailDialog } from './character-detail-dialog';
 import { CharacterVisual, resolveCharacterVisual } from './character-visual';
@@ -63,14 +65,15 @@ export function CharacterCard({
   // Tapping a card opens the detail view, the way the live site does; it used to link
   // straight into /chat, which skipped the gallery, quests, like and report entirely.
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <>
     <button
       type="button"
-      onClick={() => setOpen(true)}
+      onClick={() => pathname === '/discover' ? openDiscoverCharacter(character.id) : setOpen(true)}
       aria-haspopup="dialog"
-      className="group flex w-full cursor-pointer flex-col overflow-hidden rounded-[20px] border border-border bg-card text-left transition-all duration-150 ease-out active:scale-[0.98]"
+      className="group flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-[20px] border border-border bg-card text-left transition-all duration-150 ease-out active:scale-[0.98]"
     >
       <div className="relative aspect-[160/213] w-full overflow-hidden rounded-t-[20px] bg-muted">
         {resolveCharacterVisual({ id: character.id, avatarUrl: character.avatarUrl }) ? (
@@ -111,11 +114,11 @@ export function CharacterCard({
       </div>
 
       <p className="mx-2.5 mt-2.5 line-clamp-1 text-sm font-bold md:text-base">{character.name}</p>
-      <p className="mx-2.5 mb-2.5 mt-0.5 line-clamp-2 text-xs text-muted-foreground md:text-sm">
+      <p className="mx-2.5 mb-2.5 mt-0.5 min-h-8 line-clamp-2 text-xs text-muted-foreground md:text-sm">
         {character.tagline || character.personality}
       </p>
       {(character.creator || (character.tagLabels?.length ?? 0) > 0) && (
-        <div className="mx-2.5 mb-2.5 mt-1.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+        <div className="mx-2.5 mb-2.5 mt-auto flex min-h-4 min-w-0 max-w-[calc(100%_-_20px)] items-center overflow-hidden gap-1.5 text-[11px] text-muted-foreground">
           {character.creator && (
             <span className="shrink-0 truncate max-w-[45%]" title={`创作者 @${character.creator.username}`}>
               @{character.creator.displayName || character.creator.username}

@@ -25,6 +25,7 @@ import { ChatPanelSheet } from './chat-panel-sheet';
 import { DesignIcon } from '@/components/primitives/design-icon';
 import Link from 'next/link';
 import { ChatHeader } from './chat-header';
+import { BackButton } from '@/components/layout/back-button';
 import { ChatMessageList } from './chat-message-list';
 import { ChatComposer } from './chat-composer';
 import { ChatShareAndDispute } from './chat-share-dispute';
@@ -100,10 +101,12 @@ function ChatContent() {
   }, [activeScene, conversationId, token]);
 
   if (!charId && !requestedConversation) return <ChatConversationList variant="inbox" />;
-  if (!charId && chatError) return <div className="p-6"><p role="alert">{chatError}</p><Link href="/chat" className="mt-3 inline-flex min-h-11 items-center text-brand">返回聊天列表</Link></div>;
+  if (chatError && !conversationId) return <div className="p-6"><BackButton fallback="/chat" /><p role="alert" className="mt-4">{chatError}</p><Link href="/chat" className="mt-3 inline-flex min-h-11 items-center text-brand">返回聊天列表</Link></div>;
+  if (!authLoading && !token) return <div className="p-6"><BackButton fallback="/chat" /><p className="mt-4 text-sm text-muted-foreground">登录后继续这段对话。</p><Link href={loginWithNext()} className="mt-3 inline-flex min-h-11 items-center text-brand">前往登录</Link></div>;
   if (authLoading || loading) return (
-    <div className="flex h-full min-h-0 items-center justify-center bg-background">
-      <Loader2 className="w-8 h-8 text-brand animate-spin" />
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="px-3 py-2"><BackButton fallback="/chat" /></div>
+      <div role="status" aria-label="正在加载对话" className="flex flex-1 items-center justify-center"><Loader2 className="w-8 h-8 text-brand animate-spin" /></div>
     </div>
   );
 

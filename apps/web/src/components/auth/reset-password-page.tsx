@@ -1,11 +1,14 @@
 'use client';
+import {useSearchParams} from 'next/navigation';
 import {useEffect, useState} from 'react';
 import Link from 'next/link';
+import {authPageHref} from '@web/lib/next-path';
 import {API} from '@rumiai/contracts/api-paths';
 import {Button} from '@rumiai/ui/button';
 import {Input} from '@rumiai/ui/input';
 
 export default function ResetPasswordPage() {
+  const authSearch=useSearchParams().toString();
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -36,7 +39,7 @@ export default function ResetPasswordPage() {
         <Input id="confirm-password" type="password" autoComplete="new-password" value={confirm} onChange={event => setConfirm(event.target.value)} required />
         <Button type="submit" fullWidth loading={busy} disabled={!token}>{busy ? '正在重置…' : '重置密码'}</Button>
       </form>}
-      <Link href="/login" className="mt-5 block text-center text-sm text-brand hover:underline">返回登录</Link>
+      <Link replace href={authPageHref('/login',authSearch)} className="mt-5 block text-center text-sm text-brand hover:underline">返回登录</Link>
     </section>
   </main>;
 }

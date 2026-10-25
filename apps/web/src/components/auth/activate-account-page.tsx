@@ -1,11 +1,14 @@
 'use client';
+import {useSearchParams} from 'next/navigation';
 import {useEffect, useRef, useState} from 'react';
 import Link from 'next/link';
+import {authPageHref} from '@web/lib/next-path';
 import {API} from '@rumiai/contracts/api-paths';
 import {Button} from '@rumiai/ui/button';
 import {Input} from '@rumiai/ui/input';
 
 export default function ActivateAccountPage() {
+  const authSearch=useSearchParams().toString();
   const [token, setToken] = useState(''), [password, setPassword] = useState(''), [confirm, setConfirm] = useState(''), [message, setMessage] = useState('');
   const [success, setSuccess] = useState(false), [busy, setBusy] = useState(false); const busyRef = useRef(false);
   useEffect(() => setToken(new URLSearchParams(window.location.search).get('token') || ''), []);
@@ -19,6 +22,6 @@ export default function ActivateAccountPage() {
   return <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-12"><section className="w-full rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
     <h1 className="text-2xl font-bold">激活账号</h1>{message && <p role={success ? 'status' : 'alert'} className="mt-5 rounded-lg bg-muted px-4 py-3 text-sm">{message}</p>}
     {!success && <form className="mt-5 space-y-4" onSubmit={submit}>{!token && <p role="alert" className="text-sm text-destructive">激活链接缺少令牌。</p>}<label className="block text-sm font-medium" htmlFor="activation-password">设置密码</label><Input id="activation-password" aria-label="设置密码" type="password" autoComplete="new-password" required value={password} onChange={event => setPassword(event.target.value)} /><label className="block text-sm font-medium" htmlFor="activation-confirm">确认密码</label><Input id="activation-confirm" aria-label="确认密码" type="password" autoComplete="new-password" required value={confirm} onChange={event => setConfirm(event.target.value)} /><Button type="submit" fullWidth loading={busy} disabled={!token}>{busy ? '激活中…' : '激活账号'}</Button></form>}
-    <Link href="/login" className="mt-5 block text-center text-sm text-brand hover:underline">返回登录</Link>
+    <Link replace href={authPageHref('/login',authSearch)} className="mt-5 block text-center text-sm text-brand hover:underline">返回登录</Link>
   </section></main>;
 }

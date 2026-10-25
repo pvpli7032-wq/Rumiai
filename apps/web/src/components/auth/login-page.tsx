@@ -1,11 +1,12 @@
 'use client';
+import {useSearchParams} from 'next/navigation';
 import { zhError } from '@rumiai/contracts/copy/zh';
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@web/lib/auth-context';
-import { afterLoginTarget, onboardingTarget } from '@web/lib/next-path';
+import { afterLoginTarget, onboardingTarget, authPageHref } from '@web/lib/next-path';
 import { AlertCircle, ArrowRight, Bot, Eye, EyeOff, MessagesSquare, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from '@rumiai/ui/button';
 import { Input } from '@rumiai/ui/input';
@@ -17,7 +18,7 @@ import { Input } from '@rumiai/ui/input';
  * 左侧品牌主视觉、右侧表单卡，颜色取自 globals.css 的品牌令牌。
  */
 const HIGHLIGHTS = [
-  { icon: Sparkles, title: '角色扮演', text: '数千个角色设定与世界观，随时开聊。' },
+  { icon: Sparkles, title: '角色扮演', text: '探索角色设定与世界观，继续你的故事。' },
   { icon: MessagesSquare, title: '圈子社区', text: '按兴趣加入圈子，发布帖子与同好交流。' },
   { icon: ShieldCheck, title: '数据与合规', text: '内容年龄分级，注册即确认条款与隐私政策。' },
 ];
@@ -25,6 +26,7 @@ const HIGHLIGHTS = [
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
+  const authSearch=useSearchParams().toString();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
@@ -47,14 +49,14 @@ export default function LoginPage() {
     try { result = await login(email, password); }
     finally { submittingRef.current = false; setLoading(false); }
     if (result.success) {
-      router.push(result.onboardingRequired ? onboardingTarget(afterLoginTarget()) : afterLoginTarget());
+      router.replace(result.onboardingRequired ? onboardingTarget(afterLoginTarget()) : afterLoginTarget());
     } else {
       setError(zhError(result.error || '') || "登录失败");
     }
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-full bg-background lg:min-h-screen">
       {/* 品牌主视觉：窄屏隐藏，只在桌面展开成双栏。 */}
       <aside className="relative hidden w-[45%] max-w-[640px] shrink-0 overflow-hidden lg:block">
         <div aria-hidden className="absolute inset-0 bg-brand-gradient" />
@@ -91,9 +93,9 @@ export default function LoginPage() {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 items-center justify-center px-4 py-10 sm:px-8">
+      <main className="flex min-w-0 flex-1 items-start justify-center px-4 py-6 sm:px-8 lg:items-center lg:py-10">
         <div className="w-full max-w-md">
-          <div className="mb-8 flex flex-col gap-4 lg:hidden">
+          <div className="mb-6 flex flex-col gap-3 lg:hidden">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-gradient text-brand-foreground">
               <Bot className="h-6 w-6" />
             </span>
@@ -122,6 +124,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <label htmlFor="login-email" className="block text-sm font-medium text-foreground">邮箱</label>
                 <Input
+                  size="lg"
                   id="login-email"
                   type="email"
                   autoComplete="email"
@@ -134,10 +137,11 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="login-password" className="block text-sm font-medium text-foreground">密码</label>
-                  <Link href="/forgot-password" className="text-xs font-medium text-brand underline-offset-4 hover:underline">忘记密码？</Link>
+                  <Link replace href={authPageHref('/forgot-password',authSearch)} className="inline-flex min-h-11 items-center text-xs font-medium text-brand underline-offset-4 hover:underline">忘记密码？</Link>
                 </div>
                 <div className="relative">
                   <Input
+                    size="lg"
                     id="login-password"
                     type={showPwd ? 'text' : 'password'}
                     autoComplete="current-password"
@@ -145,13 +149,13 @@ export default function LoginPage() {
                     onChange={e => setPassword(e.target.value)}
                     required
                     placeholder="••••••••"
-                    className="pr-11"
+                    className="pr-12"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPwd(!showPwd)}
                     aria-label={showPwd ? '隐藏密码' : '显示密码'}
-                    className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -164,7 +168,7 @@ export default function LoginPage() {
 
             <div className="mt-6 text-center text-sm text-muted-foreground">
               还没有账号？{' '}
-              <Link href="/register" className="font-medium text-brand underline-offset-4 transition-colors hover:underline">
+              <Link replace href={authPageHref('/register',authSearch)} className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 transition-colors hover:underline">
                 免费注册
               </Link>
             </div>
@@ -172,7 +176,7 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-xs leading-6 text-muted-foreground">
             内部测试版，请自行注册账号。前台页面可在{' '}
-            <Link href="/" className="underline-offset-4 hover:underline">首页</Link>{' '}
+            <Link href="/discover" className="inline-flex min-h-11 min-w-11 items-center justify-center underline-offset-4 hover:underline">首页</Link>{' '}
             浏览。
           </p>
         </div>

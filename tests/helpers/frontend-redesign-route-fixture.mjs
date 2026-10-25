@@ -4,18 +4,24 @@ export async function seedFrontendRouteData(fixture) {
   const connection = await db.user.create({data: {username: 'e2e-connection', email: 'e2e-connection@example.test', passwordHash: 'fixture-only', displayName: 'E2E 关系用户'}});
   await db.follow.create({data: {followerId: connection.id, followingId: user.id}});
   const notification = await db.notification.create({data: {userId: user.id, type: 'E2E', title: 'E2E 未读通知', body: '仅隔离通知验收', targetType: 'PROFILE', targetId: user.id}});
-  const character = await db.character.create({data: {name: 'E2E 路由角色', tagline: '仅隔离路由验收', personality: '友好', background: 'synthetic fixture only', greeting: '你好，E2E。', creatorId: user.id, isPublic: true, reviewStatus: 'APPROVED'}});
+  const character = await db.character.create({data: {name: 'E2E 路由角色', tagline: '仅隔离路由验收', avatarUrl: '/brand/persona-0.svg', tags: 'e2e-type-0', personality: '友好', background: 'synthetic fixture only', greeting: '你好，E2E。', creatorId: user.id, isPublic: true, reviewStatus: 'APPROVED'}});
   const ownedCharacter = await db.character.create({data: {name: 'E2E 可编辑草稿', personality: '草稿', background: 'synthetic', creatorId: user.id, avatarUrl: '/brand/icon-192.png', isPublic: false, reviewStatus: 'DRAFT'}});
   const plan = await db.membershipPlan.create({data: {code: 'E2E_ROUTE', name: 'E2E 会员', durationDays: 30, priceCents: 100, benefitsJson: '[]', isActive: true}});
   const paid = await db.membershipOrder.create({data: {orderNo: 'E2E-PAID-1', userId: user.id, idempotencyKey: 'e2e-paid', planId: plan.id, amountCents: 100, durationDays: 30, refundWindowHours: 24, usageChargePeriodHours: 24, benefitsJson: '[]', status: 'PAID', paidAt: new Date()}});
   const pending = await db.membershipOrder.create({data: {orderNo: 'E2E-PENDING-1', userId: user.id, idempotencyKey: 'e2e-pending', planId: plan.id, amountCents: 100, durationDays: 30, refundWindowHours: 24, usageChargePeriodHours: 24, benefitsJson: '[]', status: 'PENDING'}});
   await db.characterBookmark.create({data: {userId: user.id, characterId: character.id}});
   const giftCatalog = await db.giftCatalogItem.create({data: {code: 'E2E_GIFT', name: 'E2E 礼物', description: 'synthetic gift only', emoji: '🎁', coinPrice: 1, isActive: true}});
-  const sceneCharacter = await db.character.create({data: {id: 'xingban-original-4', name: 'E2E 场景角色', tagline: 'static scene fixture', personality: '沉稳', background: 'synthetic static scene fixture', creatorId: user.id, isPublic: true, reviewStatus: 'APPROVED'}});
+  const sceneCharacter = await db.character.create({data: {id: 'xingban-original-4', name: 'E2E 场景角色', tagline: 'static scene fixture', avatarUrl: '/brand/persona-1.svg', tags: 'e2e-type-1', personality: '沉稳', background: 'synthetic static scene fixture', creatorId: user.id, isPublic: true, reviewStatus: 'APPROVED'}});
   const conversation = await db.conversation.create({data: {userId: user.id, characterId: character.id, title: 'E2E 已登录对话'}});
   await db.message.createMany({data: [{conversationId: conversation.id, role: 'USER', content: 'E2E 合成用户消息'}, {conversationId: conversation.id, role: 'ASSISTANT', content: 'E2E 合成角色回复'}]});
   const circle = await db.circle.create({data: {name: 'E2E 路由圈子', description: '仅隔离路由验收。', ownerId: user.id, status: 'ACTIVE', isFeatured: true}});
   await db.circleMember.create({data: {circleId: circle.id, userId: user.id}});
+  // Real CMS/filter records in the disposable database support populated mobile
+  // hero, catalogue and fallback-image checks without hardcoded frontend content.
+  await db.banner.create({data: {id: 'e2e-mobile-hero', placement: 'HERO', title: '推理俱乐部', description: '一个反转，能改变整个故事吗？', href: '/circles/' + circle.id, gradientFrom: '#26233a', gradientTo: '#65577b', imageUrl: '/illustrations/env-arched-courtyard-envelope-v1.png', sortOrder: 0, isActive: true}});
+  for (const [index, label] of ['日常', '奇幻', '科幻'].entries()) {
+    await db.tag.create({data: {key: 'e2e-type-' + index, label, group: '类型', filterRow: 'type', sortOrder: index, isActive: true}});
+  }
   const post = await db.post.create({data: {circleId: circle.id, authorId: admin.id, characterId: character.id, content: 'E2E 合成广场帖子。', status: 'VISIBLE', isPinned: true}});
   const dispute = await db.disputeCase.create({data: {postId: post.id, authorId: admin.id, characterId: character.id, excerptJson: JSON.stringify([{role: 'USER', content: 'E2E 争议片段'}]), claim: 'E2E 合成评理主张', ruleSnapshotJson: JSON.stringify({version: 1}), deadlineAt: new Date(Date.now() + 86400000)}});
   const ownedPost = await db.post.create({data: {circleId: circle.id, authorId: user.id, characterId: character.id, content: 'E2E 本人撤回争议帖子。', status: 'VISIBLE'}});

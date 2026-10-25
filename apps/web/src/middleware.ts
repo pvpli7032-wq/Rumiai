@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DEFAULT_LOCALE, isLocale } from '@web/lib/i18n';
 
 /**
- * The live site has no locale-less pages: / redirects into /{locale}. Only the
- * public marketing routes are localised for now, so the existing signed-in app
- * paths (/discover, /chat, …) are left alone until they move under the segment too.
+ * The app has one discover entry for anonymous and signed-in readers. Legacy
+ * marketing/catalogue URLs are compatibility redirects; other public business
+ * pages keep their locale routes.
  */
-const LOCALISED_ROOTS = ['', 'about', 'explore', 'terms-and-policy', 'character', 'auth', 'disputes', 'mirror'];
+const LOCALISED_ROOTS = ['about', 'terms-and-policy', 'auth', 'disputes', 'mirror'];
 
 /**
  * The origin a browser should be sent to. Derived from the request rather than from
@@ -35,14 +35,34 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Every request lands on DEFAULT_LOCALE. The locale cookie this used to read was never
-  // written anywhere, so the lookup only ever fell through to the default.
-  if (pathname === '/') {
-    const url = new URL(`/${DEFAULT_LOCALE}${request.nextUrl.search}`, publicOrigin(request));
-    return NextResponse.redirect(url);
+  const segments = pathname.split('/').filter(Boolean);
+  const publicSegments = segments[0] && isLocale(segments[0]) ? segments.slice(1) : segments;
+  if (publicSegments.length === 0) {
+    const url = new URL(`/discover${request.nextUrl.search}`, publicOrigin(request));
+    return NextResponse.redirect(url, 308);
+  }
+  if (publicSegments.length === 1 && publicSegments[0] === 'explore') {
+    const url = new URL(`/discover${request.nextUrl.search}`, publicOrigin(request));
+    url.searchParams.set('view', 'characters');
+    if (!url.searchParams.has('q') && url.searchParams.has('search')) url.searchParams.set('q', url.searchParams.get('search')!);
+    const types = [...new Set([...url.searchParams.getAll('type'), ...url.searchParams.getAll('tag')]
+      .flatMap(value => value.split(',')).map(value => value.trim()).filter(Boolean))];
+    if (types.length) url.searchParams.set('type', types.join(','));
+    else url.searchParams.delete('type');
+    url.searchParams.delete('search');
+    url.searchParams.delete('tag');
+    return NextResponse.redirect(url, 308);
+  }
+  if (publicSegments.length === 2 && publicSegments[0] === 'character') {
+    const url = new URL(`/discover${request.nextUrl.search}`, publicOrigin(request));
+    // Decode the URL segment once, then let searchParams encode the selected ID.
+    let characterId = publicSegments[1];
+    try { characterId = decodeURIComponent(characterId); } catch { /* Preserve an invalid raw segment for the API error path. */ }
+    url.searchParams.set('character', characterId);
+    return NextResponse.redirect(url, 308);
   }
 
-  // A known root without a locale prefix, e.g. /explore -> /th/explore.
+  // Business/public pages such as /about retain their locale aliases.
   const [, first] = pathname.split('/');
   if (first && !isLocale(first) && LOCALISED_ROOTS.includes(first)) {
     const url = new URL(`/${DEFAULT_LOCALE}${pathname}${request.nextUrl.search}`, publicOrigin(request));

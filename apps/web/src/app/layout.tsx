@@ -4,13 +4,13 @@ import { DEFAULT_LOCALE, HTML_LANG, SITE_URL, getDictionary } from '@web/lib/i18
 import '@rumiai/ui/styles.css';
 import '../styles/index.css';
 
-// theme-color follows the OS appearance; the --theme-color token in globals.css mirrors these values.
+// theme-color follows the OS appearance; the --theme-color token in styles/tokens.css mirrors these values.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#FAF9F6' },
+    { media: '(prefers-color-scheme: light)', color: '#FBFBFD' },
     { media: '(prefers-color-scheme: dark)', color: '#0D0D12' },
   ],
   interactiveWidget: 'resizes-content',
@@ -26,9 +26,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Only the document shell lives here. The signed-in chrome moved to
- * (app)/layout.tsx so that the public /[locale] pages can render standalone, the
- * way they do on the live site.
+ * The document shell is shared by every route. Main browsing and account pages
+ * use (app)/layout.tsx for the same navigation before and after sign-in;
+ * standalone policy and shared-content routes retain their public layout.
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

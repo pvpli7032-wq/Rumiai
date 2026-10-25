@@ -1,6 +1,7 @@
 'use client';
 import {useCallback, useEffect, useState} from 'react';
 import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 import {Flag} from 'lucide-react';
 import {Badge, Button, Dialog} from '@rumiai/ui';
 import {API} from '@rumiai/contracts/api-paths';
@@ -25,6 +26,7 @@ async function readDetail(caseId: string, token: string | null, signal?: AbortSi
 /** 详情页：摘录、投票、评论、结案。只读展示，结案由后台任务推进。 */
 export function DisputeDetail({caseId, locale}: {caseId: string; locale: string}) {
   const {token, isLoading} = useAuth();
+  const router = useRouter();
   const [detail, setDetail] = useState<DetailResponse['case'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -65,7 +67,7 @@ export function DisputeDetail({caseId, locale}: {caseId: string; locale: string}
       const response = await fetch(API.disputes.withdraw(caseId), {method: 'POST', headers: {Authorization: `Bearer ${token}`}});
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '撤回失败，请重试。');
-      window.location.href = `/${locale}/disputes`;
+      router.replace(`/${locale}/disputes`);
     } catch (cause) { setNotice(cause instanceof Error ? cause.message : '撤回失败，请重试。'); setBusy(false); }
   }
 

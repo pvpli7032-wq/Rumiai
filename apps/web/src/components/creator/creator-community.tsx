@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { loginWithNext } from '@web/lib/next-path';
 import { useAuth } from '@web/lib/auth-context';
 import { compactNumber } from '@web/lib/i18n';
 
@@ -9,6 +11,7 @@ type ActivityPost = { id: string; content: string; createdAt: string; images: st
 
 export function CreatorCommunity({ username, initialFollowerCount }: { username: string; initialFollowerCount: number }) {
   const { token, isLoading } = useAuth();
+  const router = useRouter();
   const [followerCount, setFollowerCount] = useState(initialFollowerCount);
   const [isFollowing, setIsFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,7 +33,7 @@ export function CreatorCommunity({ username, initialFollowerCount }: { username:
   }, [username, token]);
 
   async function toggleFollow() {
-    if (!token) { window.location.assign(`/login?next=${encodeURIComponent(`/profile/${username}`)}`); return; }
+    if (!token) { router.push(loginWithNext()); return; }
     if (busy) return;
     setBusy(true); setNotice('');
     try {

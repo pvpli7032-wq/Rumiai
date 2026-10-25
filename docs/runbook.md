@@ -53,6 +53,24 @@ npm run test:e2e:admin验证独立后台登录、权限与真实表单联动；n
 
 tests/e2e/server-membership-config.mjs等server脚本会修改实际配置，必须有明确指定的测试目标、账号和写入授权，不能当作只读巡检直接运行。不要删除测试，仅因它未被业务代码import；使用测试命令和覆盖责任判断用途。
 
+## 移动前台入口与回归
+
+匿名和已登录用户共用 /discover。根路径 / 与 /[locale] 永久重定向至该入口；/[locale]/explore（以及 /explore）永久重定向至 /discover?view=characters，保留搜索与筛选参数，将旧 search/tag 转成 q/type。旧 /[locale]/character/[id]（以及 /character/[id]）永久重定向至 /discover?character=<id>，保留真实角色 ID，并打开同一角色详情弹窗；详情的点赞、收藏、评论与聊天仍消费原 API。/[locale]/auth 转至 /login，校验并保留 next 与 invite。about、条款、公告、CMS、评理和 Mirror 等公开业务页保留原路径与内容，不应一并导向发现页。
+
+发现页的 view、q、type、role、batch 与 character 保存在 URL；主导航切换后恢复原页面滚动，详情关闭和子页返回遵循应用内历史，直接打开子页时使用明确的应用内回退。登录、注册和忘记密码之间传递相同 next，登录完成后返回原业务目的地；外部地址和认证页面不得作为回跳目标。/my-characters?scope=bookmarked 必须读取收藏接口，切换作品/收藏与返回时保持 scope，创建入口为 /creator?new=1。聊天初始加载失败与未登录状态必须保留可用返回入口。
+
+入口改动属于 M1 导航壳、M2 发现/角色、M3 聊天、M4 创作和 M6 认证的接线回归；M7 需补本次候选证据，旧矩阵不能覆盖后来修改。tests/e2e/frontend-redesign-browser.mjs 的默认矩阵保持 43 路由 × 390px 浅深两主题共86组，对兼容入口同时检查原始308/307、精确最终路径/参数和真实弹窗或登录表单；其余公开页仍禁止意外跳转，保留内容、横向溢出和 axe 检查。360/430px 重点页面、键盘、返回和焦点由移动验收补充，桌面精修不列入本轮移动交付门。
+
+tests/helpers/frontend-redesign-route-fixture.mjs 在隔离库创建真实 CMS HERO、三项类型标签和两个角色头像/标签，供填充状态与筛选验收；这些合成内容不进入生产或写死在页面。沿用既有 fixture 的账户、角色、订单与其他 IDs，保留原业务断言。
+
+开发服务占用候选输出目录期间不运行 build 覆盖它。停止该开发服务后，或选择独立 NEXT_DIST_DIR 完成 Web 构建，使用已验证的 API 产物运行：
+
+~~~sh
+FRONTEND_REDESIGN_WEB_DIST_DIR=<本次Web构建目录> npm run test:e2e:frontend
+~~~
+
+若 API 产物位于另一个已验证 release，按 runner 的 FRONTEND_REDESIGN_API_RELEASE 与 FRONTEND_REDESIGN_API_DIST_DIR 指向该产物。runner 创建独立 SQLite、端口与完整 manifest，运行状态互操作、86组矩阵、五业务域和 mobile-navigation.mjs 的六条导航旅程；直接运行单域脚本须使用该 runner 生成且带 expected 与 sitemapFile 的合成 manifest，不能拿缺少这些字段的开发探测 manifest 代替。导航脚本沿用 FRONTEND_REDESIGN_FIXTURE_MANIFEST、FRONTEND_REDESIGN_BASE_URL、FRONTEND_REDESIGN_OUTPUT_DIR 与 PLAYWRIGHT_CHROMIUM_EXECUTABLE，结果进入 domains/navigation 并参与聚合失败判定。测试代理必须传递浏览器 host 至 x-forwarded-host 和 http 至 x-forwarded-proto，使308/307保持外部测试入口同源，不能把内部 Next 端口误当最终地址。测试和文档改动先用 node --check 与 git diff --check 检查；通过不等于整套浏览器已运行。本轮未改 API、Admin、Worker、contracts 或数据库结构，无需重跑全后端构建来替代前台验收。
+
 ## 服务器优先发布
 
 默认流程为服务器核对有效源码与运行基线、在独立源码/构建目录修改和验证、按授权切换、检查公开站点与资源、再同步已发布源码到GitHub。不要覆盖正在运行的生成文件，也不要用开发热更新服务作为公网正式服务。

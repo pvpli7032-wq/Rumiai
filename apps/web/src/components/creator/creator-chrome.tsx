@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import {BackButton} from '@/components/layout/back-button';
 import {useEffect,useRef} from 'react';
 import { ArrowLeft, Check, Eye, Loader2, RotateCcw, Sparkles } from 'lucide-react';
 import { LivePreview } from '@/components/creator/live-preview';
@@ -31,9 +31,9 @@ export function CreatorToolbar({ editId, draft, active, done, progress, savedAt,
   return (
     <div className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-3 px-4 md:px-8">
-        <Link href="/creator" aria-label={"返回创作首页"} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent">
+        <BackButton fallback="/creator" ariaLabel="返回上一页" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent">
           <ArrowLeft className="h-4 w-4" />
-        </Link>
+        </BackButton>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-base font-bold leading-tight">{editId ? '编辑角色' : '创建角色'}</h1>
           <p className="truncate text-[11px] text-muted-foreground">

@@ -34,7 +34,7 @@ export function Sidebar() {
     <aside className="sticky top-0 hidden h-screen w-64 min-w-64 max-w-64 flex-col border-r bg-background desktop:flex">
       {/* Brand */}
       <div className="flex h-16 items-center gap-3 p-4">
-        <Link href="/" className="text-xl font-bold">
+        <Link href="/discover" className="text-xl font-bold">
           <span className="flex items-center gap-2"><span className="bg-clip-text text-transparent" style={{backgroundImage:`linear-gradient(90deg,${branding.accentFrom},${branding.accentTo})`}}>{branding.brandName}</span>{branding.logoUrl&&<img src={branding.logoUrl} alt="" width={24} height={24}/>}</span>
         </Link>
       </div>

@@ -85,6 +85,53 @@ function expectedMarker(fixture, route) {
   return marker;
 }
 
+// Legacy entry URLs keep their compatibility behavior under the shared mobile UI.
+async function assertEntryContract(page, fixture, route) {
+  const locale = fixture.locale ?? 'zh';
+  const oldCharacter = '/' + locale + '/character/' + fixture.ids.characterId;
+  const aliases = new Map([
+    ['/' + locale, {status: 308, path: '/discover', query: {}}],
+    ['/' + locale + '/explore', {status: 308, path: '/discover', query: {view: 'characters'}}],
+    [oldCharacter, {status: 308, path: '/discover', query: {character: fixture.ids.characterId}}],
+    ['/' + locale + '/auth', {status: 307, path: '/login', query: {next: '/discover'}}],
+  ]);
+  const expected = aliases.get(route);
+  if (!expected) return false;
+  const original = await page.request.get(baseURL + route, {maxRedirects: 0});
+  assert.equal(original.status(), expected.status, route + ' must keep its explicit compatibility redirect');
+  const location = new URL(original.headers().location, baseURL);
+  const current = new URL(page.url());
+  for (const actual of [location, current]) {
+    assert.equal(actual.origin, new URL(baseURL).origin, route + ' must stay on the current origin');
+    assert.equal(actual.pathname, expected.path, route + ' must reach the shared entry');
+    assert.deepEqual(Object.fromEntries(actual.searchParams), expected.query, route + ' must preserve its selected destination');
+  }
+  if (route === '/' + locale + '/explore') {
+    const filtered = await page.request.get(baseURL + route + '?type=e2e-type-0,e2e-type-1&type=e2e-type-0&tag=e2e-type-1&tag=e2e-type-2&search=E2E', {maxRedirects: 0});
+    assert.equal(filtered.status(), 308);
+    const destination = new URL(filtered.headers().location, baseURL);
+    assert.equal(destination.origin, new URL(baseURL).origin);
+    assert.equal(destination.pathname, '/discover');
+    assert.equal(destination.searchParams.get('q'), 'E2E');
+    assert.deepEqual(destination.searchParams.getAll('type'), ['e2e-type-0,e2e-type-1,e2e-type-2'], 'repeated/comma-separated types and legacy tags must compose without duplicates');
+    assert.equal(destination.searchParams.has('tag'), false);
+    assert.equal(destination.searchParams.has('search'), false);
+  }
+  if (route === oldCharacter) {
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('heading', {name: fixture.expected.characterTitle, exact: true}).waitFor({state: 'visible'});
+    assert.equal(await dialog.count(), 1, 'legacy character link must open exactly one real detail dialog');
+    await dialog.getByRole('button', {name: /开始聊天|进入场景/}).waitFor({state: 'visible'});
+  } else if (expected.path === '/login') {
+    await page.locator('form input[type=email]').waitFor({state: 'visible'});
+    await page.locator('form input[type=password]').waitFor({state: 'visible'});
+  } else {
+    await page.getByRole('searchbox', {name: '搜索角色', exact: true}).waitFor({state: 'visible'});
+    await page.getByRole('navigation', {name: '主导航'}).waitFor({state: 'visible'});
+  }
+  return true;
+}
+
 async function assertExpectedContent(page, fixture, route) {
   const marker = expectedMarker(fixture, route);
   if (!marker) return;
@@ -224,7 +271,8 @@ async function runMatrix(browser) {
           await checkpoint();
           continue;
         }
-        if (isPublic && !isAuthInterface && !route.includes('sitemap')) assert.equal(new URL(page.url()).pathname, route, `${config.name} public ${route} must not redirect (especially not to /discover)`);
+        const compatibilityEntry = await assertEntryContract(page, fixture, route);
+        if (isPublic && !isAuthInterface && !compatibilityEntry) assert.equal(new URL(page.url()).pathname, route, `${config.name} public ${route} must remain on its public business page`);
         if (!isPublic && !isAuthInterface) assert.ok(!page.url().includes('/login'), `${config.name} protected ${route} must not be replaced by anonymous login`);
         await assertExpectedContent(page, fixture, route);
         const overflow = config.mobile && !route.includes('sitemap')
@@ -233,7 +281,7 @@ async function runMatrix(browser) {
         assert.equal(overflow, false, `${config.name} ${route} must not overflow horizontally`);
         results.push({
           config: config.name, route, status, finalUrl: page.url(), requestCounts: navigation.requestCounts,
-          routeMode: isAuthInterface ? 'anonymous-auth-interface' : isPublic ? 'anonymous-public' : 'fixture-session',
+          routeMode: compatibilityEntry ? 'anonymous-compatibility-entry' : isAuthInterface ? 'anonymous-auth-interface' : isPublic ? 'anonymous-public' : 'fixture-session',
           accessibility: {...await basicA11y(page), axe: await axeAudit(page, route)},
         });
         if (['/discover', '/chat', '/creator', '/square', '/profile'].includes(route)) {

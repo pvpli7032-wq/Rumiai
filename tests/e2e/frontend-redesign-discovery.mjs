@@ -47,13 +47,13 @@ try {
   report.checks.push('injected discover failure renders retry and reloads into isolated fixture data');
   await page.unroute('**/api/characters?sort=*');
 
-  const search = await firstVisible(page.getByLabel('搜索角色'));
+  const search = await firstVisible(page.getByRole('searchbox', {name: '搜索角色', exact: true}));
   await search.fill(fixture.expected.characterTitle);
   await expectText(page, fixture.expected.characterTitle);
   await search.fill('不存在的E2E筛选值');
-  await page.getByRole('button', { name: '角色', exact: true }).count().catch(() => 0);
-  // Switch to the full catalogue using the actual action; the empty state must be data-driven.
-  await (await firstVisible(page.getByRole('button', { name: /浏览全部/ }))).click();
+  // Mobile search already opens the catalogue; submit the real search action.
+  await search.press('Enter');
+  await page.waitForURL(url => url.searchParams.get('view') === 'characters' && url.searchParams.get('q') === '不存在的E2E筛选值');
   await expectText(page, '没有符合条件的角色');
   report.checks.push('search and empty filter state use fixture character data');
 
@@ -66,10 +66,14 @@ try {
   const sceneName = sceneCharacter.character?.name;
   assert.ok(sceneName, 'fixture scene character must expose a name');
   await page.goto(`${baseURL}/discover`, { waitUntil: 'networkidle' });
-  await (await firstVisible(page.getByLabel('搜索角色'))).fill(sceneName);
-  await (await firstVisible(page.getByRole('button', { name: /浏览全部/ }))).click();
+  const sceneSearch = await firstVisible(page.getByRole('searchbox', {name: '搜索角色', exact: true}));
+  await sceneSearch.fill(sceneName);
+  await sceneSearch.press('Enter');
+  await page.waitForURL(url => url.searchParams.get('view') === 'characters' && url.searchParams.get('q') === sceneName);
   await (await firstVisible(page.getByRole('button', { name: sceneName, exact: false }))).click();
-  const sceneAction = await firstVisible(page.getByRole('button', { name: '进入场景', exact: true }));
+  const sceneDialog = page.getByRole('dialog');
+  await sceneDialog.getByRole('heading', {name: sceneName, exact: true}).waitFor({state: 'visible'});
+  const sceneAction = await firstVisible(sceneDialog.getByRole('button', { name: '进入场景', exact: true }));
   let aiTurnPosts = 0;
   page.on('request', request => { if (request.method() === 'POST' && /\/api\/conversations\/[^/]+\/turns/.test(request.url())) aiTurnPosts += 1; });
   await sceneAction.click();
@@ -152,12 +156,45 @@ try {
   report.checks.push('comment deletion confirmation cancel sends no DELETE');
 
   const locale = fixture.locale || 'zh';
-  for (const route of [`/${locale}`, `/${locale}/explore`, `/announcements`, `/pages/${fixture.ids.cmsPageSlug}`]) {
-    const response = await page.goto(`${baseURL}${route}`, { waitUntil: 'networkidle' });
-    assert.equal(response?.status(), 200, `${route} must remain publicly readable with fixture/CMS fallback`);
-    assert.ok(await page.locator('main').count(), `${route} must render public shell`);
+  for (const route of ['/', `/${locale}`, `/${locale}/explore`]) {
+    const original = await page.request.get(baseURL + route, {maxRedirects: 0});
+    assert.equal(original.status(), 308, `${route} must redirect permanently to shared discovery`);
+    const response = await page.goto(`${baseURL}${route}`, {waitUntil: 'networkidle'});
+    assert.equal(response?.status(), 200);
+    const destination = new URL(page.url());
+    assert.equal(destination.pathname, '/discover', `${route} must reach the mobile entry`);
+    assert.equal(destination.searchParams.get('view'), route.endsWith('/explore') ? 'characters' : null);
+    await firstVisible(page.getByRole('searchbox', {name: '搜索角色', exact: true}));
+    await expectText(page, fixture.expected.characterTitle);
   }
-  report.checks.push('public CMS and locale fallback routes render against isolated fixture');
+  await page.goto(`${baseURL}/${locale}/explore?type=e2e-type-0,e2e-type-1&type=e2e-type-0&tag=e2e-type-1&tag=e2e-type-2&search=E2E`, {waitUntil:'networkidle'});
+  const filteredDestination = new URL(page.url());
+  assert.equal(filteredDestination.pathname, '/discover');
+  assert.equal(filteredDestination.searchParams.get('view'), 'characters');
+  assert.equal(filteredDestination.searchParams.get('q'), 'E2E');
+  assert.deepEqual(filteredDestination.searchParams.getAll('type'), ['e2e-type-0,e2e-type-1,e2e-type-2']);
+  assert.equal(filteredDestination.searchParams.has('tag'), false);
+  assert.equal(filteredDestination.searchParams.has('search'), false);
+  assert.equal(await (await firstVisible(page.getByRole('searchbox', {name: '搜索角色', exact: true}))).inputValue(), 'E2E');
+  report.checks.push('old catalogue repeated/comma-separated type+tag filters compose once and populate the real search state');
+  const oldCharacter = `/${locale}/character/${fixture.ids.characterId}`;
+  await page.goto(baseURL + oldCharacter, {waitUntil: 'networkidle'});
+  assert.equal(new URL(page.url()).pathname, '/discover');
+  assert.equal(new URL(page.url()).searchParams.get('character'), fixture.ids.characterId);
+  const detail = page.getByRole('dialog');
+  await detail.getByRole('heading', {name: fixture.expected.characterTitle, exact: true}).waitFor({state:'visible'});
+  await detail.getByRole('button', {name:'返回角色列表', exact:true}).click();
+  await detail.waitFor({state:'detached'});
+  assert.equal(new URL(page.url()).searchParams.has('character'), false);
+  report.checks.push('legacy root/catalogue entries reach shared discovery and old character links open/close the selected real dialog');
+  for (const route of [`/announcements`, `/pages/${fixture.ids.cmsPageSlug}`]) {
+    const response = await page.goto(`${baseURL}${route}`, {waitUntil:'networkidle'});
+    assert.equal(response?.status(), 200, `${route} must remain publicly readable with fixture/CMS fallback`);
+    assert.equal(new URL(page.url()).pathname, route, `${route} must retain its public content route`);
+    assert.ok(await page.locator('main').count(), `${route} must render public shell`);
+    if (route.startsWith('/pages/')) await expectText(page, fixture.expected.cmsTitle);
+  }
+  report.checks.push('public CMS routes retain their own content against isolated fixture');
   await page.screenshot({ path: path.join(outputDir, 'm2-discovery-mobile.png'), fullPage: true });
 } finally {
   await context?.close();

@@ -15,7 +15,7 @@ export const DEFAULT_AFTER_LOGIN = '/discover';
 const BACKSLASH = String.fromCharCode(92);
 
 /** Bouncing back to the auth pages would loop. */
-const AUTH_PAGES = /^\/(login|register)(\/|\?|$)/;
+const AUTH_PAGES = /^\/(?:login|register|forgot-password|reset-password|activate-account|verify-email)(?:\/|\?|$)|^\/[^/]+\/auth(?:\/|\?|$)/;
 
 /**
  * A backslash or control character can be normalised into an authority by some clients.
@@ -53,9 +53,9 @@ export function safeNextPath(value: string | null | undefined): string {
  * The login URL that comes back to wherever the reader is now. Client-side only — every
  * caller is a gate inside a `use client` page.
  */
-export function loginWithNext(): string {
-  if (typeof window === 'undefined') return '/login';
-  const here = `${window.location.pathname}${window.location.search}`;
+export function loginWithNext(next?: string): string {
+  if (typeof window === 'undefined') return next ? `/login?next=${encodeURIComponent(safeNextPath(next))}` : '/login';
+  const here = safeNextPath(next ?? `${window.location.pathname}${window.location.search}`);
   return `/login?next=${encodeURIComponent(here)}`;
 }
 
@@ -83,4 +83,14 @@ export function afterOnboardingTarget(): string {
   if (typeof window === 'undefined') return DEFAULT_AFTER_LOGIN;
   const destination = safeNextPath(new URLSearchParams(window.location.search).get('next'));
   return destination.startsWith('/onboarding') ? DEFAULT_AFTER_LOGIN : destination;
+}
+
+/** Carry the same validated destination while changing authentication screens. */
+export function authPageHref(path: '/login' | '/register' | '/forgot-password', search: string): string {
+  const params = new URLSearchParams(search);
+  const next = safeNextPath(params.get('next'));
+  const query = new URLSearchParams({next});
+  const invite = params.get('invite');
+  if (path === '/register' && invite) query.set('invite', invite);
+  return `${path}?${query}`;
 }
