@@ -1,3 +1,4 @@
+import {resolveConversationScene,sceneContext,ConversationSceneError} from './scene-context';
 import {buildAdvancedContext, recordContextUse} from '@rumiai/backend/modules/conversations/context/builder';
 import {requireRevisionPolicy} from '@rumiai/backend/modules/conversations/revisions/policy';
 import { logRouteError } from '@rumiai/backend/infrastructure/logging/logger';
@@ -59,6 +60,8 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   if (conversation.storyRun) throw new ChatTurnHttpError('故事回合服务尚未开放，暂时无法发送或重新生成。', 409);
   // 规则每次请求现读（带 15 秒缓存）：后台改完设置，下一个请求就按新值校验。
   const rules = await readChatRules();
+  let scene;try{scene=await resolveConversationScene(conversation.character,conversation.sceneId);}catch(error){if(error instanceof ConversationSceneError)throw new ChatTurnHttpError(error.message,409);throw error;}
+  const activeSceneContext=sceneContext(scene);
   const relationshipContext = await buildRelationshipContext(conversation);
   const relationshipPolicy = await readRelationshipPolicy();
   const revision = 'revision' in input.input ? input.input.revision : undefined;
@@ -151,7 +154,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   } catch (error) {
     logRouteError('chat memory context', error);
   }
-  memoryContext = [relationshipContext, advanced.text, memoryContext, revisionInstruction].filter(Boolean).join('\n\n') || undefined;
+  memoryContext = [activeSceneContext, relationshipContext, advanced.text, memoryContext, revisionInstruction].filter(Boolean).join('\n\n') || undefined;
   const notice = billing.notice();
   const abort = new AbortController(); let cancelled = false;
   const onAbort = () => { cancelled = true; abort.abort(new DOMException('Client disconnected', 'AbortError')); };

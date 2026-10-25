@@ -1,3 +1,4 @@
+import {normalizeSceneCatalog} from '@rumiai/contracts/stories/scene-settings';
 import {normalizeResponseOptions} from '@rumiai/contracts/conversations/response-options';
 import {normalizeRelationshipLevels} from '@rumiai/contracts/conversations/relationship';
 import type {JsonValue, SettingDefinition} from '@rumiai/contracts/settings/types';
@@ -70,9 +71,10 @@ export function normalizeSettingValue(def: SettingDefinition, raw: unknown): Jso
         try { return normalizeRelationshipLevels(value) as unknown as JsonValue; }
         catch (error) { return fail(def, error instanceof Error ? error.message : '关系等级无效。'); }
       }
-      if (def.key === 'chat.responseStyles' || def.key === 'chat.responseLengths') {
+      if (def.key === 'chat.responseStyles' || def.key === 'chat.responseLengths' || def.key === 'story.narrativeStyles') {
         try {return normalizeResponseOptions(value) as JsonValue;} catch (error) {return fail(def, error instanceof Error ? error.message : '回复选项格式无效。');}
       }
+      if (def.key === 'chat.scenes') {try{return normalizeSceneCatalog(value) as unknown as JsonValue;}catch(error){return fail(def,error instanceof Error?error.message:'场景配置无效。');}}
       if (def.key === 'growth.openingSuggestions') {
         if (!Array.isArray(value) || value.some(text => typeof text !== 'string' || !text.trim())) return fail(def, '开场建议必须是不含空项的文字数组。');
         return [...new Set(value.map(text => (text as string).trim()))] as JsonValue;

@@ -1,3 +1,4 @@
+import {readMemoryPanel,changeMemorySummary} from '@rumiai/backend/modules/memory/panel-service';
 import {createMemoryFact} from '@rumiai/backend/modules/memory/fact-service';
 import {NextResponse} from 'next/server';
 import {getAuthUser} from '@rumiai/backend/infrastructure/auth/auth';
@@ -17,9 +18,7 @@ export async function GET(request: Request, {params}: {params: Promise<{id: stri
     const auth = await getAuthUser(request);
     if (!auth) return NextResponse.json({error: '请先登录。'}, {status: 401});
     const {id} = await params;
-    const settings = await readMemorySettings(auth.userId);
-    if (!settings.enabled) return NextResponse.json({enabled: false, facts: []});
-    return NextResponse.json({enabled: true, facts: await listPanelFacts(auth.userId, id)});
+    return NextResponse.json(await readMemoryPanel(auth.userId,id),{headers:{'Cache-Control':'private, no-store'}});
   } catch (error) {
     if (error instanceof MemoryError) return NextResponse.json({error: error.message}, {status: error.status});
     logRouteError('GET /api/conversations/[id]/memory', error);
@@ -28,3 +27,7 @@ export async function GET(request: Request, {params}: {params: Promise<{id: stri
 }
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){try{const auth=await getAuthUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401});const id=(await params).id;if(!(await readMemorySettings(auth.userId)).enabled)return NextResponse.json({error:'聊天记忆尚未开放。'},{status:409});const body=await request.json().catch(()=>null);if(!body||typeof body!=='object'||Array.isArray(body))return NextResponse.json({error:'数据格式不正确。'},{status:400});return NextResponse.json(await createMemoryFact(auth.userId,id,body),{headers:{'Cache-Control':'private, no-store'}});}catch(error){if(error instanceof MemoryError)return NextResponse.json({error:error.message},{status:error.status});logRouteError('POST conversation memory',error);return NextResponse.json({error:'记忆保存失败，请重试。'},{status:500});}}
+
+async function editSummary(request:Request,params:Promise<{id:string}>,remove:boolean){try{const auth=await getAuthUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401});return NextResponse.json(await changeMemorySummary(auth.userId,(await params).id,await request.json().catch(()=>null),remove),{headers:{'Cache-Control':'private, no-store'}});}catch(error){if(error instanceof MemoryError)return NextResponse.json({error:error.message,code:error.code},{status:error.status});logRouteError('change memory summary',error);return NextResponse.json({error:'摘要修改失败，请重试。'},{status:500});}}
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){return editSummary(request,params,false);}
+export async function DELETE(request:Request,{params}:{params:Promise<{id:string}>}){return editSummary(request,params,true);}

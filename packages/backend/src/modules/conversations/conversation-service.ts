@@ -1,9 +1,10 @@
+import {readSceneCatalog,resolveConversationScene,ConversationSceneError} from './scene-context';
 import {attachmentSelect, messageView} from '@rumiai/backend/modules/conversations/message-service';
 import { db } from '@rumiai/backend/infrastructure/database/client';
 import { readAiModelCatalog } from '@rumiai/backend/modules/ai/models/runtime-service';
 
 const CONVERSATION_SELECT = {
-  id: true, title: true, pinnedAt: true, parentConversationId: true, forkMessageId: true, characterId: true, relationshipStatus: true, romance: true, intimacy: true,
+  id: true, sceneId: true, title: true, pinnedAt: true, parentConversationId: true, forkMessageId: true, characterId: true, relationshipStatus: true, romance: true, intimacy: true,
   notes: true, archivedAt: true, relationshipMode: true, aiModel: true, createdAt: true, updatedAt: true,
 } as const;
 
@@ -91,20 +92,26 @@ export async function createOrReuseConversation(userId: string, input: unknown) 
   if (typeof rawCharacterId !== 'string' || !rawCharacterId) throw new ConversationError('characterId is required', 400);
   const characterId = rawCharacterId;
   const startNew = (body.newChat ?? body.new_chat) === true;
+  if(body.sceneId!==undefined&&body.sceneId!==null&&(typeof body.sceneId!=='string'||!body.sceneId.trim()))throw new ConversationError('场景编号无效。',400);
+  if(body.scene!==undefined&&typeof body.scene!=='boolean')throw new ConversationError('场景选择无效。',400);
+  const requestedSceneId=typeof body.sceneId==='string'?body.sceneId:body.scene===true?(await readSceneCatalog()).find(item=>item.characterId===characterId)?.id:null;
+  if(body.scene===true&&!requestedSceneId)throw new ConversationError('这个角色尚无可用场景。',409);
+  const sceneId=requestedSceneId??null;
 
   return db.$transaction(async tx => {
     const character = await tx.character.findUnique({
       where: {id: characterId},
-      select: {id: true, name: true, isPublic: true, reviewStatus: true, creatorId: true, relationshipStatus: true, initialRomance: true, initialIntimacy: true},
+      select: {id: true, name: true, personality: true, background: true, isPublic: true, reviewStatus: true, creatorId: true, relationshipStatus: true, initialRomance: true, initialIntimacy: true},
     });
     if (!character) throw new ConversationError('Character not found', 404);
     if ((!character.isPublic || character.reviewStatus !== 'APPROVED') && character.creatorId !== userId) {
       throw new ConversationError('Private character access forbidden', 403);
     }
 
-    if (!startNew) {
+    let scene;try{scene=await resolveConversationScene(character,sceneId);}catch(error){if(error instanceof ConversationSceneError)throw new ConversationError(error.message,409);throw error;}
+    if (!startNew && !scene) {
       const existing = await tx.conversation.findFirst({
-        where: {userId, characterId, archivedAt: null, storyRun: {is: null}},
+        where: {userId, characterId, sceneId:null, archivedAt: null, storyRun: {is: null}},
         orderBy: {updatedAt: 'desc'},
         select: CONVERSATION_SELECT,
       });
@@ -113,7 +120,7 @@ export async function createOrReuseConversation(userId: string, input: unknown) 
 
     const conversation = await tx.conversation.create({
       data: {
-        userId, characterId, title: `与 ${character.name} 的对话`,
+        userId, characterId, sceneId, title: scene?scene.title:`与 ${character.name} 的对话`,
         relationshipStatus: character.relationshipStatus,
         romance: character.initialRomance,
         intimacy: character.initialIntimacy,
@@ -121,7 +128,7 @@ export async function createOrReuseConversation(userId: string, input: unknown) 
       select: CONVERSATION_SELECT,
     });
     await tx.character.update({where: {id: characterId}, data: {chatCount: {increment: 1}}});
-    return {conversation};
+    return {conversation:{...conversation,scene}};
   });
 }
 
@@ -129,9 +136,9 @@ export async function readConversation(userId: string, conversationId: string) {
   const conversation = await db.conversation.findUnique({
     where: {id: conversationId},
     select: {
-      id: true, userId: true, title: true, pinnedAt: true, parentConversationId: true, forkMessageId: true, relationshipStatus: true, romance: true, intimacy: true, notes: true,
+      id: true, sceneId: true, userId: true, title: true, pinnedAt: true, parentConversationId: true, forkMessageId: true, relationshipStatus: true, romance: true, intimacy: true, notes: true,
       archivedAt: true, relationshipMode: true, aiModel: true, createdAt: true, updatedAt: true,
-      character: {select: {id: true, name: true, tagline: true, avatarUrl: true, roleTemplate: true, scenario: true, isPublic: true, reviewStatus: true, creatorId: true}},
+      character: {select: {id: true, name: true, personality: true, tagline: true, avatarUrl: true, roleTemplate: true, scenario: true, isPublic: true, reviewStatus: true, creatorId: true}},
       _count: {select: {messages: true}},
     },
   });
@@ -141,7 +148,8 @@ export async function readConversation(userId: string, conversationId: string) {
     throw new ConversationError('角色已下架或设为私有，无法继续对话。', 403);
   }
   const {_count, userId: _ownerId, ...rest} = conversation;
-  return {conversation: {...rest, messageCount: _count.messages, daysChatting: Math.max(0, Math.floor((Date.now() - rest.createdAt.getTime()) / 86_400_000))}};
+  const scene=rest.sceneId?await resolveConversationScene(rest.character,rest.sceneId).catch(()=>null):null;
+  return {conversation: {...rest, scene, messageCount: _count.messages, daysChatting: Math.max(0, Math.floor((Date.now() - rest.createdAt.getTime()) / 86_400_000))}};
 }
 
 /** Export owned history even if the role was withdrawn; never disclose its private persona. */

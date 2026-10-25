@@ -1,3 +1,5 @@
+import {SCENE_CONFIGS} from '@rumiai/contracts/stories/scene-config';
+import type {JsonValue} from '@rumiai/contracts/settings/types';
 import type {SettingDefinition, SettingGroup} from '@rumiai/contracts/settings/types';
 
 /**
@@ -9,6 +11,7 @@ import type {SettingDefinition, SettingGroup} from '@rumiai/contracts/settings/t
  * - 0 / 空 / 关闭的含义按 description 说明，不能一律当成「无限」。
  */
 const defs: SettingDefinition[] = [
+  {key:'chat.scenes',group:'chat',label:'角色场景目录',type:'json',default:SCENE_CONFIGS as unknown as JsonValue,description:'场景的身份、目标、冲突与开场由服务端读取，停用后不能继续该场景生成；不修改普通聊天。',userOverridable:false,advanced:false},
   {"key":"media.imageUnderstanding.enabled","group":"chat","label":"图片理解开关","type":"boolean","default":false,"description":"还须有效任务模型、正数预算及每日次数才开放。","userOverridable":false,"advanced":false},
   {"key":"media.imageUnderstanding.dailyLimit","group":"chat","label":"图片理解每日次数","type":"number","default":0,"min":0,"max":1000,"description":"0为未开放；按业务日统计已接受请求，重复请求不重复计数。","userOverridable":false,"advanced":false},
   {"key":"media.audioTranscription.enabled","group":"chat","label":"语音转写开关","type":"boolean","default":false,"description":"还须有效任务模型、正数预算及每日次数才开放。","userOverridable":false,"advanced":false},
@@ -119,6 +122,8 @@ const defs: SettingDefinition[] = [
   // 表 9「故事」一行：入口、启用模板、动作建议、状态批次与重试。
   {key: 'story.enabled', group: 'billing', label: '故事入口', type: 'boolean', default: true, description: '关闭后前台隐藏故事入口；已有故事数据保留，不删任务与记录。', userOverridable: false, advanced: false},
   {key: 'story.enabledTemplates', group: 'billing', label: '启用的故事模板', type: 'json', default: [], description: '故事模板 id 列表。空表示不限制，全部已发布模板可用。', userOverridable: false, advanced: true},
+  {key: 'story.settingsMaxChars', group: 'billing', label: '故事私人设定长度', type: 'number', unit: '字', default: 2000, min: 100, max: 10000, description: '玩家身份、场景补充与本次目标的允许长度，由故事设置接口统一校验。', userOverridable: false, advanced: false},
+  {key: 'story.narrativeStyles', group: 'billing', label: '故事叙事方式', type: 'json', default: [], description: '配置可选叙事方式及模型执行指令；前台只读取名称与标识。', userOverridable: false, advanced: false},
   {key: 'story.actionSuggestions', group: 'billing', label: '动作建议条数', type: 'number', unit: '条', default: 3, min: 0, max: 8, description: '故事回合给出的可选动作建议条数。0 表示不给建议。', userOverridable: false, advanced: true},
   {key: 'story.stateBatchSize', group: 'billing', label: '故事状态每批处理数', type: 'number', unit: '个', default: 10, min: 1, max: 100, description: '故事状态 worker 一次最多处理几个回合。', userOverridable: false, advanced: true},
   {key: 'story.stateMaxAttempts', group: 'billing', label: '故事状态重试次数', type: 'number', unit: '次', default: 3, min: 1, max: 10, description: '故事状态处理失败后的重试上限。', userOverridable: false, advanced: true},
@@ -160,7 +165,8 @@ const defs: SettingDefinition[] = [
   {key: 'dispute.hotRewardCoins', group: 'growth', label: '热门案例奖励', type: 'number', unit: '币', default: 0, min: 0, max: 10000, description: '结案时票数前几名发多少币；0 表示不发。', userOverridable: false, advanced: false},
   {key: 'dispute.hotRewardTopN', group: 'growth', label: '热门奖励名额', type: 'number', unit: '名', default: 3, min: 1, max: 50, description: '按票数取前几名发热门奖励；同票按先发起优先。', userOverridable: false, advanced: true},
   {key: 'dispute.rewardDailyCapCoins', group: 'growth', label: '评理奖励每日上限', type: 'number', unit: '币', default: 0, min: 0, max: 100000, description: '每个用户每天从评理拿到的奖励上限；0 表示不额外限制。', userOverridable: true, advanced: true},
-  {key: 'memory.enabled', group: 'growth', label: '聊天记忆', type: 'boolean', default: false, description: '开启后才生成滚动摘要与关键事实；关闭时不再注入。', userOverridable: false, advanced: false},
+  {key: 'memory.autoSummaryEnabled', group: 'growth', label: '自动整理对话摘要', type: 'boolean', default: false, description: '独立于手工记忆；需配置可用摘要模型和任务预算后才自动执行。', userOverridable: false, advanced: false},
+  {key: 'memory.enabled', group: 'growth', label: '聊天记忆', type: 'boolean', default: false, description: '允许用户维护确定记忆和对话摘要，并在后续回复中参考；自动摘要另行开启。', userOverridable: false, advanced: false},
   {key: 'memory.summaryTriggerMessages', group: 'growth', label: '摘要触发消息数', type: 'number', unit: '条', default: 20, min: 4, max: 200, description: '会话累计多少条新消息后触发摘要任务。', userOverridable: false, advanced: true},
   {key: 'memory.summaryMaxChars', group: 'growth', label: '摘要长度', type: 'number', unit: '字', default: 1000, min: 100, max: 4000, description: '滚动摘要的长度上限。', userOverridable: false, advanced: true},
   {key: 'memory.maxFacts', group: 'growth', label: '注入事实条数', type: 'number', unit: '条', default: 10, min: 0, max: 50, description: '生成时最多注入多少条有效事实。', userOverridable: false, advanced: true},

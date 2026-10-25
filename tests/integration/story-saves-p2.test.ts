@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createFixture} from '../helpers/sqlite-fixture.mjs';
 test('story save restores independent history and state without copying fees or changing its source',async t=>{
- const fixture=await createFixture();t.after(()=>fixture.cleanup());
+ const fixture=await createFixture();await fixture.db.operationSetting.upsert({where:{key:'story.enabled'},create:{key:'story.enabled',group:'growth',value:'true',updatedBy:fixture.admin.id},update:{value:'true'}});t.after(()=>fixture.cleanup());
  const character=await fixture.db.character.create({data:{name:'save-fixture',personality:'fixture',background:'',creatorId:fixture.user.id}});
  const template=await fixture.db.storyTemplate.create({data:{slug:'save-fixture',title:'Story save',status:'PUBLISHED'}});
  const version=await fixture.db.storyTemplateVersion.create({data:{templateId:template.id,version:1,locale:'zh',publishedAt:new Date(0),definitionJson:JSON.stringify({schemaVersion:1,publicSummary:'fixture story',chapters:[{key:'first',title:'First'}]}),characterSnapshotJson:JSON.stringify({schemaVersion:1,characterId:character.id})}});

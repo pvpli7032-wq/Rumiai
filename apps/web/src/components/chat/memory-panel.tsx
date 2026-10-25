@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import {MemorySummaryPanel} from './memory-summary-panel';
+import type {MemoryPanelData} from '@rumiai/contracts/memory/panel';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {Brain, Check, ChevronDown, Pencil, Pin, PinOff, Trash2, X} from 'lucide-react';
 import {api} from '@web/lib/api-client';
@@ -31,6 +33,8 @@ interface MemoryFact {
 }
 
 export function MemoryPanel({conversationId, token, defaultOpen = false, onSourceNavigate}: {conversationId: string; token: string; defaultOpen?: boolean; onSourceNavigate?: () => void}) {
+  const [panelData,setPanelData]=useState<MemoryPanelData|null>(null);
+  const controllerRef=useRef<AbortController|null>(null);
   const [facts, setFacts] = useState<MemoryFact[] | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [open, setOpen] = useState(defaultOpen);
@@ -45,19 +49,22 @@ export function MemoryPanel({conversationId, token, defaultOpen = false, onSourc
   const loadSequence = useRef(0);
 
   const load = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller=new AbortController();controllerRef.current=controller;
+    const timeout=window.setTimeout(()=>controller.abort('timeout'),15000);
     const sequence = ++loadSequence.current;
     setLoading(true); setLoadError('');
     try {
-      const data = await api.get<{enabled: boolean; facts: MemoryFact[]}>(API.conversations.memory(conversationId), {token});
+      const data = await api.get<MemoryPanelData>(API.conversations.memory(conversationId), {token,signal:controller.signal});
       if (sequence !== loadSequence.current) return;
-      setEnabled(data.enabled);
+      setPanelData(data);setEnabled(data.enabled);
       setFacts(data.facts);
-    } catch {
-      if (sequence === loadSequence.current) setLoadError('记忆加载失败，请重试。');
-    } finally { if (sequence === loadSequence.current) setLoading(false); }
+    } catch (cause) {
+      if(sequence===loadSequence.current&&(controller.signal.reason==='timeout'||!controller.signal.aborted))setLoadError(controller.signal.reason==='timeout'?'记忆读取超时，请重新加载。':cause instanceof Error?cause.message:'记忆加载失败，请重试。');
+    } finally {window.clearTimeout(timeout); if (sequence === loadSequence.current) setLoading(false); }
   }, [conversationId, token]);
 
-  useEffect(() => { setFacts(null); setEnabled(false); setEditingId(null); setNotice(''); void load(); return () => { loadSequence.current++; }; }, [load]);
+  useEffect(() => { setFacts(null); setEnabled(false); setEditingId(null); setNotice(''); void load(); return () => {loadSequence.current++;controllerRef.current?.abort();}; }, [load]);
 
 
   async function addFact() {
@@ -74,6 +81,7 @@ export function MemoryPanel({conversationId, token, defaultOpen = false, onSourc
     setBusyId(fact.id);
     setNotice('');
     try {
+      if (action === 'delete' && !window.confirm('删除这条确定记忆？后续回复将不再参考它。')) return;
       if (action === 'delete') await api.del(API.conversations.memoryFact(conversationId, fact.id), {token});
       else if (action === 'confirm') await api.post(API.conversations.memoryConfirm(conversationId, fact.id), undefined, {token});
       else await api.post(API.conversations.memoryIgnore(conversationId, fact.id), undefined, {token});
@@ -125,48 +133,26 @@ export function MemoryPanel({conversationId, token, defaultOpen = false, onSourc
 
   if (loading && facts === null) return <p role="status" className="px-4 py-3 text-sm text-muted-foreground">正在读取记忆…</p>;
   if (loadError) return <div role="alert" className="space-y-2 p-4 text-sm"><p>{loadError}</p><button type="button" className="min-h-11 text-brand" onClick={() => void load()}>重新加载</button></div>;
-  if (!enabled) return <p className="px-4 py-3 text-sm text-muted-foreground">聊天记忆暂未开启。</p>;
+
 
   const list = facts ?? [];
   const pendingCount = list.filter(fact => fact.status === 'PENDING').length;
 
-  return (
-    <section className="mx-auto mt-3 max-w-3xl rounded-2xl border border-border bg-card">
-      <button
-        type="button"
-        onClick={() => setOpen(prev => !prev)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-foreground hover:text-foreground"
-      >
-        <Brain className="h-4 w-4 text-muted-foreground" />
-        <span className="font-medium">记忆</span>
-        {pendingCount > 0 && <Badge variant="warning" size="sm">待确认 {pendingCount}</Badge>}
-        <span className="ml-auto text-[11px] text-muted-foreground">{facts === null ? '加载中…' : `${list.length} 条`}</span>
-        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="space-y-2 border-t border-border px-4 py-3">
-
-          {creating ? <form className="space-y-3 rounded-2xl bg-secondary/40 p-3" onSubmit={event => {event.preventDefault(); void addFact();}}>
-            <label className="block space-y-2 text-sm"><span>添加一条确定记忆</span><textarea rows={3} aria-label="新记忆内容" value={newFact} disabled={busyId === 'new'} onChange={event => setNewFact(event.target.value)} className="web-control w-full rounded-xl px-3 py-2" /></label>
-            <p className="text-xs leading-5 text-muted-foreground">只添加你确认准确、希望本次会话记住的信息。</p>
-            <div className="flex gap-3"><button type="button" disabled={busyId === 'new'} className="min-h-11 flex-1 rounded-full border border-border text-sm" onClick={() => setCreating(false)}>取消</button><button type="submit" disabled={busyId === 'new' || !newFact.trim()} className="min-h-11 flex-1 rounded-full bg-brand text-sm text-brand-foreground disabled:opacity-40">{busyId === 'new' ? '保存中…' : '保存记忆'}</button></div>
-          </form> : <button type="button" className="min-h-11 text-sm text-brand" onClick={() => {setCreating(true); setNotice('');}}>添加记忆</button>}
-
-          {facts === null && <Skeleton className="h-12 w-full" />}
-          {facts !== null && list.length === 0 && (
-            <p className="text-xs text-muted-foreground">还没有记住什么。聊得多一些，角色会记住你在意的事。</p>
-          )}
-          {list.map(fact => (
-            <div key={fact.id} className="flex flex-col gap-3 rounded-xl sm:flex-row sm:items-start border border-border bg-secondary/60 px-3 py-2">
+  return <div className="space-y-7 px-1">
+    {!enabled&&<p role="status" className="border-l-2 border-brand pl-3 text-sm leading-6 text-muted-foreground">聊天记忆尚未开启。已有内容保留，暂不参与角色回复。</p>}
+    {panelData&&<MemorySummaryPanel data={panelData} conversationId={conversationId} token={token} onChanged={load} onSourceNavigate={onSourceNavigate}/>}
+    {notice&&<p role="status" className="text-sm text-brand">{notice}</p>}
+    <section>
+    {([{title:'确定记忆',description:'你确认过的偏好、约定与经历，角色按上下文预算参考。',facts:list.filter(f=>f.status==='ACTIVE')},{title:'待确认',description:'从对话中提取的候选内容；确认之前不会用于回复。',facts:list.filter(f=>f.status==='PENDING')}] as const).map(group=><section key={group.title} className="mt-5 space-y-2"><h3 className="text-lg font-medium">{group.title}<span className="ml-2 text-sm text-muted-foreground">{group.facts.length}</span></h3><p className="text-sm leading-6 text-muted-foreground">{group.description}</p>{!group.facts.length&&<p className="py-3 text-sm text-muted-foreground">暂无{group.title}。</p>}
+              {group.facts.map(fact => (
+            <div key={fact.id} className="flex flex-col gap-3 sm:flex-row sm:items-start border-b border-border py-4">
               <div className="min-w-0 flex-1">
                 {editingId === fact.id ? (
                   <Input
                     autoFocus
                     value={draft}
                     maxLength={200}
-                    disabled={busyId === fact.id}
+                    disabled={!enabled || busyId === fact.id}
                     aria-label="编辑这条记忆"
                     onChange={event => setDraft(event.target.value)}
                     onKeyDown={event => {
@@ -175,12 +161,12 @@ export function MemoryPanel({conversationId, token, defaultOpen = false, onSourc
                     }}
                   />
                 ) : (
-                  <p className="text-sm text-foreground">
+                  <p className="text-[15px] leading-7 text-foreground">
                     {fact.pinned && <Pin className="mr-1 inline h-3 w-3 text-amber-400" aria-hidden />}
                     {fact.text}
                   </p>
                 )}
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                <p className="mt-0.5 text-xs leading-[18px] text-muted-foreground">
                   {fact.status === 'PENDING' ? '待确认：确认后才会被角色记住' : '已记住'}
                   {fact.pinned ? ' · 已固定' : ''}
                 </p>
@@ -189,32 +175,32 @@ export function MemoryPanel({conversationId, token, defaultOpen = false, onSourc
               <div className="flex shrink-0 flex-wrap items-center gap-1">
                 {editingId === fact.id ? (
                   <>
-                    <Button className="min-h-11" size="sm" variant="ghost" loading={busyId === fact.id} onClick={() => void saveText(fact)}>
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={!enabled} loading={busyId === fact.id} onClick={() => void saveText(fact)}>
                       <Check className="h-3.5 w-3.5" />保存
                     </Button>
-                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => setEditingId(null)}>
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={!enabled || busyId === fact.id} onClick={() => setEditingId(null)}>
                       <X className="h-3.5 w-3.5" />取消
                     </Button>
                   </>
                 ) : fact.status === 'PENDING' ? (
                   <>
-                    <Button className="min-h-11" size="sm" variant="ghost" loading={busyId === fact.id} onClick={() => void act(fact, 'confirm')}>
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={!enabled || !!busyId} loading={busyId === fact.id} onClick={() => void act(fact, 'confirm')}>
                       <Check className="h-3.5 w-3.5" />确认
                     </Button>
-                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void act(fact, 'ignore')}>
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={!enabled || busyId === fact.id} onClick={() => void act(fact, 'ignore')}>
                       <X className="h-3.5 w-3.5" />忽略
                     </Button>
                   </>
                 ) : (
                   <>
-                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => startEdit(fact)} aria-label="编辑这条记忆">
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={!enabled || busyId === fact.id} onClick={() => startEdit(fact)} aria-label="编辑这条记忆">
                       <Pencil className="h-3.5 w-3.5" />编辑
                     </Button>
-                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void togglePin(fact)} aria-label={fact.pinned ? '取消固定' : '固定这条记忆'}>
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={!enabled || busyId === fact.id} onClick={() => void togglePin(fact)} aria-label={fact.pinned ? '取消固定' : '固定这条记忆'}>
                       {fact.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
                       {fact.pinned ? '取消固定' : '固定'}
                     </Button>
-                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void act(fact, 'delete')} aria-label="删除这条记忆">
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={!enabled || busyId === fact.id} onClick={() => void act(fact, 'delete')} aria-label="删除这条记忆">
                       <Trash2 className="h-3.5 w-3.5" />删除
                     </Button>
                   </>
@@ -222,9 +208,15 @@ export function MemoryPanel({conversationId, token, defaultOpen = false, onSourc
               </div>
             </div>
           ))}
-          {notice && <p className="text-[11px] text-muted-foreground">{notice}</p>}
-        </div>
-      )}
+
+    </section>)}
+              {creating ? <form className="space-y-3 rounded-2xl bg-secondary/40 p-3" onSubmit={event => {event.preventDefault(); void addFact();}}>
+            <label className="block space-y-2 text-sm"><span>添加一条确定记忆</span><textarea rows={3} aria-label="新记忆内容" value={newFact} disabled={!enabled || busyId === 'new'} onChange={event => setNewFact(event.target.value)} className="web-control min-h-11 w-full rounded-xl border border-border bg-background px-3 py-2" /></label>
+            <p className="text-xs leading-5 text-muted-foreground">只添加你确认准确、希望本次会话记住的信息。</p>
+            <div className="flex gap-3"><button type="button" disabled={busyId === 'new'} className="min-h-11 flex-1 rounded-full border border-border text-sm" onClick={() => setCreating(false)}>取消</button><button type="submit" disabled={busyId === 'new' || !newFact.trim()} className="min-h-11 flex-1 rounded-full bg-brand text-sm text-brand-foreground disabled:opacity-40">{busyId === 'new' ? '保存中…' : '保存记忆'}</button></div>
+          </form> : <button type="button" disabled={!enabled} className="flex min-h-[46px] w-full items-center justify-center rounded-full bg-brand px-4 text-[15px] text-brand-foreground disabled:opacity-40" onClick={() => {setCreating(true); setNotice('');}}>添加记忆</button>}
+
+
     </section>
-  );
+  </div>;
 }

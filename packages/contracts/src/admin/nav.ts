@@ -47,7 +47,6 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     {href: '/admin/compliance', label: '注册合规', description: '年龄确认、服务条款与隐私政策版本', icon: 'compliance', permission: 'compliance.read'},
   ]},
   {id: 'content', label: '内容与社区', entries: [
-    {href: '/admin/chat/stickers', label: '聊天表情', description: '表情目录、上架、排序与历史快照', icon: 'comments', permission: 'settings.read'},
     {href: '/admin/characters', label: '角色管理', description: '角色状态、标签、内容编辑与管理预览', icon: 'characters', permission: 'characters.read'},
     {href: '/admin/site-content', label: '站点内容', description: '首页、导航、公告、品牌主题的草稿与发布', icon: 'site-content', permission: 'site.content.read', children: [
       tab('/admin/site-content', '首页横幅', '首页主视觉与行动入口', true),
@@ -62,6 +61,12 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     {href: '/admin/circles', label: '圈子与成员', description: '圈子内容、公开推荐、成员与加入限制', icon: 'circles', permission: 'community.read'},
     {href: '/admin/community/posts', label: '帖子管理', description: '帖子编辑、置顶、推荐与下架', icon: 'posts', permission: 'community.read'},
     {href: '/admin/community/comments', label: '评论管理', description: '评论查看、隐藏与内容处理', icon: 'comments', permission: 'community.read'},
+  ]},
+  {id:'chat-story',label:'聊天与故事',entries:[
+    {href:'/admin/chat/settings',label:'聊天设置',description:'回复方式、身份背景、建议和附件',icon:'settings',permission:'settings.read'},
+    {href:'/admin/chat/memory',label:'记忆设置',description:'手工记忆、自动摘要、触发阈值和提示词',icon:'settings',permission:'settings.read'},
+    {href:'/admin/stories/settings',label:'故事场景设置',description:'故事入口、玩家设定与叙事方式',icon:'settings',permission:'settings.read'},
+    {href:'/admin/chat/stickers',label:'聊天表情',description:'表情目录、上架与历史快照',icon:'comments',permission:'settings.read'}
   ]},
   {id: 'experiences', label: '活动与玩法', entries: [
     {href: '/admin/mirror', label: '他眼中的你', description: '生成结果、玩法配置与效果统计', icon: 'mirror', permission: 'mirror.read', children: [

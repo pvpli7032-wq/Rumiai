@@ -9,8 +9,9 @@ export function useConversationTools(conversationId: string | null, token: strin
     setData(null); setError('');
     if (!conversationId || !token) return;
     const controller = new AbortController();
-    void api.get<ConversationToolSettings>('/api/conversations/' + encodeURIComponent(conversationId) + '/context', {token, signal: controller.signal}).then(setData).catch(cause => {if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '对话设置读取失败。');});
-    return () => controller.abort();
+    const timeout = window.setTimeout(() => controller.abort('timeout'), 15000);
+    void api.get<ConversationToolSettings>('/api/conversations/' + encodeURIComponent(conversationId) + '/context', {token, signal: controller.signal}).then(value => {if (!controller.signal.aborted) setData(value);}).catch(cause => {if (controller.signal.reason === 'timeout') setError('读取超时，请重新读取。'); else if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '对话设置读取失败。');}).finally(() => window.clearTimeout(timeout));
+    return () => {window.clearTimeout(timeout); controller.abort();};
   }, [conversationId, token, revision]);
   async function save(settings: ConversationToolSettings['settings']) {
     if (!conversationId || !token || busy) return false;

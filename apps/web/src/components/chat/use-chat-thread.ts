@@ -1,4 +1,5 @@
 'use client';
+import type {SceneConfig} from '@rumiai/contracts/stories/scene-config';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import {useSearchParams} from 'next/navigation';
@@ -26,8 +27,10 @@ export function useChatThread(opts: {
   messageListRef: RefObject<HTMLDivElement | null>;
   requireLogin: () => void;
 }) {
-  const requestedMessage = useSearchParams().get('message');
+  const searchParams=useSearchParams();
+  const requestedMessage=searchParams.get('message'),requestedScene=searchParams.get('scene')==='1';
   const { charId, token, authLoading, requestedConversation, wantsNewChat, router, chatScroll, messageListRef, requireLogin } = opts;
+  const [sceneId,setSceneId]=useState<string|null>(null),[scene,setScene]=useState<SceneConfig|null>(null);
   const [character, setCharacter] = useState<Character | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -102,15 +105,16 @@ export function useChatThread(opts: {
     const headers = { Authorization: `Bearer ${token}` };
     const loadJSON = async (response: Response) => { const data = await response.json(); if (!response.ok) throw Error(zhError(data.error || '')); return data; };
     let active = true;
-    setLoading(true); setChatError(null); setCharacter(null); setConversationId(null); setMessages([]);
+    setLoading(true); setChatError(null); setCharacter(null); setConversationId(null);setSceneId(null);setScene(null); setMessages([]);
     Promise.all([
       fetch(`/api/characters/${charId}`, { headers }).then(loadJSON),
-      (requestedConversation ? fetch('/api/conversations/'+encodeURIComponent(requestedConversation),{headers}) : fetch('/api/conversations', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ characterId: charId, newChat: wantsNewChat }) })).then(loadJSON),
+      (requestedConversation ? fetch('/api/conversations/'+encodeURIComponent(requestedConversation),{headers}) : fetch('/api/conversations', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ characterId: charId, newChat: wantsNewChat, scene:requestedScene }) })).then(loadJSON),
     ]).then(([charData, convData]) => {
       if (!active) return;
       if (charData.character) setCharacter(charData.character);
       if (convData.conversation) {
-        setConversationId(convData.conversation.id);
+        setConversationId(convData.conversation.id);setSceneId(convData.conversation.sceneId??null);setScene(convData.conversation.scene??null);
+        if(!requestedConversation)router.push('/chat?character='+encodeURIComponent(charId)+'&conversation='+encodeURIComponent(convData.conversation.id));
         // A brand new room did not exist when the sidebar last loaded.
         notifyChatListChanged();
         if (requestedMessage) return fetch('/api/conversations/' + encodeURIComponent(convData.conversation.id) + '/messages/' + encodeURIComponent(requestedMessage) + '/window', {headers}).then(loadJSON) as Promise<MessagePage>;
@@ -127,10 +131,10 @@ export function useChatThread(opts: {
     return () => { active = false; };
     // requireLogin 与 applyLatestPage 每次渲染都是新引用，依赖只认输入。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [charId, token, authLoading, requestedConversation, wantsNewChat, requestedMessage]);
+  }, [charId, token, authLoading, requestedConversation, wantsNewChat, requestedMessage, requestedScene]);
 
   return {
-    character, messages, setMessages, conversationId, likedIds, hasEarlier, loadingEarlier,
+    character, sceneId, scene, messages, setMessages, conversationId, likedIds, hasEarlier, loadingEarlier,
     loading, chatError, setChatError, setLoading, applyLatestPage, loadEarlierMessages,
     reloadMessages, toggleMessageLike, router,
   };

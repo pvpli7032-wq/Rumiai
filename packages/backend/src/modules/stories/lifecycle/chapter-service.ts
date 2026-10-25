@@ -1,3 +1,4 @@
+import {readStoredStorySceneSettings} from '@rumiai/contracts/stories/settings';
 /**
  * Chapter lifecycle: retry-state, close-chapter, resume（V3 第 16 章）。
  *
@@ -130,7 +131,7 @@ export async function resumeStory(userId: string, runId: string, input: unknown)
       if (state.schemaVersion === 1 && typeof state.chapterKey === 'string') {
         const stateJson = JSON.stringify({...state, chapterKey: next.key});
         await tx.storyCheckpoint.create({data: {runId, throughTurnNo: run.lastCommittedTurnNo, revision, stateJson}});
-        await tx.storyRun.update({where: {id: runId}, data: {chapterKey: next.key, stateJson}});
+        await tx.storyRun.update({where: {id: runId}, data: {chapterKey: next.key, stateJson,settingsJson:JSON.stringify({...readStoredStorySceneSettings(run.settingsJson),chapterGoal:''})}});
       }
     }
     return {run: await view(tx, await requireVisibleRun(tx, userId, runId))};

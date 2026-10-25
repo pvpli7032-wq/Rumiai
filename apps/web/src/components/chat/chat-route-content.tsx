@@ -14,8 +14,6 @@ import { useChatScroll, useCompositionGuard } from '@/components/chat/chat-inter
 import { useQuota } from '@web/lib/hooks/use-quota';
 import { ChapterClose } from '@/components/stories/chapter-close';
 import { EndChapterDialog } from '@/components/stories/end-chapter-dialog';
-import { getSceneConfigByCharacterId } from '@rumiai/contracts/stories/scene-config';
-import { resolveScene } from '@rumiai/contracts/stories/scene-service';
 import { buildChapterCloseData } from '@rumiai/contracts/stories/chapter-close';
 import {trackProductEvent} from '@web/lib/analytics-client/product-events-client';
 import { trackSceneFunnelEvent } from '@/lib/analytics-client/scene-funnel-client';
@@ -61,7 +59,6 @@ function ChatContent() {
   const requestedConversation = searchParams.get('conversation');
   const [resolvedCharId,setResolvedCharId] = useState<string|null>(null);
   const charId = searchParams.get('character') || resolvedCharId;
-  const requestedScene = searchParams.get('scene') === '1';
   // "新建聊天" on the detail dialog asks for a fresh room instead of reopening the last one.
   const wantsNewChat = searchParams.get('new') === '1';
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -75,9 +72,7 @@ function ChatContent() {
   const thread = useChatThread({charId, token, authLoading, requestedConversation, wantsNewChat, router, chatScroll, messageListRef, requireLogin});
   const {character, messages, conversationId, loading, chatError, setChatError, setLoading} = thread;
 
-  const sceneConfig = requestedScene && charId ? getSceneConfigByCharacterId(charId) : undefined;
-  const sceneResolution = requestedScene && character ? resolveScene(character, sceneConfig) : undefined;
-  const activeScene = sceneResolution?.kind === 'available' ? sceneResolution.scene : undefined;
+  const activeScene = thread.scene ?? undefined;
 
   // 额度行与取消计费提示（V3 表 15/16）：数值只来自 /api/me/quota 与 SSE 的 cost 事件。
   const {quota, loading: quotaLoading, error: quotaError, reload: reloadQuota, applyCost} = useQuota(token);
@@ -203,7 +198,7 @@ function ChatContent() {
 
       {activeScene && <EndChapterDialog open={endChapterDialogOpen} onClose={() => setEndChapterDialogOpen(false)} onConfirm={() => { setEndChapterDialogOpen(false); setShowChapterClose(true); if (conversationId) trackSceneFunnelEvent(token, 'scene_active_end_confirmed', { conversationId, sceneId: activeScene.id }); }} />}
 
-      {conversationId && token && <ConversationContextPanel key={conversationId} open={contextOpen} onClose={() => setContextOpen(false)} conversationId={conversationId} token={token} data={tools.data} error={tools.error} busy={tools.busy} reload={tools.reload} save={tools.save} onArchived={() => router.push('/chat')}/>}
+      {conversationId && token && <ConversationContextPanel currentMode={activeScene ? 'scene' : 'chat'} key={conversationId} open={contextOpen} onClose={() => setContextOpen(false)} conversationId={conversationId} token={token} data={tools.data} error={tools.error} busy={tools.busy} reload={tools.reload} save={tools.save} onArchived={() => router.push('/chat')}/>}
 
       {reportingMessage&&<ReportDialog targetType="MESSAGE" targetId={reportingMessage} targetName="这条 AI 回复" onClose={()=>setReportingMessage(null)}/>}
       {reporting && character && (

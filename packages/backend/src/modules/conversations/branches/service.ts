@@ -8,7 +8,7 @@ export async function createConversationBranch(userId: string, conversationId: s
     if (rows.length > 10000) throw new ChatContextError('该分支历史过长，请先导出或选择更早的分支位置。', 422);
     const event = await tx.conversationRelationshipEvent.findFirst({where: {conversationId, messageId: {in: rows.map(row => row.id)}}, orderBy: {createdAt: 'desc'}});
     const branch = await tx.conversation.create({data: {
-      userId, characterId: conversation.characterId, title: (conversation.title || conversation.character.name) + ' · 分支',
+      userId, characterId: conversation.characterId, sceneId:conversation.sceneId, title: (conversation.title || conversation.character.name) + ' · 分支',
       parentConversationId: conversationId, forkMessageId: messageId, personaId: conversation.personaId,
       personalCharacterOverride: conversation.personalCharacterOverride, responseStyle: conversation.responseStyle, responseLength: conversation.responseLength,
       relationshipMode: conversation.relationshipMode, aiModel: conversation.aiModel,

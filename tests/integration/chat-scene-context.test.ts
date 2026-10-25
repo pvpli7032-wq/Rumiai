@@ -1,0 +1,27 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createFixture} from '../helpers/sqlite-fixture.mjs';
+test('configured role scenes create independent durable rooms and reach the real upstream prompt',async t=>{
+ const fixture=await createFixture(),previousFetch=globalThis.fetch;
+ const envKeys=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_MAX_RETRIES'] as const,previous=Object.fromEntries(envKeys.map(key=>[key,process.env[key]]));
+ t.after(async()=>{globalThis.fetch=previousFetch;for(const key of envKeys){if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}await fixture.cleanup();});
+ process.env.OPENAI_API_KEY='fixture-only-no-paid-provider';process.env.OPENAI_BASE_URL='https://scene.example.test/v1';process.env.AI_MAX_RETRIES='0';
+ const {SCENE_CONFIGS}=await import('@rumiai/contracts/stories/scene-config');const scene={...SCENE_CONFIGS[0],id:'dynamic-scene-fixture',characterId:'dynamic-scene-role',title:'后台配置的真实场景',goal:'fixture-scene-goal-marker',userIdentity:'fixture-scene-identity-marker'};
+ await fixture.db.operationSetting.create({data:{key:'chat.scenes',group:'chat',value:JSON.stringify([scene]),updatedBy:fixture.admin.id}});
+ const {clearCache}=await import('@rumiai/backend/modules/settings/cache');clearCache();
+ const character=await fixture.db.character.create({data:{id:scene.characterId,name:'场景测试角色',personality:'自然',background:'测试',creatorId:fixture.user.id}});
+ const other=await fixture.db.character.create({data:{name:'不支持场景的角色',personality:'自然',background:'测试',creatorId:fixture.user.id}});
+ const {createOrReuseConversation,readConversation}=await import('@rumiai/backend/modules/conversations/conversation-service');
+ const normal=await createOrReuseConversation(fixture.user.id,{characterId:character.id}),created=await createOrReuseConversation(fixture.user.id,{characterId:character.id,sceneId:scene.id});
+ assert.notEqual(created.conversation.id,normal.conversation.id);assert.equal(created.conversation.sceneId,scene.id);assert.equal((await createOrReuseConversation(fixture.user.id,{characterId:character.id})).conversation.id,normal.conversation.id);
+ assert.notEqual((await createOrReuseConversation(fixture.user.id,{characterId:character.id,scene:true})).conversation.id,created.conversation.id);
+ await assert.rejects(()=>createOrReuseConversation(fixture.user.id,{characterId:other.id,sceneId:scene.id}),/场景已不可用/);
+ assert.equal((await readConversation(fixture.user.id,created.conversation.id)).conversation.scene?.goal,scene.goal);
+ const requests:Array<{messages:Array<{role:string;content:string}>}>=[];
+ globalThis.fetch=async(input,init)=>{assert.equal(new URL(String(input)).href,'https://scene.example.test/v1/chat/completions');requests.push(JSON.parse(String(init?.body)));return new Response(['data: {"choices":[{"delta":{"content":"scene fixture reply"},"finish_reason":null}]}','','data: {"choices":[{"delta":{},"finish_reason":"stop"}]}','','data: [DONE]','',''].join('\n'),{headers:{'Content-Type':'text/event-stream'}});};
+ const {executeChatTurn}=await import('@rumiai/backend/modules/conversations/chat-application-service');
+ const result=await executeChatTurn({userId:fixture.user.id,conversationId:created.conversation.id,mode:'SEND',input:{request:new Request('http://fixture.test/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:'我们开始吧',requestId:'durable-scene-fixture'})})},signal:new AbortController().signal});
+ assert.match(await new Response(result.stream).text(),/scene fixture reply/);assert.equal(requests.length,1);const system=requests[0].messages.find(row=>row.role==='system')?.content??'';assert.match(system,/fixture-scene-goal-marker/);assert.match(system,/fixture-scene-identity-marker/);
+ await fixture.db.operationSetting.update({where:{key:'chat.scenes'},data:{value:'[]'}});clearCache();
+ await assert.rejects(()=>executeChatTurn({userId:fixture.user.id,conversationId:created.conversation.id,mode:'SEND',input:{request:new Request('http://fixture.test/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:'继续',requestId:'disabled-scene-fixture'})})},signal:new AbortController().signal}),/场景已不可用/);assert.equal(requests.length,1);
+});

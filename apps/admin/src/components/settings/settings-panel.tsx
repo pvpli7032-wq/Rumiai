@@ -40,7 +40,10 @@ function searchableText(definition: SettingDefinition): string {
   return [definition.label, definition.key, definition.description].join(' ').toLowerCase();
 }
 
-export function SettingsPanel({activeGroup, sessionActive, canWrite, controller, sectionId, onSectionChange, focus}: {
+export function SettingsPanel({displayLabel, displayDescription, allowedSectionIds, activeGroup, sessionActive, canWrite, controller, sectionId, onSectionChange, focus}: {
+  displayLabel?: string;
+  displayDescription?: string;
+  allowedSectionIds?: readonly string[];
   activeGroup: SettingsGroupId;
   sessionActive: boolean;
   canWrite: boolean;
@@ -57,14 +60,14 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller,
   const [restoreScope, setRestoreScope] = useState<{label: string; items: SettingDefinition[]} | null>(null);
   const [handledFocusNonce, setHandledFocusNonce] = useState<number | null>(null);
 
-  const activeLabel = SETTING_GROUPS.find(group => group.id === activeGroup)?.label ?? '';
-  const sections = useMemo(() => sectionsOfGroup(activeGroup), [activeGroup]);
+  const activeLabel = displayLabel ?? SETTING_GROUPS.find(group => group.id === activeGroup)?.label ?? '';
+  const sections = useMemo(() => sectionsOfGroup(activeGroup).filter(section => !allowedSectionIds || allowedSectionIds.includes(section.id)), [activeGroup, allowedSectionIds]);
   const selectedSection = sections.find(section => section.id === sectionId) ?? sections[0];
   const needle = query.trim().toLowerCase();
   const searching = needle.length > 0;
   const matched = useMemo(
-    () => (needle ? definitions.filter(definition => searchableText(definition).includes(needle)) : null),
-    [definitions, needle],
+    () => (needle ? sections.flatMap(section => section.definitions).filter(definition => searchableText(definition).includes(needle)) : null),
+    [sections, needle],
   );
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller,
   }, [savedAt, activeGroup]);
 
   function openRestore(scope: SettingDefinition[] | 'group', label: string) {
-    setRestoreScope({label, items: scope === 'group' ? definitions : scope});
+    setRestoreScope({label, items: scope === 'group' ? (allowedSectionIds ? sections.flatMap(section => section.definitions) : definitions) : scope});
   }
 
   /** 恢复默认的影响预览：按「当前草稿值 → 默认值」列出会被改动的字段。只写草稿，不提交。 */
@@ -149,7 +152,7 @@ export function SettingsPanel({activeGroup, sessionActive, canWrite, controller,
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-foreground">{activeLabel}</h2>
-          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{GROUP_HINTS[activeGroup]}</p>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{displayDescription ?? GROUP_HINTS[activeGroup]}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <div className="relative w-full min-w-0 sm:w-64 sm:flex-none">

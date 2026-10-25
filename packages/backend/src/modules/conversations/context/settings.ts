@@ -50,9 +50,12 @@ export async function saveConversationContextSettings(userId: string, conversati
     if (valid !== bookIds.length) throw new ChatContextError('部分世界书不存在或无权使用。', 404);
   }
   await db.$transaction(async tx => {
+    const before = await tx.conversation.findUniqueOrThrow({where:{id:conversationId},select:{personaId:true,personalCharacterOverride:true}});
+    const previousBooks = bookIds ? await tx.conversationWorldbook.findMany({where:{conversationId},select:{worldbookId:true}}) : [];
+    const changesBackground = ('personaId' in data && data.personaId !== before.personaId) || ('personalCharacterOverride' in data && data.personalCharacterOverride !== before.personalCharacterOverride) || (bookIds !== null && (bookIds.length !== previousBooks.length || previousBooks.some(book => !bookIds.includes(book.worldbookId))));
     await tx.conversation.update({where: {id: conversationId}, data});
     if (bookIds) {await tx.conversationWorldbook.deleteMany({where: {conversationId}}); if (bookIds.length) await tx.conversationWorldbook.createMany({data: bookIds.map(worldbookId => ({conversationId, worldbookId}))});}
-    await tx.conversationMemory.deleteMany({where: {conversationId}});
+    if (changesBackground) await tx.conversationMemory.deleteMany({where: {conversationId}});
   });
   return readConversationContextSettings(userId, conversationId);
 }

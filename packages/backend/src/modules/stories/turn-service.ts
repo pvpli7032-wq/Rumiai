@@ -25,8 +25,8 @@ import { readActiveAiProviders } from '@rumiai/backend/modules/ai/providers/mana
 import { readTaskModelPlan } from '@rumiai/backend/modules/ai/models/task-models';
 import { aiErrorCode, aiUserError, streamMockResponse, streamOpenAIResponse } from '@rumiai/backend/modules/conversations/chat-stream';
 import { readRecentMessageHistory } from '@rumiai/backend/modules/conversations/message-service';
-import { buildStoryContext } from '@rumiai/backend/modules/stories/lifecycle/context-service';
-import {readChatRules} from '@rumiai/backend/modules/settings/index';
+import { buildConfiguredStoryContext } from '@rumiai/backend/modules/stories/lifecycle/context-service';
+import {readChatRules,readSettingValue} from '@rumiai/backend/modules/settings/index';
 import type { AiStreamMetrics } from '@rumiai/backend/modules/ai/types';
 import {beginBillingTurn, readBalance, readTurnReceipt, toChargeError, type BillingTurn} from '@rumiai/backend/modules/billing/turn';
 import {classifyExisting, replayStream, replayTurn, requestHash} from '@rumiai/backend/modules/stories/turn-replay';
@@ -151,8 +151,10 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
     return replayStream(replayTurn(run, turn), await costEvents({userId: input.userId, conversationId: run.conversationId, operation: 'STORY_TURN', requestId}));
   }
 
+  if(!await readSettingValue<boolean>('story.enabled'))throw new StoryError('STORY_DISABLED','章节故事尚未开放；历史记录仍可查看与导出。',503);
   if (run.status !== 'ACTIVE') throw new StoryError('RUN_NOT_ACTIVE', '故事当前不在进行中，无法继续回合。', 409);
   requirePublishedTemplate(run);
+  const storyContext = await buildConfiguredStoryContext(run);
 
   let usingRealAi = Boolean(process.env.OPENAI_API_KEY?.trim());
   const modelPlan = await readTaskModelPlan('story', {preferred: run.conversation.aiModel, characterId: run.conversation.characterId});
@@ -231,7 +233,6 @@ export async function executeStoryTurn(input: StoryTurnRequest): Promise<Readabl
         await db.storyTurn.updateMany({where: {id: turn.id, status: 'ACCEPTED'}, data: {status: 'GENERATING'}});
         // The user message is not persisted yet, so nothing is excluded from history.
         const history = await readRecentMessageHistory(run.conversationId, '', rules.historyMessages);
-        const storyContext = buildStoryContext(run);
         const streamOptions = {signal: abort.signal, onMetrics: (value: AiStreamMetrics) => { metrics = value; }, providers: configuredProviders, models: modelPlan ?? undefined, mapEvent, context: storyContext};
         assistantContent = usingRealAi
           ? await streamOpenAIResponse(controller, run.conversation.character, history, content, run.conversation.aiModel, streamOptions)

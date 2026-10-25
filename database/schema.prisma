@@ -631,6 +631,7 @@ model Report {
 
 /// Conversation container between a User and a Character
 model Conversation {
+  sceneId String? @map("scene_id")
   pinnedAt DateTime? @map("pinned_at")
   parentConversationId String? @map("parent_conversation_id")
   forkMessageId String? @map("fork_message_id")
@@ -1848,6 +1849,7 @@ model StoryTemplateVersion {
 
 /// 故事运行实例。与 Conversation 一对一；没有实例的会话就是普通自由聊天。
 model StoryRun {
+  settingsJson String @default("{}") @map("settings_json")
   parentRunId String? @map("parent_run_id")
   restoredFromSaveId String? @map("restored_from_save_id")
   saves StorySave[]

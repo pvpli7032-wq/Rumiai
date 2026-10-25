@@ -23,6 +23,7 @@ const either = (...rules: Array<(key: string) => boolean>) => (key: string) => r
 /** 展示目录的唯一规则表。未匹配的新 registry 键会落入「其他设置」，不会静默丢失。 */
 const RULES: Record<SettingGroup, SectionRule[]> = {
   chat: [
+    {id:'chat-scenes',title:'角色场景目录',description:'管理可用场景、玩家身份、目标与开场；内容由生成服务实际读取。',matches:exact('chat.scenes')},
     {id: 'chat-media', title: '图片理解与录音', description: '媒体任务开关、每日次数与录音时长；模型和预算在AI平台配置。', matches: starts('media.')},
     {id: 'chat-revisions', title: '续写与改写', description: '开放状态、计费方式与改写要求长度。', matches: starts('chat.revisions.')},
     {id: 'chat-context', title: '身份与世界书', description: '用户身份、私人角色补充和世界书注入上限。', matches: either(starts('chat.worldbooks.'), exact('chat.personaMaxChars', 'chat.personalOverrideMaxChars'))},
@@ -42,6 +43,7 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
     {id: 'billing-cancel', title: '取消回复', description: '取消生成后的费用处理与每天免费取消次数；聊天输入区读取同一政策。', matches: exact('billing.cancelPolicy', 'billing.freeCancelPerDay')},
     {id: 'billing-settlement', title: '结算与额度', description: '预扣核对、毛利提示、业务日和其他结算口径。', matches: exact('billing.holdTimeoutMinutes', 'billing.targetMarginPercent', 'billing.marginAlertPercent', 'billing.dayTimezone')},
     {id: 'billing-story', title: '故事入口与收费', description: '故事入口、故事回合收费和故事币价。', matches: exact('story.enabled', 'story.chargingEnabled', 'story.coinPrice')},
+    {id: 'billing-story-settings', title: '玩家设定与叙事方式', description: '前台故事场景设置的长度和可选叙事方式；保存后由故事生成服务执行。', matches: exact('story.settingsMaxChars', 'story.narrativeStyles')},
     {id: 'billing-story-runtime', title: '故事运行参数', description: '故事模板、动作建议、状态批处理和重试参数。', matches: starts('story.enabledTemplates', 'story.actionSuggestions', 'story.stateBatchSize', 'story.stateMaxAttempts')},
     {id: 'billing-cost', title: '成本与汇率', description: '成本币汇率和建议价格样本口径；模型成本价格在专页维护。', matches: starts('cost.')},
     {id: 'billing-ai-budget', title: '各类 AI 任务预算', description: '按聊天、故事、Mirror、评理和记忆任务分别设置成本预算。', matches: starts('budget.task.')},
@@ -63,7 +65,7 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
     {id: 'growth-tasks', title: '后台任务', description: '任务轮询、批处理、重试和备份保留。', matches: starts('tasks.')},
   ],
   accounts: [{id: 'accounts-login', title: '登录与账号', description: '注册密码强度与登录会话有效期。', matches: starts('accounts.')}],
-  prompts: [{id: 'prompts-templates', title: '提示词模板', description: 'Mirror、评理结案、记忆摘要与接话建议的提示词。', matches: starts('prompt.')}],
+  prompts: [{id:'prompts-memory',title:'记忆摘要提示词',description:'自动摘要整理对话时使用的指令。',matches:exact('prompt.memorySummary')}, {id: 'prompts-templates', title: '提示词模板', description: 'Mirror、评理结案、记忆摘要与接话建议的提示词。', matches: starts('prompt.')}],
 };
 
 export function visibleDefinitionsOfGroup(group: SettingGroup): SettingDefinition[] {

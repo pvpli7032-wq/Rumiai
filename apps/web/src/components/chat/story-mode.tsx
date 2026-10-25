@@ -1,4 +1,5 @@
 'use client';
+import {StorySceneSettingsPanel} from '@/components/stories/story-scene-settings';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {useAuth} from '@web/lib/auth-context';
@@ -11,13 +12,14 @@ import {useAppBack} from '@/components/layout/navigation-history';
 
 type PublicTurn = {id: string; turnNo: number; status: string; stateStatus: string; inputMessageId: string | null; assistantMessageId: string | null; committedAt: string | null};
 type PublicEvent = {id: string; type: string; chapterKey: string; payload: {summary: string}; sourceMessageId?: string|null; createdAt: string};
-type StoryRunView = {id: string; conversationId: string; template: {title: string; publicSummary: string}; chapter: {key: string; title: string}; status: string; revision: number; turns: PublicTurn[]; events: PublicEvent[]};
+type StoryRunView = {id: string;characterId:string; conversationId: string; template: {title: string; publicSummary: string}; chapter: {key: string; title: string}; status: string; revision: number; turns: PublicTurn[]; events: PublicEvent[]};
 type ChatItem = {key: string; role: 'USER' | 'ASSISTANT' | 'EVENT'; text: string};
 type ConversationMessage = {id: string; role: string; content: string};
 
 export function StoryMode({runId}: {runId: string}) {
   const router = useRouter(); const {token, isLoading: authLoading} = useAuth();
   const [run, setRun] = useState<StoryRunView | null>(null); const [items, setItems] = useState<ChatItem[]>([]); const [localItems, setLocalItems] = useState<ChatItem[]>([]);
+  const [settingsOpen,setSettingsOpen]=useState(false);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(true); const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState(''); const [closeConfirmOpen, setCloseConfirmOpen] = useState(false); const [closing, setClosing] = useState(false); const [fatal, setFatal] = useState(''); const [streamText, setStreamText] = useState(''); const [historyUnavailable, setHistoryUnavailable] = useState(false);
   const requestId = useRef<string | null>(null); const requestContent = useRef<string | null>(null); const controller = useRef<AbortController | null>(null); const scrollRef = useRef<HTMLDivElement>(null);
@@ -102,7 +104,8 @@ export function StoryMode({runId}: {runId: string}) {
   if (loading) return <main className="h-full min-h-0 flex items-center justify-center bg-background text-foreground"><Loader2 className="h-6 w-6 animate-spin" /></main>;
   if (fatal) return <main className="h-full min-h-0 bg-background text-foreground p-6"><p role="alert">{fatal}</p><button className="mt-4 inline-flex items-center gap-2" onClick={back}><DesignIcon name="ph:arrow-left" size={20} />返回</button></main>;
   return <main className="h-full min-h-0 bg-background text-foreground flex flex-col">
-    <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2"><button type="button" aria-label="返回上一页" onClick={back} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-secondary"><DesignIcon name="ph:arrow-left" size={20} /></button><div className="min-w-0"><h1 className="text-[15px] font-semibold">{run?.template.title}</h1><p className="text-sm text-muted-foreground">{run?.chapter.title}</p></div></header>
+    <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2"><button type="button" aria-label="返回上一页" onClick={back} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-secondary"><DesignIcon name="ph:arrow-left" size={20} /></button><div className="min-w-0 flex-1"><h1 className="text-[15px] font-semibold">{run?.template.title}</h1><p className="text-sm text-muted-foreground">{run?.chapter.title}</p></div><button type="button" onClick={()=>setSettingsOpen(true)} className="flex min-h-11 shrink-0 items-center px-2 text-[15px] text-muted-foreground">场景设置</button></header>
+    {run&&token&&<StorySceneSettingsPanel run={run} token={token} open={settingsOpen} onClose={()=>setSettingsOpen(false)} onSaved={loadRun}/>}
     <div className="mx-auto w-full max-w-3xl min-h-0 flex-1 overflow-y-auto px-4 py-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"><p>{run?.template.publicSummary}</p>{run?.status === 'ACTIVE' ? <button type="button" onClick={() => setCloseConfirmOpen(true)} disabled={sending || closing} className="min-h-11 rounded-full border border-border px-4 text-sm text-foreground disabled:opacity-50">{closing ? '正在结束…' : '结束本章'}</button> : <button type="button" onClick={() => void resumeChapter()} disabled={closing} className="min-h-11 rounded-full border border-border px-4 text-sm text-foreground disabled:opacity-50">{closing ? '正在继续…' : '继续故事'}</button>}</div>
       {run&&<StoryTools run={run} onSuggestion={setInput}/>}

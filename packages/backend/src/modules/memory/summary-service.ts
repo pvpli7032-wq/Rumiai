@@ -1,7 +1,8 @@
 import {db} from '@rumiai/backend/infrastructure/database/client';
 import {logWarning} from '@rumiai/backend/infrastructure/logging/logger';
 import {readSettingValue} from '@rumiai/backend/modules/settings/index';
-import {isAiChatAvailable} from '@rumiai/backend/infrastructure/config/launch-guards';
+import {readTaskBudget} from '@rumiai/backend/modules/ai/task-budget';
+import {readTaskModelKey} from '@rumiai/backend/modules/ai/models/task-models';
 import {readTaskModelPlan} from '@rumiai/backend/modules/ai/models/task-models';
 import {readActiveAiProviders} from '@rumiai/backend/modules/ai/providers/management-service';
 import {reserveAiCall, finishAiCall, AiQuotaError} from '@rumiai/backend/modules/ai/ai-usage';
@@ -51,6 +52,7 @@ export async function readMemorySettings(userId?: string | null): Promise<Memory
 export async function readMemorySummary(conversationId: string): Promise<MemorySummaryView | null> {
   const row = await db.conversationMemory.findUnique({where: {conversationId}});
   if (!row) return null;
+  if (row.coveredMessageId && !await db.message.findFirst({where:{id:row.coveredMessageId,conversationId,contextIncluded:true},select:{id:true}})) return null;
   return {summary: row.summary, coveredMessageId: row.coveredMessageId, version: row.version, updatedAt: row.updatedAt.toISOString()};
 }
 
@@ -62,9 +64,9 @@ export async function invalidateMemorySummary(conversationId: string, reason: st
 /** 覆盖点之后的新消息；覆盖点本身已被删除时返回 null，调用方据此判定摘要失效。 */
 async function readMessagesAfter(conversationId: string, coveredMessageId: string | null) {
   const covered = coveredMessageId
-    ? await db.message.findUnique({where: {id: coveredMessageId}, select: {createdAt: true, id: true}})
+    ? await db.message.findUnique({where: {id: coveredMessageId}, select: {createdAt: true, id: true, conversationId: true, contextIncluded: true}})
     : null;
-  if (coveredMessageId && !covered) return null;
+  if (coveredMessageId && (!covered || covered.conversationId !== conversationId || !covered.contextIncluded)) return null;
   return db.message.findMany({
     where: {
       conversationId, contextIncluded: true,
@@ -83,7 +85,7 @@ async function readMessagesAfter(conversationId: string, coveredMessageId: strin
  */
 export async function enqueueMemorySummary(conversationId: string, options: {now?: Date} = {}): Promise<boolean> {
   const settings = await readMemorySettings();
-  if (!settings.enabled) return false;
+  if (!settings.enabled || !await readSettingValue<boolean>('memory.autoSummaryEnabled')) return false;
   const now = options.now ?? new Date();
   await db.backgroundTask.upsert({
     where: {kind_subjectId: {kind: MEMORY_SUMMARY_TASK, subjectId: conversationId}},
@@ -194,9 +196,10 @@ interface SummaryTaskOutcome {outcome: string; detail?: string}
  * 返回 SKIPPED_* 表示这次不需要做（关闭、消息不够、不是普通聊天），任务正常结束；
  * 抛错只用于「值得再试一次」的情形，由 runner 按 tasks.maxAttempts 有限重试。
  */
-export async function runMemorySummaryTask(conversationId: string): Promise<SummaryTaskOutcome> {
+export async function runMemorySummaryTask(conversationId: string, options: {testMock?: boolean} = {}): Promise<SummaryTaskOutcome> {
   const settings = await readMemorySettings();
   if (!settings.enabled) return {outcome: 'SKIPPED_DISABLED'};
+  if (!await readSettingValue<boolean>('memory.autoSummaryEnabled')) return {outcome:'SKIPPED_AUTO_DISABLED'};
   const conversation = await db.conversation.findUnique({
     where: {id: conversationId},
     select: {id: true, userId: true, characterId: true, storyRun: {select: {id: true}}},
@@ -218,8 +221,11 @@ export async function runMemorySummaryTask(conversationId: string): Promise<Summ
   const lastMessageId = pending[pending.length - 1]!.id;
 
   let summary: string;
-  if (!isAiChatAvailable(process.env)) {
+  const capability = await readSummaryCapability(conversation.characterId);
+  if (process.env.NODE_ENV === 'test' && options.testMock === true) {
     summary = mockSummary(pending.length, settings.summaryMaxChars);
+  } else if (!capability.available) {
+    return {outcome: 'SKIPPED_UNCONFIGURED', detail: capability.reason || undefined};
   } else {
     try {
       const generated = await summarizeWithModel({conversationId, userId: conversation.userId, characterId: conversation.characterId, prompt, maxChars: settings.summaryMaxChars});
@@ -235,11 +241,13 @@ export async function runMemorySummaryTask(conversationId: string): Promise<Summ
     }
   }
 
-  await db.conversationMemory.upsert({
-    where: {conversationId},
-    create: {conversationId, summary, coveredMessageId: lastMessageId, version: 1},
-    update: {summary, coveredMessageId: lastMessageId, version: {increment: 1}},
-  });
+  const persisted = await db.$transaction(async tx => {
+    if (!await tx.message.findFirst({where:{id:lastMessageId,conversationId,contextIncluded:true},select:{id:true}})) return false;
+    if (memory) return (await tx.conversationMemory.updateMany({where:{conversationId,version:memory.version},data:{summary,coveredMessageId:lastMessageId,version:{increment:1}}})).count === 1;
+    const created = await tx.conversationMemory.createMany({data:[{conversationId,summary,coveredMessageId:lastMessageId,version:1}]});
+    return created.count === 1;
+  }).catch(error=>{if(error&&typeof error==='object'&&'code' in error&&error.code==='P2002')return false;throw error;});
+  if (!persisted) return {outcome:'SKIPPED_STALE',detail:'摘要在生成期间已修改，请按最新版本重新处理。'};
 
   // 摘要顺带提出候选事实：一律 PENDING，等用户在聊天页确认，确认前不注入。
   let proposed = 0;
@@ -248,4 +256,15 @@ export async function runMemorySummaryTask(conversationId: string): Promise<Summ
     if (created) proposed += 1;
   }
   return {outcome: 'SUMMARIZED', detail: `${TASK_LEASE_HINT}:${pending.length}:待确认${proposed}`};
+}
+
+/** Capability only: no generation, reservation or settings mutation. */
+export async function readSummaryCapability(characterId: string) {
+  if(!await readSettingValue<boolean>('memory.autoSummaryEnabled'))return {available:false,reason:'自动摘要尚未开启；你仍可管理确定记忆和已有摘要。'};
+  const [key,budget]=await Promise.all([readTaskModelKey('memorySummary'),readTaskBudget('memorySummary')]);
+  if(!key)return {available:false,reason:'管理员尚未指定自动摘要任务模型。'};
+  if(budget===null||budget<=0)return {available:false,reason:'管理员尚未配置自动摘要的正数任务预算。'};
+  const plan=await readTaskModelPlan('memorySummary',{characterId});
+  if(!plan?.length||plan[0].key!==key)return {available:false,reason:'自动摘要任务模型当前不可用。'};
+  return {available:true,reason:null};
 }

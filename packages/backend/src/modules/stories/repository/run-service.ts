@@ -1,3 +1,5 @@
+import {readSettingValue} from '@rumiai/backend/modules/settings';
+import {readStoredStorySceneSettings} from '@rumiai/contracts/stories/settings';
 import { Prisma } from '@prisma/client';
 import { db } from '@rumiai/backend/infrastructure/database/client';
 import { logWarning } from '@rumiai/backend/infrastructure/logging/logger';
@@ -60,9 +62,9 @@ export async function view(client: Client, run: Run) {
   });
   if (unreadable) logWarning('story_view_unreadable_events', {runId: run.id, count: unreadable});
   return {
-    id: run.id, conversationId: run.conversationId,
+    id: run.id, characterId:run.conversation.characterId, conversationId: run.conversationId,
     template: {id: run.templateVersion.templateId, version: run.templateVersion.version, locale: run.templateVersion.locale, title: run.templateVersion.template.title, publicSummary: definition.publicSummary},
-    chapter, status: run.status, revision: run.revision, lastCommittedTurnNo: run.lastCommittedTurnNo,
+    chapter, settings:readStoredStorySceneSettings(run.settingsJson), status: run.status, revision: run.revision, lastCommittedTurnNo: run.lastCommittedTurnNo,
     stateProcessedThroughTurnNo: run.stateProcessedThroughTurnNo, events: events.reverse(), turns: turns.reverse(),
     createdAt: run.createdAt, updatedAt: run.updatedAt,
   };
@@ -74,6 +76,7 @@ export async function readStoryRun(userId: string, id: string) {
 
 export async function createStoryRun(userId: string, input: unknown) {
   const body = parseCreate(input);
+  const enabled=await readSettingValue<boolean>('story.enabled');
   const replay = async (tx: Client, existing: {id: string; templateVersionId: string; chapterKey: string}) => {
     // chapterKey changes later; initial chapter is retained in the initial checkpoint.
     const initial = await tx.storyCheckpoint.findFirst({where: {runId: existing.id, throughTurnNo: 0, revision: 0}, select: {stateJson: true}});
@@ -91,6 +94,7 @@ export async function createStoryRun(userId: string, input: unknown) {
     return await db.$transaction(async tx => {
       const existing = await tx.storyRun.findUnique({where: {userId_createRequestId: {userId, createRequestId: body.requestId}}});
       if (existing) return replay(tx, existing);
+      if(!enabled)throw new StoryError('STORY_DISABLED','章节故事尚未开放；历史记录仍可查看与导出。',503);
       const version = await tx.storyTemplateVersion.findFirst({where: {id: body.templateVersionId, publishedAt: {lte: new Date()}, template: {status: 'PUBLISHED'}}, include: {template: true}});
       if (!version) throw new StoryError('STORY_NOT_FOUND', '故事版本不存在或暂不可用。', 404);
       const definition = readVersion(version.definitionJson, version.characterSnapshotJson);

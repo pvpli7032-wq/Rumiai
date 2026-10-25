@@ -19,17 +19,18 @@ import {useSettingsGroup} from './use-settings-group';
 import {useUnsavedGuard} from './use-unsaved-guard';
 import {buildSettingSearchIndex, searchSettings} from './search';
 import {sectionsOfGroup} from './sections';
+import {SETTINGS_WORKSPACES, type SettingsWorkspaceId} from './workspaces';
 
-function settingsGroup(value: string | null): SettingsGroupId {
-  return SETTING_GROUPS.some(group => group.id === value) ? value as SettingsGroupId : 'chat';
+function settingsGroup(value: string | null, fallback: SettingsGroupId = 'chat'): SettingsGroupId {
+  return SETTING_GROUPS.some(group => group.id === value) ? value as SettingsGroupId : fallback;
 }
 
-function settingsHref(group: SettingsGroupId, section?: string): string {
+function buildSettingsHref(group: SettingsGroupId, section?: string, basePath = '/admin/settings'): string {
   const params = new URLSearchParams();
   if (group !== 'chat') params.set('tab', group);
   const targetSection = section ?? sectionsOfGroup(group)[0]?.id;
   if (targetSection) params.set('section', targetSection);
-  return params.size ? `/admin/settings?${params}` : '/admin/settings';
+  return params.size ? `${basePath}?${params}` : basePath;
 }
 
 /**
@@ -40,13 +41,18 @@ function settingsHref(group: SettingsGroupId, section?: string): string {
  * 本文件只负责外壳：权限闸门、分类标签、导出导入入口与保存栏；
  * 字段与小节在 settings-panel.tsx。
  */
-export function SettingsCenter() {
+export function SettingsCenter({workspace}: {workspace?: SettingsWorkspaceId} = {}) {
+  const config = workspace ? SETTINGS_WORKSPACES[workspace] : null;
+  const basePath = config?.path ?? '/admin/settings';
+  const defaultGroup = config?.groups[0].id ?? 'chat';
+  const settingsHref = useCallback((group: SettingsGroupId, section?: string) => buildSettingsHref(group, section, basePath), [basePath]);
+  const allowedSections = config?.sections;
   const {sessionActive, permissions, loading: accessLoading, error: accessError} = useAdminAccess();
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const requestedSection = searchParams.get('section') ?? undefined;
-  const urlGroup = settingsGroup(requestedTab);
+  const urlGroup = settingsGroup(requestedTab, defaultGroup);
   const urlSection = requestedSection && sectionsOfGroup(urlGroup).some(section => section.id === requestedSection) ? requestedSection : undefined;
   const [activeGroup, setActiveGroup] = useState<SettingsGroupId>(urlGroup);
   const [sectionId, setSectionId] = useState<string | undefined>(urlSection);
@@ -61,18 +67,18 @@ export function SettingsCenter() {
 
   const applyNavigation = useCallback((href: string) => {
     const target = new URL(href, window.location.origin);
-    if (target.pathname !== '/admin/settings') return;
-    const group = settingsGroup(target.searchParams.get('tab'));
+    if (target.pathname !== basePath) return;
+    const group = settingsGroup(target.searchParams.get('tab'), defaultGroup);
     const requested = target.searchParams.get('section') ?? undefined;
     const section = requested && sectionsOfGroup(group).some(item => item.id === requested) ? requested : undefined;
     setActiveGroup(group);
     setSectionId(section);
-  }, []);
+  }, [basePath, defaultGroup]);
 
   const shouldConfirmNavigation = useCallback((from: URL, to: URL) => {
-    if (to.pathname !== '/admin/settings') return true;
+    if (to.pathname !== basePath) return true;
     return settingsGroup(from.searchParams.get('tab')) !== settingsGroup(to.searchParams.get('tab'));
-  }, []);
+  }, [basePath]);
 
   const guardedNavigate = useUnsavedGuard(dirtyKeys.length > 0, {
     location: settingsHref(activeGroup, sectionId),
@@ -99,7 +105,7 @@ export function SettingsCenter() {
     guardedNavigate(settingsHref(activeGroup, next), {replace: history === 'replace'});
   }, [activeGroup, guardedNavigate]);
 
-  const searchIndex = useMemo(() => buildSettingSearchIndex(SETTING_GROUPS, permissions.includes('ai.costs.read')), [permissions]);
+  const searchIndex = useMemo(() => buildSettingSearchIndex(SETTING_GROUPS, permissions.includes('ai.costs.read')).filter(item => !allowedSections || (item.section && allowedSections.includes(item.section.id))), [permissions, allowedSections]);
   const searchMatches = useMemo(() => searchSettings(searchIndex, globalQuery), [globalQuery, searchIndex]);
   const searchResults = searchMatches.slice(0, 20);
 
@@ -119,7 +125,7 @@ export function SettingsCenter() {
       aria-label="设置分类"
       className="flex min-w-0 snap-x items-center gap-1 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] md:flex-wrap [&::-webkit-scrollbar]:hidden"
     >
-      {SETTING_GROUPS.map(group => {
+      {(config?.groups ?? SETTING_GROUPS).map(group => {
         const selected = group.id === activeGroup;
         return (
           <button
@@ -152,7 +158,7 @@ export function SettingsCenter() {
   if (!sessionActive) {
     return (
       <AdminPage width="narrow">
-        <AdminPageHeader eyebrow="系统设置" title="设置中心" />
+        <AdminPageHeader eyebrow="系统设置" title={config?.title ?? "设置中心"} />
         <AdminNotice
           tone="warning"
           title="请先登录管理员账号"
@@ -165,7 +171,7 @@ export function SettingsCenter() {
   if (accessError) {
     return (
       <AdminPage width="narrow">
-        <AdminPageHeader eyebrow="系统设置" title="设置中心" />
+        <AdminPageHeader eyebrow="系统设置" title={config?.title ?? "设置中心"} />
         <AdminNotice tone="error" title={accessError} />
       </AdminPage>
     );
@@ -173,7 +179,7 @@ export function SettingsCenter() {
   if (!canRead) {
     return (
       <AdminPage width="narrow">
-        <AdminPageHeader eyebrow="系统设置" title="设置中心" />
+        <AdminPageHeader eyebrow="系统设置" title={config?.title ?? "设置中心"} />
         <AdminNotice
           tone="denied"
           title="当前账号没有查看设置的权限"
@@ -188,8 +194,8 @@ export function SettingsCenter() {
     <AdminPage width="default">
       <AdminPageHeader
         eyebrow="系统设置"
-        title="设置中心"
-        description="运营参数统一在这里修改：按分类选择，改完点底部「保存本页」立即生效；一般设置不需要填写理由。"
+        title={config?.title ?? "设置中心"}
+        description={config?.description ?? "运营参数统一维护，修改后保存生效。"}
         actions={
           <>
             <Badge variant={canWrite ? 'brand' : 'neutral'}>{canWrite ? '可编辑' : '只读'}</Badge>
@@ -219,7 +225,7 @@ export function SettingsCenter() {
         <p className="mt-2 text-xs text-muted-foreground">跨分类搜索只展示当前账号可见的登记项；AI 模型路由等专属项仅提供跳转，不读取参数值。</p>
       </div>
 
-      <SettingsPanel activeGroup={activeGroup} sessionActive={sessionActive} canWrite={canWrite} controller={controller} sectionId={sectionId} onSectionChange={switchSection} focus={focus} />
+      <SettingsPanel displayLabel={config?.groups.find(group => group.id === activeGroup)?.label} displayDescription={config ? '按下方小节维护本功能的规则，修改后保存生效。' : undefined} allowedSectionIds={allowedSections} activeGroup={activeGroup} sessionActive={sessionActive} canWrite={canWrite} controller={controller} sectionId={sectionId} onSectionChange={switchSection} focus={focus} />
 
       {transferOpen && (
         <ExportImportDialog open sessionActive={sessionActive} canWrite={canWrite} onClose={() => setTransferOpen(false)} onImported={() => controller.reload()} />

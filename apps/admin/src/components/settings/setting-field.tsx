@@ -1,5 +1,7 @@
 'use client';
 
+import {SceneCatalogEditor} from './scene-catalog-editor';
+import {ResponseOptionsEditor} from './response-options-editor';
 import {ChevronDown, Maximize2, RotateCcw} from 'lucide-react';
 import {useId, useState} from 'react';
 import {Badge} from '@rumiai/ui/badge';
@@ -218,6 +220,8 @@ export function SettingField({
           </div>
         );
       case 'json':
+        if (definition.key === 'chat.scenes') return <SceneCatalogEditor id={inputId} value={value} disabled={disabled} onChange={onChange}/>;
+        if (['chat.responseStyles','chat.responseLengths','story.narrativeStyles'].includes(definition.key)) return <ResponseOptionsEditor id={inputId} value={value} disabled={disabled} onChange={onChange}/>;
         return (
           <Textarea
             id={inputId}

@@ -1,0 +1,15 @@
+'use client';
+import Link from 'next/link';
+import {useRouter} from 'next/navigation';
+import {useEffect,useState} from 'react';
+import type {StoryPlayModes,StoryPlayModeKey} from '@rumiai/contracts/stories/play-modes';
+export function PlayModePicker({characterId,token,currentMode}:{characterId:string;token?:string|null;currentMode?:StoryPlayModeKey}){
+ const router=useRouter();
+ const [entering,setEntering]=useState(false);
+ const [data,setData]=useState<StoryPlayModes|null>(null),[error,setError]=useState(''),[revision,setRevision]=useState(0);
+ useEffect(()=>{const controller=new AbortController();setData(null);setError('');fetch('/api/story-play-modes?characterId='+encodeURIComponent(characterId),{headers:token?{Authorization:'Bearer '+token}:{},signal:controller.signal}).then(async response=>{const body=await response.json();if(!response.ok)throw Error(body.error||'玩法读取失败。');return body;}).then(body=>{if(!controller.signal.aborted)setData(body);}).catch(cause=>{if(!controller.signal.aborted)setError(cause.message);});return()=>controller.abort();},[characterId,token,revision]);
+ if(error)return <p role="alert" className="text-[15px] text-destructive">{error}<button type="button" onClick={()=>setRevision(value=>value+1)} className="ml-3 min-h-11 underline">重试</button></p>;
+ if(!data)return <p role="status" className="text-[15px] text-muted-foreground">正在读取可用玩法…</p>;
+ async function enter(mode:StoryPlayModes['modes'][number]){if(entering||!token)return;setEntering(true);setError('');try{const response=await fetch('/api/conversations',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({characterId,newChat:true,sceneId:mode.sceneId??null})});const body=await response.json();if(!response.ok)throw Error(body.error||'暂时无法进入玩法。');router.push('/chat?character='+encodeURIComponent(characterId)+'&conversation='+encodeURIComponent(body.conversation.id));}catch(cause){setError(cause instanceof Error?cause.message:'暂时无法进入玩法。');}finally{setEntering(false);}}
+ return <div className="divide-y divide-border">{data.modes.map(mode=><div key={mode.key} className="flex min-h-16 items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="text-[15px]">{mode.label}{currentMode===mode.key&&<span className="ml-2 text-xs text-muted-foreground">当前玩法</span>}</p><p className="mt-1 text-[13px] leading-5 text-muted-foreground">{!mode.available?mode.reason:mode.description}</p></div>{mode.available&&mode.href&&currentMode!==mode.key?token&&mode.key!=='chapter'?<button type="button" disabled={entering} onClick={()=>void enter(mode)} className="flex min-h-11 shrink-0 items-center rounded-full border border-border px-3 text-[15px] disabled:opacity-40">{entering?'正在进入…':'进入'}</button>:<Link href={mode.href} className="flex min-h-11 shrink-0 items-center rounded-full border border-border px-3 text-[15px]">进入</Link>:null}</div>)}<p className="pt-3 text-[13px] leading-5 text-muted-foreground">切换会打开对应玩法，当前对话或故事会保留。</p></div>;
+}

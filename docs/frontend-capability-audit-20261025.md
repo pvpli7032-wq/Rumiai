@@ -973,3 +973,45 @@ D01/D02/D08/D09/D10/D17/D21/D22/D26按P1处理；其余P2，其中云草稿D23�
 - 手机实操已通过记忆新增与来源定位、菜单及单层弹窗、19px阅读设置保存后正文生效、搜索历史与隐藏推荐、创作工具折叠、故事存档恢复独立分支及实际跳转。修复故事恢复路由参数错误。后台新增表情→前台实际发送→后台下架→选择器移除且历史快照保留也已通过；保留原有效目录。浏览器未请求真实AI、支付或邮件，页面无运行错误，手机截图已人工查看。
 - 已发布：current切换至releases/p2-20261025，迁移58→59，无seed/reset。切换前后用户24、会话7、消息24、会员订单0、支付订单16数量一致；仅1个worker。线上发现、聊天、独立后台登录、会员目录与表情接口返回200，身份接口未授权401，收款响应头false。
 - 代码与本记录通过授权GitHub连接同步至main，最终提交以本文所属Git记录为准。
+
+
+## 20. 聊天、记忆与故事设置纠正（2026-10-25）
+
+### 用户反馈与线上证据
+
+- 用户反馈记忆持续加载、后台没有对应入口、移动端控件堆叠。上轮隔离用例通过不能代替线上开放状态检查。
+- 本轮线上同一会话只读检查：记忆GET 200、85ms、enabled=false；context GET 200、19ms。手机当次显示“聊天记忆暂未开启”，没有复现该次持续加载；不因此否定用户报告。
+- 源码找到明确加载缺陷：设置已有data时初始化effect再次清空draft；记忆请求没有局部超时与取消。现分别修正初始化顺序、15秒超时、取消和重试。
+- 原场景仅显示配置，发送未将规则接入生成。本轮补独立sceneId持久化、后台配置读取、计费前有效性校验与真实生成上下文。
+
+### 对标依据与设计
+
+以官方代码/文档为准，不将关注度冒充市场排名：2026-10-25查询GitHub，SillyTavern 34,926 stars，RisuAI 1,753，KoboldAI Lite 203。分别借鉴设置作用域、摘要/世界书来源、玩法与显示方式分离；按本项目数据模型重写，未复制整套产品。
+
+- [SillyTavern聊天操作](https://docs.sillytavern.app/usage/chatting/)、[摘要](https://docs.sillytavern.app/extensions/summarize/)、[世界书](https://docs.sillytavern.app/usage/core-concepts/worldinfo/)
+- [RisuAI](https://github.com/kwaroran/Risuai)、[HypaMemory实现](https://github.com/kwaroran/Risuai/blob/main/src/ts/process/memory/hypav3.ts)
+- [KoboldAI Lite](https://github.com/LostRuins/lite.koboldai.net)
+- 实际使用Figma插件制作可编辑的[手机聊天/记忆/故事三屏](https://www.figma.com/design/x86pzvRis1Zm9JYunXI3Sm?node-id=2-2)，再读取设计上下文落实到现有React组件。图稿示例不作为产品数据。
+
+### 明确入口与数据链
+
+| 功能 | 后台直接入口 | 前台/真实消费 | 模块 |
+|---|---|---|---|
+| 聊天设置 | /admin/chat/settings | 会话设置中身份、私人补充、回复方式、阅读输入；回复风格名称与指令后台表单维护 | settings/registry、conversations/context、web/chat |
+| 记忆设置 | /admin/chat/memory | memory.enabled控制手工事实与摘要参考；memory.autoSummaryEnabled独立控制自动整理；摘要可修正/删除，版本及来源校验，历史/待确认/固定记忆分组 | memory/panel-service、summary-service、memory-panel |
+| 故事场景设置 | /admin/stories/settings | StoryRun.settingsJson保存玩家身份、本章目标、场景补充、叙事方式；生成/建议真实读取，存档恢复保留，跨章清目标 | stories/lifecycle/settings-service、web/stories/story-scene-settings |
+| 角色场景目录 | 聊天/故事设置中的角色场景目录 | chat.scenes统一配置身份、冲突、目标和开场；创建独立会话、刷新/分支保留sceneId，后台停用后计费前拒绝新生成 | contracts/stories/scene-settings、conversations/scene-context |
+| 玩法选择 | 同上及story.enabled | 角色对话、角色场景、章节故事按后台与实际角色能力投影；不可用说明原因，不添加未实现共同续写按钮 | story-play-modes、web/stories/play-mode-picker |
+
+自动摘要只在明确配置任务模型及正数预算后执行；生产不再写模拟摘要。后台关闭章节故事时服务端拒绝新建和新回合，保留历史读取与已完成请求重放。真实收款继续关闭，邮件不接入。
+
+### 定向验证与发布
+
+- 已通过类型检查、模块边界检查。
+- 已通过5项集成用例：手工记忆进入真实上游请求、场景动态配置进入上游请求、摘要CAS与来源/所有权、故事设定进入生成及跨章处理、存档恢复保留设定与独立历史。使用服务器临时数据库和模拟上游，不调用真实收费服务。
+- 手机与后台8组专项操作链通过：3个独立后台配置表单保存、前台读取回复方式及刷新、记忆15秒超时重试、本人记忆实际新增、摘要版本冲突保留编辑及删除不丢事实、故事设定保存刷新与实例隔离。浏览器无页面运行错误、无横向溢出，无真实AI/支付/邮件请求；手机截图已人工检查。
+- 实操另发现回复风格保存会无条件删除摘要，已改为只在身份或背景实质变化时失效，附针对性回归；故事保存成功提示等待回读完成，关闭不再被保存状态阻挡。
+- 已发布到 releases/chat-settings-20261025；只应用新增第60条迁移，无seed/reset。切换前后用户24、会话8、消息32、会员订单0、支付订单16一致；仅1个项目worker。
+- 线上手机实读记忆200/134ms、enabled=true、无持续加载或页面错误；上下文200/30ms。三个独立后台入口与前台主入口均200；收款响应头x-checkout-enabled=false、CHECKOUT_DISABLED。
+- 通过原设置修订服务开放手工记忆；原为空的回复方式、篇幅、故事叙事选项初始化为后台可编辑项。自动摘要仍关闭，不修改现有商业价格、任务预算与邮件配置。
+- 代码与本文档通过授权GitHub连接同步，最终提交以本文所属Git记录为准。
