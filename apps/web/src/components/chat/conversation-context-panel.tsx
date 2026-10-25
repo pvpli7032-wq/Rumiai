@@ -18,6 +18,9 @@ export function ConversationContextPanel({open,onClose,conversationId,token,data
   open:boolean;onClose:()=>void;conversationId:string;token:string;data:ConversationToolSettings|null;error:string;busy:boolean;reload:()=>void;save:(settings:ConversationToolSettings['settings'])=>Promise<boolean>;onArchived?:()=>void;
 }) {
   const [view,setView]=useState<ConversationSettingsView>('settings'),[draft,setDraft]=useState<ConversationToolSettings['settings']|null>(null),[dirty,setDirty]=useState(false);
+  const [editors,setEditors]=useState<{conversationId:string;token:string;views:Array<'personas'|'worldbooks'>}>({conversationId,token,views:[]});
+  const editorScopeMatches=editors.conversationId===conversationId&&editors.token===token;
+  useEffect(()=>{setEditors(previous=>{const same=previous.conversationId===conversationId&&previous.token===token,views=same?previous.views:[];const editor=open&&(view==='personas'||view==='worldbooks')?view:null;if(same&&(!editor||views.includes(editor)))return previous;return {conversationId,token,views:editor&&!views.includes(editor)?[...views,editor]:views};});},[conversationId,token,open,view]);
   const [usage,setUsage]=useState<Usage>(null),[usageError,setUsageError]=useState(''),[usageLoading,setUsageLoading]=useState(false);
   useEffect(()=>{if(open)setView(initialView);},[open,initialView]);
   useEffect(()=>{setView('settings');setDirty(false);setDraft(data?.settings??null);},[conversationId]);
@@ -30,11 +33,11 @@ export function ConversationContextPanel({open,onClose,conversationId,token,data
   function change(value:Partial<ConversationToolSettings['settings']>){setDraft(current=>current?{...current,...value}:current);setDirty(true);}
   const title=view==='reply'?'回复方式':view==='identity'?'我的身份与背景':view==='play'?'玩法选择':view==='reading'?'阅读与输入':view==='relationship'?'对话关系':view==='memory'?'角色记忆':view==='settings'?'对话设置':view==='personas'?'身份档案':view==='worldbooks'?'世界书':view==='proactive'?'主动问候':'本轮参考了什么';
   const control='web-control min-h-11 w-full rounded-xl border border-border bg-background px-3 py-2 text-[15px] focus-visible:outline-2 focus-visible:outline-ring';
-  return <ChatPanelSheet open={open} onClose={()=>{if(!dirty||window.confirm('设置尚未保存，确认关闭并保留当前编辑状态？'))onClose();}} title={title}>
+  return <ChatPanelSheet placement="right" open={open} onClose={()=>{if(!dirty||window.confirm('设置尚未保存，确认关闭并保留当前编辑状态？'))onClose();}} title={title}>
     <div className="space-y-5 text-[15px] font-normal leading-6">
       {view!=='settings'&&<button type="button" className="flex min-h-11 items-center gap-1 text-sm text-muted-foreground" onClick={()=>setView('settings')}><ChevronLeft size={16}/>返回对话设置</button>}
-      {view==='personas'&&<PersonaManager token={token} onChanged={reload}/>}
-      {view==='worldbooks'&&data&&<WorldbookManager token={token} characterId={data.characterId} canBindCharacter={data.canBindCharacterBooks} onChanged={reload}/>}
+      {editorScopeMatches&&editors.views.includes('personas')&&<div hidden={view!=='personas'}><PersonaManager token={token} onChanged={reload}/></div>}
+      {editorScopeMatches&&editors.views.includes('worldbooks')&&data&&<div hidden={view!=='worldbooks'}><WorldbookManager token={token} characterId={data.characterId} canBindCharacter={data.canBindCharacterBooks} onChanged={reload}/></div>}
       {view==='relationship'&&<div className="[&>aside]:!block [&>aside]:!w-full [&>aside]:!min-w-0 [&>aside]:!border-0"><RelationshipPanel conversationId={conversationId} token={token} onArchived={onArchived}/></div>}
       {view==='memory'&&<MemoryPanel key={conversationId} conversationId={conversationId} token={token} defaultOpen onSourceNavigate={onClose}/>}
       {view==='reading'&&<ReaderPreferences/>}

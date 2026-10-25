@@ -78,15 +78,19 @@ async function userApi(page, route, method = 'GET', body) {
   }, {route, method, body});
 }
 async function screenshot(page, name) {
-  await page.screenshot({path: path.join(artifacts, name + '.png'), fullPage: false});
+  await page.screenshot({path: path.join(artifacts, name + '.png'), fullPage: false,animations:'disabled'});
 }
 async function openMenu(page, tab){
   const trigger=page.getByRole('button',{name:'更多对话操作',exact:true});
   await trigger.click();
   const menu=page.getByRole('dialog',{name:'聊天与设置',exact:true});
   await menu.waitFor();
-  const box=await menu.boundingBox();const height=await page.evaluate(()=>innerHeight);
-  assert.ok(box.height>=height*.45&&box.height<=height*.55,'menu should occupy half the phone screen');
+  await menu.evaluate(element=>Promise.all(element.getAnimations().map(animation=>animation.finished.catch(()=>{}))));
+  const box=await menu.boundingBox();const viewport=await page.evaluate(()=>({width:innerWidth,height:innerHeight}));
+  assert.ok(Math.abs(box.width-viewport.width/2)<=2,'drawer occupies half the phone width');
+  assert.ok(Math.abs(box.x-viewport.width/2)<=2&&Math.abs(box.y)<=2,'drawer is anchored to the right edge, not the bottom');
+  assert.ok(Math.abs(box.height-viewport.height)<=2,'drawer fills phone height');
+  assert.equal(await menu.evaluate(element=>element.scrollWidth<=element.clientWidth+1),true,'drawer must not clip horizontal content');
   assert.equal(await page.getByRole('dialog').count(),1,'one visible drawer');
   await menu.getByRole('tab',{name:tab,exact:true}).click();
   assert.equal(await menu.getByRole('tab',{name:tab,exact:true}).getAttribute('aria-selected'),'true');
@@ -356,6 +360,42 @@ try {
   checks.push('summary edit and delete use real version CAS; conflicts retain input and confirmed facts survive summary deletion');
   await front.keyboard.press('Escape');await assertNoDialog(front);
 
+  phase='identity editor navigation and real binding';
+  await openMenu(front,'设置');
+  await front.getByRole('button',{name:'身份档案',exact:true}).click();
+  await front.getByRole('button',{name:'添加身份',exact:true}).click();
+  await front.getByRole('textbox',{name:'身份名称',exact:true}).fill('保留的身份草稿');
+  await front.getByRole('textbox',{name:'身份描述',exact:true}).fill('只用于这次隔离测试的旅行者身份');
+  await front.getByRole('button',{name:'返回对话设置',exact:true}).click();
+  await front.getByRole('button',{name:'管理身份档案',exact:true}).click();
+  assert.equal(await front.getByRole('textbox',{name:'身份名称',exact:true}).inputValue(),'保留的身份草稿');
+  await front.keyboard.press('Escape');await assertNoDialog(front);
+  await openMenu(front,'设置');
+  await front.getByRole('button',{name:'身份档案',exact:true}).click();
+  assert.equal(await front.getByRole('textbox',{name:'身份描述',exact:true}).inputValue(),'只用于这次隔离测试的旅行者身份');
+  const personaSaved=front.waitForResponse(r=>new URL(r.url()).pathname==='/api/me/personas'&&r.request().method()==='POST');
+  await front.getByRole('button',{name:'保存身份',exact:true}).click();
+  assert.ok((await personaSaved).ok());
+  await front.getByRole('button',{name:'添加身份',exact:true}).waitFor();
+  const savedPersona=await fixture.db.userPersona.findFirstOrThrow({where:{userId:fixture.user.id,name:'保留的身份草稿'}});
+  await front.getByRole('button',{name:'返回对话设置',exact:true}).click();
+  await front.getByRole('button',{name:'我的身份与私人设定',exact:true}).click();
+  await front.getByRole('combobox',{name:'本次对话中的我',exact:true}).selectOption(savedPersona.id);
+  const bindingSaved=front.waitForResponse(r=>r.url().endsWith('/context')&&r.request().method()==='PATCH');
+  await front.getByRole('button',{name:'保存对话设置',exact:true}).click();
+  assert.equal((await bindingSaved).status(),200);
+  await front.getByRole('button',{name:'设置已保存',exact:true}).waitFor();
+  assert.equal((await fixture.db.conversation.findUniqueOrThrow({where:{id:ids.conversationId}})).personaId,savedPersona.id);
+  await front.keyboard.press('Escape');await assertNoDialog(front);
+  await openMenu(front,'设置');
+  await front.getByRole('button',{name:'世界书',exact:true}).click();
+  await front.getByRole('textbox',{name:'新世界书名称',exact:true}).fill('返回后保留的世界书草稿');
+  await front.getByRole('button',{name:'返回对话设置',exact:true}).click();
+  await front.getByRole('button',{name:'管理世界书',exact:true}).click();
+  assert.equal(await front.getByRole('textbox',{name:'新世界书名称',exact:true}).inputValue(),'返回后保留的世界书草稿');
+  await front.keyboard.press('Escape');await assertNoDialog(front);
+  checks.push('identity and worldbook drafts survive navigation; identity saves through real API and binds to current conversation');
+
   }
   phase='story settings persist and bind to run';
   await front.goto(origin+'/chat?storyRun='+encodeURIComponent(ids.storyRunId),{waitUntil:'domcontentloaded'});
@@ -439,6 +479,33 @@ try {
   await front.getByRole('tab',{name:'聊天',exact:true}).click();
   assert.equal(await front.getByRole('textbox',{name:'存档名称',exact:true}).inputValue(),'切换标签保留的名称');
   checks.push('failed story state really retries to PENDING without resending messages; refreshed completion unlocks chapter actions');
+
+  phase='story suggestion retry identifiers and composer link';
+  await front.keyboard.press('Escape');await assertNoDialog(front);
+  const suggestionIds=[];
+  await context.route('**/api/story-runs/'+ids.storyRunId+'/suggestions',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({status:200,json:{available:true,reason:null,count:1}});
+    suggestionIds.push(route.request().postDataJSON().requestId);
+    if(suggestionIds.length===1)return route.fulfill({status:502,json:{code:'SUGGESTIONS_FAILED',error:'这批建议已失败，请换一批。'}});
+    if(suggestionIds.length===2)return route.fulfill({status:409,json:{code:'SUGGESTIONS_IN_PROGRESS',error:'建议仍在生成。'}});
+    if(suggestionIds.length===3)return route.fulfill({status:503,json:{error:'暂时无法确认请求结果。'}});
+    return route.fulfill({status:200,json:{suggestions:['隔离测试建议：询问车站的旧信。']}});
+  });
+  await front.reload({waitUntil:'domcontentloaded'});
+  await openMenu(front,'聊天');
+  await front.getByText('行动建议',{exact:true}).click();
+  for(const message of ['这批建议已失败，请换一批。','建议仍在生成。','暂时无法确认请求结果。']){
+    await front.getByRole('button',{name:'生成行动建议',exact:true}).click();
+    await front.getByText(message,{exact:true}).waitFor();
+  }
+  await front.getByRole('button',{name:'生成行动建议',exact:true}).click();
+  const suggestion=front.getByRole('button',{name:'隔离测试建议：询问车站的旧信。',exact:true});await suggestion.waitFor();
+  assert.notEqual(suggestionIds[0],suggestionIds[1],'terminal FAILED must allow a new request');
+  assert.equal(suggestionIds[1],suggestionIds[2],'in-progress request retains id');
+  assert.equal(suggestionIds[2],suggestionIds[3],'unknown result retains id');
+  await suggestion.click();await assertNoDialog(front);
+  assert.equal(await front.getByRole('textbox',{name:'发送故事内容',exact:true}).inputValue(),'隔离测试建议：询问车站的旧信。');
+  checks.push('injected suggestion failures obey request id semantics and selected suggestion reaches the real composer without sending');
 
   phase='guarded services remain closed';
   const checkout=await front.request.get(origin+'/api/coins/packages');

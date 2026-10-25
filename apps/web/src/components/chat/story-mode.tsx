@@ -112,7 +112,7 @@ export function StoryMode({runId}: {runId: string}) {
     <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2"><button type="button" aria-label="返回上一页" onClick={back} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-secondary"><DesignIcon name="ph:arrow-left" size={20} /></button><div className="min-w-0 flex-1"><h1 className="text-[15px] font-semibold">{run?.template.title}</h1><p className="text-sm text-muted-foreground">{run?.chapter.title}</p></div><button type="button" aria-label="更多对话操作" aria-expanded={menuOpen} onClick={()=>{setMenuTab('chat');setMenuOpen(true);}} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"><DesignIcon name="ph:dots-three" size={24}/></button></header>
     {run&&token&&<StorySceneSettingsPanel run={run} token={token} open={settingsOpen} onClose={()=>setSettingsOpen(false)} onSaved={loadRun}/>}
 
-    {run&&token&&<ChatPanelSheet open={menuOpen} onClose={()=>setMenuOpen(false)} title="聊天与设置" size="half">
+    {run&&token&&<ChatPanelSheet placement="right" open={menuOpen} onClose={()=>setMenuOpen(false)} title="聊天与设置" size="half">
       <div role="tablist" aria-label="聊天菜单分类" className="mb-3 grid grid-cols-2 gap-1 rounded-full bg-secondary p-1">
         {(['chat','settings'] as const).map(tab=><button key={tab} type="button" role="tab" aria-selected={menuTab===tab} aria-controls={'story-menu-'+tab} onClick={()=>setMenuTab(tab)} className={'min-h-11 rounded-full text-[15px] '+(menuTab===tab?'bg-background text-foreground':'text-muted-foreground')}>{tab==='chat'?'聊天':'设置'}</button>)}
       </div>
