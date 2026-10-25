@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { notifyChatListChanged } from '@rumiai/contracts/conversations/chat-events';
 import { zhError } from '@rumiai/contracts/copy/zh';
 import { spokenText } from '@web/lib/rp-markup';
 import { speak, stopSpeaking } from '@web/lib/speech';
@@ -16,6 +17,8 @@ import type { MessagePage } from './use-chat-thread';
  */
 export function useChatTurns(opts: {
   token: string | null;
+  userId: string | null;
+  characterId?: string | null;
   conversationId: string | null;
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
@@ -27,8 +30,11 @@ export function useChatTurns(opts: {
   activeScene?: { id: string };
   isComposing: () => boolean;
 }) {
-  const { token, conversationId, messages, setMessages, applyLatestPage, reloadMessages, reloadQuota, applyCost, setChatError, activeScene, isComposing } = opts;
-  const [input, setInput] = useState('');
+  const { token, userId, characterId, conversationId, messages, setMessages, applyLatestPage, reloadMessages, reloadQuota, applyCost, setChatError, activeScene, isComposing } = opts;
+  const draftKey = userId && conversationId ? 'xingban:chat-draft:' + userId + ':' + conversationId : null;
+  const [draftState, setDraftState] = useState<{key: string | null; input: string}>({key: null, input: ''});
+  const input = draftState.key === draftKey ? draftState.input : '';
+  const draftValue = useRef('');
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [mockNotice, setMockNotice] = useState(false);
@@ -46,6 +52,66 @@ export function useChatTurns(opts: {
   const pendingSend = useRef<{requestId: string; content: string} | null>(null);
   // 重新生成同理：同一个消息被连点重试时沿用同一个编号。
   const pendingRegen = useRef<{messageId: string; requestId: string} | null>(null);
+
+
+  function storeDraft(value: string, pending = pendingSend.current) {
+    if (!draftKey) return;
+    try {
+      if (!value && !pending) localStorage.removeItem(draftKey);
+      else localStorage.setItem(draftKey, JSON.stringify({input: value, pending}));
+    } catch { /* In-memory editing still works if storage is blocked. */ }
+  }
+  const setInput: React.Dispatch<React.SetStateAction<string>> = useCallback(value => {
+    const next = typeof value === 'function' ? value(draftValue.current) : value;
+    draftValue.current = next;
+    setDraftState({key: draftKey, input: next});
+    if (draftKey) {
+      try {
+        if (!next && !pendingSend.current) localStorage.removeItem(draftKey);
+        else localStorage.setItem(draftKey, JSON.stringify({input: next, pending: pendingSend.current}));
+      } catch { /* Keep editing in memory. */ }
+    }
+  }, [draftKey]);
+  function rememberPending(value: {requestId: string; content: string} | null) {
+    pendingSend.current = value;
+    storeDraft(draftValue.current, value);
+  }
+  useEffect(() => {
+    pendingSend.current = null; pendingRegen.current = null; pendingMedia.current = null;
+    let restored = '';
+    if (draftKey) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(draftKey) || 'null');
+        if (saved && typeof saved.input === 'string') restored = saved.input;
+        if (saved?.pending && typeof saved.pending.content === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(saved.pending.requestId)) {
+          pendingSend.current = saved.pending;
+          restored ||= saved.pending.content;
+        }
+      } catch { /* A stale cache must not block opening the conversation. */ }
+    }
+    if (!restored && userId && characterId) {
+      try { const key = 'xingban:onboarding-draft:' + userId + ':' + characterId; const first = sessionStorage.getItem(key); if (first) {restored = first; sessionStorage.removeItem(key); if (draftKey) localStorage.setItem(draftKey, JSON.stringify({input: first, pending: null}));} } catch { /* Keep the existing draft when browser storage is unavailable. */ }
+    }
+    draftValue.current = restored;
+    setDraftState({key: draftKey, input: restored});
+    if (!token || !conversationId || !pendingSend.current) return;
+    const pending = pendingSend.current;
+    let cancelled = false;
+    void queryTurn(token, conversationId, pending.requestId).then(async result => {
+      if (cancelled || !result) return;
+      if (result.status === 'DONE') {
+        rememberPending(null);
+        if (draftValue.current === pending.content) setInput('');
+        await reloadMessages(); notifyChatListChanged();
+        void reloadQuota();
+      } else if (result.status === 'FAILED') {
+        rememberPending(null);
+      } else {
+        setChatError(result.status === 'PENDING' ? '上一条消息仍在处理中，请稍后刷新结果。' : '已恢复未确认的消息，再次发送将使用同一请求号。');
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [draftKey, token, userId, characterId]);
 
   function startRequest() {
     activeRequest.current?.abort();
@@ -77,7 +143,7 @@ export function useChatTurns(opts: {
       const data = await response.json();
       if (!response.ok) throw Error(data.error || '附件保存失败，请重试。');
       setMediaNotice(data.aiNotice || '附件已保存。');
-      pendingMedia.current = null; await reloadMessages();
+      pendingMedia.current = null; await reloadMessages(); notifyChatListChanged();
       return true;
     } catch (error) { setChatError(error instanceof Error ? zhError(error.message) : '附件保存失败，请重试。'); return false; }
     finally { mediaBusyRef.current = false; setMediaBusy(false); }
@@ -97,7 +163,7 @@ export function useChatTurns(opts: {
       const response = await fetch(`/api/conversations/${conversationId}/messages/attachments`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`}, body: JSON.stringify({content, requestId, attachment: {type: 'IMAGE', assetId: asset.id, mimeType: asset.mimeType, byteSize: asset.size}})});
       const data = await response.json();
       if (!response.ok) throw Error(data.error || '图片保存失败，请重试。');
-      pendingMedia.current = null; setMediaNotice(data.aiNotice || '图片已保存。'); await reloadMessages(); return true;
+      pendingMedia.current = null; setMediaNotice(data.aiNotice || '图片已保存。'); await reloadMessages(); notifyChatListChanged(); return true;
     } catch (error) { setChatError(error instanceof Error ? zhError(error.message) : '图片上传失败，请重试。'); return false; }
     finally { mediaBusyRef.current = false; setMediaBusy(false); }
   }
@@ -106,16 +172,25 @@ export function useChatTurns(opts: {
     e.preventDefault();
     // 组合输入未结束：回车是在确认候选词，不是发送（V3 §19）。
     if (isComposing()) return;
-    if (!input.trim() || !conversationId || streaming) return;
+    if (!input.trim() || !conversationId || !token || streaming) return;
+    if (pendingSend.current) {
+      const pending = pendingSend.current;
+      const state = await queryTurn(token, conversationId, pending.requestId);
+      if (!state || state.status === 'PENDING') { setChatError('上一条消息的结果尚未确认，请稍后再次检查。'); return; }
+      if (state.status === 'DONE') {
+        rememberPending(null); await reloadMessages(); notifyChatListChanged(); void reloadQuota();
+        if (pending.content === input.trim()) { setInput(''); setChatError(null); return; }
+      } else if (state.status === 'FAILED' || pending.content !== input.trim()) rememberPending(null);
+    }
     const content = input.trim();
     // 一次点击一个请求号（V3 §20）。同一条草稿再发一次就沿用同一个编号，
     // 否则服务端会当成另一笔请求，断线后也无从查询。
     const requestId = pendingSend.current?.content === content ? pendingSend.current.requestId : newRequestId();
-    pendingSend.current = {requestId, content};
+    rememberPending({requestId, content});
     // 场景漏斗第二级：只有本会话第一条用户消息才算“首条消息发出”。
     const firstSceneMessage = activeScene !== undefined && !messages.some(m => m.role === 'USER');
     setInput('');
-    const userMsg: Message = { id: Date.now().toString(), role: 'USER', content, createdAt: new Date().toISOString() };
+    const userMsg: Message & {clientState: 'SENDING' | 'PENDING'} = { id: Date.now().toString(), role: 'USER', content, createdAt: new Date().toISOString(), clientState: 'SENDING' };
     setMessages(prev => [...prev, userMsg]);
     setStreaming(true);
     setStreamingText('');
@@ -132,8 +207,10 @@ export function useChatTurns(opts: {
         body: JSON.stringify({ content, requestId }),
       });
       if (!res.ok) setInput(content);
+      else setMessages(previous => previous.map(message => message.id === userMsg.id ? {...message, clientState: 'PENDING'} : message));
       const full = await consumeChatStream(res, chatHandlers);
-      pendingSend.current = null;
+      signal.throwIfAborted();
+      rememberPending(null);
       if (full) {
         if (activeScene && firstSceneMessage) trackSceneFunnelEvent(token, 'scene_first_message_sent', { conversationId, sceneId: activeScene.id });
         // Re-read the thread so both messages carry their real database ids; the optimistic
@@ -142,17 +219,19 @@ export function useChatTurns(opts: {
         signal.throwIfAborted();
         if (fresh) {
           applyLatestPage(fresh);
+          notifyChatListChanged();
         } else {
           setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ASSISTANT', content: full, createdAt: new Date().toISOString() }]);
         }
       }
     } catch (err) {
       if (signal.aborted) return;
+      setInput(content);
       const failure = err as {code?: string; status?: number};
       if (failure.code === 'INSUFFICIENT_COINS' || failure.status === 402) {
         // 余额不足：草稿已在上面恢复，撤掉这条还没落库的乐观消息，并刷新额度给充值入口。
         setMessages(prev => prev.filter(item => item.id !== userMsg.id));
-        pendingSend.current = null;
+        rememberPending(null);
         setInsufficientNotice(err instanceof Error ? err.message : '金币余额不足。');
         void reloadQuota();
         return;
@@ -161,16 +240,17 @@ export function useChatTurns(opts: {
       // 断线不换号重发：先按同一个请求号问服务端成了没有，成了就把回复补进列表。
       const settled = await queryTurn(token!, conversationId, requestId);
       if (settled?.messageId) {
-        pendingSend.current = null;
+        rememberPending(null);
+        if (draftValue.current === content) setInput('');
         setChatError(null);
-        await reloadMessages();
+        await reloadMessages(); notifyChatListChanged();
         void reloadQuota();
         return;
       }
       setChatError(err instanceof Error ? zhError(err.message) : '发送失败，请稍后重试。');
       // 失败会释放预扣（含免费次数的预占），余额与免费剩余可能已经变了。
       void reloadQuota();
-      await reloadMessages(signal);
+      await reloadMessages(signal); notifyChatListChanged();
     } finally { if (!signal.aborted) { setStreaming(false); setStreamingText(''); } }
   }
 
@@ -183,6 +263,7 @@ export function useChatTurns(opts: {
     setStreaming(false);
     setStreamingText('');
     setBusyId(null);
+    if (pendingSend.current) setInput(pendingSend.current.content);
     void reloadMessages().then(() => reloadQuota()).catch(() => {});
   }
 
@@ -222,14 +303,15 @@ export function useChatTurns(opts: {
         setStreaming(false);
         setStreamingText('');
         setBusyId(null);
-        await reloadMessages(signal);
+        await reloadMessages(signal); notifyChatListChanged();
       }
     }
   }
 
   async function saveEdit(messageId: string) {
     const content = editDraft.trim();
-    if (!conversationId || !content) return;
+    if (!conversationId || !content || streaming) return;
+    if (!window.confirm('编辑这条消息会删除其后的消息并重新生成回复，费用按当前模型计算。确认继续？')) return;
     const signal = startRequest();
     // 保存后自动生成回复同样要带请求号（V3 §20）。
     const requestId = newRequestId();
@@ -244,7 +326,7 @@ export function useChatTurns(opts: {
       if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(zhError(data.error) || '修改消息失败。'); }
       signal.throwIfAborted();
       setEditingId(null);
-      await reloadMessages(signal);
+      await reloadMessages(signal); notifyChatListChanged();
       signal.throwIfAborted();
       // Generate against the edited message, without storing a duplicate user line.
       setStreaming(true); setStreamingText(''); setMockNotice(false);
@@ -258,8 +340,21 @@ export function useChatTurns(opts: {
       if (signal.aborted) return;
       setChatError(err instanceof Error ? zhError(err.message) : '生成回复失败。');
     } finally {
-      if (!signal.aborted) { setBusyId(null); setStreaming(false); setStreamingText(''); await reloadMessages(signal); }
+      if (!signal.aborted) { setBusyId(null); setStreaming(false); setStreamingText(''); await reloadMessages(signal); notifyChatListChanged(); }
     }
+  }
+
+
+  async function deleteFollowing(messageId: string) {
+    if (!conversationId || !token || streaming || busyId) return;
+    if (!window.confirm('将永久删除这条及之后的消息，相关记忆和故事状态也会失效。确认删除？')) return;
+    setBusyId(messageId); setChatError(null);
+    try {
+      const response = await fetch('/api/conversations/' + conversationId + '/messages/' + messageId, {method: 'DELETE', headers: {Authorization: 'Bearer ' + token}});
+      if (!response.ok) { const body = await response.json().catch(() => ({})); throw Error(body.error || '删除失败，请重试。'); }
+      setEditingId(null); await reloadMessages(); notifyChatListChanged(); void reloadQuota();
+    } catch (error) { setChatError(error instanceof Error ? zhError(error.message) : '删除失败，请重试。'); }
+    finally { setBusyId(null); }
   }
 
   function toggleSpeak(messageId: string, content: string) {
@@ -273,6 +368,6 @@ export function useChatTurns(opts: {
   return {
     input, setInput, streaming, streamingText, mockNotice, insufficientNotice, mediaNotice, mediaBusy, editingId, setEditingId,
     editDraft, setEditDraft, speakingId, busyId, sendMessage, cancelStreaming, regenerate, saveEdit,
-    toggleSpeak, resetTurns, abortRequest, sendImage, sendSticker: (stickerId: string) => saveAttachment({type: 'STICKER', stickerId}),
+    deleteFollowing, toggleSpeak, resetTurns, abortRequest, sendImage, sendSticker: (stickerId: string) => saveAttachment({type: 'STICKER', stickerId}),
   };
 }

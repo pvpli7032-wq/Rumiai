@@ -7,6 +7,7 @@ import {
   Heart, Flag, MessageSquare, Gift,
 } from 'lucide-react';
 import { useAuth } from '@web/lib/auth-context';
+import { useSiteContent } from '@web/lib/use-site-content';
 import { loginWithNext } from '@web/lib/next-path';
 import { ReportDialog } from '@/components/moderation/report-dialog';
 import { DesignIcon } from '@/components/primitives/design-icon';
@@ -28,6 +29,7 @@ type Tab = 'about' | 'quests' | 'cast' | 'comments';
  */
 export function CharacterDetailDialog({ characterId, onClose }: { characterId: string; onClose: () => void }) {
   const { token } = useAuth();
+  const { tags: tagCatalog } = useSiteContent();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('about');
   const [slide, setSlide] = useState(0);
@@ -142,9 +144,9 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             {tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {tags.map((t) => (
-                  <span key={t} className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] text-muted-foreground">
-                    {t}
-                  </span>
+                  <Link key={t} href={'/discover?view=characters&' + (tagCatalog.find(tag => tag.key === t)?.filterRow === 'role' ? 'role' : 'type') + '=' + encodeURIComponent(t)} className="rounded-full bg-muted px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">
+                    {tagCatalog.find(tag => tag.key === t)?.label ?? t}
+                  </Link>
                 ))}
               </div>
             )}

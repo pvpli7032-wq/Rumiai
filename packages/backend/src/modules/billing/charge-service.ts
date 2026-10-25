@@ -92,7 +92,7 @@ export async function quote(input: {userId: string; operation: ChargeOperation; 
 }
 
 /**
- * 预扣。chargingEnabled 关闭或倍率为 0 时不建费用单、不动余额；收费已开启但
+ * 预扣。chargingEnabled 关闭或倍率为0时，聊天保留零额请求回执、不动余额；收费已开启但
  * 没有币价属于配置错误，必须在调用供应商前停止，不能悄悄降级成免费生成。
  */
 export async function holdCharge(input: HoldInput): Promise<ChargeHoldResult> {
@@ -108,6 +108,25 @@ export async function holdCharge(input: HoldInput): Promise<ChargeHoldResult> {
   if (quoted.pricing === 'NO_PRICE') throw new MissingModelPriceError(quoted.modelKey);
   if (!quoted.charged) {
     const boundary = resolveBillingDayBoundary(now, quoted.timezone);
+    // Free chat still needs a durable receipt: request replay must never call AI twice.
+    // No coins or daily free quota are reserved by these zero-amount rows.
+    if (input.operation === 'CHAT_SEND' || input.operation === 'CHAT_REGENERATE') {
+      return db.$transaction(async tx => {
+        await lockAllowanceDay(tx, input.userId);
+        const raced = await tx.generationCharge.findUnique({where: {userId_operation_requestId: {userId: input.userId, operation: input.operation, requestId: input.requestId}}, select: CHARGE_SELECT});
+        if (raced) {
+          assertSameRequest(raced, input, digest);
+          return {...toHoldResult(raced, true), debited: 0};
+        }
+        const snapshot: ChargePriceSnapshot = {...quoted, day: boundary.day, allowanceSource: 'FREE_MODE', reservationId: null};
+        const row = await tx.generationCharge.create({data: {
+          userId: input.userId, requestId: input.requestId, operation: input.operation, status: 'HELD',
+          coins: 0, allowanceSource: 'FREE_MODE', conversationId: input.conversationId ?? null,
+          requestHash: digest, priceSnapshotJson: JSON.stringify(snapshot), heldAt: now,
+        }, select: CHARGE_SELECT});
+        return {...toHoldResult(row, false), debited: 0};
+      }, {timeout: 30_000});
+    }
     return {
       requestId: input.requestId, operation: input.operation, held: false, chargeId: null, status: null, coins: 0,
       allowanceSource: 'FREE_MODE', price: {...quoted, day: boundary.day}, aiCallId: null, messageId: null,

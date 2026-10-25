@@ -5,15 +5,15 @@ import {AdminNotice, AdminPage, AdminPanel} from '@admin/components/admin-page';
 import {AdminPageHeader} from '@admin/components/layout/admin-page-header';
 import {Button} from '@rumiai/ui/button';
 import {Input} from '@rumiai/ui/input';
-import {MEMBERSHIP_BENEFIT_RULES, type MembershipBenefit as Benefit, type MembershipPlanPublic as Plan, type MembershipCatalogPublic as Catalog} from '@rumiai/contracts/memberships';
+import {MEMBERSHIP_BENEFIT_RULES, MEMBERSHIP_BENEFIT_DEFINITIONS, type MembershipBenefit as Benefit, type MembershipPlanPublic as Plan, type MembershipCatalogPublic as Catalog} from '@rumiai/contracts/memberships';
 import {useUnsavedGuard} from '@admin/components/settings/use-unsaved-guard';
 import {useAdminAccess} from '../use-admin-access';
 import {Badge} from '@rumiai/ui/badge';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@rumiai/ui/tabs';
 
-const LABELS = {DAILY_FREE_REPLIES: '每日额外免费回复', CHAT_PRICE_MULTIPLIER: '聊天收费倍率（0.8 表示八折）', CHARACTER_CREATE_LIMIT: '会员角色总上限'} as const;
+const LABELS = Object.fromEntries(MEMBERSHIP_BENEFIT_DEFINITIONS.map(item => [item.key, item.label])) as Record<Benefit['key'], string>;
 const DEFS = (Object.keys(LABELS) as Array<keyof typeof LABELS>).map(key => [key, LABELS[key], MEMBERSHIP_BENEFIT_RULES[key].min, MEMBERSHIP_BENEFIT_RULES[key].max] as const);
-const defaults: Catalog = {policy: {version: 0, refundWindowHours: 24, usageChargePeriodHours: 24}, plans: []};
+const defaults: Catalog = {benefitDefinitions: MEMBERSHIP_BENEFIT_DEFINITIONS, policy: {version: 0, refundWindowHours: 24, usageChargePeriodHours: 24}, plans: []};
 
 function PolicyPanel({policy, onChange}: {policy: Catalog['policy']; onChange: (policy: Catalog['policy']) => void}) {
   return <AdminPanel title="退款与扣费规则" description="规则由后台统一写入，前台购买和退款流程读取同一份配置.">
@@ -26,8 +26,9 @@ function PolicyPanel({policy, onChange}: {policy: Catalog['policy']; onChange: (
 
 function BenefitEditor({plan, index, benefit, onToggle, onChange}: {plan: Plan; index: number; benefit: (key: Benefit['key']) => Benefit | undefined; onToggle: (index: number, key: Benefit['key'], enabled: boolean) => void; onChange: (index: number, key: Benefit['key'], patch: Partial<Benefit>) => void}) {
   return <fieldset className="space-y-2"><legend className="mb-2 text-sm font-semibold">可执行权益</legend>
-    {DEFS.map(([key, label, min, max]) => { const item = benefit(key); return <div key={key} className="rounded-xl border border-border bg-muted/20 p-3">
+    {DEFS.map(([key, label, min, max]) => { const item = benefit(key); const definition = MEMBERSHIP_BENEFIT_DEFINITIONS.find(row => row.key === key); return <div key={key} className="rounded-xl border border-border bg-muted/20 p-3">
       <label className="flex min-h-9 items-center gap-2 text-sm"><input type="checkbox" aria-label={`启用${label}`} checked={!!item} onChange={e => onToggle(index, key, e.target.checked)} />{label}</label>
+      {definition && <p className="mt-1 text-xs leading-5 text-muted-foreground">{definition.description} 单位：{definition.unit}；适用范围：{definition.scope}。</p>}
       {item && <div className="mt-2 grid gap-2"><label className="text-xs text-muted-foreground" htmlFor={`${plan.id}-${key}-label`}>权益名称<Input id={`${plan.id}-${key}-label`} aria-label={`${label}显示名称`} value={item.label} onChange={e => onChange(index, key, {label: e.target.value})} /></label><label className="text-xs text-muted-foreground" htmlFor={`${plan.id}-${key}-value`}>权益数值<Input id={`${plan.id}-${key}-value`} aria-label={`${label}数值`} type="number" min={min} max={max} step={MEMBERSHIP_BENEFIT_RULES[key].kind === 'integer' ? 1 : 0.01} value={item.value} onChange={e => onChange(index, key, {value: Number(e.target.value)})} /></label></div>}
     </div>; })}
   </fieldset>;

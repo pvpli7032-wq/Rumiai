@@ -59,7 +59,7 @@ export function useChatScroll(
     // 加载更早的历史会把视口钉在原处，这一次不能跟随。
     if (skipRef.current) { skipRef.current = false; return; }
     if (!atBottomRef.current) return;
-    endRef.current?.scrollIntoView({behavior: 'smooth', block: 'end'});
+    endRef.current?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'end'});
   }, [endRef]);
 
   const jumpToLatest = useCallback(() => {
@@ -88,7 +88,7 @@ export interface CompositionGuard {
   inputProps: {
     onCompositionStart: () => void;
     onCompositionEnd: () => void;
-    onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
     onFocus: () => void;
   };
   /** 提交前调用：仍在组合中就不要发出去。 */
@@ -108,7 +108,7 @@ export function useCompositionGuard(revealComposer?: () => void): CompositionGua
 
   const onCompositionStart = useCallback(() => { composing.current = true; }, []);
   const onCompositionEnd = useCallback(() => { composing.current = false; endedAt.current = Date.now(); }, []);
-  const onKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (event.key !== 'Enter') return;
     const justEnded = Date.now() - endedAt.current < COMPOSITION_TAIL_MS;
     // nativeEvent.isComposing 兜底：有的浏览器在组合期间也报 keydown，但标记不同。
@@ -124,18 +124,18 @@ export function useCompositionGuard(revealComposer?: () => void): CompositionGua
  * 「回到最新」：用户上翻回看时不再自动跟随，给一个明确的出口。
  * 点了才滚到底并恢复跟随，不抢用户正在读的位置。
  */
-export function ScrollToLatest({onJump}: {onJump: () => void}) {
+export function ScrollToLatest({onJump, hasNew = false}: {onJump: () => void; hasNew?: boolean}) {
   // sticky 而不是 absolute：按钮就在滚动容器里，贴在可视区底部，
   // 既不会压到输入框，也不会跟着内容滚出屏幕。
   return (
     <button
       type="button"
       onClick={onJump}
-      aria-label="回到最新消息"
-      className="sticky bottom-2 z-10 mx-auto flex w-fit items-center gap-1.5 rounded-full border border-white/10 bg-zinc-800/95 px-4 py-2 text-xs text-zinc-200 shadow-lg backdrop-blur-xs transition-colors hover:bg-zinc-700 hover:text-white"
+      aria-label={hasNew ? "有新回复，回到最新消息" : "回到最新消息"}
+      className="sticky bottom-2 z-10 mx-auto flex w-fit items-center gap-1.5 rounded-full border border-white/10 bg-zinc-800/95 px-4 py-2 text-xs text-zinc-200 shadow-lg backdrop-blur-xs transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring hover:bg-zinc-700 hover:text-white"
     >
       <ArrowDown className="h-3.5 w-3.5" />
-      回到最新
+      {hasNew ? '有新回复 · 回到最新' : '回到最新'}
     </button>
   );
 }

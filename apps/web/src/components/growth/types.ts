@@ -10,6 +10,9 @@ export interface RecommendedCharacter {
 export interface OnboardingPayload {
   enabled: boolean;
   interestTags: string[];
+  interests: string[];
+  openingSuggestions: string[];
+  openingMaxChars: number;
   recommended: RecommendedCharacter[];
   completed: boolean;
 }

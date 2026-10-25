@@ -11,6 +11,32 @@ export class CreatorCharacterError extends Error {
   }
 }
 
+
+async function characterCreationPolicy(userId: string) {
+  const [membershipLimit, configuredCap] = await Promise.all([
+    readMembershipBenefit(userId, 'CHARACTER_CREATE_LIMIT'),
+    readSettingValue<number>('content.character.maxOwned'),
+  ]);
+  const publicCap = Math.trunc(configuredCap);
+  const memberCap = membershipLimit ? Math.trunc(membershipLimit.value) : 0;
+  return {membershipLimit, publicCap, memberCap, effectiveLimit: publicCap > 0 ? Math.max(publicCap, memberCap) : 0};
+}
+
+export async function readCreatorCharacterQuota(userId: string) {
+  const [policy, used] = await Promise.all([
+    characterCreationPolicy(userId),
+    db.character.count({where: {creatorId: userId}}),
+  ]);
+  const source = policy.publicCap === 0 ? 'PUBLIC_UNLIMITED' : policy.memberCap > policy.publicCap ? 'MEMBERSHIP' : 'PUBLIC';
+  return {
+    used, publicLimit: policy.publicCap === 0 ? null : policy.publicCap,
+    membershipLimit: policy.membershipLimit ? policy.memberCap : null,
+    effectiveLimit: policy.effectiveLimit === 0 ? null : policy.effectiveLimit,
+    remaining: policy.effectiveLimit === 0 ? null : Math.max(0, policy.effectiveLimit - used),
+    source, membershipOrderNo: source === 'MEMBERSHIP' ? policy.membershipLimit?.orderNo ?? null : null,
+  };
+}
+
 export async function createCreatorCharacter(actorId: string, input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new CreatorCharacterError('角色数据格式不正确。', 400);
   const validated = await validateCharacter(input, true);
@@ -32,10 +58,7 @@ export async function createCreatorCharacter(actorId: string, input: unknown) {
   const isAdult = (body.isAdult ?? body.is_adult) === true;
   const relationshipStatus = body.relationshipStatus ?? body.relationship_status ?? null;
   const meter = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? Math.min(1_000_000, Math.max(0, Math.round(value))) : 0;
-  const membershipLimit = await readMembershipBenefit(actorId, 'CHARACTER_CREATE_LIMIT');
-  const publicCap = Math.trunc(await readSettingValue<number>('content.character.maxOwned'));
-  const memberCap = membershipLimit ? Math.trunc(membershipLimit.value) : 0;
-  const effectiveLimit = publicCap > 0 ? Math.max(publicCap, memberCap) : 0;
+  const {membershipLimit, publicCap, effectiveLimit} = await characterCreationPolicy(actorId);
   const character = await db.$transaction(async tx => {
     const current = await tx.character.count({where: {creatorId: actorId}});
     if (effectiveLimit > 0 && current >= effectiveLimit) throw new CreatorCharacterError('已达到角色创建总上限。', 403);

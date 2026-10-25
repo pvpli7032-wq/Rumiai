@@ -84,6 +84,7 @@ export async function settleCancellationInTx(tx: Tx, input: CancelInput, context
   const existing = await findChargeInTx(tx, input.userId, input.operation, input.requestId);
   // 关闭收费没有费用单，或已经结算/释放：幂等回放，绝不占用次数。
   if (!existing || existing.status !== 'HELD') return releaseInTx(tx, existing, base, now);
+  if (existing.allowanceSource === 'FREE_MODE') return releaseInTx(tx, existing, {...base, reason: USER_CANCEL}, now);
   const releaseNow = !input.outputDelivered
     || policy === 'RELEASE_ALWAYS'
     || (freeCancelLimit > 0 && await claimFreeCancel(tx, input.userId, day, freeCancelLimit));

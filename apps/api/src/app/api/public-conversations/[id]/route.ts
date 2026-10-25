@@ -1,5 +1,11 @@
 import {NextResponse} from 'next/server';
-import {db} from '@rumiai/backend/infrastructure/database/client';
-import {logRouteError} from '@rumiai/backend/infrastructure/logging/logger';
+import {readPublicConversationShare} from '@rumiai/backend/modules/conversations/share-service';
+import {jsonError,privateHeaders} from '@rumiai/backend/infrastructure/http';
 export const dynamic='force-dynamic';
-export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}){const {id}=await params;try{const conversation=await db.conversation.findUnique({where:{id},select:{id:true,title:true,createdAt:true,character:{select:{id:true,name:true,avatarUrl:true}},messages:{orderBy:[{createdAt:'desc'},{id:'desc'}],take:12,select:{id:true,role:true,content:true,createdAt:true}}}});if(!conversation)return NextResponse.json({error:'Not found',code:'NOT_FOUND'},{status:404,headers:{'Cache-Control':'no-store'}});return NextResponse.json({...conversation,messages:[...conversation.messages].reverse()},{headers:{'Cache-Control':'private, no-store'}});}catch(error){logRouteError('GET /api/public-conversations/[id]',error);return NextResponse.json({error:'Internal server error'},{status:500});}}
+export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}){
+ try{
+  const snapshot=await readPublicConversationShare((await params).id);
+  if(!snapshot)return NextResponse.json({error:'分享不存在或已撤销。',code:'NOT_FOUND'},{status:404,headers:privateHeaders});
+  return NextResponse.json(snapshot,{headers:privateHeaders});
+ }catch(e){return jsonError(e,'public share','无法读取分享。');}
+}

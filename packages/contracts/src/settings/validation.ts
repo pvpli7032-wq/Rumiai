@@ -1,3 +1,4 @@
+import {normalizeRelationshipLevels} from '@rumiai/contracts/conversations/relationship';
 import type {JsonValue, SettingDefinition} from '@rumiai/contracts/settings/types';
 
 export class SettingValidationError extends Error {
@@ -60,10 +61,19 @@ export function normalizeSettingValue(def: SettingDefinition, raw: unknown): Jso
     }
     case 'json': {
       if (raw === null || raw === undefined) fail(def, '需要 JSON 值。');
+      let value = raw;
       if (typeof raw === 'string') {
-        try { return JSON.parse(raw) as JsonValue; } catch { return fail(def, '不是合法 JSON。'); }
+        try { value = JSON.parse(raw); } catch { return fail(def, '不是合法 JSON。'); }
       }
-      return raw as JsonValue;
+      if (def.key === 'relationship.romanceLevels' || def.key === 'relationship.intimacyLevels') {
+        try { return normalizeRelationshipLevels(value) as unknown as JsonValue; }
+        catch (error) { return fail(def, error instanceof Error ? error.message : '关系等级无效。'); }
+      }
+      if (def.key === 'growth.openingSuggestions') {
+        if (!Array.isArray(value) || value.some(text => typeof text !== 'string' || !text.trim())) return fail(def, '开场建议必须是不含空项的文字数组。');
+        return [...new Set(value.map(text => (text as string).trim()))] as JsonValue;
+      }
+      return value as JsonValue;
     }
     default:
       return fail(def, '未知类型。');

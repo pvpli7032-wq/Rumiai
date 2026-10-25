@@ -17,7 +17,7 @@ const STEP_HEADINGS = {
 } as const;
 
 export function OnboardingFlow() {
-  const {token, isLoading: authLoading} = useAuth();
+  const {token, user, isLoading: authLoading} = useAuth();
   const router = useRouter();
   const [payload, setPayload] = useState<OnboardingPayload | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -27,6 +27,8 @@ export function OnboardingFlow() {
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [recommendationBusy, setRecommendationBusy] = useState(false);
+  const [openingText, setOpeningText] = useState('');
 
   useEffect(() => {
     if (authLoading) return;
@@ -47,6 +49,7 @@ export function OnboardingFlow() {
           return;
         }
         setPayload(data);
+        setInterests(data.interests ?? []);
         setCharacterId(data.recommended[0]?.id ?? null);
       })
       .catch(cause => {
@@ -60,15 +63,37 @@ export function OnboardingFlow() {
     return () => controller.abort();
   }, [token, authLoading, reloadToken, router]);
 
+  async function nextStep() {
+    if (step !== 1) { setStep(3); return; }
+    if (!token || recommendationBusy) return;
+    setRecommendationBusy(true);
+    setSubmitError('');
+    try {
+      const params = new URLSearchParams({preview: '1'});
+      for (const interest of interests) params.append('interest', interest);
+      const data = await api.get<OnboardingPayload>(API.growth.onboarding + '?' + params, {token});
+      setPayload(data);
+      setCharacterId(current => data.recommended.some(character => character.id === current) ? current : data.recommended[0]?.id ?? null);
+      setStep(2);
+    } catch (cause) {
+      setSubmitError(cause instanceof ApiError ? cause.message : '推荐角色读取失败，请重试。');
+    } finally { setRecommendationBusy(false); }
+  }
+
   function toggleInterest(tag: string) {
     setInterests(current => (current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]));
   }
 
   async function finish(skipped: boolean) {
     if (!token || busy) return;
+    if (!skipped && payload && openingText.length > payload.openingMaxChars) {setSubmitError('开场内容超过当前字数限制，请缩短后继续。'); return;}
     setBusy(true);
     setSubmitError('');
     try {
+      if (!skipped && characterId && user?.id && openingText.trim()) {
+        try { sessionStorage.setItem('xingban:onboarding-draft:' + user.id + ':' + characterId, openingText.trim()); }
+        catch { setSubmitError('此浏览器无法暂存开场内容，请保留文字并在聊天页粘贴。'); setBusy(false); return; }
+      }
       await api.post(API.growth.onboarding, {interests, ...(skipped ? {skipped: true} : {})}, {token});
       // 成功后保持 busy，页面随即跳走，避免重复提交。
       if (skipped || !characterId) router.replace(afterOnboardingTarget());
@@ -126,7 +151,7 @@ export function OnboardingFlow() {
           <h1 className="mt-1 text-xl font-semibold text-foreground">欢迎来到星伴</h1>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">三步挑一个聊得来的角色，随时可以跳过。</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => void finish(true)} disabled={busy}>
+        <Button variant="ghost" size="sm" onClick={() => void finish(true)} disabled={busy || recommendationBusy}>
           跳过引导
         </Button>
       </header>
@@ -143,7 +168,7 @@ export function OnboardingFlow() {
           {step === 2 && (
             <RecommendedStep characters={payload.recommended} selectedId={characterId} onSelect={setCharacterId} />
           )}
-          {step === 3 && <StartStep character={selectedCharacter} interests={interests} />}
+          {step === 3 && <StartStep character={selectedCharacter} interests={interests} openingText={openingText} onOpeningTextChange={setOpeningText} suggestions={payload.openingSuggestions ?? []} maxChars={payload.openingMaxChars} />}
         </div>
       </Card>
 
@@ -154,12 +179,12 @@ export function OnboardingFlow() {
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Button variant="ghost" onClick={() => setStep(current => (current === 3 ? 2 : 1))} disabled={step === 1 || busy}>
+        <Button variant="ghost" onClick={() => setStep(current => (current === 3 ? 2 : 1))} disabled={step === 1 || busy || recommendationBusy}>
           上一步
         </Button>
         {step < 3 ? (
-          <Button onClick={() => setStep(current => (current === 1 ? 2 : 3))} disabled={busy}>
-            下一步
+          <Button onClick={() => void nextStep()} disabled={busy || recommendationBusy}>
+            {recommendationBusy ? '正在推荐…' : '下一步'}
           </Button>
         ) : (
           <Button onClick={() => void finish(false)} loading={busy}>

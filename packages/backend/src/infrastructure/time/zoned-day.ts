@@ -73,3 +73,9 @@ export function resolveZonedDayBoundary(now: Date, timezone: string): DayBoundar
   const resetAt = startOfZonedDay(year, month, day + 1, timezone);
   return {day: `${year}-${pad(month)}-${pad(day)}`, resetAt: new Date(resetAt)};
 }
+
+/** UTC instants bounding one configured business day, including daylight-saving changes. */
+export function resolveZonedDayRange(now: Date, timezone: string): {startAt: Date; resetAt: Date} {
+  const {year, month, day} = zonedParts(now.getTime(), timezone);
+  return {startAt: new Date(startOfZonedDay(year, month, day, timezone)), resetAt: new Date(startOfZonedDay(year, month, day + 1, timezone))};
+}

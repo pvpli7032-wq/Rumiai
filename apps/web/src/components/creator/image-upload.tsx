@@ -4,6 +4,7 @@ import { zhError } from '@rumiai/contracts/copy/zh';
 import { useRef, useState } from 'react';
 import { AlertCircle, Check, Link2, Loader2, Trash2, UploadCloud } from 'lucide-react';
 import { API } from '@rumiai/contracts/api-paths';
+import { useUiConfig } from '@web/lib/settings/use-ui-config';
 
 /** Poster ratio used by every character card on the site. */
 const RATIO = 160 / 213;
@@ -11,7 +12,6 @@ const SPEC = {
   ratio: '3:4 (160 × 213)',
   recommended: { w: 640, h: 852 },
   min: { w: 320, h: 426 },
-  maxMB: 5,
   types: 'JPG · PNG · WebP',
 };
 
@@ -51,6 +51,9 @@ export function ImageUpload({
   token: string | null;
   onBusyChange?: (busy: boolean) => void;
 }) {
+  const config = useUiConfig();
+  const maxMB = typeof config['upload.maxMB'] === 'number' ? config['upload.maxMB'] as number : null;
+  const busyRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -60,6 +63,7 @@ export function ImageUpload({
   const [showUrl, setShowUrl] = useState(false);
 
   async function handleFile(file: File) {
+    if (busyRef.current) return;
     setError(null);
     setWarn(null);
 
@@ -67,8 +71,8 @@ export function ImageUpload({
       setError("仅支持 " + (SPEC.types));
       return;
     }
-    if (file.size > SPEC.maxMB * 1024 * 1024) {
-      setError("文件大小为" + ((file.size / 1024 / 1024).toFixed(1)) + "MB，最多" + (SPEC.maxMB) + "MB");
+    if (maxMB !== null && file.size > maxMB * 1024 * 1024) {
+      setError("文件大小为" + ((file.size / 1024 / 1024).toFixed(1)) + "MB，最多" + (maxMB) + "MB");
       return;
     }
 
@@ -81,8 +85,7 @@ export function ImageUpload({
     }
 
     if (size.w < SPEC.min.w || size.h < SPEC.min.h) {
-      setError("图片尺寸过小（" + (size.w) + "×" + (size.h) + "），至少需要" + (SPEC.min.w) + "×" + (SPEC.min.h) + "px");
-      return;
+      setWarn("图片尺寸较小（" + size.w + "×" + size.h + "），展示时可能不够清晰。建议使用" + SPEC.recommended.w + "×" + SPEC.recommended.h + "px图片。");
     }
     const ratio = size.w / size.h;
     if (Math.abs(ratio - RATIO) > 0.12) {
@@ -96,6 +99,8 @@ export function ImageUpload({
       return;
     }
 
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     onBusyChange?.(true);
     try {
@@ -112,6 +117,7 @@ export function ImageUpload({
     } catch {
       setError('网络连接失败，图片尚未上传，请重试。');
     } finally {
+      busyRef.current = false;
       setBusy(false);
       onBusyChange?.(false);
     }
@@ -186,7 +192,7 @@ export function ImageUpload({
             {busy ? "正在上传…" : "拖放图片，或点击选择文件"}
           </span>
           <span className="text-xs text-muted-foreground">
-            {"建议"}{SPEC.recommended.w} × {SPEC.recommended.h} {"px，比例"}{SPEC.ratio} {"，不超过"}{SPEC.maxMB} MB
+            {"建议"}{SPEC.recommended.w} × {SPEC.recommended.h} {"px，比例"}{SPEC.ratio} {"，不超过"}{maxMB !== null ? maxMB + ' MB' : '服务器限制'}
           </span>
         </button>
       )}
@@ -223,10 +229,10 @@ export function ImageUpload({
         <dd className="text-right tabular-nums font-medium">{SPEC.recommended.w} × {SPEC.recommended.h} px</dd>
         <dt className="text-muted-foreground">{"图片比例"}</dt>
         <dd className="text-right font-medium">{SPEC.ratio} {"竖版"}</dd>
-        <dt className="text-muted-foreground">{"最小尺寸"}</dt>
+        <dt className="text-muted-foreground">{"建议最低尺寸"}</dt>
         <dd className="text-right tabular-nums font-medium">{SPEC.min.w} × {SPEC.min.h} px</dd>
         <dt className="text-muted-foreground">{"文件"}</dt>
-        <dd className="text-right font-medium">{SPEC.types} · ≤ {SPEC.maxMB} MB</dd>
+        <dd className="text-right font-medium">{SPEC.types} · ≤ {maxMB !== null ? maxMB + ' MB' : '服务器限制'}</dd>
       </dl>
 
       {/* URL fallback */}

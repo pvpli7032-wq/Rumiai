@@ -10,3 +10,7 @@ export type PublicCharacterProjection = {character:PublicCharacter|null;tagLabel
 export type SharedConversationProjection = {id:string;title:string|null;createdAt:string;character:{id:string;name:string;avatarUrl:string|null}|null;messages:Array<{id:string;role:string;content:string;createdAt:string}>};
 export type CreatorProfileProjection = {creator:{id:string;username:string;displayName:string|null;avatarUrl:string|null;tier:string;followerCount:number;isFollowing:boolean;publicCharacterCount:number;chatCount:number;messageCount:number;likeCount:number};characters:Array<{id:string;name:string;tagline:string|null;avatarUrl:string|null;chatCount:number;likeCount:number;messageCount:number;tags:string|null;isAdult:boolean}>};
 export type SitePageProjection = SitePage|null;
+
+export type CharacterCatalogPage<T> = {items:T[];hasMore:boolean;nextCursor:string|null};
+export type DiscoverCharacter = PublicCharacter & {createdAt:string;likeCount:number;isExclusive:boolean;badges:string|null};
+export type DiscoverProjection = {recommended:DiscoverCharacter[];hot:DiscoverCharacter[];newest:DiscoverCharacter[];rails:Array<{key:string;items:DiscoverCharacter[]}>;railLimit:number};

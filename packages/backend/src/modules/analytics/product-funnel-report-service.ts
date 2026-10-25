@@ -1,3 +1,4 @@
+import type {ChatOnboardingFunnel} from '@rumiai/contracts/analytics';
 import {Prisma} from '@prisma/client';
 import {db, pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {hasAdminPermission} from '@rumiai/backend/modules/admin/authorization';
@@ -59,6 +60,7 @@ export interface ProductFunnelReport {
   days: number;
   funnels: Funnel[];
   definitions: Record<string, string>;
+  chatOnboarding: ChatOnboardingFunnel;
 }
 
 /** 归属表达式：登录优先，其次匿名主体；两者都没有的行不计入任何人数。 */
@@ -104,6 +106,40 @@ function buildFunnel(
   };
 }
 
+/** First tracked chat-open cohorts; completed rounds come from durable server receipts. */
+async function readChatOnboardingFunnel(tx: Prisma.TransactionClient, since: Date, until: Date): Promise<ChatOnboardingFunnel> {
+  const [rows, floor] = await Promise.all([
+    tx.$queryRaw<Array<{opened:number;firstReply:number;thirdReply:number;nextDayMatured:number;nextDayReturned:number}>>`
+      WITH first_open AS (
+        SELECT user_id, MIN(created_at) AS opened_at FROM product_events
+        WHERE name='chat_opened' AND user_id IS NOT NULL GROUP BY user_id
+      ), cohort AS (
+        SELECT o.user_id, o.opened_at, MIN(g.settled_at) AS first_reply_at, COUNT(g.id) AS replies
+        FROM first_open o
+        LEFT JOIN generation_charges g ON g.user_id=o.user_id AND g.operation='CHAT_SEND'
+          AND g.status='SETTLED' AND g.message_id IS NOT NULL AND g.cancel_reason IS NULL
+          AND g.settled_at >= o.opened_at AND g.settled_at <= ${until}
+        WHERE o.opened_at >= ${since} AND o.opened_at <= ${until}
+        GROUP BY o.user_id, o.opened_at
+      )
+      SELECT COUNT(*) AS opened,
+        SUM(CASE WHEN first_reply_at IS NOT NULL THEN 1 ELSE 0 END) AS firstReply,
+        SUM(CASE WHEN replies >= 3 THEN 1 ELSE 0 END) AS thirdReply,
+        SUM(CASE WHEN first_reply_at IS NOT NULL AND date(first_reply_at / 1000.0,'unixepoch','+1 day') < date(${until.getTime()} / 1000.0,'unixepoch') THEN 1 ELSE 0 END) AS nextDayMatured,
+        SUM(CASE WHEN first_reply_at IS NOT NULL AND date(first_reply_at / 1000.0,'unixepoch','+1 day') < date(${until.getTime()} / 1000.0,'unixepoch')
+          AND EXISTS (SELECT 1 FROM user_activity_days a WHERE a.user_id=cohort.user_id AND date(a.activity_date / 1000.0,'unixepoch')=date(first_reply_at / 1000.0,'unixepoch','+1 day'))
+          THEN 1 ELSE 0 END) AS nextDayReturned
+      FROM cohort
+    `,
+    tx.productEvent.aggregate({where: {name: 'chat_opened', userId: {not: null}}, _min: {createdAt: true}}),
+  ]);
+  const row = rows[0];
+  const opened = Number(row?.opened ?? 0), firstReply = Number(row?.firstReply ?? 0), thirdReply = Number(row?.thirdReply ?? 0);
+  const nextDayMatured = Number(row?.nextDayMatured ?? 0), nextDayReturned = Number(row?.nextDayReturned ?? 0);
+  return {opened, firstReply, thirdReply, firstReplyRate: rate(firstReply, opened), thirdReplyRate: rate(thirdReply, opened),
+    nextDayMatured, nextDayReturned, nextDayRate: rate(nextDayReturned, nextDayMatured), trackingSince: floor._min.createdAt?.toISOString() ?? null};
+}
+
 export async function readProductFunnelReport(actorId: string, days: number): Promise<ProductFunnelReport> {
   if (!Number.isInteger(days) || days < 1 || days > 90) throw new ProductFunnelReportError('统计天数必须为 1–90 的整数。');
   await pragmasReady;
@@ -140,7 +176,10 @@ export async function readProductFunnelReport(actorId: string, days: number): Pr
           {event: 'invite_first_chat'},
         ], counts),
       ],
+      chatOnboarding: await readChatOnboardingFunnel(tx, since, generatedAt),
       definitions: {
+        chatCohort: '首聊口径：按用户首次记录的普通聊天打开事件锚定窗口；之后成功落库并结算的CHAT_SEND回执统计首轮和第三轮，重复请求不重复计算，重生成不计轮数。上线前缺少免费回执或访问事件的数据不补造。',
+        chatRetention: '首聊次日回访：首轮成功回复后的下一个UTC自然日有认证活动，且该日期已经完整结束才进入成熟分母；不是注册次日留存，不要求必须再次聊天。',
         people: '人数口径：登录用户按 userId 去重，匿名访客按服务端签发的匿名主体去重；同一人在两条通道不会被合并。',
         window: '只统计落在统计窗口内的事件，与运营分析其他面板同周期。',
         sample: '分母为 0 时显示「样本不足」，不当作 0% 展示。',

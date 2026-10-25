@@ -14,6 +14,8 @@ export interface OnboardingView {
   completed: boolean;
   interestTags: string[];
   interests: string[];
+  openingSuggestions: string[];
+  openingMaxChars: number;
   recommended: {id: string; name: string; summary: string | null; avatarUrl: string | null}[];
 }
 
@@ -41,20 +43,30 @@ function parseInterests(raw: string | null): string[] {
 
 /** 推荐角色：优先命中兴趣标签，其次按对话热度；只取已审核公开的角色。 */
 async function readRecommended(interests: string[]) {
+  const limit = await readSettingValue<number>('growth.recommendationLimit');
   await pragmasReady;
-  const characters = await db.character.findMany({
+  const popular = await db.character.findMany({
     where: {isPublic: true, reviewStatus: 'APPROVED'},
     orderBy: [{chatCount: 'desc'}, {createdAt: 'desc'}],
     take: 24,
     select: {id: true, name: true, tagline: true, avatarUrl: true, tags: true},
   });
+  const matching = interests.length ? await db.character.findMany({
+    where: {isPublic: true, reviewStatus: 'APPROVED', OR: interests.map(tag => ({OR: [
+      {tags: tag}, {tags: {startsWith: tag + ','}}, {tags: {endsWith: ',' + tag}}, {tags: {contains: ',' + tag + ','}},
+    ]}))},
+    orderBy: [{chatCount: 'desc'}, {createdAt: 'desc'}, {id: 'asc'}],
+    take: 24,
+    select: {id: true, name: true, tagline: true, avatarUrl: true, tags: true},
+  }) : [];
+  const characters = [...new Map([...matching, ...popular].map(character => [character.id, character])).values()];
   const scored = characters.map(character => {
     const tags = (character.tags ?? '').split(',').map(tag => tag.trim()).filter(Boolean);
     const hits = interests.length === 0 ? 0 : tags.filter(tag => interests.includes(tag)).length;
     return {character, hits};
   });
   scored.sort((a, b) => b.hits - a.hits);
-  return scored.slice(0, 6).map(({character}) => ({
+  return scored.slice(0, limit).map(({character}) => ({
     id: character.id,
     name: character.name,
     summary: character.tagline ?? null,
@@ -62,14 +74,17 @@ async function readRecommended(interests: string[]) {
   }));
 }
 
-export async function readOnboarding(userId: string): Promise<OnboardingView> {
-  const [enabled, tags, account] = await Promise.all([
+export async function readOnboarding(userId: string, previewInterests?: string[]): Promise<OnboardingView> {
+  const [enabled, tags, account, openingSuggestions, openingMaxChars] = await Promise.all([
     readSettingValue<boolean>('growth.onboardingEnabled').catch(() => false),
     readInterestTags(),
     db.user.findUnique({where: {id: userId}, select: {interestsJson: true, onboardedAt: true}}),
+    readSettingValue<string[]>('growth.openingSuggestions'),
+    readSettingValue<number>('chat.maxMessageChars'),
   ]);
   if (!account) throw new Error('账号不存在。');
-  const interests = parseInterests(account.interestsJson);
+  const interests = previewInterests === undefined ? parseInterests(account.interestsJson)
+    : [...new Set(previewInterests.filter(tag => tags.includes(tag)))];
   const completed = account.onboardedAt !== null;
   const on = enabled === true;
   return {
@@ -77,6 +92,8 @@ export async function readOnboarding(userId: string): Promise<OnboardingView> {
     completed,
     interestTags: tags,
     interests,
+    openingSuggestions: openingSuggestions.filter(text => typeof text === 'string' && text.trim() && text.length <= openingMaxChars),
+    openingMaxChars,
     // 已完成就不再查角色：省一次查询，也让「跳过」之后回到引导页看不到过期推荐。
     recommended: on && !completed ? await readRecommended(interests) : [],
   };

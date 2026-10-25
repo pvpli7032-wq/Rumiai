@@ -30,3 +30,9 @@ export function buildCharacterLimits(read: (key: PublicSettingKey) => number): C
     ...CHARACTER_TECHNICAL_LIMITS,
   };
 }
+
+export type CharacterCreationQuota = {
+  used: number; publicLimit: number | null; membershipLimit: number | null;
+  effectiveLimit: number | null; remaining: number | null;
+  source: 'PUBLIC_UNLIMITED' | 'MEMBERSHIP' | 'PUBLIC'; membershipOrderNo: string | null;
+};

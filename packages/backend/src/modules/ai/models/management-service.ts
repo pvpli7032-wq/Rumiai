@@ -22,7 +22,7 @@ async function modelReferences(tx:Prisma.TransactionClient,model:{id:string;key:
     tx.aiModelPrice.count({where:{modelId:model.id}}),
     tx.modelCoinPrice.count({where:{modelId:model.id}}),
     tx.aiCall.count({where:{model:{in:[model.key,model.modelCode]}}}),
-    tx.operationSetting.findMany({where:{key:{in:['ai.taskModel.chat','ai.taskModel.story','ai.taskModel.mirror','ai.taskModel.disputeVerdict','ai.taskModel.memorySummary']}},select:{value:true}}),
+    tx.operationSetting.findMany({where:{key:{startsWith:'ai.taskModel.'}},select:{value:true}}),
   ]);
   const taskSettings=settings.filter(row=>{try{return JSON.parse(row.value)===model.key;}catch{return false;}}).length;
   return {characterBindings,conversationBindings,modelPrices,coinPrices,aiCalls,taskSettings};
@@ -36,7 +36,7 @@ async function modelReferencesBatch(tx:Prisma.TransactionClient,models:Array<{id
     tx.aiModelPrice.findMany({where:{modelId:{in:ids}},select:{modelId:true}}),
     tx.modelCoinPrice.findMany({where:{modelId:{in:ids}},select:{modelId:true}}),
     tx.aiCall.groupBy({by:['model'],where:{model:{in:keys}},_count:{_all:true}}),
-    tx.operationSetting.findMany({where:{key:{in:['ai.taskModel.chat','ai.taskModel.story','ai.taskModel.mirror','ai.taskModel.disputeVerdict','ai.taskModel.memorySummary']}},select:{value:true}}),
+    tx.operationSetting.findMany({where:{key:{startsWith:'ai.taskModel.'}},select:{value:true}}),
   ]);
   const result=new Map<string,ModelReferences>();
   for(const model of models){

@@ -1,10 +1,11 @@
 import type { Prisma } from '@prisma/client';
 import { db } from '@rumiai/backend/infrastructure/database/client';
 import { invalidateMemoryForMessages } from '@rumiai/backend/modules/memory/invalidation';
+import { readChatRules } from '@rumiai/backend/modules/settings/limits';
 import { encodeCursor } from '@rumiai/backend/infrastructure/http/pagination';
 
-const attachmentSelect = {id: true, type: true, stickerId: true, mimeType: true, byteSize: true, uploadAsset: {select: {url: true}}} as const;
-function messageView<T extends {attachments: Array<{id:string;type:string;stickerId:string|null;mimeType:string|null;byteSize:number|null;uploadAsset:{url:string}|null}>}>(row:T) {
+export const attachmentSelect = {id: true, type: true, stickerId: true, mimeType: true, byteSize: true, uploadAsset: {select: {url: true}}} as const;
+export function messageView<T extends {attachments: Array<{id:string;type:string;stickerId:string|null;mimeType:string|null;byteSize:number|null;uploadAsset:{url:string}|null}>}>(row:T) {
   const attachments: Array<{id:string;type:'IMAGE';url:string;mimeType:string;byteSize:number}|{id:string;type:'STICKER';stickerId:string}> = [];
   for (const item of row.attachments) {
     if (item.type === 'IMAGE' && item.uploadAsset && item.mimeType && item.byteSize) attachments.push({id: item.id, type: 'IMAGE', url: item.uploadAsset.url, mimeType: item.mimeType, byteSize: item.byteSize});
@@ -173,7 +174,6 @@ export async function replaceMessageReply(conversationId: string, promptCreatedA
   return db.$transaction(tx => replaceMessageReplyInTx(tx, conversationId, promptCreatedAt, content));
 }
 
-const MAX_MESSAGE_CONTENT = 4_000;
 
 export class ConversationMessageError extends Error {
   constructor(message: string, readonly status: number) {
@@ -206,6 +206,7 @@ export async function setMessageLiked(userId: string, conversationId: string, me
 }
 
 export async function editUserMessage(userId: string, conversationId: string, messageId: string, input: unknown) {
+  const {maxMessageChars} = await readChatRules();
   return db.$transaction(async tx => {
     const message = await requireOwnedMessage(tx, conversationId, messageId, userId);
     if (message.role !== 'USER') throw new ConversationMessageError('Only your own message can be edited', 400);
@@ -213,7 +214,7 @@ export async function editUserMessage(userId: string, conversationId: string, me
     const rawContent = (input as Record<string, unknown>).content;
     const content = typeof rawContent === 'string' ? rawContent.trim() : '';
     if (!content) throw new ConversationMessageError('content is required', 400);
-    if (content.length > MAX_MESSAGE_CONTENT) throw new ConversationMessageError(`content must be ${MAX_MESSAGE_CONTENT} characters or fewer`, 400);
+    if (content.length > maxMessageChars) throw new ConversationMessageError(`消息最多 ${maxMessageChars} 字。`, 400);
 
     // Story history: the message change and the invalidation of every derived
     // event/checkpoint from this turn share ONE transaction (contract §7); the

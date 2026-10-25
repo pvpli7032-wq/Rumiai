@@ -59,8 +59,11 @@ export async function listPublicCharacterPosts(characterId: string) {
 
 export async function listCharacters(options: {
   search?: string; scope?: string | null; sort?: string; tags?: string[]; userId?: string;
+  exclusive?: boolean; limit?: number; after?: {id: string; chatCount: number; createdAt: string};
 }) {
-  const {search = '', scope = null, sort = 'popular', tags = [], userId} = options;
+  const {search = '', scope = null, sort = 'popular', tags = [], userId, after} = options;
+  if (search.length > 200) throw new CharacterCatalogError('搜索词过长。', 400);
+  if (tags.length > 10) throw new CharacterCatalogError('最多同时筛选10个标签。', 400);
   if (scope && !['mine', 'bookmarked', 'following'].includes(scope)) throw new CharacterCatalogError('未知角色列表类型。', 400);
   if (scope && !userId) throw new CharacterCatalogError('请先登录。', 401);
   if (!['new', 'popular'].includes(sort)) throw new CharacterCatalogError('未知排序方式。', 400);
@@ -69,16 +72,26 @@ export async function listCharacters(options: {
   const characters = await db.character.findMany({
     where: {
       ...(scope === 'mine' ? {creatorId: userId} : {isPublic: true, reviewStatus: 'APPROVED'}),
+      ...(options.exclusive !== undefined ? {isExclusive: options.exclusive} : {}),
       ...(scope === 'bookmarked' && {bookmarks: {some: {userId}}}),
       // 关注的创作者：只取已公开且审核通过的角色，关注关系挂在创作者身上。
       ...(scope === 'following' && {creator: {followers: {some: {followerId: userId}}}}),
-      ...(normalizedTags.length && {AND: normalizedTags.map(tag => ({OR: [
-        {tags: tag}, {tags: {startsWith: tag + ','}}, {tags: {endsWith: ',' + tag}}, {tags: {contains: ',' + tag + ','}},
-      ]}))}),
+      AND: [
+        ...normalizedTags.map(tag => ({OR: [
+          {tags: tag}, {tags: {startsWith: tag + ','}}, {tags: {endsWith: ',' + tag}}, {tags: {contains: ',' + tag + ','}},
+        ]})),
+        ...(after ? [sort === 'new' ? {OR: [
+          {createdAt: {lt: new Date(after.createdAt)}},
+          {createdAt: new Date(after.createdAt), id: {gt: after.id}},
+        ]} : {OR: [
+          {chatCount: {lt: after.chatCount}},
+          {chatCount: after.chatCount, id: {gt: after.id}},
+        ]}] : []),
+      ],
       ...(search && {OR: [{name: {contains: search}}, {tagline: {contains: search}}]}),
     },
     orderBy: sort === 'new' ? [{createdAt: 'desc'}, {id: 'asc'}] : [{chatCount: 'desc'}, {id: 'asc'}],
-    take: scope ? 100 : 50,
+    take: options.limit ?? (scope ? 100 : 50),
     select: {
       id: true, name: true, tagline: true, personality: true, background: true, greeting: true, avatarUrl: true,
       creatorId: true, isPublic: true, publicationRequested: true, reviewStatus: true, reviewReason: true,
@@ -89,4 +102,29 @@ export async function listCharacters(options: {
   if (scope !== 'mine') return characters;
   const reports = await countOpenCharacterReports(db, characters.map(character => character.id));
   return characters.map(character => ({...character, openReportCount: reports.get(character.id) ?? 0}));
+}
+
+
+/** Explicit pagination keeps existing array callers compatible. */
+export async function readCharacterCatalogPage(options: Parameters<typeof listCharacters>[0] & {cursor?: string | null}) {
+  const limit = options.limit ?? 30;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new CharacterCatalogError('每页数量须为1至50。', 400);
+  let after: {id: string; chatCount: number; createdAt: string} | undefined;
+  if (options.cursor) {
+    try {
+      const parsed = JSON.parse(Buffer.from(options.cursor, 'base64url').toString('utf8'));
+      if (!parsed || typeof parsed.id !== 'string' || !parsed.id || parsed.id.length > 150 ||
+        typeof parsed.chatCount !== 'number' || !Number.isFinite(parsed.chatCount) || parsed.chatCount < 0 ||
+        typeof parsed.createdAt !== 'string' || !Number.isFinite(Date.parse(parsed.createdAt))) throw Error();
+      after = parsed;
+    } catch { throw new CharacterCatalogError('分页游标不正确，请重新搜索。', 400); }
+  }
+  const rows = await listCharacters({...options, limit: limit + 1, after});
+  const hasMore = rows.length > limit;
+  const items = rows.slice(0, limit);
+  const last = items[items.length - 1];
+  return {
+    items, hasMore,
+    nextCursor: hasMore && last ? Buffer.from(JSON.stringify({id: last.id, chatCount: last.chatCount, createdAt: last.createdAt.toISOString()})).toString('base64url') : null,
+  };
 }

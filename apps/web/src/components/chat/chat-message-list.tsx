@@ -1,6 +1,6 @@
 'use client';
 
-import type { RefObject } from 'react';
+import {useEffect, useRef, useState, type RefObject} from 'react';
 import { CharacterAvatar, type Character } from './character-avatar';
 import { RoleplayText } from '@/components/chat/roleplay-text';
 import { MessageActions } from '@/components/chat/message-actions';
@@ -15,7 +15,7 @@ export function ChatMessageList({
   editingId, editDraft, streaming, streamingText, hasEarlier, loadingEarlier,
   chatScroll, messageListRef, messagesEndRef,
   onLoadEarlier, onToggleLike, onSpeak, onRegenerate, onSaveEdit, onReportMessage,
-  setEditingId, setEditDraft,
+  setEditingId, setEditDraft, onDeleteMessage, chatMaxChars,
 }: {
   messages: Message[];
   character: Character | null;
@@ -40,9 +40,18 @@ export function ChatMessageList({
   onRegenerate: (messageId: string) => void;
   onSaveEdit: (messageId: string) => void;
   onReportMessage: (messageId: string) => void;
+  onDeleteMessage: (messageId: string) => void;
+  chatMaxChars?: number;
   setEditingId: (id: string | null) => void;
   setEditDraft: (value: string) => void;
 }) {
+  const [hasNew, setHasNew] = useState(false);
+  const lastSeen = useRef<string | null>(null);
+  const latestId = messages[messages.length - 1]?.id ?? null;
+  useEffect(() => {
+    if (chatScroll.atBottom) {lastSeen.current = latestId; setHasNew(false);}
+    else if (latestId !== lastSeen.current || streamingText) setHasNew(true);
+  }, [chatScroll.atBottom, latestId, streamingText]);
   return (
     <div ref={messageListRef} {...chatScroll.listProps} className={`min-h-0 flex-1 overflow-y-auto px-4 py-5 w-full mx-auto ${readingMode ? 'max-w-2xl space-y-6 text-[15px] leading-loose' : 'max-w-3xl space-y-4'}`}>
       {hasEarlier && (
@@ -68,24 +77,27 @@ export function ChatMessageList({
           </p>
         </div>
       )}
-      {messages.map(msg => (
-        <div key={msg.id} className={`flex ${msg.role === 'USER' ? 'items-end justify-end' : 'items-end justify-start'}`}>
+      {messages.map((msg, index) => (
+        <div key={msg.id} className="space-y-2">
+        {msg.createdAt && (!messages[index - 1]?.createdAt || new Date(msg.createdAt).toLocaleDateString() !== new Date(messages[index - 1].createdAt!).toLocaleDateString()) && <p className="py-2 text-center text-xs text-muted-foreground"><time dateTime={msg.createdAt}>{new Date(msg.createdAt).toLocaleDateString('zh-CN', {year: 'numeric', month: 'long', day: 'numeric'})}</time></p>}
+        <div className={`flex ${msg.role === 'USER' ? 'items-end justify-end' : 'items-end justify-start'}`}>
           {msg.role !== 'USER' && character && (
             <CharacterAvatar character={character} size={32} className="mb-1 mr-2" />
           )}
-          <div className={`group/msg flex min-w-0 max-w-[85%] flex-col gap-1 ${msg.role === 'USER' ? 'items-end' : 'items-start'}`}>
+          <div className={`group/msg select-text flex min-w-0 max-w-[85%] flex-col gap-1 ${msg.role === 'USER' ? 'items-end' : 'items-start'}`}>
             {editingId === msg.id ? (
               <div className="w-full max-w-md rounded-[18px] border border-border bg-card p-3">
                 <textarea
                   value={editDraft}
                   onChange={e => setEditDraft(e.target.value)}
                   rows={3}
+                  maxLength={chatMaxChars}
                   aria-label="编辑消息内容"
                   autoFocus
                   className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-brand focus:outline-hidden"
                 />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  {"编辑后将重新生成回复"}</p>
+                  {"编辑后会删除后续消息，并按当前模型重新生成回复。"}</p>
                 <div className="mt-2 flex gap-2">
                   <button
                     onClick={() => setEditingId(null)}
@@ -122,7 +134,8 @@ export function ChatMessageList({
                   )}
                 </div>
                 {msg.createdAt && <time dateTime={msg.createdAt} className="px-1 text-[11px] text-muted-foreground">{new Date(msg.createdAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</time>}
-                {msg.content && <MessageActions
+                {msg.role === 'USER' && <span role={(msg as Message & {clientState?: string}).clientState ? 'status' : undefined} className="px-1 text-[11px] text-muted-foreground">{(msg as Message & {clientState?: string}).clientState === 'SENDING' ? '正在发送…' : (msg as Message & {clientState?: string}).clientState === 'PENDING' ? '已接收，等待确认保存…' : '已保存'}</span>}
+                <MessageActions
                   role={msg.role}
                   content={msg.content}
                   liked={likedIds.has(msg.id)}
@@ -133,11 +146,13 @@ export function ChatMessageList({
                   onRegenerate={() => onRegenerate(msg.id)}
                   onEdit={() => { setEditingId(msg.id); setEditDraft(msg.content); }}
                   onSpeak={() => onSpeak(msg.id, msg.content)}
+                  onDelete={() => onDeleteMessage(msg.id)}
                   onReport={msg.role==='ASSISTANT'?()=>onReportMessage(msg.id):undefined}
-                />}
+                />
               </>
             )}
           </div>
+        </div>
         </div>
       ))}
       {streaming && (
@@ -148,7 +163,7 @@ export function ChatMessageList({
           </div>
         </div>
       )}
-      {!chatScroll.atBottom && <ScrollToLatest onJump={chatScroll.jumpToLatest} />}
+      {!chatScroll.atBottom && <ScrollToLatest onJump={chatScroll.jumpToLatest} hasNew={hasNew} />}
       <div ref={messagesEndRef} />
     </div>
   );

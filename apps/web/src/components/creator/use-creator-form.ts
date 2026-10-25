@@ -1,24 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@web/lib/auth-context';
 import { loginWithNext } from '@web/lib/next-path';
 import { zhError } from '@rumiai/contracts/copy/zh';
 import { useSiteContent } from '@web/lib/use-site-content';
 import { useUiConfig } from '@web/lib/settings/use-ui-config';
-import { DRAFT_KEY, EMPTY, SECTIONS, limitsFromConfig, migrateLegacyDraft, type Draft } from './creator-draft';
+import { DRAFT_KEY, EMPTY, SECTIONS, limitsFromConfig, type Draft } from './creator-draft';
 
 /**
  * 角色编辑器的表单状态：草稿读写、自动保存、校验、分步导航与提交。
  * 渲染在 creator-form.tsx / creator-steps.tsx / creator-chrome.tsx，这里不含 JSX。
  */
 export function useCreatorForm(editId?: string) {
-  const draftKey = editId ? DRAFT_KEY + ':edit:' + editId : DRAFT_KEY;
   const uiConfig = useUiConfig();
   const LIMITS = useMemo(() => limitsFromConfig(uiConfig), [uiConfig]);
-  const [loaded, setLoaded] = useState(!editId);
+  const [loaded, setLoaded] = useState(false);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const savedSnapshot = useRef<string | null>(null);
   const { token, user, isLoading: authLoading } = useAuth();
+  const draftKey = user?.id ? DRAFT_KEY + ':user:' + user.id + (editId ? ':edit:' + editId : ':new') : null;
   const router = useRouter();
   const { tags: allTags, badges } = useSiteContent();
 
@@ -42,13 +44,30 @@ export function useCreatorForm(editId?: string) {
 
   // Only the current load may update the form; stale StrictMode/navigation requests are cancelled.
   useEffect(() => {
-    if (!editId) {
-      const raw = localStorage.getItem(draftKey) ?? migrateLegacyDraft(draftKey);
-      if (raw) try { setDraft({ ...EMPTY, ...JSON.parse(raw) }); } catch {}
+    if (authLoading) return;
+    setLoaded(false);
+    setLoadedKey(null);
+    savedSnapshot.current = null;
+    setDraft(EMPTY);
+    setTouched({});
+    setSavedAt(null);
+    if (!token || !user || !draftKey) {
+      setError('登录后可保存个人草稿和角色。');
+      setLoaded(!editId);
       return;
     }
-    if (authLoading) return;
-    if (!token || !user) { setError('请先登录后编辑角色。'); return; }
+    if (!editId) {
+      let next = EMPTY;
+      try {
+        const raw = localStorage.getItem(draftKey);
+        if (raw) { const parsed = JSON.parse(raw); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) next = {...EMPTY, ...parsed}; }
+      } catch { setError('草稿暂时无法读取，可继续编辑；请确认浏览器允许保存数据。'); }
+      savedSnapshot.current = JSON.stringify(next);
+      setDraft(next);
+      setLoadedKey(draftKey);
+      setLoaded(true);
+      return;
+    }
     const controller = new AbortController();
     setLoaded(false);
     setError(null);
@@ -60,7 +79,10 @@ export function useCreatorForm(editId?: string) {
         let cached = {};
         const local = localStorage.getItem(draftKey);
         if (local) try { const parsed = JSON.parse(local); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) cached = parsed; } catch {}
-        setDraft({ ...EMPTY, name:c.name, tagline:c.tagline||'', description:c.personality, bio:c.background||'', greeting:c.greeting||'', avatarUrl:c.avatarUrl||'', tags:(c.tags||'').split(',').filter(Boolean), badges:(c.badges||'').split(',').filter(Boolean), isExclusive:c.isExclusive, isPublic:c.publicationRequested, isAdult:c.isAdult, scenario:c.scenario||'', roleTemplate:c.roleTemplate||'', copyrightStatement:c.copyrightStatement||'', ...cached });
+        const restored = { ...EMPTY, name:c.name, tagline:c.tagline||'', description:c.personality, bio:c.background||'', greeting:c.greeting||'', avatarUrl:c.avatarUrl||'', tags:(c.tags||'').split(',').filter(Boolean), badges:(c.badges||'').split(',').filter(Boolean), isExclusive:c.isExclusive, isPublic:c.publicationRequested, isAdult:c.isAdult, scenario:c.scenario||'', roleTemplate:c.roleTemplate||'', copyrightStatement:c.copyrightStatement||'', ...cached };
+        savedSnapshot.current = JSON.stringify(restored);
+        setDraft(restored);
+        setLoadedKey(draftKey);
         setLoaded(true);
       })
       .catch(e => { if (!controller.signal.aborted) setError(e.message); });
@@ -68,16 +90,53 @@ export function useCreatorForm(editId?: string) {
   }, [editId, token, draftKey, authLoading, user?.id]);
 
   const persist = useCallback((d: Draft) => {
-    localStorage.setItem(draftKey, JSON.stringify(d));
-    setSavedAt(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
-  }, [draftKey]);
+    if (!draftKey || loadedKey !== draftKey) return false;
+    try {
+      const serialized = JSON.stringify(d);
+      localStorage.setItem(draftKey, serialized);
+      savedSnapshot.current = serialized;
+      setSavedAt(new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'}));
+      return true;
+    } catch { setError('草稿未能保存到此设备，请保留页面并重试。'); return false; }
+  }, [draftKey, loadedKey]);
 
   // Autosave a second after typing stops, so nothing is ever lost on reload.
   useEffect(() => {
-    if (draft === EMPTY) return;
+    if (draft === EMPTY || !loaded || loadedKey !== draftKey) return;
     const t = setTimeout(() => persist(draft), 1000);
     return () => clearTimeout(t);
-  }, [draft, persist]);
+  }, [draft, persist, loaded, loadedKey, draftKey]);
+
+  // Only an actually unsaved draft asks before leaving; already-saved local drafts remain available.
+  useEffect(() => {
+    const isDirty = () => loaded && loadedKey === draftKey && savedSnapshot.current !== null && savedSnapshot.current !== JSON.stringify(draft);
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty()) return;
+      persist(draft);
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const onNavigate = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !isDirty()) return;
+      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      const target = new URL(anchor.href, window.location.href);
+      if (target.href === window.location.href || target.pathname === window.location.pathname && target.search === window.location.search) return;
+      const saved = persist(draft);
+      if (!window.confirm(saved ? '草稿已保存在当前账号的此设备中。现在离开创作页？' : '草稿暂未保存成功，离开可能丢失修改。仍要离开？')) {
+        event.preventDefault(); event.stopPropagation();
+      }
+    };
+    const flush = () => {if (isDirty()) persist(draft);};
+    window.addEventListener('beforeunload', beforeUnload);
+    document.addEventListener('click', onNavigate, true);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      document.removeEventListener('click', onNavigate, true);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [draft, draftKey, loaded, loadedKey, persist]);
 
   // ⌘S / Ctrl+S saves immediately.
   useEffect(() => {
@@ -104,7 +163,7 @@ export function useCreatorForm(editId?: string) {
     e.name = draft.name.trim() ? null : "请填写角色名称";
     e.tagline = draft.tagline.trim() ? null : "请填写一句话简介";
     e.description =
-      draft.description.trim().length >= 40 ? null : "请用至少 40 个字符描述角色个性";
+      draft.description.trim() ? null : "请填写角色个性";
     return e;
   }, [draft]);
 
@@ -193,7 +252,7 @@ export function useCreatorForm(editId?: string) {
     const data = await res.json();
     setSaving(false);
     if (res.ok) {
-      localStorage.removeItem(draftKey);
+      if (draftKey) try { localStorage.removeItem(draftKey); } catch {}
       router.push(editId || draft.isPublic ? '/my-characters' : `/chat?character=${data.character.id}`);
     } else {
       setError(zhError(data.error || '') || '保存角色失败。');
@@ -203,7 +262,8 @@ export function useCreatorForm(editId?: string) {
 
   function reset() {
     if (!confirm("清空草稿并重新开始？")) return;
-    localStorage.removeItem(draftKey);
+    if (draftKey) try { localStorage.removeItem(draftKey); } catch {}
+    savedSnapshot.current = JSON.stringify(EMPTY);
     setDraft(EMPTY);
     setTouched({});
     setSavedAt(null);

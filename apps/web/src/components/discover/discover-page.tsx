@@ -37,7 +37,7 @@ export function DiscoverPage() {
   const {
     banners, sections, token, mirrorEnabled, disputeEnabled, stories, popular, query, setQuery,
     loading, loadError, types, setTypes, roles, setRoles, typeFilters, roleFilters,
-    labelsFor, recommended, filtering, sceneCharacters, filtered, railItems, toggle,
+    labelsFor, recommended, filtering, sceneCharacters, filtered, railItems, toggle, catalogueLoading, catalogueError, hasMore, loadMore, retryCatalogue,
   } = data;
 
   const cards = (rows: ApiCharacter[], limit?: number) => rows.slice(0, limit).map((character, index) => (
@@ -70,7 +70,7 @@ export function DiscoverPage() {
         </header>
 
         {mode === '世界观' ? <UniverseTab /> : mode === '创作者' ? <CreatorTab /> : mode === '榜单' ? <RankingsTab /> : mode === '角色' ? (
-          <CharacterCatalogue {...{ types, setTypes, roles, setRoles, typeFilters, roleFilters, toggle, loading, loadError, filtered, cards, retry, filtering }} />
+          <CharacterCatalogue {...{ types, setTypes, roles, setRoles, typeFilters, roleFilters, toggle, filtered, cards, retry, filtering, catalogueLoading, catalogueError, hasMore, loadMore, retryCatalogue }} />
         ) : (
           <div className="space-y-6 px-4 pb-4 pt-2 md:px-6">
             <ClubHero banners={banners.hero} characters={recommended} />
@@ -98,15 +98,15 @@ export function DiscoverPage() {
 
             <section>
               <SectionHeader title="更多有趣的角色" action={<span className="flex shrink-0 items-center gap-3"><button type="button" onClick={() => setMode('角色')} className="inline-flex min-h-11 items-center text-xs font-medium text-primary">浏览全部</button><button type="button" onClick={() => setBatch(value => value + 1)} disabled={recommended.length < 2} className="web-control inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary disabled:opacity-40"><DesignIcon name="ph:arrows-clockwise" className="h-4 w-4"/>换一批</button></span>} />
-              {loading ? <CharacterSkeleton /> : loadError ? <State kind="error" className="mt-4" title="角色加载失败" description="请稍后重试。" action={retry} /> : recommended.length ? <div className="mt-3 flex gap-3 overflow-x-auto pb-2">{cards([...recommended.slice(batch % recommended.length), ...recommended.slice(0, batch % recommended.length)], 10).map((card,index) => <div key={index} className="w-[140px] shrink-0 sm:w-44">{card}</div>)}</div> : <State kind="empty" className="mt-4" title="暂无角色" description="当前没有可展示的角色。" />}
+              {loading ? <CharacterSkeleton /> : loadError ? <State kind="error" className="mt-4" title="角色加载失败" description="请稍后重试。" action={retry} /> : recommended.length ? <div className="mt-3 flex gap-3 overflow-x-auto pb-2">{cards([...recommended.slice(batch % recommended.length), ...recommended.slice(0, batch % recommended.length)]).map((card,index) => <div key={index} className="w-[140px] shrink-0 sm:w-44">{card}</div>)}</div> : <State kind="empty" className="mt-4" title="暂无角色" description="当前没有可展示的角色。" />}
             </section>
 
             {!loading && !loadError && sections.length > 0 && <section className="space-y-7">
               {sections.map(section => {
-                const rows = railItems(section.source, section.tagKey);
+                const rows = railItems(section.key);
                 if (!rows.length) return null;
                 return <div key={section.key}><SectionHeader title={section.title}  />
-                  <div className="mt-4 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{cards(rows, 12).map((card, index) => <div key={index} className="w-32 shrink-0 sm:w-40">{card}</div>)}</div>
+                  <div className="mt-4 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{cards(rows).map((card, index) => <div key={index} className="w-32 shrink-0 sm:w-40">{card}</div>)}</div>
                 </div>;
               })}
             </section>}
@@ -148,11 +148,15 @@ function CompactCharacter({ character }: { character: ApiCharacter }) {
   </button></>;
 }
 
-function CharacterCatalogue(props: { types: string[]; setTypes: (values: string[]) => void; roles: string[]; setRoles: (values: string[]) => void; typeFilters: { key: string; label: string }[]; roleFilters: { key: string; label: string }[]; toggle: (list: string[], set: (v: string[]) => void, value: string) => void; loading: boolean; loadError: boolean; filtered: ApiCharacter[]; cards: (rows: ApiCharacter[], limit?: number) => ReactNode[]; retry: ReactNode; filtering: boolean }) {
-  const { types, setTypes, roles, setRoles, typeFilters, roleFilters, toggle, loading, loadError, filtered, cards, retry, filtering } = props;
+function CharacterCatalogue(props: { types: string[]; setTypes: (values: string[]) => void; roles: string[]; setRoles: (values: string[]) => void; typeFilters: { key: string; label: string }[]; roleFilters: { key: string; label: string }[]; toggle: (list: string[], set: (v: string[]) => void, value: string) => void; catalogueLoading: boolean; catalogueError: string; hasMore: boolean; loadMore: () => void; retryCatalogue: () => void; filtered: ApiCharacter[]; cards: (rows: ApiCharacter[], limit?: number) => ReactNode[]; retry: ReactNode; filtering: boolean }) {
+  const { types, setTypes, roles, setRoles, typeFilters, roleFilters, toggle, filtered, cards, retry, filtering, catalogueLoading, catalogueError, hasMore, loadMore, retryCatalogue } = props;
   return <section className="space-y-4 px-4 py-6 md:px-6"><SectionHeader title="角色探索" description="用标签找到合适的聊天对象" />
     <div className="space-y-2 rounded-2xl border border-border bg-card p-4"><FilterRow label="类型：" options={typeFilters} selected={types} onToggle={value => toggle(types, setTypes, value)} /><FilterRow label="角色：" options={roleFilters} selected={roles} onToggle={value => toggle(roles, setRoles, value)} /></div>
-    {loading ? <CharacterSkeleton /> : loadError ? <State kind="error" title="角色加载失败" description="请稍后重试。" action={retry} /> : filtered.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{cards(filtered)}</div> : <State kind="empty" title={filtering ? '没有符合条件的角色' : '暂无角色'} description={filtering ? '换个筛选试试。' : '当前没有可展示的角色。'} />}
+    {(types.length > 0 || roles.length > 0) && <div className="flex flex-wrap items-center gap-2 text-sm"><span className="text-muted-foreground">同时满足已选标签</span>{[...types, ...roles].map(key => <button key={key} type="button" onClick={() => { setTypes(types.filter(value => value !== key)); setRoles(roles.filter(value => value !== key)); }} className="min-h-11 rounded-full bg-muted px-3">{[...typeFilters, ...roleFilters].find(tag => tag.key === key)?.label ?? key} ×</button>)}<button type="button" onClick={() => {setTypes([]); setRoles([]);}} className="min-h-11 px-2 text-primary">清除标签</button></div>}
+    {catalogueLoading && !filtered.length ? <CharacterSkeleton /> : filtered.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{cards(filtered)}</div> : !catalogueError && <State kind="empty" title={filtering ? '没有符合条件的角色' : '暂无角色'} description={filtering ? '换个关键词或清除部分标签试试。' : '当前没有可展示的角色。'} />}
+    {catalogueError && <div role="alert" className="rounded-2xl bg-muted p-4 text-sm"><p>{catalogueError}</p><button type="button" onClick={retryCatalogue} className="mt-2 min-h-11 text-primary">重新加载</button></div>}
+    {hasMore && !catalogueError && <div className="text-center"><button type="button" onClick={loadMore} disabled={catalogueLoading} className="min-h-11 rounded-full border border-border px-6 text-sm disabled:opacity-50">{catalogueLoading ? '正在加载…' : '加载更多角色'}</button></div>}
+
   </section>;
 }
 

@@ -80,11 +80,11 @@ export interface ChargePriceSnapshot {
   settingsVersion?: Record<string, number>;
 }
 
-/** hold 的结果：要么建了费用单，要么是免费模式下的直接放行。 */
+/** hold 的结果：要么建了请求回执，要么是非聊天免费操作直接放行。 */
 export interface ChargeHoldResult {
   requestId: string;
   operation: ChargeOperation;
-  /** false = billing.chargingEnabled 为关闭或该操作免费，未建费用单、未动余额。 */
+  /** false = 未建立请求回执；免费聊天可held=true但coins=0，不占用免费额度、不扣余额。 */
   held: boolean;
   chargeId: string | null;
   status: ChargeStatus | null;

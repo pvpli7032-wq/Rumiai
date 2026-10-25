@@ -46,6 +46,9 @@ test('AI provider/model deletion enforces dependencies, versions, permissions an
   await fixture.db.modelCoinPrice.delete({where: {id: coinPrice.id}});
   await fixture.db.aiCall.delete({where: {id: call.id}});
   await fixture.db.operationSetting.delete({where: {key: 'ai.taskModel.chat'}});
+  await fixture.db.operationSetting.create({data: {key: 'ai.taskModel.chatSuggestions', group: 'billing', value: JSON.stringify(model.key), updatedBy: fixture.admin.id}});
+  await assert.rejects(() => deleteAiModel(fixture.admin.id, model.id, {version: 1, reason: 'suggestion task reference guard'}), error => hasStatus(error, 409) && /任务模型设置/.test(String(error)));
+  await fixture.db.operationSetting.delete({where: {key: 'ai.taskModel.chatSuggestions'}});
   const deletedModel = await deleteAiModel(fixture.admin.id, model.id, {version: 1, reason: 'unused model'});
   assert.equal(deletedModel.deleted, true);
   const deletedProvider = await deleteAiProvider(fixture.admin.id, provider.id, {version: 1, reason: 'unused provider'});

@@ -128,7 +128,7 @@ export function RecommendedStep({
 }
 
 /** 第三步：确认选中的角色与已选兴趣，按钮由外层给。 */
-export function StartStep({character, interests}: {character: RecommendedCharacter | null; interests: string[]}) {
+export function StartStep({character, interests, openingText, onOpeningTextChange, suggestions, maxChars}: {character: RecommendedCharacter | null; interests: string[]; openingText: string; onOpeningTextChange: (text: string) => void; suggestions: string[]; maxChars?: number}) {
   return (
     <div className="space-y-4">
       {character ? (
@@ -142,6 +142,12 @@ export function StartStep({character, interests}: {character: RecommendedCharact
       ) : (
         <p className="text-sm leading-6 text-muted-foreground">还没有选角色，可以直接去角色广场挑一个开始聊天。</p>
       )}
+      {character && <section className="space-y-3">
+        <label htmlFor="onboarding-opening" className="block text-sm font-medium">准备第一句话（可选）</label>
+        {suggestions.length > 0 && <div role="group" aria-label="可编辑的开场建议" className="flex flex-wrap gap-2">{suggestions.map(text => <button key={text} type="button" onClick={() => onOpeningTextChange(text)} className="min-h-11 rounded-xl border border-border px-3 py-2 text-left text-sm hover:bg-muted">{text}</button>)}</div>}
+        <textarea id="onboarding-opening" value={openingText} onChange={event => onOpeningTextChange(event.target.value)} maxLength={maxChars} rows={3} className="w-full resize-y rounded-xl border border-border bg-card px-3 py-2 text-base" placeholder="可以选一句建议，再改成你自己的语气。" />
+        <p className="text-xs leading-5 text-muted-foreground">进入聊天后会放在输入框中，确认发送前不会发给角色或产生聊天费用。</p>
+      </section>}
       {interests.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">已选兴趣</p>

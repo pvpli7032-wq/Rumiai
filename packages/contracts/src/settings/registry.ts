@@ -10,6 +10,23 @@ import type {SettingDefinition, SettingGroup} from '@rumiai/contracts/settings/t
  */
 const defs: SettingDefinition[] = [
   // ---------- 聊天与内容 ----------
+  {key:'chat.shareMaxMessages',group:'chat',label:'单次分享消息上限',type:'number',default:12,min:1,max:100,description:'分享预览最多可选的近期文本消息数。仅明确选中的消息生成固定公开快照，可随时撤销。',userOverridable:false,advanced:false},
+  {key:'discovery.railLimit',group:'growth',label:'发现分区角色数',type:'number',default:12,min:1,max:50,description:'发现页各角色分区的展示数量。',userOverridable:false,advanced:false},
+  {key:'discovery.recommendationStrategy',group:'growth',label:'发现推荐排序',type:'enum',default:'EXCLUSIVE_FIRST',options:[{value:'EXCLUSIVE_FIRST',label:'独家优先，热门补齐'},{value:'POPULAR',label:'按热度'}],description:'服务端统一生成推荐列表，前台只显示结果。',userOverridable:false,advanced:false},
+  {key:'growth.openingSuggestions',group:'growth',label:'首聊可选开场',type:'json',default:[],description:'可选的开场短句列表。用户选择后填入可编辑草稿，不会自动发送；空列表不显示开场推荐。',userOverridable:false,advanced:false},
+  {key:'growth.recommendationLimit',group:'growth',label:'新手推荐角色数',type:'number',default:6,min:1,max:24,description:'按当前选择的兴趣即时推荐的角色数量。',userOverridable:false,advanced:false},
+  {key:'chat.suggestions.enabled',group:'chat',label:'接话建议',type:'boolean',default:false,description:'开启后还需要配置任务模型、正数预算与每日额度。建议只填入草稿，不代替用户发送。',userOverridable:false,advanced:false},
+  {key:'chat.suggestions.count',group:'chat',label:'每次接话建议数量',type:'number',default:3,min:1,max:5,description:'一次生成的可选接话数量。',userOverridable:false,advanced:false},
+  {key:'chat.suggestions.maxChars',group:'chat',label:'每条建议字数上限',type:'number',default:120,min:20,max:500,description:'服务端检查生成建议长度。',userOverridable:false,advanced:false},
+  {key:'chat.suggestions.dailyLimit',group:'chat',label:'每日接话建议次数',type:'number',default:0,min:0,max:1000,description:'0表示未开放；按已接受的生成请求计数，含上游失败，幂等重放不重复计数；按billing.dayTimezone业务日重置，与正式聊天免费额度分开。',userOverridable:false,advanced:false},
+  {key:'ai.taskModel.chatSuggestions',group:'billing',label:'接话建议任务模型',type:'text',default:'',description:'在AI任务模型中配置明确有效的模型。',userOverridable:false,advanced:true,hidden:true},
+  {key:'budget.task.chatSuggestions',group:'billing',label:'接话建议任务日预算',type:'number',default:0,min:0,max:1000000,decimal:true,description:'0表示关闭；仅正预算时可生成建议。',userOverridable:false,advanced:true},
+  {key:'prompt.chatSuggestions',group:'prompts',label:'接话建议提示词',type:'text',default:'根据对话上下文，以用户身份给出可以接下去说的话。只输出JSON字符串数组，不替用户发送，不编造用户经历。',description:'接话任务提示词，服务端与会话上下文一起使用。',userOverridable:false,advanced:false},
+  {key:'relationship.romanceLevels',group:'chat',label:'恋爱值等级',type:'json',default:[],description:'JSON数组，每项{name,from}；from为递增非负整数。留空不显示等级，不使用前端占位阈值。',userOverridable:false,advanced:false},
+  {key:'relationship.intimacyLevels',group:'chat',label:'亲密值等级',type:'json',default:[],description:'JSON数组，每项{name,from}；留空不显示等级。',userOverridable:false,advanced:false},
+  {key:'relationship.romancePerReply',group:'chat',label:'每次有效聊天恋爱值',type:'number',default:0,min:0,max:1000,description:'关系模式开启且新回复成功结算时增加；0不增长，重生成/失败/取消不增加。',userOverridable:false,advanced:false},
+  {key:'relationship.intimacyPerReply',group:'chat',label:'每次有效聊天亲密值',type:'number',default:0,min:0,max:1000,description:'成功新聊天按请求幂等增加，0不增长。',userOverridable:false,advanced:false},
+  {key:'prompt.relationshipMode',group:'prompts',label:'关系模式提示词',type:'text',default:'在角色设定和已发生对话范围内自然延续人物关系。保持当前关系与边界，不替用户决定感受、行动或关系承诺。',description:'仅在该会话开启关系模式时注入；私人备注仍不参与AI上下文。',userOverridable:false,advanced:false},
   {key: 'chat.maxMessageChars', group: 'chat', label: '单条输入字数', type: 'number', unit: '字', default: 5000, min: 1, max: 20000, description: '一次发送最多多少字。超出的请求按 400 拒绝，前后端共用这个值。', userOverridable: false, advanced: false},
   {key: 'chat.historyMessages', group: 'chat', label: '携带历史消息数', type: 'number', unit: '条', default: 20, min: 0, max: 100, description: '生成时带给模型的历史消息条数（不是轮数）。0 表示只带当前输入。', userOverridable: false, advanced: false},
   {key: 'limits.chat.perWindow', group: 'chat', label: '每窗口发送次数', type: 'number', unit: '次', default: 30, min: 1, max: 600, description: '同一用户在一个窗口内最多发送多少次。', userOverridable: false, advanced: false},

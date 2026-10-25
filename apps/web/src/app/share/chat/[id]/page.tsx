@@ -13,18 +13,13 @@ import type {SharedConversationProjection} from '@rumiai/contracts/public-api';
 export const metadata: Metadata = {title: '分享的对话 | 星伴', robots: {index: false, follow: false}};
 
 
-/**
- * 分享出来的对话（V3 表 15 聊天页「分享」的落地页）。
- *
- * 内容按对话主人的视角读取：消息表跟对话绑定，链接里没有用户标识，猜不到别人的对话。
- * 页面用 noindex 且不被搜索收录——分享是给人看的，不是给爬虫建库的。
- */
+/** Only explicitly authorized immutable text snapshots are served. Legacy conversation ids are not public links. */
 export default async function SharedChatPage({params: paramsPromise}: {params: Promise<{id: string}>}) {
   const {id} = await paramsPromise;
   const dict = getDictionary(DEFAULT_LOCALE);
   let conversation: SharedConversationProjection;
   try { conversation = await fetchPublicApi<SharedConversationProjection>(`/api/public-conversations/${encodeURIComponent(id)}`); } catch (error) { if (error instanceof PublicApiError && error.status === 404) notFound(); throw error; }
-  const messages = [...conversation.messages].reverse();
+  const messages = conversation.messages;
 
   return (
     <main className="flex min-h-[100svh] flex-col bg-background text-foreground">

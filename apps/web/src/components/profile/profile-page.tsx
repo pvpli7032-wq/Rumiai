@@ -1,5 +1,6 @@
 'use client';
 import { zhError } from '@rumiai/contracts/copy/zh';
+import type {MembershipCurrent} from '@rumiai/contracts/memberships';
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -32,10 +33,34 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [displayNameInput, setDisplayNameInput] = useState('');
   const [avatarUrlInput, setAvatarUrlInput] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [uploadLimitMB, setUploadLimitMB] = useState<number | null>(null);
+  const [membership, setMembership] = useState<MembershipCurrent>(null);
+  const [membershipError, setMembershipError] = useState('');
+  const [assetReload, setAssetReload] = useState(0);
+  const avatarAbort = useRef<AbortController | null>(null);
+  const dataRequest = useRef(0);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState('');
   const leavingPage = useRef(false);
   const rewardActionRef = useRef(false);
+
+  const profileDirty = Boolean(editing && user && (usernameInput !== user.username || displayNameInput.trim() !== (user.displayName?.trim() || user.username) || avatarUrlInput !== (user.avatarUrl || '')));
+  useEffect(() => {
+    if (!profileDirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {event.preventDefault(); event.returnValue = '';};
+    const navigate = (event: MouseEvent) => {
+      const anchor = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === '_blank' || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const next = new URL(anchor.href, window.location.href);
+      if (next.pathname === window.location.pathname && next.search === window.location.search) return;
+      if (!window.confirm('资料尚未保存，离开会丢失当前输入。确定离开吗？')) {event.preventDefault(); event.stopPropagation();}
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    document.addEventListener('click', navigate, true);
+    return () => {window.removeEventListener('beforeunload', beforeUnload); document.removeEventListener('click', navigate, true);};
+  }, [profileDirty]);
 
   async function handleExport() {
     if (!token || exporting) return;
@@ -51,14 +76,56 @@ export default function ProfilePage() {
     finally { setExporting(false); }
   }
   async function saveProfile() {
-    if (!token || profileSaving) return;
+    if (!token || profileSaving || avatarUploading) return;
     setProfileSaving(true); setProfileSaveError('');
     try {
-      const response = await fetch('/api/users/me', {method: 'PUT', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`}, body: JSON.stringify({displayName: displayNameInput, avatarUrl: avatarUrlInput || null})});
+      const response = await fetch('/api/users/me', {method: 'PUT', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`}, body: JSON.stringify({username: usernameInput, displayName: displayNameInput, avatarUrl: avatarUrlInput || null})});
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || '资料保存失败，请重试。'); }
       await refreshUser(); setEditing(false);
     } catch (error) { setProfileSaveError(error instanceof TypeError ? '网络连接失败，请重试。' : (error as Error).message); }
     finally { setProfileSaving(false); }
+  }
+
+  useEffect(() => {
+    setEditing(false); setMissions([]); setFavorites([]); setCheckinStatus(null);
+    return () => {dataRequest.current += 1;};
+  }, [token]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setMembership(null); setMembershipError(''); setUploadLimitMB(null);
+    if (!token) return () => controller.abort();
+    void fetch('/api/me/membership', {headers: {Authorization: `Bearer ${token}`}, signal: controller.signal, cache: 'no-store'})
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || '会员状态读取失败');
+        if (!controller.signal.aborted) setMembership(data.membership ?? null);
+      }).catch(error => {if (!controller.signal.aborted) setMembershipError(error instanceof TypeError ? '会员状态暂时无法读取。' : error.message);});
+    void fetch('/api/ui-config', {signal: controller.signal, cache: 'no-store'}).then(async response => {
+      if (!response.ok) return;
+      const data = await response.json();
+      const limit = data['upload.maxMB'];
+      if (!controller.signal.aborted && typeof limit === 'number' && limit > 0) setUploadLimitMB(limit);
+    }).catch(() => {});
+    return () => {controller.abort(); avatarAbort.current?.abort();};
+  }, [token, assetReload]);
+
+  async function uploadAvatar(file: File) {
+    if (!token || avatarUploading || profileSaving) return;
+    setProfileSaveError('');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {setProfileSaveError('请选择 JPG、PNG 或 WebP 图片。'); return;}
+    if (uploadLimitMB === null) {setProfileSaveError('上传规则尚未读取，请重试读取。'); return;}
+    if (file.size > uploadLimitMB * 1024 * 1024) {setProfileSaveError(`图片不能超过 ${uploadLimitMB} MB。`); return;}
+    const controller = new AbortController(); avatarAbort.current = controller; setAvatarUploading(true);
+    try {
+      const body = new FormData(); body.append('file', file);
+      const response = await fetch('/api/upload', {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body, signal: controller.signal});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || typeof data.url !== 'string') throw new Error(data.error || '头像上传失败，请重试。');
+      if (!controller.signal.aborted) setAvatarUrlInput(data.url);
+    } catch (error) {
+      if (!controller.signal.aborted) setProfileSaveError(error instanceof TypeError ? '上传失败，原头像已保留，请重试。' : (error as Error).message);
+    } finally {if (avatarAbort.current === controller) {avatarAbort.current = null; setAvatarUploading(false);}}
   }
 
   useEffect(() => {
@@ -74,6 +141,7 @@ export default function ProfilePage() {
 
   async function fetchData() {
     if (!token) return;
+    const requestId = ++dataRequest.current;
     const headers = { Authorization: `Bearer ${token}` };
     setProfileError(''); setDataLoading(true);
     try {
@@ -83,13 +151,13 @@ export default function ProfilePage() {
         fetch('/api/characters?scope=bookmarked', { headers }),
       ]);
       if (!missRes.ok || !checkinRes.ok) throw new Error('资料加载失败，请重试。');
-      setMissions(await missRes.json());
-      setCheckinStatus(await checkinRes.json());
       if (!favoritesRes.ok) throw new Error('收藏读取失败，请重试。');
-      setFavorites((await favoritesRes.json()).slice(0, 4));
+      const [nextMissions, nextCheckin, nextFavorites] = await Promise.all([missRes.json(), checkinRes.json(), favoritesRes.json()]);
+      if (requestId !== dataRequest.current) return;
+      setMissions(nextMissions); setCheckinStatus(nextCheckin); setFavorites(nextFavorites.slice(0, 4));
     } catch (error) {
-      setProfileError(error instanceof TypeError ? '网络连接失败，请重试。' : (error as Error).message);
-    } finally { setDataLoading(false); }
+      if (requestId === dataRequest.current) setProfileError(error instanceof TypeError ? '网络连接失败，请重试。' : (error as Error).message);
+    } finally { if (requestId === dataRequest.current) setDataLoading(false); }
   }
 
   async function handleCheckin() {
@@ -144,19 +212,28 @@ export default function ProfilePage() {
           <DesignIcon name="ph:planet" size={160} className="pointer-events-none absolute -right-9 -top-5 text-brand/10" />
           <div className="relative flex items-center gap-4">
             <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-card bg-card text-3xl font-semibold text-brand">{user.avatarUrl ? <img src={user.avatarUrl} alt={displayName} className="h-full w-full object-cover" /> : displayName.slice(0, 1)}</span>
-            <div className="min-w-0 flex-1"><h1 className="break-words text-2xl font-bold">{displayName}</h1><p className="mt-1 truncate text-sm text-muted-foreground">@{user.username}</p><button type="button" className="mt-3 inline-flex min-h-11 items-center gap-1 rounded-full bg-card px-4 text-sm font-semibold text-brand" onClick={() => { setDisplayNameInput(displayName); setAvatarUrlInput(user.avatarUrl || ''); setProfileSaveError(''); setEditing(true); }}>编辑资料 <ArrowUpRight className="h-4 w-4" /></button></div>
+            <div className="min-w-0 flex-1"><h1 className="break-words text-2xl font-bold">{displayName}</h1><p className="mt-1 truncate text-sm text-muted-foreground">@{user.username}</p><button type="button" className="mt-3 inline-flex min-h-11 items-center gap-1 rounded-full bg-card px-4 text-sm font-semibold text-brand" onClick={() => { setUsernameInput(user.username); setDisplayNameInput(displayName); setAvatarUrlInput(user.avatarUrl || ''); setProfileSaveError(''); setEditing(true); }}>编辑资料 <ArrowUpRight className="h-4 w-4" /></button></div>
           </div>
         </section>
         <nav aria-label="我的内容" className="grid grid-cols-3 divide-x divide-border rounded-[20px] border border-border bg-card py-3">
           {([{href:'/my-characters?scope=bookmarked',name:'我的收藏',icon:'ph:star'}, {href:'/my-characters',name:'我的创作',icon:'ph:plus-circle'}, {href:'/circles',name:'我的圈子',icon:'ph:planet'}] as const).map((entry,index) => <Link key={entry.href} href={entry.href} className="flex min-h-16 min-w-0 flex-col items-center justify-center gap-2 px-1 text-sm font-semibold"><DesignIcon name={entry.icon} size={25} className={index === 1 ? 'text-brand' : 'text-[var(--action)]'} /><span>{entry.name}</span></Link>)}
         </nav>
-        {editing && <section className="rounded-2xl border border-border bg-card p-5"><h2 className="font-semibold">编辑资料</h2><div className="mt-4 grid gap-3"><label className="text-sm">昵称<input className="mt-1 min-h-11 w-full rounded-xl border border-border bg-background px-3" value={displayNameInput} onChange={event => setDisplayNameInput(event.target.value)} required /></label><label className="text-sm">头像地址<input className="mt-1 min-h-11 w-full rounded-xl border border-border bg-background px-3" value={avatarUrlInput} onChange={event => setAvatarUrlInput(event.target.value)} /></label>{profileSaveError && <p role="alert" className="text-sm text-destructive">{profileSaveError}</p>}<div className="flex gap-2"><button type="button" disabled={profileSaving} onClick={() => void saveProfile()} className="min-h-11 rounded-xl bg-brand-gradient px-4 text-sm font-medium text-white disabled:opacity-50">{profileSaving ? '正在保存…' : '保存资料'}</button><button type="button" disabled={profileSaving} onClick={() => setEditing(false)} className="min-h-11 rounded-xl border border-border px-4 text-sm">取消</button></div></div></section>}
+        {editing && <section className="rounded-2xl border border-border bg-card p-5"><h2 className="font-semibold">编辑资料</h2><form onSubmit={event => {event.preventDefault(); void saveProfile();}} className="mt-4 grid gap-3">
+          <label className="text-sm">用户名<input maxLength={100} className="mt-1 min-h-11 w-full rounded-xl border border-border bg-background px-3" value={usernameInput} onChange={event => setUsernameInput(event.target.value)} required /></label>
+          <label className="text-sm">昵称<input maxLength={100} className="mt-1 min-h-11 w-full rounded-xl border border-border bg-background px-3" value={displayNameInput} onChange={event => setDisplayNameInput(event.target.value)} required /></label>
+          <div className="space-y-3"><p className="text-sm">头像</p>{avatarUrlInput && <img src={avatarUrlInput} alt="待保存的头像" className="h-20 w-20 rounded-full object-cover" />}
+            <div className="flex flex-wrap items-center gap-2"><label className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-border px-4 text-sm"><span>{avatarUploading ? '正在上传…' : '上传头像'}</span><input aria-label="上传头像" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" disabled={avatarUploading || profileSaving || uploadLimitMB === null} onChange={event => {const file = event.target.files?.[0]; event.target.value = ''; if (file) void uploadAvatar(file);}} /></label><button type="button" disabled={avatarUploading || profileSaving} className="min-h-11 rounded-xl border border-border px-4 text-sm" onClick={() => setAvatarUrlInput('')}>移除头像</button>{avatarUploading && <button type="button" onClick={() => {avatarAbort.current?.abort(); avatarAbort.current = null; setAvatarUploading(false);}} className="min-h-11 px-3 text-sm">取消上传</button>}</div>
+            <p className="text-xs text-muted-foreground">{uploadLimitMB === null ? '正在读取上传规则。' : `JPG、PNG、WebP，每张不超过 ${uploadLimitMB} MB；保存资料后生效。`}</p>{uploadLimitMB === null && <button type="button" className="min-h-11 text-sm underline" onClick={() => setAssetReload(value => value + 1)}>重试读取规则</button>}
+            <details><summary className="cursor-pointer text-sm text-muted-foreground">使用图片地址</summary><input aria-label="头像图片地址" maxLength={2048} className="mt-2 min-h-11 w-full rounded-xl border border-border bg-background px-3" value={avatarUrlInput} onChange={event => setAvatarUrlInput(event.target.value)} /></details>
+          </div>
+          {profileSaveError && <p role="alert" className="text-sm text-destructive">{profileSaveError}</p>}<div className="flex gap-2"><button type="submit" disabled={profileSaving || avatarUploading} className="min-h-11 rounded-xl bg-brand-strong px-4 text-sm font-medium text-white disabled:opacity-50">{profileSaving ? '正在保存…' : '保存资料'}</button><button type="button" disabled={profileSaving} onClick={() => {if (profileDirty && !window.confirm('资料尚未保存，取消会丢失当前输入。确定取消吗？')) return; avatarAbort.current?.abort(); avatarAbort.current = null; setAvatarUploading(false); setEditing(false);}} className="min-h-11 rounded-xl border border-border px-4 text-sm">取消</button></div>
+        </form></section>}
 
         {profileError && <section role="alert" className="rounded-[20px] border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{profileError} <button type="button" className="min-h-11 underline" onClick={() => void fetchData()}>重试</button></section>}
         <section aria-labelledby="profile-favorites"><div className="mb-3 flex items-center justify-between"><h2 id="profile-favorites" className="relative pb-2 text-xl font-semibold">最近收藏<span aria-hidden className="absolute bottom-0 left-0 h-0.5 w-5 rounded-full bg-[var(--action)]" /></h2><Link className="inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground" href="/my-characters?scope=bookmarked">查看全部 <ArrowUpRight className="h-4 w-4" /></Link></div>
           {dataLoading ? <div role="status" aria-label="正在读取收藏" className="grid grid-cols-3 gap-3">{[0,1,2].map(item => <div key={item} className="h-36 animate-pulse rounded-[20px] bg-muted" />)}</div> : favorites.length > 0 ? <div className="flex gap-3 overflow-x-auto pb-2">{favorites.map(item => <Link key={item.id} href={'/chat?character='+encodeURIComponent(item.id)} className="w-[126px] shrink-0"><span className="block aspect-[4/5] overflow-hidden rounded-[20px] bg-muted">{item.avatarUrl ? <img className="h-full w-full object-cover" src={item.avatarUrl} alt="" /> : <span className="flex h-full items-center justify-center text-muted-foreground"><DesignIcon name="ph:user-circle" size={40} /></span>}</span><span className="mt-2 block truncate text-sm font-semibold">{item.name}</span>{item.tagline && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">{item.tagline}</span>}</Link>)}</div> : <div className="rounded-[20px] border border-dashed border-border p-4 text-sm text-muted-foreground">{profileError ? '收藏暂时无法显示，请重试读取。' : '还没有收藏，去发现喜欢的角色吧。'}<Link href="/discover" className="ml-1 inline-flex min-h-11 items-center text-brand">发现角色 <ChevronRight className="h-4 w-4" /></Link></div>}
         </section>
-        <Link href="/membership" className="relative flex items-center gap-3 overflow-hidden rounded-[24px] border border-border bg-secondary p-4"><Crown className="h-10 w-10 shrink-0 text-brand" /><span className="min-w-0 flex-1"><span className="block text-xl font-semibold">星伴会员</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">查看会员权益、续费与订单状态。</span></span><span className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-card px-3 text-sm font-semibold text-brand">查看权益 <ArrowUpRight className="h-4 w-4" /></span></Link>
+        <Link href="/membership" className="relative flex items-center gap-3 overflow-hidden rounded-[24px] border border-border bg-secondary p-4"><Crown className="h-10 w-10 shrink-0 text-brand" /><span className="min-w-0 flex-1"><span className="block text-xl font-semibold">星伴会员</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{membershipError ? '会员状态暂时无法读取，点击重试查看。' : membership ? `当前会员有效至 ${new Date(membership.expiresAt).toLocaleString('zh-CN')}` : '查看会员权益、续费与订单状态。'}</span></span><span className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-card px-3 text-sm font-semibold text-brand">查看权益 <ArrowUpRight className="h-4 w-4" /></span></Link>
         <Link href="/shop" className="flex items-center gap-3 rounded-[20px] border border-border bg-card p-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary text-[var(--action)]"><Coins className="h-6 w-6" /></span><span className="min-w-0 flex-1"><span className="block font-semibold">账户与资产</span><span className="mt-1 block text-xs text-muted-foreground">金币 {user.coins.toLocaleString()} · 订单与流水</span></span><ChevronRight className="h-5 w-5 text-muted-foreground" /></Link>
         <nav aria-label="账户设置" className="grid grid-cols-2 overflow-hidden rounded-[20px] border border-border bg-card">
           {([{href:'#profile-reading',title:'外观与阅读',desc:'主题、字体与阅读体验',Icon:BookOpen},{href:'#profile-security',title:'隐私与安全',desc:'数据导出与账户管理',Icon:Shield},{href:'/ai-usage',title:'AI 用量与额度',desc:'查看实际使用记录',Icon:Activity},{href:'#profile-help',title:'帮助与反馈',desc:'举报处理与使用帮助',Icon:HelpCircle}] as const).map(({href,title,desc,Icon},index) => <Link key={href} href={href} className={`flex min-h-24 min-w-0 items-start gap-2.5 p-3.5 ${index < 2 ? 'border-b border-border' : ''} ${index % 2 === 0 ? 'border-r border-border' : ''}`}><Icon className={`mt-0.5 h-5 w-5 shrink-0 ${index % 2 === 0 ? 'text-brand' : 'text-[var(--action)]'}`} /><span className="min-w-0"><span className="block text-sm font-semibold">{title}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{desc}</span></span></Link>)}

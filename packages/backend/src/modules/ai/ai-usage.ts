@@ -27,7 +27,7 @@ const logBudgetBlock = (event:string,block:AiBudgetBlock,callId?:string) => logW
  * the user's chat daily slots — 独立用量口径. Budget exhaustion defers the background
  * task instead of failing the user's already-committed replies.
  */
-export type AiOperation = 'SEND' | 'REGENERATE' | 'STATE_EXTRACT' | 'DISPUTE_VERDICT' | 'MEMORY_SUMMARY' | 'PROMPT_PREVIEW';
+export type AiOperation = 'SEND' | 'REGENERATE' | 'STATE_EXTRACT' | 'DISPUTE_VERDICT' | 'MEMORY_SUMMARY' | 'PROMPT_PREVIEW' | 'CHAT_SUGGESTIONS';
 /** 只有用户主动的聊天回合消耗聊天每日次数；后台任务只受成本预算约束。 */
 const CONSUMES_DAILY_SLOT = new Set<AiOperation>(['SEND', 'REGENERATE']);
 /**

@@ -9,7 +9,9 @@ export async function GET(request: Request) {
   const user = await requireUser(request);
   if (!user) return unauthorized();
   try {
-    return NextResponse.json(await readOnboarding(user.userId), {headers: privateHeaders});
+    const params = new URL(request.url).searchParams;
+    const preview = params.has('preview') ? params.getAll('interest') : undefined;
+    return NextResponse.json(await readOnboarding(user.userId, preview), {headers: privateHeaders});
   } catch (error) {
     return jsonError(error, 'GET /api/growth/onboarding', '引导信息读取失败，请稍后重试。');
   }

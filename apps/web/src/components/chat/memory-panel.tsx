@@ -1,6 +1,6 @@
 'use client';
 
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {Brain, Check, ChevronDown, Pencil, Pin, PinOff, Trash2, X} from 'lucide-react';
 import {api} from '@web/lib/api-client';
 import {API} from '@rumiai/contracts/api-paths';
@@ -36,20 +36,24 @@ export function MemoryPanel({conversationId, token, defaultOpen = false}: {conve
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const loadSequence = useRef(0);
 
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
+    setLoading(true); setLoadError('');
     try {
       const data = await api.get<{enabled: boolean; facts: MemoryFact[]}>(API.conversations.memory(conversationId), {token});
+      if (sequence !== loadSequence.current) return;
       setEnabled(data.enabled);
       setFacts(data.facts);
     } catch {
-      // 面板是可选信息：拿不到就整块不显示，不打断聊天。
-      setEnabled(false);
-      setFacts([]);
-    }
+      if (sequence === loadSequence.current) setLoadError('记忆加载失败，请重试。');
+    } finally { if (sequence === loadSequence.current) setLoading(false); }
   }, [conversationId, token]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setFacts(null); setEnabled(false); setEditingId(null); setNotice(''); void load(); return () => { loadSequence.current++; }; }, [load]);
 
   async function act(fact: MemoryFact, action: 'confirm' | 'ignore' | 'delete') {
     setBusyId(fact.id);
@@ -58,7 +62,8 @@ export function MemoryPanel({conversationId, token, defaultOpen = false}: {conve
       if (action === 'delete') await api.del(API.conversations.memoryFact(conversationId, fact.id), {token});
       else if (action === 'confirm') await api.post(API.conversations.memoryConfirm(conversationId, fact.id), undefined, {token});
       else await api.post(API.conversations.memoryIgnore(conversationId, fact.id), undefined, {token});
-      setFacts(prev => (prev ?? []).filter(item => item.id !== fact.id));
+      if (action === 'confirm') setFacts(prev => (prev ?? []).map(item => item.id === fact.id ? {...item, status: 'ACTIVE'} : item));
+      else setFacts(prev => (prev ?? []).filter(item => item.id !== fact.id));
       setNotice(action === 'confirm' ? '已确认，之后会作为确定记忆。' : action === 'ignore' ? '已忽略。' : '已删除。');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '操作失败，请重试。');
@@ -103,7 +108,9 @@ export function MemoryPanel({conversationId, token, defaultOpen = false}: {conve
     setNotice('');
   }
 
-  if (!enabled) return null;
+  if (loading && facts === null) return <p role="status" className="px-4 py-3 text-sm text-muted-foreground">正在读取记忆…</p>;
+  if (loadError) return <div role="alert" className="space-y-2 p-4 text-sm"><p>{loadError}</p><button type="button" className="min-h-11 text-brand" onClick={() => void load()}>重新加载</button></div>;
+  if (!enabled) return <p className="px-4 py-3 text-sm text-muted-foreground">聊天记忆暂未开启。</p>;
 
   const list = facts ?? [];
   const pendingCount = list.filter(fact => fact.status === 'PENDING').length;

@@ -71,3 +71,47 @@ test('password reset and email verification tokens are hashed, short-lived, one-
   assert.equal(unavailableUnknown.status, 503);
   assert.deepEqual(await unavailableKnown.json(), await unavailableUnknown.json(), 'delivery configuration errors must not reveal whether an email exists');
 });
+
+test('transactional email validates configuration, sends the correct action, and sanitizes provider failure', async t => {
+  const keys = ['NODE_ENV', 'ACCOUNT_EMAIL_DELIVERY', 'RESEND_API_KEY', 'ACCOUNT_EMAIL_FROM', 'NEXT_PUBLIC_SITE_URL'];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
+    }
+  });
+  const email = await import('@rumiai/backend/infrastructure/email/account-email-delivery');
+  Object.assign(process.env, {NODE_ENV: 'production', ACCOUNT_EMAIL_DELIVERY: 'memory'});
+  assert.equal(email.accountEmailDeliveryConfigured(), false, 'memory delivery cannot be used in production');
+  Object.assign(process.env, {ACCOUNT_EMAIL_DELIVERY: 'resend', RESEND_API_KEY: 'fixture-not-a-real-key', ACCOUNT_EMAIL_FROM: 'Accounts <accounts@example.test>', NEXT_PUBLIC_SITE_URL: 'http://example.test'});
+  assert.equal(email.accountEmailDeliveryConfigured(), false, 'production recovery links require HTTPS');
+  process.env.NEXT_PUBLIC_SITE_URL = 'https://example.test';
+  assert.equal(email.accountEmailDeliveryConfigured(), true);
+  const calls: Array<{url: string; body: Record<string, unknown>; key: string | null}> = [];
+  globalThis.fetch = async (input, init) => {
+    assert.equal(String(input), 'https://api.resend.com/emails', 'all email requests are intercepted; no real provider call');
+    const headers = new Headers(init?.headers);
+    calls.push({url: String(input), body: JSON.parse(String(init?.body)), key: headers.get('Idempotency-Key')});
+    return Response.json({id: 'fixture-email-id'});
+  };
+  const message = {email: 'recipient@example.test', purpose: 'PASSWORD_RESET' as const, token: 'fixture-bearer-token', expiresAt: new Date('2030-01-01T00:00:00Z')};
+  await email.accountEmailDelivery().deliver(message);
+  await email.accountEmailDelivery().deliver(message);
+  assert.deepEqual(calls[0].body.to, ['recipient@example.test']);
+  assert.equal(calls[0].body.subject, '重置密码');
+  assert.ok(String(calls[0].body.text).includes('https://example.test/reset-password?token=fixture-bearer-token'));
+  assert.equal(calls[0].key, calls[1].key, 'same delivery is idempotent');
+  assert.ok(!calls[0].key?.includes(message.token), 'idempotency key does not disclose the bearer token');
+  for (const purpose of ['EMAIL_VERIFICATION', 'ACCOUNT_ACTIVATION'] as const) {
+    await email.accountEmailDelivery().deliver({...message, purpose});
+  }
+  assert.ok(String(calls[2].body.text).includes('/verify-email?token='));
+  assert.ok(String(calls[3].body.text).includes('/activate-account?token='));
+  globalThis.fetch = async () => Response.json({message: 'provider may contain confidential diagnostics'}, {status: 401});
+  await assert.rejects(() => email.accountEmailDelivery().deliver(message), error => {
+    assert.equal((error as Error).message, 'Account email delivery failed');
+    return true;
+  });
+});

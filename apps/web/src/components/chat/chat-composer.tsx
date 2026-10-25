@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { DesignIcon } from '@/components/primitives/design-icon';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CHAT_STICKERS } from '@rumiai/contracts/api-types/conversations';
 import { QuotaBar } from '@/components/chat/quota-bar';
 import { StreamCancelRow } from '@/components/chat/stream-cancel';
@@ -48,6 +48,8 @@ export function ChatComposer({
   const [picker, setPicker] = useState<'emoji' | 'sticker' | null>(null);
   const [image, setImage] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const textInput = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { const element = textInput.current; if (!element) return; element.style.height = 'auto'; element.style.height = Math.min(element.scrollHeight, 160) + 'px'; }, [input]);
   const emoji = ['😀','😂','🥰','😍','😭','😡','👍','🙏','❤️','✨','🎉','🤗'];
   return (
     <div className="max-h-[50dvh] shrink-0 overflow-y-auto border-t border-border bg-background px-3 py-2.5">
@@ -105,21 +107,23 @@ export function ChatComposer({
         {picker && <div className="order-first z-20 mb-2 grid w-full grid-cols-6 gap-1 rounded-xl border border-border bg-card p-2 shadow-xl">{picker === 'emoji' ? emoji.map(item => <button key={item} type="button" className="rounded p-2 text-xl hover:bg-secondary" onClick={() => { setInput(previous => previous + item); setPicker(null); }}>{item}</button>) : CHAT_STICKERS.map(item => <button key={item.id} type="button" aria-label={item.label} className="rounded p-2 text-3xl hover:bg-secondary disabled:opacity-50" disabled={mediaBusy} onClick={async () => { if (await onSendSticker(item.id)) setPicker(null); }}>{item.glyph}</button>)}</div>}
       </div>
       <form onSubmit={async e => { if (!image) { onSubmit(e); return; } e.preventDefault(); if (await onSendImage(image, input.trim())) { setImage(null); setInput(''); } }} className="mx-auto flex max-w-3xl items-end gap-2">
-        <input
+        <textarea
           {...composer.inputProps}
-          type="text"
+          ref={textInput}
+          rows={1}
           aria-label="消息内容"
           value={input}
           onChange={e => setInput(e.target.value)}
+          onKeyDown={event => { composer.inputProps.onKeyDown(event); if (event.key === 'Enter' && !event.shiftKey && !event.defaultPrevented && !window.matchMedia('(pointer: coarse)').matches) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}
           disabled={streaming || mediaBusy}
           maxLength={chatMaxChars}
           placeholder={"发送消息给" + (characterName || '角色') + "..."}
-          className="min-h-11 min-w-0 flex-1 rounded-full border border-border bg-card px-4 py-2.5 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-brand focus:ring-1 focus:ring-ring/30 transition-all disabled:opacity-50"
+          className="max-h-40 min-h-11 min-w-0 flex-1 resize-none rounded-[22px] border border-border bg-card px-4 py-2.5 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-brand focus:ring-1 focus:ring-ring/30 transition-all motion-reduce:transition-none disabled:opacity-50"
         />
         {/* 图标按钮没有文字，必须给可访问名，否则读屏与自动化都点不到。 */}
         <button type="submit" aria-label={"发送"} disabled={streamingBusy || mediaBusy || (!input.trim() && !image)}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-brand-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
-          {streaming || mediaBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <DesignIcon name="ph:paper-plane-tilt-fill" size={20} />}
+          {streaming || mediaBusy ? <Loader2 className="w-5 h-5 animate-spin motion-reduce:animate-none" /> : <DesignIcon name="ph:paper-plane-tilt-fill" size={20} />}
         </button>
       </form>
     </div>

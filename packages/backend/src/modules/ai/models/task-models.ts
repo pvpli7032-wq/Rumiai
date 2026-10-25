@@ -13,7 +13,7 @@ import {readAiModelPlan, type RuntimeAiModel} from './runtime-service';
  * token 上限与重试次数不在这里决定：它们来自 ai_models.maxOutputTokens / maxRetries，
  * 随 RuntimeAiModel 一起带出来，任务级不重复配置一套。
  */
-export const AI_TASK_NAMES = ['chat', 'story', 'mirror', 'disputeVerdict', 'memorySummary'] as const;
+export const AI_TASK_NAMES = ['chat', 'story', 'mirror', 'disputeVerdict', 'memorySummary', 'chatSuggestions'] as const;
 
 export type AiTaskName = (typeof AI_TASK_NAMES)[number];
 
@@ -24,6 +24,7 @@ export const TASK_MODEL_SETTING: Record<AiTaskName, string> = {
   mirror: 'ai.taskModel.mirror',
   disputeVerdict: 'ai.taskModel.disputeVerdict',
   memorySummary: 'ai.taskModel.memorySummary',
+  chatSuggestions: 'ai.taskModel.chatSuggestions',
 };
 
 export const TASK_LABELS: Record<AiTaskName, string> = {
@@ -32,6 +33,7 @@ export const TASK_LABELS: Record<AiTaskName, string> = {
   mirror: '他眼中的你',
   disputeVerdict: '评理结案',
   memorySummary: '记忆摘要',
+  chatSuggestions: '接话建议',
 };
 
 /** 读该任务配置的模型 key；未配置返回空串。 */

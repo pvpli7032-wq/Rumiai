@@ -38,4 +38,8 @@ test('chat media validates ownership, persists metadata, and replays one request
   const history = await readConversationMessages(fixture.user.id, conversation.id);
   assert.equal(history.length, 2);
   assert.equal(history[0].attachments.length, 1);
+  const {readConversationExport} = await import('@rumiai/backend/modules/conversations/conversation-service');
+  const exported = await readConversationExport(fixture.user.id, conversation.id);
+  assert.deepEqual(exported.messages.map(message => message.attachments), history.map(message => message.attachments), 'export preserves image and sticker attachments');
+  await assert.rejects(() => readConversationExport(fixture.admin.id, conversation.id), /只能导出自己的对话/);
 });

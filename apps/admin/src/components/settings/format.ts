@@ -83,7 +83,8 @@ export function validateSettingValue(definition: SettingDefinition, value: JsonV
         return definition.default === null ? null : '需要填写数值。';
       }
       const number = typeof value === 'number' ? value : Number(String(value).trim());
-      if (!Number.isFinite(number) || !Number.isInteger(number)) return '必须是整数。';
+      if (!Number.isFinite(number)) return '必须是有效数值。';
+      if (!definition.decimal && !Number.isInteger(number)) return '必须是整数。';
       if (definition.min !== undefined && number < definition.min) return `不能小于 ${definition.min}。`;
       if (definition.max !== undefined && number > definition.max) return `不能大于 ${definition.max}。`;
       return null;

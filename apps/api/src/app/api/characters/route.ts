@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { logRouteError } from '@rumiai/backend/infrastructure/logging/logger';
 import { getAuthUser } from '@rumiai/backend/infrastructure/auth/auth';
-import { CharacterCatalogError, listCharacters } from '@rumiai/backend/modules/characters/catalog-service';
+import { CharacterCatalogError, listCharacters, readCharacterCatalogPage } from '@rumiai/backend/modules/characters/catalog-service';
 import { createCreatorCharacter, CreatorCharacterError } from '@rumiai/backend/modules/characters/creator-service';
 
 function characterError(error: unknown) {
@@ -16,14 +16,17 @@ export async function GET(request: Request) {
     const {searchParams} = new URL(request.url);
     const scope = searchParams.get('scope');
     const auth = scope ? await getAuthUser(request) : null;
-    const characters = await listCharacters({
+    const options = {
       search: searchParams.get('search') || '',
       scope,
       sort: searchParams.get('sort') || 'popular',
       tags: searchParams.getAll('tag'),
       userId: auth?.userId,
-    });
-    return NextResponse.json(characters);
+    };
+    const characters = searchParams.get('page') === '1'
+      ? await readCharacterCatalogPage({...options, limit: searchParams.has('limit') ? Number(searchParams.get('limit')) : undefined, cursor: searchParams.get('cursor')})
+      : await listCharacters(options);
+    return NextResponse.json(characters, {headers: {'Cache-Control': 'private, no-store'}});
   } catch (error) {
     const response = characterError(error);
     if (response) return response;

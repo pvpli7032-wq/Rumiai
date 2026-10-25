@@ -16,7 +16,7 @@ import type {AiBudgetBlock} from './budget-guard';
  * 匿名部分与总量共用 task_type=mirror，匿名调用另带 anonymous_subject。
  */
 
-export const AI_TASK_TYPES = ['chat', 'story', 'mirror', 'mirrorAnonymous', 'disputeVerdict', 'memorySummary'] as const;
+export const AI_TASK_TYPES = ['chat', 'story', 'mirror', 'mirrorAnonymous', 'disputeVerdict', 'memorySummary', 'chatSuggestions'] as const;
 export type AiTaskType = (typeof AI_TASK_TYPES)[number];
 
 export const TASK_LABELS: Record<AiTaskType, string> = {
@@ -26,6 +26,7 @@ export const TASK_LABELS: Record<AiTaskType, string> = {
   mirrorAnonymous: '他眼中的你（匿名）',
   disputeVerdict: '评理回应',
   memorySummary: '记忆摘要',
+  chatSuggestions: '接话建议',
 };
 
 /** 设置键（settings/registry.ts 的 budget.task.*）与台账 task_type 的对应，只在这里翻译一次。 */
@@ -36,6 +37,7 @@ const TASK_SETTING: Record<AiTaskType, string> = {
   mirrorAnonymous: 'budget.task.mirrorAnonymous',
   disputeVerdict: 'budget.task.disputeVerdict',
   memorySummary: 'budget.task.memorySummary',
+  chatSuggestions: 'budget.task.chatSuggestions',
 };
 
 const LEDGER_TASK: Record<AiTaskType, string> = {
@@ -45,6 +47,7 @@ const LEDGER_TASK: Record<AiTaskType, string> = {
   mirrorAnonymous: 'mirror',
   disputeVerdict: 'dispute_verdict',
   memorySummary: 'memory_summary',
+  chatSuggestions: 'chat_suggestions',
 };
 
 /** 写进 AiCall.task_type 的值；匿名与总量同为 mirror，靠 anonymous_subject 区分。 */

@@ -46,6 +46,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   const [reason, setReason] = useState('');
   const [profileReason, setProfileReason] = useState('');
   const [profileBusy, setProfileBusy] = useState(false);
+  const [profileVersion, setProfileVersion] = useState(user.accountVersion);
   const profileBusyRef = useRef(false);
   const [profileError, setProfileError] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
@@ -55,6 +56,12 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
   const [quotaDirty, setQuotaDirty] = useState(false);
   const profileDirty = profile.username !== user.username || profile.displayName !== (user.displayName ?? '') || profile.avatarUrl !== (user.avatarUrl ?? '') || Boolean(profileReason.trim());
   const actionDirty = Boolean(reason.trim());
+  useEffect(() => {
+    if (!profileDirty && !profileBusy) {
+      setProfile({username: user.username, displayName: user.displayName ?? '', avatarUrl: user.avatarUrl ?? ''});
+      setProfileVersion(user.accountVersion);
+    }
+  }, [user.username, user.displayName, user.avatarUrl, user.accountVersion, profileDirty, profileBusy]);
   useEffect(() => onDirtyChange?.(profileDirty || actionDirty || quotaDirty), [profileDirty, actionDirty, quotaDirty, onDirtyChange]);
   const actions: AccountAction[] = user.deletedAt ? [] : [...(permissions.includes('accounts.manage') ? [user.suspendedAt ? 'RESTORE' as const : 'SUSPEND' as const, 'CLOSE' as const] : []), ...(permissions.includes('accounts.community.manage') ? [user.communityBannedAt ? 'UNBAN_COMMUNITY' as const : 'BAN_COMMUNITY' as const] : []), ...(permissions.includes('accounts.sessions.revoke') ? ['REVOKE_SESSIONS' as const] : [])];
   const [action, setAction] = useState<AccountAction | ''>(actions[0] ?? '');
@@ -74,7 +81,8 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
     profileBusyRef.current = true;
     setProfileBusy(true); setProfileError(''); setProfileMessage('');
     try {
-      await apiFetch(`/api/admin/accounts/${encodeURIComponent(user.id)}/profile`, {method: 'PATCH', credentials: 'same-origin', body: {...profile, avatarUrl: profile.avatarUrl || null, reason: profileReason, version: user.accountVersion}});
+      const saved = await apiFetch<{username: string; displayName: string | null; avatarUrl: string | null; accountVersion: number}>(`/api/admin/accounts/${encodeURIComponent(user.id)}/profile`, {method: 'PATCH', credentials: 'same-origin', body: {...profile, avatarUrl: profile.avatarUrl || null, reason: profileReason, version: profileVersion}});
+      setProfile({username: saved.username, displayName: saved.displayName ?? '', avatarUrl: saved.avatarUrl ?? ''}); setProfileVersion(saved.accountVersion);
       setProfileReason(''); setProfileMessage('用户资料已保存，前台关联数据会按新资料读取。'); onProfileSaved();
     } catch (error) { setProfileError(error instanceof Error ? error.message : '用户资料保存失败。'); }
     finally { profileBusyRef.current = false; setProfileBusy(false); }
@@ -136,6 +144,7 @@ export function ManagedAccountDetail({ detail, sessionActive, permissions, busy,
                 </label>
               </div>
               {profileError && <p role="alert" className="text-sm text-destructive">{profileError}</p>}
+              {profileVersion !== user.accountVersion && <p role="status" className="text-sm text-muted-foreground">当前资料有新版本，保存会检查冲突。<button type="button" className="ml-2 min-h-11 underline" onClick={() => {if (profileDirty && !window.confirm('重新读取会放弃当前资料输入，确定继续吗？')) return; setProfile({username: user.username, displayName: user.displayName ?? '', avatarUrl: user.avatarUrl ?? ''}); setProfileVersion(user.accountVersion); setProfileReason(''); setProfileError(''); onProfileSaved();}}>重新读取</button></p>}
               {profileMessage && <p role="status" className="text-sm text-emerald-600">{profileMessage}</p>}
               <Button type="submit" loading={profileBusy} disabled={profileBusy || !profileReason.trim()}>保存公开资料</Button>
             </form>

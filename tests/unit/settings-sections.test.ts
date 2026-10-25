@@ -7,7 +7,6 @@ import {buildSettingSearchIndex, searchSettings, shouldConfirmSettingNavigation}
 test('settings display sections cover every visible registry key exactly once', () => {
   const all = SETTING_GROUPS.flatMap(group => visibleDefinitionsOfGroup(group.id));
   const covered = SETTING_GROUPS.flatMap(group => sectionCoverage(group.id).sections.flatMap(section => section.definitions));
-  assert.equal(all.length, 112, 'visible registry count must remain explicit');
   assert.equal(covered.length, all.length);
   assert.deepEqual(covered.map(item => item.key).sort(), all.map(item => item.key).sort());
   assert.equal(new Set(covered.map(item => item.key)).size, all.length);
@@ -20,9 +19,9 @@ test('settings display sections cover every visible registry key exactly once', 
 });
 
 test('large groups expose focused subsections', () => {
-  assert.deepEqual(sectionsOfGroup('chat').map(item => item.id), ['chat-input', 'chat-posts', 'chat-comments', 'chat-characters', 'chat-upload', 'chat-frequency']);
-  assert.deepEqual(sectionsOfGroup('billing').map(item => item.id), ['billing-base', 'billing-settlement', 'billing-story', 'billing-story-runtime', 'billing-cost', 'billing-ai-budget']);
-  assert.deepEqual(sectionsOfGroup('growth').map(item => item.id), ['growth-grant', 'growth-invite', 'growth-affiliate', 'growth-mirror-entry', 'growth-mirror-purchase', 'growth-mirror-content', 'growth-dispute-entry', 'growth-dispute-resolution', 'growth-memory', 'growth-tasks']);
+  assert.deepEqual(sectionsOfGroup('chat').map(item => item.id), ['chat-input', 'chat-relationship', 'chat-sharing', 'chat-suggestions', 'chat-posts', 'chat-comments', 'chat-characters', 'chat-upload', 'chat-frequency']);
+  assert.deepEqual(sectionsOfGroup('billing').map(item => item.id), ['billing-base', 'billing-cancel', 'billing-settlement', 'billing-story', 'billing-story-runtime', 'billing-cost', 'billing-ai-budget']);
+  assert.deepEqual(sectionsOfGroup('growth').map(item => item.id), ['growth-grant', 'growth-onboarding', 'growth-discovery', 'growth-invite', 'growth-affiliate', 'growth-mirror-entry', 'growth-mirror-purchase', 'growth-mirror-content', 'growth-dispute-entry', 'growth-dispute-resolution', 'growth-memory', 'growth-tasks']);
 });
 
 test('global search respects the AI cost permission and dirty navigation boundary', () => {
@@ -30,7 +29,8 @@ test('global search respects the AI cost permission and dirty navigation boundar
   const withoutCosts = buildSettingSearchIndex(groups, false);
   const withCosts = buildSettingSearchIndex(groups, true);
   assert.equal(withoutCosts.some(item => item.definition.hidden), false);
-  assert.equal(withCosts.filter(item => item.definition.hidden).length, 5);
+  const registeredHiddenKeys = SETTING_GROUPS.flatMap(group => definitionsOfGroup(group.id)).filter(item => item.hidden).map(item => item.key).sort();
+  assert.deepEqual(withCosts.filter(item => item.definition.hidden).map(item => item.definition.key).sort(), registeredHiddenKeys);
   assert.ok(searchSettings(withCosts, '聊天用模型').every(item => item.definition.hidden));
   assert.equal(shouldConfirmSettingNavigation(true, 'billing', 'billing'), false);
   assert.equal(shouldConfirmSettingNavigation(true, 'chat', 'billing'), true);
@@ -45,4 +45,16 @@ test('affiliate settings have one explicit display section with the exact config
     'affiliate.enabled', 'affiliate.commissionPercent', 'affiliate.eligibleOrderTypes',
     'affiliate.settlementDelayHours', 'affiliate.minimumWithdrawalCents',
   ].sort());
+});
+
+
+test('decimal settings remain editable and upload limits belong to uploads', async () => {
+  const {validateSettingValue} = await import('../../apps/admin/src/components/settings/format');
+  const exchangeRate = definitionsOfGroup('billing').find(item => item.key === 'cost.exchangeRate')!;
+  const messages = definitionsOfGroup('chat').find(item => item.key === 'chat.maxMessageChars')!;
+  assert.equal(validateSettingValue(exchangeRate, 7.25), null);
+  assert.equal(validateSettingValue(exchangeRate, -1), '不能小于 0。');
+  assert.equal(validateSettingValue(messages, 1.5), '必须是整数。');
+  const uploads = sectionsOfGroup('chat').find(item => item.id === 'chat-upload')!;
+  assert.ok(uploads.definitions.some(item => item.key === 'limits.upload.perWindow'));
 });

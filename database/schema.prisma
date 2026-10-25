@@ -15,6 +15,7 @@ datasource db {
 
 /// User account model managing profile, auth credentials, tier, and economy state
 model User {
+  suggestionRequests ChatSuggestionRequest[]
   id                   String    @id @default(cuid())
   username             String    @unique
   email                String    @unique
@@ -617,6 +618,8 @@ model Report {
 
 /// Conversation container between a User and a Character
 model Conversation {
+  relationshipEvents ConversationRelationshipEvent[]
+  suggestionRequests ChatSuggestionRequest[]
   id                 String    @id @default(cuid())
   userId             String    @map("user_id")
   characterId        String    @map("character_id")
@@ -648,6 +651,7 @@ model Conversation {
   storyRun  StoryRun?
   /// 普通聊天的滚动摘要；故事会话走既有 StoryCheckpoint，不复用这张表。
   memory    ConversationMemory?
+  shares    ConversationShare[]
 
   @@index([userId])
   @@index([characterId])
@@ -2243,4 +2247,51 @@ model ProductEvent {
 
   @@index([name, createdAt])
   @@map("product_events")
+}
+
+/// Explicitly authorized immutable text excerpt; never expose a live conversation by its id.
+model ConversationShare {
+  id String @id
+  conversationId String @map("conversation_id")
+  snapshotJson String @map("snapshot_json")
+  sourceDigest String @map("source_digest")
+  messageCount Int @map("message_count")
+  createdAt DateTime @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  @@index([conversationId, revokedAt])
+  @@map("conversation_shares")
+}
+
+model ChatSuggestionRequest {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ conversationId String @map("conversation_id")
+ requestId String @map("request_id")
+ status String @default("PROCESSING")
+ suggestionsJson String? @map("suggestions_json")
+ errorCode String? @map("error_code")
+ createdAt DateTime @default(now()) @map("created_at")
+ finishedAt DateTime? @map("finished_at")
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ conversation Conversation @relation(fields:[conversationId], references:[id], onDelete:Cascade)
+ @@unique([userId,conversationId,requestId])
+ @@index([userId,createdAt])
+ @@map("chat_suggestion_requests")
+}
+
+model ConversationRelationshipEvent {
+ id String @id @default(cuid())
+ conversationId String @map("conversation_id")
+ requestId String @map("request_id")
+ messageId String? @map("message_id")
+ romanceDelta Int @map("romance_delta")
+ intimacyDelta Int @map("intimacy_delta")
+ romanceAfter Int @map("romance_after")
+ intimacyAfter Int @map("intimacy_after")
+ createdAt DateTime @default(now()) @map("created_at")
+ conversation Conversation @relation(fields:[conversationId],references:[id],onDelete:Cascade)
+ @@unique([conversationId,requestId])
+ @@index([conversationId,createdAt])
+ @@map("conversation_relationship_events")
 }

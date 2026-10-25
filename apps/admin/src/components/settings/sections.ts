@@ -23,15 +23,19 @@ const either = (...rules: Array<(key: string) => boolean>) => (key: string) => r
 /** 展示目录的唯一规则表。未匹配的新 registry 键会落入「其他设置」，不会静默丢失。 */
 const RULES: Record<SettingGroup, SectionRule[]> = {
   chat: [
-    {id: 'chat-input', title: '聊天输入与回复', description: '输入长度、历史消息、回复次数与聊天限流。', matches: either(starts('chat.', 'limits.chat.'), exact('billing.hardDailyMessages'))},
+    {id: 'chat-input', title: '聊天输入与回复', description: '输入长度、历史消息、回复次数与聊天限流。', matches: either(starts('limits.chat.'), exact('chat.maxMessageChars', 'chat.historyMessages', 'billing.hardDailyMessages'))},
+    {id: 'chat-relationship', title: '关系与成长', description: '关系等级、每次有效回复的成长值；关系模式提示词在提示词分类维护。', matches: starts('relationship.')},
+    {id: 'chat-sharing', title: '聊天分享', description: '分享选取范围；公开链接由授权快照控制，后续私聊不会自动公开。', matches: starts('chat.share')},
+    {id: 'chat-suggestions', title: '接话建议', description: '建议开关、数量、长度和每日使用上限；模型与预算分别在对应设置维护。', matches: starts('chat.suggestions.')},
     {id: 'chat-posts', title: '帖子', description: '帖子长度、图片数量和发帖频率。', matches: starts('content.post.', 'limits.post.')},
     {id: 'chat-comments', title: '评论', description: '评论长度和评论频率。', matches: starts('content.comment.', 'limits.comment.')},
     {id: 'chat-characters', title: '角色资料', description: '角色名称、简介、人设、背景与开场白长度。', matches: starts('content.character.')},
-    {id: 'chat-upload', title: '上传', description: '文件大小与上传频率限制。', matches: starts('upload.')},
-    {id: 'chat-frequency', title: '其他频率限制', description: '关注、举报和登录等操作的窗口与次数。', matches: starts('limits.upload.', 'limits.follow.', 'limits.report.', 'limits.login.')},
+    {id: 'chat-upload', title: '上传', description: '文件大小与上传频率限制。', matches: starts('upload.', 'limits.upload.')},
+    {id: 'chat-frequency', title: '其他频率限制', description: '关注、举报和登录等操作的窗口与次数。', matches: starts('limits.follow.', 'limits.report.', 'limits.login.')},
   ],
   billing: [
-    {id: 'billing-base', title: '计费基础', description: '聊天收费、免费回复、价格系数与取消策略。', matches: exact('billing.chargingEnabled', 'billing.freeDailyMessages', 'billing.priceMultiplier', 'billing.cancelPolicy', 'billing.freeCancelPerDay')},
+    {id: 'billing-base', title: '聊天收费与免费额度', description: '收费状态、基础免费回复与公共价格系数；会员权益在会员管理维护。', matches: exact('billing.chargingEnabled', 'billing.freeDailyMessages', 'billing.priceMultiplier')},
+    {id: 'billing-cancel', title: '取消回复', description: '取消生成后的费用处理与每天免费取消次数；聊天输入区读取同一政策。', matches: exact('billing.cancelPolicy', 'billing.freeCancelPerDay')},
     {id: 'billing-settlement', title: '结算与额度', description: '预扣核对、毛利提示、业务日和其他结算口径。', matches: exact('billing.holdTimeoutMinutes', 'billing.targetMarginPercent', 'billing.marginAlertPercent', 'billing.dayTimezone')},
     {id: 'billing-story', title: '故事入口与收费', description: '故事入口、故事回合收费和故事币价。', matches: exact('story.enabled', 'story.chargingEnabled', 'story.coinPrice')},
     {id: 'billing-story-runtime', title: '故事运行参数', description: '故事模板、动作建议、状态批处理和重试参数。', matches: starts('story.enabledTemplates', 'story.actionSuggestions', 'story.stateBatchSize', 'story.stateMaxAttempts')},
@@ -40,7 +44,9 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
   ],
   growth: [
     {id: 'growth-grant', title: '赠币', description: '注册赠币与全站、单用户日发币上限。', matches: starts('grant.')},
-    {id: 'growth-invite', title: '引导与邀请', description: '新手引导、兴趣标签、邀请入口与奖励。', matches: either(starts('growth.onboardingEnabled', 'growth.interestTags', 'growth.inviteEnabled', 'growth.inviteRewardCoins'), exact('growth.eventRetentionDays'))},
+    {id: 'growth-onboarding', title: '首次进入与兴趣推荐', description: '新手引导开关、可选兴趣与可编辑开场短句；参数由前台引导和服务端推荐共同读取。', matches: exact('growth.onboardingEnabled', 'growth.interestTags', 'growth.openingSuggestions')},
+    {id: 'growth-discovery', title: '发现与推荐', description: '推荐分区数量和已支持的推荐策略；首次进入的推荐数量单独配置。', matches: either(starts('discovery.'), exact('growth.recommendationLimit'))},
+    {id: 'growth-invite', title: '邀请入口与奖励', description: '邀请开放、奖励和增长事件保留；返佣另在一级分销维护。', matches: exact('growth.inviteEnabled', 'growth.inviteRewardCoins', 'growth.eventRetentionDays')},
     {id: 'growth-affiliate', title: '一级分销', description: '直接上级佣金比例、参与订单、结算等待与人工处理门槛；修改仅影响新订单。', matches: starts('affiliate.')},
     {id: 'growth-mirror-entry', title: 'Mirror 使用额度', description: '他眼中的你入口、题目数量、匿名与登录次数。', matches: exact('mirror.enabled', 'mirror.questionCount', 'mirror.answerMaxChars', 'mirror.anonymousDailyLimit', 'mirror.userDailyLimit', 'mirror.compareLimit')},
     {id: 'growth-mirror-purchase', title: 'Mirror 超额与购买', description: '超额处理、购买价格、购买上限和匿名 IP 限制。', matches: exact('mirror.overLimitPolicy', 'mirror.purchaseEnabled', 'mirror.purchaseCoins', 'mirror.purchaseDailyCap', 'mirror.anonymousIpDailyLimit')},
@@ -51,7 +57,7 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
     {id: 'growth-tasks', title: '后台任务', description: '任务轮询、批处理、重试和备份保留。', matches: starts('tasks.')},
   ],
   accounts: [{id: 'accounts-login', title: '登录与账号', description: '注册密码强度与登录会话有效期。', matches: starts('accounts.')}],
-  prompts: [{id: 'prompts-templates', title: '提示词模板', description: 'Mirror、评理结案与记忆摘要的提示词。', matches: starts('prompt.')}],
+  prompts: [{id: 'prompts-templates', title: '提示词模板', description: 'Mirror、评理结案、记忆摘要与接话建议的提示词。', matches: starts('prompt.')}],
 };
 
 export function visibleDefinitionsOfGroup(group: SettingGroup): SettingDefinition[] {

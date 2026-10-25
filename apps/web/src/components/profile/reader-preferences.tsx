@@ -19,24 +19,44 @@ export function ReaderPreferences() {
   const [bannedWords, setBannedWords] = useState('');
   const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [reloadToken, setReloadToken] = useState(0);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!token) return;
-    fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
+    const controller = new AbortController();
+    setLoaded(false);
+    setLoadError('');
+    setError('');
+    setNotice('');
+    if (!token) return () => controller.abort();
+    async function load() {
+      try {
+        const response = await fetch('/api/users/me', {
+          headers: {Authorization: `Bearer ${token}`},
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(zhError(data.error || '') || '阅读设置加载失败，请重试。');
         const me = data?.user ?? data;
-        if (!me) return;
+        if (!me || typeof me !== 'object') throw new Error('阅读设置返回异常，请重试。');
+        if (controller.signal.aborted) return;
         setReadingMode(Boolean(me.readingMode));
         setBannedWords(me.bannedWords ?? '');
         setShortcuts(parseShortcuts(me.shortcuts));
         setLoaded(true);
-      })
-      .catch(() => setError("设置加载失败"));
-  }, [token]);
+      } catch (cause) {
+        if (!controller.signal.aborted) {
+          setLoadError(cause instanceof TypeError ? '网络连接失败，请重试。' : (cause as Error).message);
+        }
+      }
+    }
+    void load();
+    return () => controller.abort();
+  }, [token, reloadToken]);
 
   async function save() {
     if (!token) return;
@@ -66,17 +86,23 @@ export function ReaderPreferences() {
     }
   }
 
+  if (!token) return null;
+
+  if (!loaded && loadError) {
+    return <section className="rounded-2xl border border-border bg-card p-5"><h2 className="text-lg font-semibold">阅读设置</h2><p role="alert" className="mt-3 text-sm text-muted-foreground">{loadError}</p><button type="button" onClick={() => setReloadToken(value => value + 1)} className="mt-3 min-h-11 rounded-full border border-border px-4 text-sm">重新加载</button></section>;
+  }
+
   if (!loaded) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <span className="mx-auto block h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-400" />
+        <span role="status" aria-label="正在加载阅读设置" className="mx-auto block h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-400" />
       </div>
     );
   }
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5">
-      <h2 className="mb-4 text-lg font-bold text-foreground">{"阅读设置"}</h2>
+      <h2 className="mb-4 text-lg font-semibold text-foreground">{"阅读设置"}</h2>
 
       {error && (
         <p className="mb-3 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -185,7 +211,7 @@ export function ReaderPreferences() {
       <button
         onClick={save}
         disabled={saving}
-        className="mt-5 w-full rounded-xl bg-brand-gradient py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="mt-5 w-full rounded-xl bg-brand-strong py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {saving ? "正在保存…" : "保存设置"}
       </button>

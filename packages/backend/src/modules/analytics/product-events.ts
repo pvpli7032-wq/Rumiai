@@ -27,6 +27,7 @@ export const PRODUCT_EVENTS = [
   'invite_visited',
   'invite_registered',
   'invite_first_chat',
+  'chat_opened',
 ] as const;
 
 export type ProductEventName = ContractProductEventName;
@@ -45,6 +46,7 @@ export const PRODUCT_EVENT_LABELS: Record<ProductEventName, string> = {
   invite_visited: '邀请 · 链接访问',
   invite_registered: '邀请 · 注册归属',
   invite_first_chat: '邀请 · 首次聊天',
+  chat_opened: '聊天 · 打开会话',
 };
 
 export function isProductEvent(value: string): value is ProductEventName {

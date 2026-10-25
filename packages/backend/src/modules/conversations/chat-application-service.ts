@@ -9,11 +9,13 @@ import type { AiStreamMetrics } from '@rumiai/backend/modules/ai/types';
 import {readChatRules} from '@rumiai/backend/modules/settings/index';
 import {buildMemoryContext, enqueueSummaryIfDue} from '@rumiai/backend/modules/memory/index';
 import {readActiveAiProviders} from '@rumiai/backend/modules/ai/providers/management-service';
+import {readAiModelCatalog, readAiModelPlan} from '@rumiai/backend/modules/ai/models/runtime-service';
 import {readTaskModelPlan} from '@rumiai/backend/modules/ai/models/task-models';
 import {beginBillingTurn, parseJsonBody, readBalance, readRequestId, readTurnReceipt, toChargeError, type BillingTurn} from '@rumiai/backend/modules/billing/turn';
 import {findChargeInTx, releaseInTx, settleInTx} from '@rumiai/backend/modules/billing/charge-service';
 import {readCancelContext, settleCancellationInTx} from '@rumiai/backend/modules/billing/cancel';
 import {db} from '@rumiai/backend/infrastructure/database/client';
+import {buildRelationshipContext, readRelationshipPolicy, recordRelationshipGrowth} from '@rumiai/backend/modules/conversations/relationship-service';
 import {grantInviteRewardIfDue} from '@rumiai/backend/modules/growth/invite-service';
 
 export type ChatTurnMode = 'SEND' | 'REGENERATE';
@@ -55,6 +57,8 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   if (conversation.storyRun) throw new ChatTurnHttpError('故事回合服务尚未开放，暂时无法发送或重新生成。', 409);
   // 规则每次请求现读（带 15 秒缓存）：后台改完设置，下一个请求就按新值校验。
   const rules = await readChatRules();
+  const relationshipContext = await buildRelationshipContext(conversation);
+  const relationshipPolicy = await readRelationshipPolicy();
   const body = input.mode === 'SEND' ? await parseJsonBody('request' in input.input ? input.input.request : undefined) : null;
   const requestId = readRequestId(input.mode === 'SEND' ? body?.requestId : ('requestId' in input.input ? input.input.requestId : null));
   let content: string; let history: Awaited<ReturnType<typeof readRecentMessageHistory>> | undefined; let replaceAt: Date | undefined;
@@ -76,7 +80,10 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   }
   // V3 §20：请求号由客户端给。缺了就没法重放、也没法断线查询，直接 400 而不是自造一个。
   if (!requestId) throw new ChatTurnHttpError('缺少请求编号，请刷新页面重试。', 400);
-  const modelPlan = await readTaskModelPlan('chat', {preferred: conversation.aiModel, characterId: conversation.characterId});
+  if (conversation.aiModel && !(await readAiModelCatalog(conversation.characterId)).models.includes(conversation.aiModel)) throw new ChatTurnHttpError('原选择模型已不可用，请打开关系面板查看替代模型及费用后重新选择。', 503);
+  const modelPlan = conversation.aiModel
+    ? await readAiModelPlan(conversation.aiModel, conversation.characterId).then(plan => plan === null ? null : plan.filter(model => model.key === conversation.aiModel))
+    : await readTaskModelPlan('chat', {characterId: conversation.characterId});
   if (modelPlan?.length === 0) throw new ChatTurnHttpError('当前角色暂无可用模型，请重新选择模型或联系管理员。', 503);
   const configuredProviders = modelPlan === null ? await readActiveAiProviders() : [];
   usingRealAi = usingRealAi || configuredProviders.length > 0 || Boolean(modelPlan?.length);
@@ -123,6 +130,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   } catch (error) {
     logRouteError('chat memory context', error);
   }
+  memoryContext = [relationshipContext, memoryContext].filter(Boolean).join('\n\n') || undefined;
   const notice = billing.notice();
   const abort = new AbortController(); let cancelled = false;
   const onAbort = () => { cancelled = true; abort.abort(new DOMException('Client disconnected', 'AbortError')); };
@@ -169,6 +177,9 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
               if (cancelContext) await settleCancellationInTx(tx, {...chargeInput, messageId, aiCallId: call.id, outputDelivered: billing.deliveredOutput()}, cancelContext);
               else if (failure) await releaseInTx(tx, existing, {...chargeInput, messageId, aiCallId: billing.hold.aiCallId, reason: aiErrorCode(failure)}, now);
               else await settleInTx(tx, existing, {...chargeInput, messageId, aiCallId: call.id}, now);
+            }
+            if (messageId && input.mode === 'SEND' && !failure && !cancelled) {
+              await recordRelationshipGrowth(tx, {conversationId: input.conversationId, requestId, messageId}, relationshipPolicy);
             }
             return messageId;
           }, {timeout: 30_000});

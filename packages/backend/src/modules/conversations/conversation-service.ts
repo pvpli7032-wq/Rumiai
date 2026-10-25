@@ -1,3 +1,4 @@
+import {attachmentSelect, messageView} from '@rumiai/backend/modules/conversations/message-service';
 import { db } from '@rumiai/backend/infrastructure/database/client';
 import { readAiModelCatalog } from '@rumiai/backend/modules/ai/models/runtime-service';
 
@@ -13,12 +14,8 @@ export class ConversationError extends Error {
   }
 }
 
-const MAX_METER = 1_000_000;
 const MAX_NOTES = 10_000;
-function meter(value: unknown): number | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
-  return Math.min(MAX_METER, Math.max(0, Math.round(value)));
-}
+
 
 export async function listUserConversations(userId: string, options: {archived?: boolean; characterId?: string | null} = {}) {
   const conversations = await db.conversation.findMany({
@@ -43,6 +40,47 @@ export async function listUserConversations(userId: string, options: {archived?:
       character: {id: character.id, name: visible ? character.name : '暂不可用的角色', avatarUrl: visible ? character.avatarUrl : null},
     };
   });
+}
+
+
+/** Stable list pagination. Name search covers all owned conversations, not only a loaded prefix. */
+export async function readUserConversationPage(userId: string, options: {archived?: boolean; characterId?: string | null; limit?: string | null; cursor?: string | null; q?: string | null}) {
+  const rawLimit = options.limit || '50';
+  if (!/^\d+$/.test(rawLimit) || Number(rawLimit) < 1 || Number(rawLimit) > 100) throw new ConversationError('每页数量须为1–100。', 422);
+  const limit = Number(rawLimit), q = options.q?.trim() || '';
+  if (q.length > 160) throw new ConversationError('搜索内容最多160字。', 422);
+  let before: {updatedAt: Date; id: string} | null = null;
+  if (options.cursor) {
+    try {
+      const decoded = JSON.parse(Buffer.from(options.cursor, 'base64url').toString('utf8'));
+      const updatedAt = new Date(decoded.updatedAt);
+      if (!decoded.id || typeof decoded.id !== 'string' || Number.isNaN(updatedAt.getTime())) throw Error();
+      before = {updatedAt, id: decoded.id};
+    } catch {throw new ConversationError('会话游标无效，请重新加载。', 422);}
+  }
+  const rows = await db.conversation.findMany({
+    where: {
+      userId,
+      ...(options.characterId ? {characterId: options.characterId} : {}),
+      archivedAt: options.archived ? {not: null} : null,
+      AND: [
+        ...(q ? [{OR: [{title: {contains: q}}, {character: {name: {contains: q}, OR: [{creatorId: userId}, {isPublic: true, reviewStatus: 'APPROVED'}]}}]}] : []),
+        ...(before ? [{OR: [{updatedAt: {lt: before.updatedAt}}, {updatedAt: before.updatedAt, id: {lt: before.id}}]}] : []),
+      ],
+    },
+    orderBy: [{updatedAt: 'desc'}, {id: 'desc'}],
+    take: limit + 1,
+    select: {...CONVERSATION_SELECT, character: {select: {id: true, name: true, avatarUrl: true, isPublic: true, reviewStatus: true, creatorId: true}}, _count: {select: {messages: true}}},
+  });
+  const hasMore = rows.length > limit, page = rows.slice(0, limit), last = page[page.length - 1];
+  return {
+    items: page.map(({_count, character, ...conversation}) => {
+      const visible = character.creatorId === userId || character.isPublic && character.reviewStatus === 'APPROVED';
+      return {...conversation, messageCount: _count.messages, character: {id: character.id, name: visible ? character.name : '暂不可用的角色', avatarUrl: visible ? character.avatarUrl : null}};
+    }),
+    hasMore,
+    nextCursor: hasMore && last ? Buffer.from(JSON.stringify({updatedAt: last.updatedAt.toISOString(), id: last.id})).toString('base64url') : null,
+  };
 }
 
 export async function createOrReuseConversation(userId: string, input: unknown) {
@@ -112,7 +150,7 @@ export async function readConversationExport(userId: string, conversationId: str
     select: {
       id: true, userId: true, title: true, notes: true, createdAt: true, updatedAt: true, archivedAt: true,
       character: {select: {id: true, name: true, isPublic: true, reviewStatus: true, creatorId: true}},
-      messages: {orderBy: [{createdAt: 'asc'}, {id: 'asc'}], select: {id: true, role: true, content: true, imageUrl: true, createdAt: true}},
+      messages: {orderBy: [{createdAt: 'asc'}, {id: 'asc'}], select: {id: true, role: true, content: true, imageUrl: true, createdAt: true, attachments: {select: attachmentSelect}}},
     },
   });
   if (!conversation) throw new ConversationError('对话不存在。', 404);
@@ -121,7 +159,7 @@ export async function readConversationExport(userId: string, conversationId: str
   const visible = character.creatorId === userId || character.isPublic && character.reviewStatus === 'APPROVED';
   return {
     conversation: {...metadata, character: {id: character.id, name: visible ? character.name : '暂不可用的角色'}},
-    messages,
+    messages: messages.map(messageView),
   };
 }
 
@@ -138,12 +176,10 @@ export async function readConversationForChat(userId: string, conversationId: st
 export async function updateConversation(userId: string, conversationId: string, input: unknown) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ConversationError('会话数据格式不正确。', 400);
   const body = input as Record<string, unknown>;
+  if (['romance', 'intimacy', 'relationshipStatus'].some(key => Object.prototype.hasOwnProperty.call(body, key))) throw new ConversationError('关系成长数据由系统规则维护，不能手动修改。', 400);
   const notes = typeof body.notes === 'string' ? body.notes : undefined;
   if (notes !== undefined && notes.length > MAX_NOTES) throw new ConversationError(`Notes must be ${MAX_NOTES} characters or fewer`, 400);
   const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : undefined;
-  const relationshipStatus = typeof body.relationshipStatus === 'string' ? body.relationshipStatus : undefined;
-  const romance = meter(body.romance);
-  const intimacy = meter(body.intimacy);
   const archived = typeof body.archived === 'boolean' ? body.archived : undefined;
   const rawRelationshipMode = body.relationshipMode ?? body.relationship_mode;
   const relationshipMode = typeof rawRelationshipMode === 'boolean' ? rawRelationshipMode : undefined;
@@ -165,8 +201,7 @@ export async function updateConversation(userId: string, conversationId: string,
       where: {id: conversationId},
       data: {
         ...(title !== undefined && {title}), ...(notes !== undefined && {notes}),
-        ...(relationshipStatus !== undefined && {relationshipStatus}), ...(romance !== undefined && {romance}),
-        ...(intimacy !== undefined && {intimacy}), ...(archived !== undefined && {archivedAt: archived ? new Date() : null}),
+        ...(archived !== undefined && {archivedAt: archived ? new Date() : null}),
         ...(relationshipMode !== undefined && {relationshipMode}), ...(aiModel !== undefined && {aiModel}),
       },
       select: {id: true, title: true, relationshipStatus: true, romance: true, intimacy: true, notes: true, archivedAt: true, relationshipMode: true, aiModel: true, updatedAt: true},
@@ -180,6 +215,7 @@ export async function deleteConversation(userId: string, conversationId: string)
     const owned = await tx.conversation.findUnique({where: {id: conversationId}, select: {userId: true}});
     if (!owned) throw new ConversationError('Not found', 404);
     if (owned.userId !== userId) throw new ConversationError('Forbidden', 403);
+    await tx.memoryFact.deleteMany({where: {conversationId, userId}});
     await tx.conversation.delete({where: {id: conversationId}});
     return {success: true};
   });

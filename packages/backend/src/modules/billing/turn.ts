@@ -30,7 +30,7 @@ export interface BillingNotice {
 
 export interface BillingTurn {
   requestId: string;
-  /** 本次费用单；held=false 表示关闭收费/免费/无币价，没有建单。 */
+  /** 本次费用单；held=false 表示没有创建回执；免费聊天也创建零金额回执以支持重放。 */
   hold: ChargeHoldResult;
   /** 首个内容片段已送达用户（V3：已输出即收费）。 */
   sawOutput(): void;

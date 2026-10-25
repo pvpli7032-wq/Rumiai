@@ -3,7 +3,7 @@ import {db, pragmasReady} from '@rumiai/backend/infrastructure/database/client';
 import {hasAdminPermission} from '@rumiai/backend/modules/admin/authorization';
 import {recordAdminAudit} from '@rumiai/backend/modules/admin/management-service';
 import {readSettingValue} from '@rumiai/backend/modules/settings/service';
-import {MEMBERSHIP_BENEFIT_RULES, type MembershipBenefit, type MembershipBenefitKey, type MembershipPlanPublic, type MembershipPolicyPublic, type MembershipRefundQuote} from '@rumiai/contracts/memberships';
+import {MEMBERSHIP_BENEFIT_RULES, MEMBERSHIP_BENEFIT_DEFINITIONS, type MembershipBenefitDefinition, type MembershipUsagePage, type MembershipBenefit, type MembershipBenefitKey, type MembershipPlanPublic, type MembershipPolicyPublic, type MembershipRefundQuote} from '@rumiai/contracts/memberships';
 import type {MembershipCurrent} from '@rumiai/contracts/memberships';
 import type {AdminAccountMembershipOrder, AdminAccountMembershipUsage} from '@rumiai/contracts/admin/account-assets';
 import {recordAffiliateOrderPaidInTransaction, recordAffiliateRefundInTransaction} from '@rumiai/backend/modules/affiliate/service';
@@ -46,10 +46,10 @@ function publicPlan(row: {id: string; code: string; name: string; durationDays: 
   return {id: row.id, code: row.code, name: row.name, durationDays: row.durationDays, priceCents: row.priceCents, benefits: parseBenefits(row.benefitsJson), isActive: row.isActive, sortOrder: row.sortOrder, version: row.version};
 }
 
-export async function readMembershipCatalogue(): Promise<{plans: MembershipPlanPublic[]; policy: MembershipPolicyPublic}> {
+export async function readMembershipCatalogue(): Promise<{plans: MembershipPlanPublic[]; policy: MembershipPolicyPublic; benefitDefinitions: MembershipBenefitDefinition[]}> {
   await pragmasReady;
   const [plans, policy] = await Promise.all([db.membershipPlan.findMany({orderBy: [{sortOrder: 'asc'}, {createdAt: 'asc'}]}), db.membershipPolicy.findUnique({where: {id: 'primary'}})]);
-  return {plans: plans.map(publicPlan), policy: {refundWindowHours: policy?.refundWindowHours ?? DEFAULT_POLICY.refundWindowHours, usageChargePeriodHours: policy?.usageChargePeriodHours ?? DEFAULT_POLICY.usageChargePeriodHours, version: policy?.version ?? 0}};
+  return {plans: plans.map(publicPlan), benefitDefinitions: MEMBERSHIP_BENEFIT_DEFINITIONS, policy: {refundWindowHours: policy?.refundWindowHours ?? DEFAULT_POLICY.refundWindowHours, usageChargePeriodHours: policy?.usageChargePeriodHours ?? DEFAULT_POLICY.usageChargePeriodHours, version: policy?.version ?? 0}};
 }
 
 /** Current paid grant for the signed-in frontend; expired/revoked grants stay hidden. */
@@ -298,4 +298,49 @@ export async function completeMembershipRefund(orderNo: string, providerRefundNo
     }
     return refund;
   });
+}
+
+
+/** The member may only read their own usage; no provider metadata or private prompts are exposed. */
+export async function readOwnMembershipUsage(userId: string, input: {orderNo: string; cursor?: string | null; limit?: string | null}): Promise<MembershipUsagePage> {
+  await pragmasReady;
+  if (!input.orderNo || input.orderNo.length > 100) throw new MembershipError('会员订单不存在。', 404);
+  const order = await db.membershipOrder.findFirst({where: {orderNo: input.orderNo, userId}, select: {id: true, orderNo: true, benefitsJson: true}});
+  if (!order) throw new MembershipError('会员订单不存在。', 404);
+  let before: {createdAt: Date; id: string} | undefined;
+  if (input.cursor) {
+    try {
+      const parsed = JSON.parse(Buffer.from(input.cursor, 'base64url').toString('utf8'));
+      const createdAt = new Date(parsed.createdAt);
+      if (typeof parsed.id !== 'string' || !parsed.id || parsed.id.length > 100 || !Number.isFinite(createdAt.getTime())) throw Error();
+      before = {createdAt, id: parsed.id};
+    } catch {throw new MembershipError('使用记录游标无效。', 400);}
+  }
+  const limit = input.limit == null || input.limit === '' ? 20 : Number(input.limit);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new MembershipError('每页数量须为 1–100。', 400);
+  const where = {userId, orderId: order.id};
+  const [rows, grouped] = await Promise.all([
+    db.membershipUsage.findMany({
+      where: {...where, ...(before ? {OR: [{createdAt: {lt: before.createdAt}}, {createdAt: before.createdAt, id: {lt: before.id}}]} : {})},
+      orderBy: [{createdAt: 'desc'}, {id: 'desc'}], take: limit + 1,
+      select: {id: true, benefitCode: true, quantity: true, state: true, createdAt: true},
+    }),
+    db.membershipUsage.groupBy({where, by: ['state'], _sum: {quantity: true}}),
+  ]);
+  const hasMore = rows.length > limit;
+  const page = rows.slice(0, limit);
+  const labels = new Map(parseBenefits(order.benefitsJson).map(item => [item.key as string, item.label]));
+  const summary = {reserved: 0, consumed: 0, released: 0};
+  for (const row of grouped) {
+    if (row.state === 'RESERVED') summary.reserved = row._sum.quantity ?? 0;
+    else if (row.state === 'CONSUMED') summary.consumed = row._sum.quantity ?? 0;
+    else if (row.state === 'RELEASED') summary.released = row._sum.quantity ?? 0;
+  }
+  const last = page.at(-1);
+  return {
+    orderNo: order.orderNo,
+    items: page.map(row => ({...row, label: labels.get(row.benefitCode) ?? row.benefitCode, state: row.state as MembershipUsageState, createdAt: row.createdAt.toISOString(), affectsRefund: row.state === 'CONSUMED'})),
+    nextCursor: hasMore && last ? Buffer.from(JSON.stringify({createdAt: last.createdAt.toISOString(), id: last.id})).toString('base64url') : null,
+    summary,
+  };
 }

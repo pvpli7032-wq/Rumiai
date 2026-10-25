@@ -19,6 +19,7 @@ import { EndChapterDialog } from '@/components/stories/end-chapter-dialog';
 import { getSceneConfigByCharacterId } from '@rumiai/contracts/stories/scene-config';
 import { resolveScene } from '@rumiai/contracts/stories/scene-service';
 import { buildChapterCloseData } from '@rumiai/contracts/stories/chapter-close';
+import {trackProductEvent} from '@web/lib/analytics-client/product-events-client';
 import { trackSceneFunnelEvent } from '@/lib/analytics-client/scene-funnel-client';
 import { Loader2 } from 'lucide-react';
 import { ChatPanelSheet } from './chat-panel-sheet';
@@ -28,6 +29,7 @@ import { ChatHeader } from './chat-header';
 import { BackButton } from '@/components/layout/back-button';
 import { ChatMessageList } from './chat-message-list';
 import { ChatComposer } from './chat-composer';
+import { ChatSuggestions } from './chat-suggestions';
 import { ChatShareAndDispute } from './chat-share-dispute';
 import { useChatThread } from './use-chat-thread';
 import { useChatTurns } from './use-chat-turns';
@@ -80,7 +82,7 @@ function ChatContent() {
   const {quota, loading: quotaLoading, error: quotaError, reload: reloadQuota, applyCost} = useQuota(token);
 
   const turns = useChatTurns({
-    token, conversationId, messages, setMessages: thread.setMessages, applyLatestPage: thread.applyLatestPage,
+    token, userId: user?.id ?? null, characterId: character?.id ?? null, conversationId, messages, setMessages: thread.setMessages, applyLatestPage: thread.applyLatestPage,
     reloadMessages: thread.reloadMessages, reloadQuota, applyCost, setChatError, activeScene,
     isComposing: composer.isComposing,
   });
@@ -92,6 +94,14 @@ function ChatContent() {
   useEffect(() => { chatScroll.followTail(); }, [messages, streamingText, chatScroll.followTail]);
 
   // 漏斗顶：场景态就绪（开场已渲染、会话已打开）记一次到达；服务端按会话幂等去重。
+  const trackedChatOpenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!token || !conversationId || !user?.id) return;
+    const key = user.id + ':' + conversationId;
+    if (trackedChatOpenRef.current === key) return;
+    trackedChatOpenRef.current = key;
+    trackProductEvent(token, 'chat_opened', {subjectKey: conversationId});
+  }, [token, conversationId, user?.id]);
   const trackedSceneOpenRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeScene || !conversationId) return;
@@ -143,6 +153,8 @@ function ChatContent() {
         onSpeak={turns.toggleSpeak}
         onRegenerate={(id) => void turns.regenerate(id)}
         onSaveEdit={(id) => void turns.saveEdit(id)}
+        onDeleteMessage={(id) => void turns.deleteFollowing(id)}
+        chatMaxChars={chatMaxChars}
         onReportMessage={setReportingMessage}
         setEditingId={setEditingId}
         setEditDraft={setEditDraft}
@@ -154,7 +166,8 @@ function ChatContent() {
         {activeScene && <button type="button" onClick={() => setEndChapterDialogOpen(true)} className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">结束本次体验</button>}
       </div>
 
-      <ChatComposer
+      {conversationId && token && !activeScene && <ChatSuggestions key={conversationId} conversationId={conversationId} token={token} disabled={streaming || turns.mediaBusy} onPick={text => setInput(previous => previous ? previous + '\n' + text : text)} />}
+      <ChatComposer key={conversationId}
         quota={quota}
         quotaLoading={quotaLoading}
         quotaError={quotaError}
@@ -189,7 +202,7 @@ function ChatContent() {
 
       {conversationId && token && <ChatPanelSheet open={conversationPanel !== null} onClose={() => setConversationPanel(null)} title={conversationPanel === 'memory' ? '角色记忆' : '对话关系'}>
         <div hidden={conversationPanel !== 'relationship'} className="[&>aside]:!block [&>aside]:!w-full [&>aside]:!min-w-0 [&>aside]:!border-0"><RelationshipPanel conversationId={conversationId} token={token} onArchived={() => router.push('/chat')} /></div>
-        <div hidden={conversationPanel !== 'memory'}><MemoryPanel conversationId={conversationId} token={token} defaultOpen /></div>
+        <div hidden={conversationPanel !== 'memory'}><MemoryPanel key={conversationId} conversationId={conversationId} token={token} defaultOpen /></div>
       </ChatPanelSheet>}
 
       {reportingMessage&&<ReportDialog targetType="MESSAGE" targetId={reportingMessage} targetName="这条 AI 回复" onClose={()=>setReportingMessage(null)}/>}

@@ -1,3 +1,5 @@
+import {CLIENT_PRODUCT_EVENTS} from '@rumiai/contracts/analytics';
+import {db} from '@rumiai/backend/infrastructure/database/client';
 import {logWarning} from '@rumiai/backend/infrastructure/logging/logger';
 import {recordProductEvent, isProductEvent, type ProductEventName} from './product-events';
 
@@ -66,6 +68,7 @@ export function parseProductEventInput(body: unknown): ProductEventInput {
   const record = body as Record<string, unknown>;
   if (typeof record.event !== 'string' || !record.event) throw new ProductEventError('缺少事件名。');
   if (!isProductEvent(record.event)) throw new ProductEventError('未知的事件类型。');
+  if (!CLIENT_PRODUCT_EVENTS.includes(record.event)) throw new ProductEventError('该事件只能由服务端记录。');
   return {
     event: record.event,
     subjectKey: parseSubjectKey(record.subjectKey),
@@ -83,9 +86,15 @@ export interface ProductEventContext {
  * 落一条客户端事件。埋点失败只记日志：统计出问题不能影响页面。
  */
 export async function recordClientProductEvent(input: ProductEventInput, context: ProductEventContext): Promise<void> {
+  if (!CLIENT_PRODUCT_EVENTS.includes(input.event)) throw new ProductEventError('该事件只能由服务端记录。');
   if (!context.userId && !context.anonymousSubject) {
     logWarning('product_event_no_identity', {event: input.event});
     return;
+  }
+  if (input.event === 'chat_opened') {
+    if (!context.userId || !input.subjectKey) throw new ProductEventError('聊天访问需要本人会话。', 401);
+    const conversation = await db.conversation.findFirst({where: {id: input.subjectKey, userId: context.userId, storyRun: null}, select: {id: true}});
+    if (!conversation) throw new ProductEventError('聊天会话不可访问。', 404);
   }
   await recordProductEvent({
     event: input.event,

@@ -4,31 +4,7 @@ import Link from 'next/link';
 import { Heart, Flame, CalendarDays, MessageSquare, Archive, Cpu, NotebookPen, Check, User } from 'lucide-react';
 import { compactNumber } from '@web/lib/i18n';
 import { useConversationPanel } from './use-conversation-panel';
-
-/**
- * Relationship tiers. The live site shows "浪漫值 1100" with the bar around half
- * full, so the meter is not a percentage of 100 — it fills relative to the band the value
- * currently sits in. The real thresholds are a product decision we do not have yet, so
- * these are placeholders and the raw number is always shown next to the bar.
- */
-const TIERS = [
-  { name: "陌生人", from: 0 },
-  { name: "相识", from: 500 },
-  { name: "朋友", from: 1500 },
-  { name: "亲密朋友", from: 3000 },
-  { name: "伴侣", from: 6000 },
-  { name: "爱人", from: 12000 },
-];
-
-function tierOf(value: number) {
-  let index = 0;
-  for (let i = 0; i < TIERS.length; i++) if (value >= TIERS[i].from) index = i;
-  const current = TIERS[index];
-  const next = TIERS[index + 1];
-  const span = next ? next.from - current.from : Math.max(1, current.from);
-  const filled = next ? (value - current.from) / span : 1;
-  return { name: current.name, next: next?.name ?? null, percent: Math.min(100, Math.max(0, filled * 100)) };
-}
+import {relationshipMeter, type RelationshipMeter} from '@rumiai/contracts/conversations/relationship';
 
 export function RelationshipPanel({
   conversationId,
@@ -39,20 +15,22 @@ export function RelationshipPanel({
   token: string;
   onArchived?: () => void;
 }) {
-  const { state, models, modelLabels, defaultModel, modelsLoaded, notes, setNotes, savedNotes, setSavedNotes, saving, notice, patch } = useConversationPanel(conversationId, token);
+  const { state, policy, history, models, modelLabels, modelQuotes, defaultModel, modelsLoaded, notes, setNotes, savedNotes, setSavedNotes, saving, notice, noticeError, error, retry, patch } = useConversationPanel(conversationId, token);
 
   if (!state) {
     return (
       <aside className="hidden w-80 min-w-80 border-l border-border bg-card desktop:block">
         <div className="flex h-40 items-center justify-center">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-400" />
+          {error ? <div className="p-4 text-sm"><p role="alert">{error}</p><button type="button" onClick={retry} className="mt-2 min-h-11 text-primary">重新加载</button></div> : <span role="status" aria-label="读取关系资料" className="h-5 w-5 animate-spin motion-reduce:animate-none rounded-full border-2 border-border border-t-primary" />}
         </div>
       </aside>
     );
   }
 
-  const romance = tierOf(state.romance);
-  const intimacy = tierOf(state.intimacy);
+  const priceLabel = (key: string | null) => { const quote = key ? modelQuotes[key] : null; return !quote ? '费用读取中' : quote.pricing === 'NO_PRICE' ? '暂不可用（未定价）' : quote.pricing === 'CHARGED' ? '每条 ' + quote.coins + ' 币，免费额度优先' : '当前免费'; };
+  const chooseModel = async (key: string | null) => {const actual = key ?? defaultModel; const quote = actual ? modelQuotes[actual] : null; if (!quote || quote.pricing === 'NO_PRICE') return; if (!window.confirm('切换为' + (actual ? modelLabels[actual] ?? actual : '默认模型') + '：' + priceLabel(actual) + '。下一次生成生效，确认切换？')) return; await patch({ai_model: key}, '模型已更新，下一次生成生效。'); };
+  const romance = relationshipMeter(state.romance, policy?.romanceLevels ?? []);
+  const intimacy = relationshipMeter(state.intimacy, policy?.intimacyLevels ?? []);
   const archived = Boolean(state.archivedAt);
 
   return (
@@ -96,16 +74,19 @@ export function RelationshipPanel({
             label={"浪漫值"}
             raw={state.romance}
             tier={romance}
-            barClass="bg-linear-to-r/srgb from-pink-500 to-rose-400"
+            barClass="bg-pink-500"
           />
           <Meter
             icon={<Flame className="h-3.5 w-3.5 text-brand" />}
             label={"亲密值"}
             raw={state.intimacy}
             tier={intimacy}
-            barClass="bg-linear-to-r/srgb from-orange-500 to-amber-400"
+            barClass="bg-primary"
           />
         </div>
+
+        {policy && <p className="text-xs leading-5 text-muted-foreground">{policy.romancePerReply || policy.intimacyPerReply ? '关系模式开启时，每次成功的新回复增加浪漫值 ' + policy.romancePerReply + '、亲密值 ' + policy.intimacyPerReply + '；重生成、取消和失败不增加。' : '当前未配置聊天成长；历史数值仍保留。'}</p>}
+        {history.length > 0 && <details className="rounded-2xl border border-border p-3"><summary className="min-h-8 cursor-pointer text-sm">最近成长记录</summary><ul className="mt-2 space-y-2">{history.map(event => <li key={event.id} className="text-xs leading-5 text-muted-foreground"><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('zh-CN')}</time><p>成功的新回复 · 浪漫值 +{event.romanceDelta}，亲密值 +{event.intimacyDelta}</p></li>)}</ul></details>}
 
         {/* Chat facts */}
         <div className="grid grid-cols-2 gap-2">
@@ -119,10 +100,12 @@ export function RelationshipPanel({
 
         {/* Relationship mode */}
         <button
+          disabled={saving}
+          aria-pressed={state.relationshipMode}
           onClick={() => patch({ relationship_mode: !state.relationshipMode })}
           className="flex w-full items-center justify-between rounded-2xl border border-border bg-secondary/60 px-3 py-2.5 text-left hover:border-brand/40"
         >
-          <span className="text-xs text-foreground">{"关系模式"}</span>
+          <span className="text-left"><span className="block text-sm text-foreground">关系模式</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">开启后，角色回复会参考当前关系状态与已配置等级。</span></span>
           <span
             className={`flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${
               state.relationshipMode ? 'justify-end bg-brand-strong' : 'justify-start bg-zinc-600'
@@ -141,16 +124,18 @@ export function RelationshipPanel({
             <div className="space-y-1">
               {state.aiModel&&!models.includes(state.aiModel)&&<p className="mb-2 text-xs text-amber-400">原选择模型已不可用，请选择当前范围内模型或恢复默认。</p>}
               <ModelOption
-                label={"默认" + (defaultModel ? ` (${modelLabels[defaultModel]??defaultModel})` : '')}
+                label={"默认" + (defaultModel ? ` (${modelLabels[defaultModel]??defaultModel})` : '') + ' · ' + priceLabel(defaultModel)}
                 selected={!state.aiModel}
-                onClick={() => patch({ ai_model: null }, "恢复默认模型")}
+                onClick={() => void chooseModel(null)}
+                disabled={saving || !defaultModel || !modelQuotes[defaultModel] || modelQuotes[defaultModel].pricing === 'NO_PRICE'}
               />
               {models.map((m) => (
                 <ModelOption
                   key={m}
-                  label={modelLabels[m]??m}
+                  label={(modelLabels[m]??m) + ' · ' + priceLabel(m)}
                   selected={state.aiModel === m}
-                  onClick={() => patch({ ai_model: m }, "切换为 " + (m))}
+                  onClick={() => void chooseModel(m)}
+                  disabled={saving || !modelQuotes[m] || modelQuotes[m].pricing === 'NO_PRICE'}
                 />
               ))}
             </div>
@@ -162,7 +147,7 @@ export function RelationshipPanel({
         <div className="rounded-2xl border border-border bg-secondary/60 p-3">
           <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
             <NotebookPen className="h-3.5 w-3.5" />
-            {"我的笔记"}</p>
+            {"我的笔记"}</p><p className="mb-2 text-xs leading-5 text-muted-foreground">仅自己查看，不会自动作为AI记忆。</p>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -194,7 +179,7 @@ export function RelationshipPanel({
         </button>
 
         {notice && (
-          <p className="flex items-center justify-center gap-1 text-xs text-emerald-400">
+          <p role={noticeError ? "alert" : "status"} className={`flex items-center justify-center gap-1 text-xs ${noticeError ? "text-destructive" : "text-primary"}`}>
             <Check className="h-3 w-3" />
             {notice}
           </p>
@@ -214,7 +199,7 @@ function Meter({
   icon: React.ReactNode;
   label: string;
   raw: number;
-  tier: { name: string; next: string | null; percent: number };
+  tier: RelationshipMeter;
   barClass: string;
 }) {
   return (
@@ -225,13 +210,13 @@ function Meter({
           {label}
         </span>
         {/* The raw value, because the bar is relative to the current tier, not to 100. */}
-        <span className="font-bold text-foreground">{raw.toLocaleString('th-TH')}</span>
+        <span className="font-bold text-foreground">{raw.toLocaleString('zh-CN')}</span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-700">
+      {tier.percent !== null && <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div className={`h-full rounded-full ${barClass}`} style={{ width: `${tier.percent}%` }} />
-      </div>
+      </div>}
       <p className="mt-1 text-[10px] text-muted-foreground">
-        {tier.name}
+        {tier.name ?? (tier.percent === null ? '等级尚未配置' : '尚未达到首个等级')}
         {tier.next ? ` → ${tier.next}` : ''}
       </p>
     </div>
@@ -251,20 +236,23 @@ function Fact({ icon, value, label }: { icon: React.ReactNode; value: string; la
 function ModelOption({
   label,
   selected,
-  onClick,
+  onClick, disabled,
 }: {
   label: string;
   selected: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-[11px] transition-colors ${
+      disabled={disabled}
+      aria-pressed={selected}
+      className={`min-h-11 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-[11px] transition-colors ${
         selected ? 'bg-brand-strong/15 text-foreground' : 'text-muted-foreground hover:bg-secondary'
       }`}
     >
-      <span className="truncate">{label}</span>
+      <span className="whitespace-normal leading-5">{label}</span>
       {selected && <Check className="h-3 w-3 shrink-0 text-brand-strong" />}
     </button>
   );
