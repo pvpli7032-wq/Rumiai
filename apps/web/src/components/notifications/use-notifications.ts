@@ -41,6 +41,7 @@ export function useNotifications(token: string | null): NotificationState {
   const [actionBusy, setActionBusy] = useState(false);
   const actionRef = useRef(false);
   const mounted = useRef(true);
+  const activeToken=useRef(token);activeToken.current=token;
 
   useEffect(() => {
     mounted.current = true;
@@ -55,14 +56,14 @@ export function useNotifications(token: string | null): NotificationState {
     setError(false);
     try {
       const page = await apiFetch<NotificationPage>(pagePath(null), {token});
-      if (!mounted.current) return;
+      if (!mounted.current||activeToken.current!==token) return;
       setItems(page.items);
       setUnreadCount(page.unreadCount);
       setCursor(page.nextCursor);
     } catch {
-      if (mounted.current) setError(true);
+      if (mounted.current&&activeToken.current===token) setError(true);
     } finally {
-      if (mounted.current) setLoading(false);
+      if (mounted.current&&activeToken.current===token) setLoading(false);
     }
   }, [token]);
 
@@ -71,14 +72,14 @@ export function useNotifications(token: string | null): NotificationState {
     setLoading(true);
     try {
       const page = await apiFetch<NotificationPage>(pagePath(cursor), {token});
-      if (!mounted.current) return;
+      if (!mounted.current||activeToken.current!==token) return;
       setItems(previous => merge(previous, page.items));
       setUnreadCount(page.unreadCount);
       setCursor(page.nextCursor);
     } catch {
-      if (mounted.current) setError(true);
+      if (mounted.current&&activeToken.current===token) setError(true);
     } finally {
-      if (mounted.current) setLoading(false);
+      if (mounted.current&&activeToken.current===token) setLoading(false);
     }
   }, [token, cursor, loading]);
 
@@ -94,12 +95,12 @@ export function useNotifications(token: string | null): NotificationState {
       setItems(previous => previous.map(item => (item.id === id && !item.readAt ? {...item, readAt: now} : item)));
       try {
         const result = await apiFetch<{unreadCount: number}>(API.me.notification(id), {method: 'PATCH', token});
-        if (mounted.current) setUnreadCount(result.unreadCount);
+        if (mounted.current&&activeToken.current===token) setUnreadCount(result.unreadCount);
       } catch {
-        if (mounted.current) { setItems(previousItems); setUnreadCount(previousUnread); setError(true); }
+        if (mounted.current&&activeToken.current===token) { setItems(previousItems); setUnreadCount(previousUnread); setError(true); }
       } finally {
-        actionRef.current = false;
-        if (mounted.current) setActionBusy(false);
+        if(activeToken.current===token)actionRef.current = false;
+        if (mounted.current&&activeToken.current===token) setActionBusy(false);
       }
     },
     [token, actionBusy, items, unreadCount],
@@ -116,16 +117,17 @@ export function useNotifications(token: string | null): NotificationState {
     setUnreadCount(0);
     try {
       const result = await apiFetch<{unreadCount: number}>(API.me.notifications, {method: 'POST', token});
-      if (mounted.current) setUnreadCount(result.unreadCount);
+      if (mounted.current&&activeToken.current===token) setUnreadCount(result.unreadCount);
     } catch {
-      if (mounted.current) { setItems(previousItems); setUnreadCount(previousUnread); setError(true); }
+      if (mounted.current&&activeToken.current===token) { setItems(previousItems); setUnreadCount(previousUnread); setError(true); }
     } finally {
-      actionRef.current = false;
-      if (mounted.current) setActionBusy(false);
+      if(activeToken.current===token)actionRef.current = false;
+      if (mounted.current&&activeToken.current===token) setActionBusy(false);
     }
   }, [token, actionBusy, items, unreadCount]);
 
   useEffect(() => {
+    actionRef.current=false;setActionBusy(false);setItems([]);setUnreadCount(0);setCursor(null);setError(false);
     if (!token) {
       setItems([]);
       setUnreadCount(0);

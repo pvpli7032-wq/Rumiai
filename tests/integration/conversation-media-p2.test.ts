@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createFixture} from '../helpers/sqlite-fixture.mjs';
+test('independent image and transcription tasks validate ownership, policy, request replay and real upstream payloads',async t=>{
+ assert.equal(process.env.DATABASE_URL,undefined);
+ const fixture=await createFixture(),previousFetch=globalThis.fetch,previousKey=process.env.AI_PROVIDER_ENCRYPTION_KEY,previousUploads=process.env.UPLOADS_DIRECTORY;
+ process.env.AI_PROVIDER_ENCRYPTION_KEY='ab'.repeat(32);process.env.UPLOADS_DIRECTORY=fixture.dir+'/media-uploads';
+ t.after(async()=>{globalThis.fetch=previousFetch;if(previousKey===undefined)delete process.env.AI_PROVIDER_ENCRYPTION_KEY;else process.env.AI_PROVIDER_ENCRYPTION_KEY=previousKey;if(previousUploads===undefined)delete process.env.UPLOADS_DIRECTORY;else process.env.UPLOADS_DIRECTORY=previousUploads;await fixture.cleanup();});
+ const {encryptProviderSecret}=await import('@rumiai/backend/modules/ai/providers/secret');
+ const provider=await fixture.db.aiProvider.create({data:{name:'fixture-media',baseUrl:'https://media.example.test/v1',isActive:true,...encryptProviderSecret('fixture-no-paid-key')}});
+ const vision=await fixture.db.aiModel.create({data:{providerId:provider.id,key:'fixture-vision',displayName:'Fixture vision',modelCode:'fixture-vision-code',isActive:true,supportsChat:true,supportsVision:false,supportsTranscription:false,isDefault:true}});
+ await fixture.db.aiModel.create({data:{providerId:provider.id,key:'fixture-asr',displayName:'Fixture transcription',modelCode:'fixture-asr-code',isActive:true,supportsChat:false,supportsVision:false,supportsTranscription:true}});
+ const settings:Record<string,unknown>={'media.imageUnderstanding.enabled':true,'media.imageUnderstanding.dailyLimit':2,'media.imageUnderstanding.maxChars':2000,'media.audioTranscription.enabled':true,'media.audioTranscription.dailyLimit':2,'media.audio.maxDurationSeconds':120,'ai.taskModel.imageUnderstanding':'fixture-vision','ai.taskModel.audioTranscription':'fixture-asr','budget.task.imageUnderstanding':1000000,'budget.task.audioTranscription':1000000};
+ for(const [key,value] of Object.entries(settings))await fixture.db.operationSetting.create({data:{key,group:key.startsWith('budget')?'billing':key.startsWith('ai.')?'prompts':'chat',value:JSON.stringify(value),updatedBy:fixture.admin.id}});
+ const character=await fixture.db.character.create({data:{name:'media-fixture',personality:'fixture',background:'',creatorId:fixture.user.id}});
+ const conversation=await fixture.db.conversation.create({data:{userId:fixture.user.id,characterId:character.id}});
+ const {readConversationMediaCapabilities,executeMediaTask}=await import('@rumiai/backend/modules/conversations/media/task-service');
+ assert.equal((await readConversationMediaCapabilities(fixture.user.id,conversation.id)).image.available,false,'a chat-only model is not a vision model');
+ await fixture.db.aiModel.update({where:{id:vision.id},data:{supportsVision:true}});
+ assert.equal((await readConversationMediaCapabilities(fixture.user.id,conversation.id)).image.available,true);
+ const {saveAccountUpload}=await import('@rumiai/backend/modules/uploads/storage-service');
+ const png=new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0]);
+ const image=await saveAccountUpload(fixture.user.id,new File([png],'owned.png',{type:'image/png'}));
+ const foreign=await saveAccountUpload(fixture.admin.id,new File([png],'foreign.png',{type:'image/png'}));
+ await assert.rejects(()=>executeMediaTask(fixture.user.id,conversation.id,'IMAGE_UNDERSTANDING',{requestId:'media-foreign-resource',assetId:foreign.id}),/不属于/);
+ await assert.rejects(()=>executeMediaTask(fixture.admin.id,conversation.id,'IMAGE_UNDERSTANDING',{requestId:'media-foreign-conversation',assetId:image.id}),/Forbidden/);
+ let calls=0,fail=false;
+ globalThis.fetch=async(input,init)=>{
+  const url=String(input);assert.ok(url.startsWith('https://media.example.test/v1/'),'all upstream calls are intercepted');calls++;
+  if(fail)return new Response('{}',{status:503});
+  if(url.endsWith('/chat/completions')){const body=JSON.parse(String(init?.body));assert.equal(body.model,'fixture-vision-code');assert.equal(body.messages[1].content[1].type,'image_url');assert.ok(body.messages[1].content[1].image_url.url.startsWith('data:image/png;base64,'));return Response.json({choices:[{message:{content:'图片中有测试图案。'}}],usage:{prompt_tokens:10,completion_tokens:10}});}
+  assert.ok(url.endsWith('/audio/transcriptions'));assert.ok(init?.body instanceof FormData);assert.equal(init.body.get('model'),'fixture-asr-code');const file=init.body.get('file') as File;assert.equal(file.type,'audio/wav');assert.equal(new DataView(await file.arrayBuffer()).getUint16(20,true),1);return Response.json({text:'这是一段可编辑的转写文字。'});
+ };
+ const imageRequest={requestId:'media-image-once',assetId:image.id,question:'描述画面'};
+ const imageResult=await executeMediaTask(fixture.user.id,conversation.id,'IMAGE_UNDERSTANDING',imageRequest);assert.equal(imageResult.text,'图片中有测试图案。');
+ assert.equal((await executeMediaTask(fixture.user.id,conversation.id,'IMAGE_UNDERSTANDING',imageRequest)).text,imageResult.text);assert.equal(calls,1,'request replay does not call vision twice');
+ await assert.rejects(()=>executeMediaTask(fixture.user.id,conversation.id,'IMAGE_UNDERSTANDING',{...imageRequest,question:'other'}),/其他媒体内容/);
+ const {encodePcmWav}=await import('../../apps/web/src/components/chat/media/wav-encoder');
+ const wav=encodePcmWav([new Float32Array(16000).fill(0.1)],16000),audio=await saveAccountUpload(fixture.user.id,wav);
+ const transcription=await executeMediaTask(fixture.user.id,conversation.id,'AUDIO_TRANSCRIPTION',{requestId:'media-transcription-once',assetId:audio.id});assert.equal(transcription.text,'这是一段可编辑的转写文字。');
+ await executeMediaTask(fixture.user.id,conversation.id,'AUDIO_TRANSCRIPTION',{requestId:'media-transcription-once',assetId:audio.id});assert.equal(calls,2,'transcription replay does not call twice');
+ fail=true;await assert.rejects(()=>executeMediaTask(fixture.user.id,conversation.id,'IMAGE_UNDERSTANDING',{...imageRequest,requestId:'media-image-failure'}),/返回错误/);
+ assert.equal((await fixture.db.mediaTaskRequest.findUniqueOrThrow({where:{userId_operation_requestId:{userId:fixture.user.id,operation:'IMAGE_UNDERSTANDING',requestId:'media-image-failure'}}})).status,'FAILED');
+ await assert.rejects(()=>executeMediaTask(fixture.user.id,conversation.id,'IMAGE_UNDERSTANDING',{...imageRequest,requestId:'media-daily-limit'}),/次数已用完/);
+ assert.equal(calls,3,'daily limit blocks before upstream');
+ assert.equal(await fixture.db.message.count({where:{conversationId:conversation.id}}),0,'understanding and transcription never send chat messages');
+ assert.equal(await fixture.db.generationCharge.count(),0,'independent media tasks never consume chat coins');
+});

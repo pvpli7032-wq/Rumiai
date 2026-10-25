@@ -24,6 +24,10 @@ export interface InvitePayload {
   rewardCoins: number;
 }
 export interface ReferralPayload {
+  totalChildren?:number;
+  rewards?:{coins:number;events:number};
+  commissionByCurrency?:Record<string,{pendingCents:number;availableCents:number;processedCents:number;reversedCents:number}>;
+  withdrawalAvailable?:boolean;
   code: {id: string; code: string; status: string; expiresAt: string | null; maxUses: number | null; usedCount: number; version: number};
   parent: {boundAt: string; inviter: {id: string; username: string; displayName: string | null}} | null;
   children: {boundAt: string; invitee: {id: string; username: string; displayName: string | null}}[];

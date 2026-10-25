@@ -75,7 +75,7 @@ export type MembershipOrderPublic = {
   grant:{startsAt:string;expiresAt:string;status:string}|null;
   refund:{status:string;amountCents:number;deductedCents:number}|null;
 };
-export type MembershipAccountPublic = {membership:MembershipCurrent;orders:MembershipOrderPublic[]};
+export type MembershipAccountPublic = {membership:MembershipCurrent;orders:MembershipOrderPublic[];nextOrderCursor?:string|null};
 export type MembershipCatalogPublic = {plans:MembershipPlanPublic[];policy:MembershipPolicyPublic;benefitDefinitions:MembershipBenefitDefinition[]};
 export type MembershipCheckoutResult = {orderNo:string;paymentOrderNo?:string;status:string;amountCnyCents:number;redirectUrl?:string};
 

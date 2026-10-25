@@ -3,7 +3,7 @@ import { db } from '@rumiai/backend/infrastructure/database/client';
 import { readAiModelCatalog } from '@rumiai/backend/modules/ai/models/runtime-service';
 
 const CONVERSATION_SELECT = {
-  id: true, title: true, characterId: true, relationshipStatus: true, romance: true, intimacy: true,
+  id: true, title: true, pinnedAt: true, parentConversationId: true, forkMessageId: true, characterId: true, relationshipStatus: true, romance: true, intimacy: true,
   notes: true, archivedAt: true, relationshipMode: true, aiModel: true, createdAt: true, updatedAt: true,
 } as const;
 
@@ -24,7 +24,7 @@ export async function listUserConversations(userId: string, options: {archived?:
       ...(options.characterId ? {characterId: options.characterId} : {}),
       ...(options.archived ? {archivedAt: {not: null}} : {archivedAt: null}),
     },
-    orderBy: {updatedAt: 'desc'},
+    orderBy: [{pinnedAt: 'desc'}, {updatedAt: 'desc'}, {id: 'desc'}],
     take: 200,
     select: {
       ...CONVERSATION_SELECT,
@@ -49,13 +49,14 @@ export async function readUserConversationPage(userId: string, options: {archive
   if (!/^\d+$/.test(rawLimit) || Number(rawLimit) < 1 || Number(rawLimit) > 100) throw new ConversationError('每页数量须为1–100。', 422);
   const limit = Number(rawLimit), q = options.q?.trim() || '';
   if (q.length > 160) throw new ConversationError('搜索内容最多160字。', 422);
-  let before: {updatedAt: Date; id: string} | null = null;
+  let before: {updatedAt: Date; id: string; pinnedAt: Date | null} | null = null;
   if (options.cursor) {
     try {
       const decoded = JSON.parse(Buffer.from(options.cursor, 'base64url').toString('utf8'));
       const updatedAt = new Date(decoded.updatedAt);
       if (!decoded.id || typeof decoded.id !== 'string' || Number.isNaN(updatedAt.getTime())) throw Error();
-      before = {updatedAt, id: decoded.id};
+      const pinnedAt = decoded.pinnedAt ? new Date(decoded.pinnedAt) : null; if (pinnedAt && Number.isNaN(pinnedAt.getTime())) throw Error();
+      before = {updatedAt, id: decoded.id, pinnedAt};
     } catch {throw new ConversationError('会话游标无效，请重新加载。', 422);}
   }
   const rows = await db.conversation.findMany({
@@ -65,10 +66,10 @@ export async function readUserConversationPage(userId: string, options: {archive
       archivedAt: options.archived ? {not: null} : null,
       AND: [
         ...(q ? [{OR: [{title: {contains: q}}, {character: {name: {contains: q}, OR: [{creatorId: userId}, {isPublic: true, reviewStatus: 'APPROVED'}]}}]}] : []),
-        ...(before ? [{OR: [{updatedAt: {lt: before.updatedAt}}, {updatedAt: before.updatedAt, id: {lt: before.id}}]}] : []),
+        ...(before ? [before.pinnedAt ? {OR: [{pinnedAt: {lt: before.pinnedAt}}, {pinnedAt: null}, {pinnedAt: before.pinnedAt, updatedAt: {lt: before.updatedAt}}, {pinnedAt: before.pinnedAt, updatedAt: before.updatedAt, id: {lt: before.id}}]} : {pinnedAt: null, OR: [{updatedAt: {lt: before.updatedAt}}, {updatedAt: before.updatedAt, id: {lt: before.id}}]}] : []),
       ],
     },
-    orderBy: [{updatedAt: 'desc'}, {id: 'desc'}],
+    orderBy: [{pinnedAt: 'desc'}, {updatedAt: 'desc'}, {id: 'desc'}],
     take: limit + 1,
     select: {...CONVERSATION_SELECT, character: {select: {id: true, name: true, avatarUrl: true, isPublic: true, reviewStatus: true, creatorId: true}}, _count: {select: {messages: true}}},
   });
@@ -79,7 +80,7 @@ export async function readUserConversationPage(userId: string, options: {archive
       return {...conversation, messageCount: _count.messages, character: {id: character.id, name: visible ? character.name : '暂不可用的角色', avatarUrl: visible ? character.avatarUrl : null}};
     }),
     hasMore,
-    nextCursor: hasMore && last ? Buffer.from(JSON.stringify({updatedAt: last.updatedAt.toISOString(), id: last.id})).toString('base64url') : null,
+    nextCursor: hasMore && last ? Buffer.from(JSON.stringify({updatedAt: last.updatedAt.toISOString(), id: last.id, pinnedAt: last.pinnedAt?.toISOString() ?? null})).toString('base64url') : null,
   };
 }
 
@@ -128,7 +129,7 @@ export async function readConversation(userId: string, conversationId: string) {
   const conversation = await db.conversation.findUnique({
     where: {id: conversationId},
     select: {
-      id: true, userId: true, title: true, relationshipStatus: true, romance: true, intimacy: true, notes: true,
+      id: true, userId: true, title: true, pinnedAt: true, parentConversationId: true, forkMessageId: true, relationshipStatus: true, romance: true, intimacy: true, notes: true,
       archivedAt: true, relationshipMode: true, aiModel: true, createdAt: true, updatedAt: true,
       character: {select: {id: true, name: true, tagline: true, avatarUrl: true, roleTemplate: true, scenario: true, isPublic: true, reviewStatus: true, creatorId: true}},
       _count: {select: {messages: true}},
@@ -180,6 +181,8 @@ export async function updateConversation(userId: string, conversationId: string,
   const notes = typeof body.notes === 'string' ? body.notes : undefined;
   if (notes !== undefined && notes.length > MAX_NOTES) throw new ConversationError(`Notes must be ${MAX_NOTES} characters or fewer`, 400);
   const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : undefined;
+  if ('title' in body && (!title || title.length > 80)) throw new ConversationError('对话名称须为1–80字。', 422);
+  if ('pinned' in body && typeof body.pinned !== 'boolean') throw new ConversationError('置顶状态无效。', 422);
   const archived = typeof body.archived === 'boolean' ? body.archived : undefined;
   const rawRelationshipMode = body.relationshipMode ?? body.relationship_mode;
   const relationshipMode = typeof rawRelationshipMode === 'boolean' ? rawRelationshipMode : undefined;
@@ -187,7 +190,7 @@ export async function updateConversation(userId: string, conversationId: string,
   const requestedModel = Object.hasOwn(body,'aiModel') ? body.aiModel : body.ai_model;
 
   return db.$transaction(async tx => {
-    const owned = await tx.conversation.findUnique({where: {id: conversationId}, select: {userId: true,characterId:true}});
+    const owned = await tx.conversation.findUnique({where: {id: conversationId}, select: {userId: true,characterId:true,pinnedAt:true}});
     if (!owned) throw new ConversationError('Not found', 404);
     if (owned.userId !== userId) throw new ConversationError('Forbidden', 403);
     let aiModel:string|null|undefined;
@@ -200,11 +203,12 @@ export async function updateConversation(userId: string, conversationId: string,
     const conversation = await tx.conversation.update({
       where: {id: conversationId},
       data: {
+        ...(typeof body.pinned === 'boolean' && {pinnedAt: body.pinned ? owned.pinnedAt ?? new Date() : null}),
         ...(title !== undefined && {title}), ...(notes !== undefined && {notes}),
         ...(archived !== undefined && {archivedAt: archived ? new Date() : null}),
         ...(relationshipMode !== undefined && {relationshipMode}), ...(aiModel !== undefined && {aiModel}),
       },
-      select: {id: true, title: true, relationshipStatus: true, romance: true, intimacy: true, notes: true, archivedAt: true, relationshipMode: true, aiModel: true, updatedAt: true},
+      select: {id: true, title: true, pinnedAt: true, relationshipStatus: true, romance: true, intimacy: true, notes: true, archivedAt: true, relationshipMode: true, aiModel: true, updatedAt: true},
     });
     return {conversation};
   });

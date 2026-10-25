@@ -27,13 +27,16 @@ function shapeComment(comment: {
   };
 }
 
-export async function listCharacterComments(characterId: string, viewerId: string | undefined, options: {limit?: number; cursor?: string | null} = {}) {
+export async function listCharacterComments(characterId: string, viewerId: string | undefined, options: {limit?: number; cursor?: string | null; sort?: string} = {}) {
   await requireReadableCharacter(characterId, viewerId, (message, status) => new CharacterCommentError(message, status));
   const take = Math.min(PAGE_SIZE, Math.max(1, options.limit || PAGE_SIZE));
   const cursor = options.cursor || undefined;
+  const sort=options.sort??'new';
+  if(!['new','popular'].includes(sort))throw new CharacterCommentError('评论排序无效。',400);
+  if(cursor&&!await db.comment.findFirst({where:{id:cursor,characterId,parentId:null,hiddenAt:null},select:{id:true}}))throw new CharacterCommentError('评论游标已失效，请重新加载。',409);
   const roots = await db.comment.findMany({
     where: {characterId, parentId: null, hiddenAt: null},
-    orderBy: {createdAt: 'desc'},
+    orderBy: sort==='popular'?[{likeCount:'desc'},{createdAt:'desc'},{id:'desc'}]:[{createdAt:'desc'},{id:'desc'}],
     take: take + 1,
     ...(cursor ? {cursor: {id: cursor}, skip: 1} : {}),
     select: {
@@ -43,7 +46,7 @@ export async function listCharacterComments(characterId: string, viewerId: strin
         where: {hiddenAt: null}, orderBy: {createdAt: 'asc'}, take: 10,
         select: {id: true, body: true, likeCount: true, createdAt: true, updatedAt: true, author: {select: AUTHOR_SELECT}},
       },
-      _count: {select: {replies: true}},
+      _count: {select: {replies: {where:{hiddenAt:null}}}},
     },
   });
   const hasMore = roots.length > take;
@@ -173,4 +176,15 @@ export async function unlikeCharacterComment(userId: string, commentId: string) 
   });
   if (likeCount === null) throw new CharacterCommentError('Comment not found', 404);
   return {success: true, hasLiked: false, likeCount};
+}
+
+
+export async function listCharacterCommentReplies(parentId:string,viewerId?:string,cursor?:string|null){
+ const parent=await db.comment.findFirst({where:{id:parentId,parentId:null,hiddenAt:null},select:{characterId:true}});
+ if(!parent)throw new CharacterCommentError('评论不存在。',404);
+ await requireReadableCharacter(parent.characterId,viewerId,(m,status)=>new CharacterCommentError(m,status));
+ if(cursor&&!await db.comment.findFirst({where:{id:cursor,parentId,hiddenAt:null},select:{id:true}}))throw new CharacterCommentError('回复游标已失效，请重新加载。',409);
+ const rows=await db.comment.findMany({where:{parentId,hiddenAt:null},orderBy:[{createdAt:'asc'},{id:'asc'}],take:PAGE_SIZE+1,...(cursor?{cursor:{id:cursor},skip:1}:{}),select:{id:true,body:true,likeCount:true,createdAt:true,updatedAt:true,author:{select:AUTHOR_SELECT}}});
+ const page=rows.slice(0,PAGE_SIZE),liked=viewerId?await db.commentLike.findMany({where:{userId:viewerId,commentId:{in:page.map(row=>row.id)}},select:{commentId:true}}):[];
+ return {comments:page.map(row=>shapeComment(row,viewerId,new Set(liked.map(item=>item.commentId)))),nextCursor:rows.length>PAGE_SIZE?page[page.length-1].id:null};
 }

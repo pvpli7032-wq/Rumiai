@@ -1,3 +1,4 @@
+import {normalizeReaderPreferences, validateReaderPreferences, validateShortcuts} from '@rumiai/contracts/accounts/preferences';
 import { db } from '@rumiai/backend/infrastructure/database/client';
 import {mayAttachAccountUpload} from '@rumiai/backend/modules/uploads/read-service';
 import {validateAvatarUrl} from '@rumiai/backend/modules/uploads/url-validation';
@@ -5,7 +6,7 @@ import { formatUser, isUniqueViolation, validateUsername } from '@rumiai/backend
 
 const USER_PROFILE_SELECT = {
   id: true, username: true, displayName: true, email: true, avatarUrl: true, tier: true, coins: true,
-  streakCount: true, lastCheckin: true, bannedWords: true, readingMode: true, shortcuts: true, createdAt: true,
+  streakCount: true, lastCheckin: true, bannedWords: true, readingMode: true, shortcuts: true, readerPreferencesJson: true, createdAt: true,
   _count: {select: {characters: {where: {reviewStatus: {not: 'DELETED'}}}}},
 } as const;
 
@@ -44,14 +45,26 @@ export async function updateOwnProfile(userId: string, input: unknown) {
   const rawBannedWords = body.bannedWords ?? body.banned_words;
   const bannedWords = typeof rawBannedWords === 'string' ? rawBannedWords.slice(0, 4_000) : undefined;
   const rawReadingMode = body.readingMode ?? body.reading_mode;
-  const readingMode = typeof rawReadingMode === 'boolean' ? rawReadingMode : undefined;
+  let readingMode = typeof rawReadingMode === 'boolean' ? rawReadingMode : undefined;
+  let readerPreferencesJson: string | undefined;
+  if (body.readerPreferences !== undefined || readingMode !== undefined) {
+    const existing = await db.user.findUnique({where: {id: userId}, select: {readerPreferencesJson: true, readingMode: true}});
+    const base = normalizeReaderPreferences(existing?.readerPreferencesJson, existing?.readingMode);
+    if (body.readerPreferences !== undefined) {
+      const invalid = validateReaderPreferences(body.readerPreferences);
+      if (invalid) throw new AccountProfileError(invalid, 400);
+      Object.assign(base, body.readerPreferences);
+      readingMode = base.fontSize !== 'standard';
+    } else base.fontSize = readingMode ? 'large' : 'standard';
+    readerPreferencesJson = JSON.stringify(base);
+  }
 
   let shortcuts: string | undefined;
   if (body.shortcuts !== undefined) {
-    shortcuts = typeof body.shortcuts === 'string' ? body.shortcuts : JSON.stringify(body.shortcuts);
-    if (shortcuts.length > 4_000) throw new AccountProfileError('shortcuts is too large', 400);
-    try { JSON.parse(shortcuts); }
-    catch { throw new AccountProfileError('shortcuts must be valid JSON', 400); }
+    const invalid = validateShortcuts(body.shortcuts);
+    if (invalid) throw new AccountProfileError(invalid, 400);
+    const value = typeof body.shortcuts === 'string' ? JSON.parse(body.shortcuts) : body.shortcuts;
+    shortcuts = JSON.stringify(value.map((item: {label: string; text: string}) => ({label: item.label.trim(), text: item.text.trim()})));
   }
 
   if (username !== undefined && username.length === 0) throw new AccountProfileError('Username cannot be empty', 400);
@@ -69,6 +82,7 @@ export async function updateOwnProfile(userId: string, input: unknown) {
         ...(bannedWords !== undefined && {bannedWords}),
         ...(readingMode !== undefined && {readingMode}),
         ...(shortcuts !== undefined && {shortcuts}),
+        ...(readerPreferencesJson !== undefined && {readerPreferencesJson}),
       },
       select: USER_PROFILE_SELECT,
     });

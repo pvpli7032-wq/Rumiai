@@ -87,11 +87,15 @@ export async function deleteAiModel(actorId:string,id:string,input:unknown){
 }
 
 export async function saveAiModel(actorId:string,input:unknown){
-  const row=object(input),allowed=new Set(['id','key','displayName','modelCode','providerId','isActive','isDefault','isFallback','sortOrder','timeoutMs','maxRetries','maxOutputTokens','version','reason']);
+  const row=object(input),allowed=new Set(['supportsChat','supportsVision','supportsTranscription','id','key','displayName','modelCode','providerId','isActive','isDefault','isFallback','sortOrder','timeoutMs','maxRetries','maxOutputTokens','version','reason']);
   if(Object.keys(row).some(key=>!allowed.has(key)))throw new AiModelError('模型字段与当前表单不匹配。');
   const key=text(row.key,'模型标识',64),displayName=text(row.displayName,'显示名称',80),modelCode=text(row.modelCode,'供应商模型代码',120),providerId=text(row.providerId,'供应商',100);
   if(!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(key)||! /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(modelCode))throw new AiModelError('模型标识或供应商代码包含不支持的字符。');
   if(typeof row.isActive!=='boolean'||typeof row.isDefault!=='boolean'||typeof row.isFallback!=='boolean'||!Number.isSafeInteger(row.sortOrder))throw new AiModelError('模型状态或排序无效。');
+  for(const capability of ['supportsChat','supportsVision','supportsTranscription'])if(row[capability]!==undefined&&typeof row[capability]!=='boolean')throw new AiModelError('模型能力格式无效。');
+  const supportsChat=row.supportsChat!==false,supportsVision=row.supportsVision===true,supportsTranscription=row.supportsTranscription===true;
+  if(!supportsChat&&!supportsVision&&!supportsTranscription)throw new AiModelError('请至少选择一种模型能力。');
+  if(!supportsChat&&(row.isDefault||row.isFallback))throw new AiModelError('全站默认和备用路由必须支持文字聊天。');
   const isActive=row.isActive,isDefault=row.isDefault,isFallback=row.isFallback,sortOrder=integer(row.sortOrder,'排序值',0,100000),timeoutMs=integer(row.timeoutMs,'连接超时',1000,120000),maxRetries=integer(row.maxRetries,'重试次数',0,2),maxOutputTokens=integer(row.maxOutputTokens,'最大输出Token',1,200000),explanation=reason(row.reason);
   if(isDefault&&(!isActive||isFallback)||isFallback&&isDefault)throw new AiModelError('默认模型必须启用且不能同时标记为备用模型。');
   const id=typeof row.id==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(row.id)?row.id:undefined;if(row.id!==undefined&&!id)throw new AiModelError('模型编号无效。');const version=id?expected(row.version):0;
@@ -101,16 +105,16 @@ export async function saveAiModel(actorId:string,input:unknown){
     const before=id?await tx.aiModel.findUnique({where:{id},include:{provider:{select:{id:true,name:true,isActive:true}}}}):null;if(id&&!before)throw new AiModelError('模型不存在。',404);if((before?.version??0)!==version)throw new AiModelError('模型配置已被其他人修改，请刷新后重试。',409);
     const provider=await tx.aiProvider.findUnique({where:{id:providerId},select:{id:true,name:true,isActive:true,...secrets}});if(!provider)throw new AiModelError('供应商不存在。',404);
     if(isActive){if(!provider.isActive)throw new AiModelError('启用模型前请先启用所属供应商。');try{decryptProviderSecret(provider);}catch{throw new AiModelError('启用模型前请先检查供应商密钥和服务端加密密钥。',409);}}
-    const activeOthers=await tx.aiModel.findMany({where:{isActive:true,...(id?{id:{not:id}}:{})},select:{id:true,isDefault:true}});
+    const activeOthers=await tx.aiModel.findMany({where:{isActive:true,supportsChat:true,...(id?{id:{not:id}}:{})},select:{id:true,isDefault:true}});
     const defaultCount=isActive&&isDefault?1:activeOthers.filter(item=>item.isDefault).length;
-    if(isActive&&defaultCount!==1)throw new AiModelError('启用模型时必须且只能有一个默认模型；请先指定默认模型。');
-    if(!isActive&&before?.isActive&&before.isDefault&&activeOthers.length)throw new AiModelError('请先将其他启用模型设为默认模型，再停用当前默认模型。',409);
+    if(isActive&&supportsChat&&defaultCount!==1)throw new AiModelError('启用模型时必须且只能有一个默认模型；请先指定默认模型。');
+    if((!isActive||!supportsChat)&&before?.isActive&&before.isDefault&&activeOthers.length)throw new AiModelError('请先将其他启用模型设为默认模型，再停用当前默认模型。',409);
     if(before&&key!==before.key)throw new AiModelError('模型标识启用后不可更改；如需替换请创建新标识。',409);
     const displacedDefaults=isDefault?activeOthers.filter(item=>item.isDefault):[];
     if(displacedDefaults.length)await tx.aiModel.updateMany({where:{id:{in:displacedDefaults.map(item=>item.id)}},data:{isDefault:false,defaultSlot:null,version:{increment:1}}});
-    const data={key,displayName,modelCode,providerId,isActive,isDefault,defaultSlot:isDefault?'GLOBAL':null,isFallback,sortOrder,timeoutMs,maxRetries,maxOutputTokens};
+    const data={supportsChat,supportsVision,supportsTranscription,key,displayName,modelCode,providerId,isActive,isDefault,defaultSlot:isDefault?'GLOBAL':null,isFallback,sortOrder,timeoutMs,maxRetries,maxOutputTokens};
     const saved=before?await tx.aiModel.update({where:{id:before.id},data:{...data,version:{increment:1},lastCheckAt:null,lastCheckStatus:null}}):await tx.aiModel.create({data:{id:randomUUID(),...data,version:1}});
-    await recordAdminAudit(tx,actorId,before?'UPDATE_AI_MODEL':'CREATE_AI_MODEL',saved.id,explanation,{before:before?{key:before.key,displayName:before.displayName,modelCode:before.modelCode,providerId:before.providerId,isActive:before.isActive,isDefault:before.isDefault,isFallback:before.isFallback,version:before.version}:null,after:{key,displayName,modelCode,providerId,isActive,isDefault,isFallback,version:saved.version},displacedDefaults:displacedDefaults.map(item=>item.id)});
+    await recordAdminAudit(tx,actorId,before?'UPDATE_AI_MODEL':'CREATE_AI_MODEL',saved.id,explanation,{before:before?{key:before.key,displayName:before.displayName,modelCode:before.modelCode,providerId:before.providerId,isActive:before.isActive,isDefault:before.isDefault,isFallback:before.isFallback,version:before.version}:null,after:{supportsChat,supportsVision,supportsTranscription,key,displayName,modelCode,providerId,isActive,isDefault,isFallback,version:saved.version},displacedDefaults:displacedDefaults.map(item=>item.id)});
     return view({...saved,provider:{id:provider.id,name:provider.name,isActive:provider.isActive}});
   });}catch(error){if(error instanceof AiModelError)throw error;if((error as {code?:string})?.code==='P2002')throw new AiModelError('模型标识或供应商模型代码已存在。',409);throw error;}
 }

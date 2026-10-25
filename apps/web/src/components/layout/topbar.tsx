@@ -8,6 +8,7 @@ import { useAuth } from '@web/lib/auth-context';
 import { useSiteContent } from '@web/lib/use-site-content';
 import { DesignIcon } from '@/components/primitives/design-icon';
 import { useDiscoverState } from '@/components/discover/use-discover-state';
+import {DISCOVERY_PREFERENCES_CHANGED} from '@rumiai/contracts/discovery';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 
 const MOBILE_HEADERS: Record<string, { title: string; subtitle?: string }> = {
@@ -67,7 +68,9 @@ export function Topbar() {
 
 function DiscoverHeaderSearch() {
   const { query, setQuery, setMode } = useDiscoverState();
-  return <form role="search" className="min-w-0 flex-1 desktop:hidden" onSubmit={event => { event.preventDefault(); setMode('角色'); }}>
+  const {token}=useAuth();
+  async function remember(){if(!token||!query.trim())return;try{const response=await fetch('/api/me/discovery-preferences',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({query:query.trim()})});if(response.ok)window.dispatchEvent(new Event(DISCOVERY_PREFERENCES_CHANGED));}catch{/* Search remains usable when saving history is temporarily unavailable. */}}
+  return <form role="search" className="min-w-0 flex-1 desktop:hidden" onSubmit={event => { event.preventDefault(); setMode('角色'); void remember(); }}>
     <label className="flex min-h-11 min-w-0 items-center gap-1.5 rounded-full bg-muted px-3">
       <DesignIcon name="ph:magnifying-glass" className="h-4 w-4 shrink-0 text-muted-foreground" />
       <input aria-label="搜索角色" type="search" enterKeyHint="search" placeholder="搜索角色" value={query} onChange={event => { setQuery(event.target.value); setMode('角色'); }} className="min-w-0 w-full bg-transparent py-2 text-base outline-none placeholder:text-xs" />

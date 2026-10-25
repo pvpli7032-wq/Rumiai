@@ -1,3 +1,5 @@
+import {buildAdvancedContext, recordContextUse} from '@rumiai/backend/modules/conversations/context/builder';
+import {requireRevisionPolicy} from '@rumiai/backend/modules/conversations/revisions/policy';
 import { logRouteError } from '@rumiai/backend/infrastructure/logging/logger';
 import { ConversationError, readConversationForChat } from '@rumiai/backend/modules/conversations/conversation-service';
 import { ConversationMessageError, createUserMessage, prepareMessageRegeneration, readRecentMessageHistory, persistAssistantResponseInTx, replaceMessageReplyInTx } from '@rumiai/backend/modules/conversations/message-service';
@@ -19,7 +21,7 @@ import {buildRelationshipContext, readRelationshipPolicy, recordRelationshipGrow
 import {grantInviteRewardIfDue} from '@rumiai/backend/modules/growth/invite-service';
 
 export type ChatTurnMode = 'SEND' | 'REGENERATE';
-export type ChatTurnInput = {request: Request} | {targetMessageId: string; requestId?: unknown};
+export type ChatTurnInput = {request: Request} | {targetMessageId: string; requestId?: unknown; revision?: {kind: 'CONTINUE' | 'SUGGEST'; instruction?: unknown}};
 
 /** 与费用单的 operation 一一对应：SEND → CHAT_SEND，REGENERATE → CHAT_REGENERATE。 */
 const CHARGE_OPERATION: Record<ChatTurnMode, 'CHAT_SEND' | 'CHAT_REGENERATE'> = {SEND: 'CHAT_SEND', REGENERATE: 'CHAT_REGENERATE'};
@@ -59,6 +61,11 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   const rules = await readChatRules();
   const relationshipContext = await buildRelationshipContext(conversation);
   const relationshipPolicy = await readRelationshipPolicy();
+  const revision = 'revision' in input.input ? input.input.revision : undefined;
+  const revisionRules = revision ? await requireRevisionPolicy(input.userId, conversation.characterId) : null;
+  let revisionBase = '';
+  let revisionInstruction = '';
+  let replacePromptId: string | undefined;
   const body = input.mode === 'SEND' ? await parseJsonBody('request' in input.input ? input.input.request : undefined) : null;
   const requestId = readRequestId(input.mode === 'SEND' ? body?.requestId : ('requestId' in input.input ? input.input.requestId : null));
   let content: string; let history: Awaited<ReturnType<typeof readRecentMessageHistory>> | undefined; let replaceAt: Date | undefined;
@@ -75,13 +82,21 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   } else {
     if (!('targetMessageId' in input.input)) throw new ChatTurnHttpError('Internal server error', 500);
     const prepared = await prepareMessageRegeneration(input.userId, input.conversationId, input.input.targetMessageId, rules.historyMessages);
-    content = prepared.prompt.content; history = prepared.history; replaceAt = prepared.prompt.createdAt;
-    requestContent = input.input.targetMessageId;
+    content = prepared.prompt.content; history = prepared.history; replaceAt = prepared.prompt.createdAt; replacePromptId = prepared.prompt.id;
+    if (revision) {
+      const latest = await db.message.findFirst({where: {conversationId: input.conversationId}, orderBy: [{createdAt: 'desc'}, {id: 'desc'}], select: {id: true}});
+      if (prepared.target.role !== 'ASSISTANT' || latest?.id !== prepared.target.id) throw new ChatTurnHttpError('续写和定向改写仅支持最后一条角色回复。', 409);
+      revisionBase = prepared.target.content;
+      const instruction = typeof revision.instruction === 'string' ? revision.instruction.trim() : '';
+      if (revision.kind === 'SUGGEST' && (!instruction || instruction.length > revisionRules!.maxInstructionChars)) throw new ChatTurnHttpError('请填写有效的改写建议，最多' + revisionRules!.maxInstructionChars + '字。', 422);
+      revisionInstruction = revision.kind === 'CONTINUE' ? '请仅续写以下回复的新内容，不重复原文：\n' + revisionBase : '请按方向重新写完整回复。原文：\n' + revisionBase + '\n改写方向：' + instruction;
+    }
+    requestContent = revision ? JSON.stringify({messageId: input.input.targetMessageId, revision}) : input.input.targetMessageId;
   }
   // V3 §20：请求号由客户端给。缺了就没法重放、也没法断线查询，直接 400 而不是自造一个。
   if (!requestId) throw new ChatTurnHttpError('缺少请求编号，请刷新页面重试。', 400);
-  if (conversation.aiModel && !(await readAiModelCatalog(conversation.characterId)).models.includes(conversation.aiModel)) throw new ChatTurnHttpError('原选择模型已不可用，请打开关系面板查看替代模型及费用后重新选择。', 503);
-  const modelPlan = conversation.aiModel
+  if (!revision && conversation.aiModel && !(await readAiModelCatalog(conversation.characterId)).models.includes(conversation.aiModel)) throw new ChatTurnHttpError('原选择模型已不可用，请打开关系面板查看替代模型及费用后重新选择。', 503);
+  const modelPlan = revisionRules?.model ? [revisionRules.model] : conversation.aiModel
     ? await readAiModelPlan(conversation.aiModel, conversation.characterId).then(plan => plan === null ? null : plan.filter(model => model.key === conversation.aiModel))
     : await readTaskModelPlan('chat', {characterId: conversation.characterId});
   if (modelPlan?.length === 0) throw new ChatTurnHttpError('当前角色暂无可用模型，请重新选择模型或联系管理员。', 503);
@@ -102,14 +117,16 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
   // 相同 requestId 重放：返回同一费用单与同一结果，不再调用模型、不再扣币、不再写消息。
   if (billing.hold.replayed) {
     if (billing.hold.status === 'SETTLED' && billing.hold.messageId) {
-      const saved = await db.message.findUnique({where: {id: billing.hold.messageId}, select: {content: true}});
+      const stored = await db.generationCharge.findFirst({where: {userId: input.userId, requestId, operation: CHARGE_OPERATION[input.mode]}, select: {messageVersionId: true}});
+      const version = stored?.messageVersionId ? await db.messageVersion.findUnique({where: {id: stored.messageVersionId}, select: {content: true}}) : null;
+      const saved = version ?? await db.message.findUnique({where: {id: billing.hold.messageId}, select: {content: true}});
       if (saved) return {mode: input.mode, stream: await replayStream(saved.content, billing, input)};
     }
     if (billing.hold.status === 'HELD') throw new ChatTurnHttpError('这条请求仍在处理中，请稍后查看结果。', 409);
     // RELEASED / UNKNOWN：上次尝试已作废且未产生回复，用新的请求号重新发送即可。
     throw new ChatTurnHttpError('这条请求已结束且没有产生回复，请重新发送。', 409);
   }
-  const call = await reserveAiCall(input.userId, input.conversationId, input.mode, modelPlan?.map(model => model.key), 'chat'); reservedCall = call;
+  const call = await reserveAiCall(input.userId, input.conversationId, revision ? 'CHAT_REVISION' : input.mode, modelPlan?.map(model => model.key), revision ? 'chatRevision' : 'chat'); reservedCall = call;
   try {
     if (input.mode === 'SEND') { const userMessage = await createUserMessage(input.conversationId, content); history = await readRecentMessageHistory(input.conversationId, userMessage.id, rules.historyMessages); }
   } catch (error) {
@@ -122,15 +139,19 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
    * 记忆读失败绝不让聊天失败——降级成不注入，只记一条日志。
    */
   let memoryContext: string | undefined;
+  let advanced: Awaited<ReturnType<typeof buildAdvancedContext>>;
+  try { advanced = await buildAdvancedContext(input.userId, input.conversationId, [content, ...(history ?? []).map(row => row.content)].join('\n'), (history ?? []).reduce((sum, row) => sum + row.content.length, content.length)); }
+  catch (error) {await finishAiCall(call.id, call.startedAt, 'FAILED', {}, 'CONTEXT_ERROR').catch(() => {}); await billing.release('CONTEXT_ERROR'); throw new ChatTurnHttpError('会话上下文读取失败，请重试。', 503); }
   try {
     const recent = (history as Array<{content: string}> | undefined) ?? [];
     const reserved = recent.reduce((sum, item) => sum + item.content.length, 0) + content.length;
-    const memory = await buildMemoryContext(input.conversationId, {userId: input.userId, reservedTokens: reserved});
+    const memory = await buildMemoryContext(input.conversationId, {userId: input.userId, reservedTokens: reserved + advanced.text.length});
     memoryContext = memory.text ?? undefined;
+    await recordContextUse(input.conversationId, requestId, {sources: advanced.sources, truncated: advanced.truncated, memoryFactIds: memory.facts.map(fact => fact.id)});
   } catch (error) {
     logRouteError('chat memory context', error);
   }
-  memoryContext = [relationshipContext, memoryContext].filter(Boolean).join('\n\n') || undefined;
+  memoryContext = [relationshipContext, advanced.text, memoryContext, revisionInstruction].filter(Boolean).join('\n\n') || undefined;
   const notice = billing.notice();
   const abort = new AbortController(); let cancelled = false;
   const onAbort = () => { cancelled = true; abort.abort(new DOMException('Client disconnected', 'AbortError')); };
@@ -167,7 +188,7 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
               messageId = (await persistAssistantResponseInTx(tx, input.conversationId, conversation.characterId, assistantContent))?.id ?? null;
             } else if (!failure && !cancelled) {
               // 重新生成被取消时保留原回复，不写半截内容。
-              messageId = (await replaceMessageReplyInTx(tx, input.conversationId, replaceAt!, assistantContent))?.id ?? null;
+              messageId = (await replaceMessageReplyInTx(tx, input.conversationId, replaceAt!, revision?.kind === 'CONTINUE' ? revisionBase + assistantContent : assistantContent, replacePromptId, revision?.kind ?? 'REGENERATE'))?.id ?? null;
             }
             if (billing.hold.held) {
               const now = new Date();
@@ -177,6 +198,10 @@ export async function executeChatTurn(input: ChatTurnRequest): Promise<ChatTurnR
               if (cancelContext) await settleCancellationInTx(tx, {...chargeInput, messageId, aiCallId: call.id, outputDelivered: billing.deliveredOutput()}, cancelContext);
               else if (failure) await releaseInTx(tx, existing, {...chargeInput, messageId, aiCallId: billing.hold.aiCallId, reason: aiErrorCode(failure)}, now);
               else await settleInTx(tx, existing, {...chargeInput, messageId, aiCallId: call.id}, now);
+            }
+            if (messageId && !failure && !cancelled) {
+              const current = await tx.message.findUnique({where: {id: messageId}, select: {selectedVersionId: true}});
+              await tx.generationCharge.updateMany({where: {userId: input.userId, requestId, operation: CHARGE_OPERATION[input.mode]}, data: {messageVersionId: current?.selectedVersionId}});
             }
             if (messageId && input.mode === 'SEND' && !failure && !cancelled) {
               await recordRelationshipGrowth(tx, {conversationId: input.conversationId, requestId, messageId}, relationshipPolicy);

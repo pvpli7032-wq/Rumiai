@@ -30,7 +30,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
     return true;
   }
 
-  const { comments, nextCursor, loading, busy, error, load, post, toggleLike, saveEdit, remove } = useCharacterComments(characterId, token, requireLogin);
+  const { sort,setSort,loadReplies,replyCursors,comments, nextCursor, loading, busy, error, load, post, toggleLike, saveEdit, remove } = useCharacterComments(characterId, token, requireLogin);
 
   async function send(body: string, parentId?: string) {
     if (!await post(body, parentId)) return;
@@ -49,6 +49,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
 
   return (
     <div>
+      <div className="mb-3 flex items-center justify-between gap-2"><h3 className="text-sm font-medium">角色评论</h3><label className="text-xs text-muted-foreground">排序 <select value={sort} onChange={e=>setSort(e.target.value as 'new'|'popular')} className="min-h-11 rounded-xl border border-border bg-card px-2"><option value="new">最新</option><option value="popular">最受赞</option></select></label></div>
       {/* Composer */}
       <div className="mb-4">
         <textarea
@@ -57,7 +58,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
           rows={2}
           placeholder={token ? "写下评论…" : "登录后发表评论"}
           onFocus={() => { if (!token) router.push(loginWithNext()); }}
-          className="w-full resize-none rounded-xl border border-border bg-muted px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
+          className="w-full resize-none rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder-zinc-600 focus:border-brand-strong/50 focus:outline-hidden"
         />
         <div className="mt-1 flex items-center justify-between">
           <span className="text-[11px] text-muted-foreground">{draft.length}/{maxBody}</span>
@@ -71,7 +72,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
         </div>
       </div>
 
-      {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
+      {error && <p role="alert" className="mb-3 text-xs text-destructive">{error}<button type="button" onClick={()=>void load()} className="ml-2 min-h-11 underline">重试</button></p>}
 
       {comments.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
@@ -89,7 +90,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                 onEditDraft={setEditDraft}
                 onStartEdit={() => { setEditingId(c.id); setEditDraft(c.body); }}
                 onCancelEdit={() => setEditingId(null)}
-                onSaveEdit={() => { void saveEdit(c.id, editDraft); setEditingId(null); }}
+                onSaveEdit={async () => { if(await saveEdit(c.id, editDraft)) setEditingId(null); }}
                 onLike={() => toggleLike(c)}
                 onReply={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyDraft(''); }}
                 onDelete={() => { if (window.confirm('确定删除这条评论吗？')) void remove(c.id); }}
@@ -136,7 +137,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                         onEditDraft={setEditDraft}
                         onStartEdit={() => { setEditingId(r.id); setEditDraft(r.body); }}
                         onCancelEdit={() => setEditingId(null)}
-                        onSaveEdit={() => { void saveEdit(r.id, editDraft); setEditingId(null); }}
+                        onSaveEdit={async () => { if(await saveEdit(r.id, editDraft)) setEditingId(null); }}
                         onLike={() => toggleLike(r)}
                         onDelete={() => { if (window.confirm('确定删除这条评论吗？')) void remove(r.id); }}
                         onReport={() => setReportingId(r.id)}
@@ -145,6 +146,7 @@ export function CharacterComments({ characterId }: { characterId: string }) {
                   ))}
                 </ul>
               )}
+              {(c.replyCount??0)>(c.replies?.length??0)&&replyCursors[c.id]!==null&&<button type="button" disabled={busy} onClick={()=>void loadReplies(c.id)} className="ml-10 min-h-11 text-xs text-primary">加载更多回复</button>}
             </li>
           ))}
         </ul>

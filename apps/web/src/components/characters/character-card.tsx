@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { openDiscoverCharacter } from '@/components/discover/use-discover-state';
-import { Tag } from 'lucide-react';
+import {useAuth} from '@web/lib/auth-context';
+import {DISCOVERY_PREFERENCES_CHANGED} from '@rumiai/contracts/discovery';
 import { CharacterDetailDialog } from './character-detail-dialog';
 import { CharacterVisual, resolveCharacterVisual } from './character-visual';
 
@@ -56,9 +57,13 @@ function ExclusiveBadge() {
 export function CharacterCard({
   character,
   index = 0,
+  interactive = true,
+  recommendation = false,
 }: {
   character: CharacterCardData;
   index?: number;
+  interactive?: boolean;
+  recommendation?: boolean;
 }) {
   const gradient = GRADIENTS[index % GRADIENTS.length];
   const badges = (character.badges ?? '').split(',').filter(Boolean);
@@ -66,11 +71,16 @@ export function CharacterCard({
   // straight into /chat, which skipped the gallery, quests, like and report entirely.
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const {token}=useAuth();
+  const [hidden,setHidden]=useState(false),[hideError,setHideError]=useState(''),[hiding,setHiding]=useState(false);
+  async function hide(){if(!token)return;setHiding(true);try{const r=await fetch('/api/me/hidden-characters/'+encodeURIComponent(character.id),{method:'PUT',headers:{Authorization:'Bearer '+token}});const data=await r.json();if(!r.ok)throw Error(data.error||'隐藏失败。');setHidden(true);window.dispatchEvent(new Event(DISCOVERY_PREFERENCES_CHANGED));}catch(e){setHideError(e instanceof Error?e.message:'隐藏失败。');}finally{setHiding(false);}}
+  if(hidden)return null;
 
   return (
-    <>
+    <div className="relative h-full">
     <button
       type="button"
+      disabled={!interactive}
       onClick={() => pathname === '/discover' ? openDiscoverCharacter(character.id) : setOpen(true)}
       aria-haspopup="dialog"
       className="group flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-[20px] border border-border bg-card text-left transition-all duration-150 ease-out active:scale-[0.98]"
@@ -83,12 +93,7 @@ export function CharacterCard({
 
         {character.isExclusive && <ExclusiveBadge />}
 
-        <span
-          aria-hidden="true"
-          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/50"
-        >
-          <Tag className="h-3 w-3 text-white" />
-        </span>
+
 
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-2 py-1.5">
           <div className="flex gap-1">
@@ -132,7 +137,9 @@ export function CharacterCard({
         </div>
       )}
     </button>
+    {token&&interactive&&recommendation&&<details className="absolute right-2 top-2 z-10"><summary aria-label={'管理推荐 '+character.name} className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full bg-card text-foreground">⋯</summary><div className="absolute right-0 mt-1 w-36 rounded-xl border border-border bg-card p-1 shadow-lg"><button type="button" disabled={hiding} onClick={()=>void hide()} className="min-h-11 w-full px-3 text-left text-sm">{hiding?'正在隐藏…':'不感兴趣'}</button></div></details>}
+    {hideError&&<p role="alert" className="text-xs text-destructive">{hideError}</p>}
     {open && <CharacterDetailDialog characterId={character.id} onClose={() => setOpen(false)} />}
-    </>
+    </div>
   );
 }

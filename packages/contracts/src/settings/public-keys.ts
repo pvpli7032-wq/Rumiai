@@ -6,6 +6,7 @@
  * 成本、毛利、任务、审核、密钥类设置永远不进这里。
  */
 export const PUBLIC_KEYS = [
+  'proactive.enabled', 'proactive.maxSubscriptions', 'proactive.minIntervalHours', 'proactive.maxPerUserDaily', 'proactive.maxMessageChars', 'notifications.membershipReminderEnabled',
   'chat.maxMessageChars', 'chat.historyMessages', 'content.post.maxChars', 'content.comment.maxChars',
   'content.post.maxImages', 'upload.maxMB', 'content.character.nameMax', 'content.character.summaryMax',
   'content.character.personaMax', 'content.character.backgroundMax', 'content.character.openingMax', 'content.character.maxOwned',

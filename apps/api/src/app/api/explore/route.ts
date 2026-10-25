@@ -1,4 +1,5 @@
 import {NextResponse} from 'next/server';
+import {getAuthUser} from '@rumiai/backend/infrastructure/auth/auth';
 import {readDiscoverProjection} from '@rumiai/backend/workflows/discover-projection';
 import {readExploreCatalog} from '@rumiai/backend/modules/discovery/read-service';
 import {logRouteError} from '@rumiai/backend/infrastructure/logging/logger';
@@ -7,7 +8,7 @@ export const dynamic='force-dynamic';
 export async function GET(request:Request){
   try {
     if (new URL(request.url).searchParams.get('view') === 'discover') {
-      return NextResponse.json(await readDiscoverProjection(), {headers: {'Cache-Control': 'no-store'}});
+      return NextResponse.json(await readDiscoverProjection((await getAuthUser(request))?.userId), {headers: {'Cache-Control': 'private, no-store'}});
     }
     const raw=new URL(request.url).searchParams.get('take');
     const take=raw&&/^\d+$/.test(raw)?Math.min(60,Math.max(1,Number(raw))):60;

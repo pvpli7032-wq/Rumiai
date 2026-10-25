@@ -1,3 +1,4 @@
+import {runNotificationSchedule} from '@rumiai/backend/modules/notifications/scheduler';
 import {existsSync} from 'node:fs';
 import {readdir, rm, stat} from 'node:fs/promises';
 import path from 'node:path';
@@ -100,6 +101,7 @@ const handlers: Record<TaskKind, TaskHandler> = {
   'backup-cleanup': pruneBackups,
   'daily-backup': backupDaily,
   'event-cleanup': pruneEvents,
+  'notification-sweep': runNotificationSchedule,
 };
 
 export function handlerFor(kind: string): TaskHandler | null {

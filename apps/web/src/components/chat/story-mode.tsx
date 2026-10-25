@@ -5,11 +5,12 @@ import {useAuth} from '@web/lib/auth-context';
 import {loginWithNext} from '@web/lib/next-path';
 import {Loader2} from 'lucide-react';
 import {DesignIcon} from '@/components/primitives/design-icon';
+import {StoryTools} from '@/components/stories/story-tools';
 import {Dialog} from '@rumiai/ui';
 import {useAppBack} from '@/components/layout/navigation-history';
 
 type PublicTurn = {id: string; turnNo: number; status: string; stateStatus: string; inputMessageId: string | null; assistantMessageId: string | null; committedAt: string | null};
-type PublicEvent = {id: string; type: string; chapterKey: string; payload: {summary: string}; createdAt: string};
+type PublicEvent = {id: string; type: string; chapterKey: string; payload: {summary: string}; sourceMessageId?: string|null; createdAt: string};
 type StoryRunView = {id: string; conversationId: string; template: {title: string; publicSummary: string}; chapter: {key: string; title: string}; status: string; revision: number; turns: PublicTurn[]; events: PublicEvent[]};
 type ChatItem = {key: string; role: 'USER' | 'ASSISTANT' | 'EVENT'; text: string};
 type ConversationMessage = {id: string; role: string; content: string};
@@ -104,8 +105,9 @@ export function StoryMode({runId}: {runId: string}) {
     <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2"><button type="button" aria-label="返回上一页" onClick={back} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-secondary"><DesignIcon name="ph:arrow-left" size={20} /></button><div className="min-w-0"><h1 className="text-[15px] font-semibold">{run?.template.title}</h1><p className="text-sm text-muted-foreground">{run?.chapter.title}</p></div></header>
     <div className="mx-auto w-full max-w-3xl min-h-0 flex-1 overflow-y-auto px-4 py-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"><p>{run?.template.publicSummary}</p>{run?.status === 'ACTIVE' ? <button type="button" onClick={() => setCloseConfirmOpen(true)} disabled={sending || closing} className="min-h-11 rounded-full border border-border px-4 text-sm text-foreground disabled:opacity-50">{closing ? '正在结束…' : '结束本章'}</button> : <button type="button" onClick={() => void resumeChapter()} disabled={closing} className="min-h-11 rounded-full border border-border px-4 text-sm text-foreground disabled:opacity-50">{closing ? '正在继续…' : '继续故事'}</button>}</div>
+      {run&&<StoryTools run={run} onSuggestion={setInput}/>}
       {historyUnavailable && <p role="status" className="text-sm text-foreground">历史正文暂时无法读取</p>}
-      {[...items, ...localItems].map(item => <article key={item.key} className={'max-w-[85%] break-words rounded-[18px] px-4 py-3 text-[15px] leading-6 ' + (item.role === 'USER' ? 'ml-auto rounded-br-[6px] bg-secondary' : item.role === 'EVENT' ? 'mx-auto border border-border text-foreground' : 'rounded-bl-[6px] border border-border bg-card')}><p className="whitespace-pre-wrap">{item.text}</p></article>)}
+      {[...items, ...localItems].map(item => <article key={item.key} id={'story-message-'+item.key} className={'max-w-[85%] break-words rounded-[18px] px-4 py-3 text-[15px] leading-6 ' + (item.role === 'USER' ? 'ml-auto rounded-br-[6px] bg-secondary' : item.role === 'EVENT' ? 'mx-auto border border-border text-foreground' : 'rounded-bl-[6px] border border-border bg-card')}><p className="whitespace-pre-wrap">{item.text}</p></article>)}
       {streamText && <article className="max-w-[85%] whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[6px] border border-border bg-card px-4 py-3">{streamText}</article>}
       <div ref={scrollRef} />
     </div>

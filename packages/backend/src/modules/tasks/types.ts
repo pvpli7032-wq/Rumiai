@@ -15,7 +15,7 @@ export const SUBJECT_TASK_KINDS = ['memory-summary', 'dispute-close'] as const;
  * 巡检任务：没有具体记录，按轮询间隔重复执行。
  * daily-backup 是例外：它自己排下一次（+24h），用 nextRunAt 实现「每天一次」。
  */
-export const SWEEP_TASK_KINDS = ['story-state', 'dispute-sweep', 'mirror-expire', 'charge-recovery', 'backup-cleanup', 'daily-backup', 'event-cleanup'] as const;
+export const SWEEP_TASK_KINDS = ['story-state', 'dispute-sweep', 'mirror-expire', 'charge-recovery', 'backup-cleanup', 'daily-backup', 'event-cleanup', 'notification-sweep'] as const;
 
 /**
  * 重试用尽后必须置 FAILED 的巡检 kind。

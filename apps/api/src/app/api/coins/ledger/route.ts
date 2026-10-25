@@ -2,7 +2,7 @@ import {NextResponse} from 'next/server';
 import {getAuthUser} from '@rumiai/backend/infrastructure/auth/auth';
 import {logRouteError} from '@rumiai/backend/infrastructure/logging/logger';
 import {privateHeaders} from '@rumiai/backend/infrastructure/http/errors';
-import {readCoinLedger} from '@rumiai/backend/modules/coins/ledger-service';
+import {readCoinLedger,CoinLedgerError} from '@rumiai/backend/modules/coins/ledger-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,10 +15,12 @@ export async function GET(request: Request) {
     const takeParam = Number(searchParams.get('take') ?? '20');
     const ledger = await readCoinLedger(auth.userId, {
       cursor: searchParams.get('cursor'),
+      direction: searchParams.get('direction'),source:searchParams.get('source'),from:searchParams.get('from'),to:searchParams.get('to'),
       take: Number.isFinite(takeParam) ? takeParam : 20,
     });
     return NextResponse.json(ledger, {headers: privateHeaders});
   } catch (error) {
+    if(error instanceof CoinLedgerError)return NextResponse.json({error:error.message,code:'BAD_REQUEST'},{status:error.status,headers:privateHeaders});
     logRouteError('GET /api/coins/ledger', error);
     return NextResponse.json({error: '读取金币流水失败。', code: 'INTERNAL'}, {status: 500, headers: privateHeaders});
   }

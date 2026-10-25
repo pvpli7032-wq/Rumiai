@@ -260,6 +260,17 @@ export function useCreatorForm(editId?: string) {
     } catch { setError('网络连接失败，草稿已保留，请重试。'); } finally { setSaving(false); }
   }
 
+  async function previewChat(){
+    persist(draft);
+    if(!token){router.push(loginWithNext());return;}
+    if(!draft.name.trim()||!draft.description.trim()){setError('试聊前请填写角色名称和个性。');return;}
+    if(uploadBusy||saving)return;
+    if(!window.confirm('将创建一个仅自己可见的试聊副本，占用角色创建额度；当前角色不会被改动。进入聊天并发送消息后，按页面显示的服务端费用规则结算。是否继续？'))return;
+    setSaving(true);setError(null);
+    try{const response=await fetch('/api/characters',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({name:draft.name,tagline:draft.tagline,personality:draft.description,background:draft.bio,greeting:draft.greeting,avatarUrl:draft.avatarUrl||null,tags:draft.tags.join(','),badges:draft.badges.join(','),isPublic:false,isExclusive:false,scenario:draft.scenario||null,roleTemplate:draft.roleTemplate||null,isAdult:draft.isAdult,copyrightStatement:draft.copyrightStatement})});const data=await response.json();if(!response.ok)throw Error(data.error||'试聊副本创建失败。');router.push('/chat?character='+encodeURIComponent(data.character.id)+'&new=1');}
+    catch(e){setError(e instanceof Error?e.message:'网络连接失败，草稿仍保留。');}finally{setSaving(false);}
+  }
+
   function reset() {
     if (!confirm("清空草稿并重新开始？")) return;
     if (draftKey) try { localStorage.removeItem(draftKey); } catch {}
@@ -283,7 +294,7 @@ export function useCreatorForm(editId?: string) {
   const labelOf = (key: string) => allTags.find((t) => t.key === key)?.label ?? key;
 
   return {
-    draft, set, blur, toggleIn, touched, active, goTo, error, setError, saving, savedAt, loaded,
+    draft, setDraft, previewChat, set, blur, toggleIn, touched, active, goTo, error, setError, saving, savedAt, loaded,
     tagQuery, setTagQuery, filteredGroups, labelOf, badges, LIMITS, token,
     errors, done, progress, stepIndex, isLast, nextStep, prevStep, submit, reset, uploadBusy, setUploadBusy,
   };

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import {CreatorCloudDraft} from './creator-cloud-draft';
 import { CreatorSteps } from './creator-steps';
 import {
   CreatorToolbar, CreatorRail, CreatorPreviewAside, CreatorStepNav, CreatorMobileBar, CreatorPreviewSheet,
@@ -64,6 +65,7 @@ export default function CreatorForm({ editId }: { editId?: string }) {
         <CreatorRail active={active} done={done} onSelectSection={form.goTo} />
 
         <div className="min-w-0 space-y-6">
+          <CreatorCloudDraft slot={editId??'new'} draft={draft} onRestore={value=>form.setDraft(value)} onTest={()=>void form.previewChat()}/>
           {error && (
             <p role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p>
           )}

@@ -7,12 +7,15 @@ export type ChatMessage = {
   createdAt: string;
   /** 后端在消息列表里回填；流式新增的消息还没有。 */
   likedAt?: string | null;
+  contextIncluded?: boolean;
+  selectedVersionId?: string | null;
   attachments?: ChatMessageAttachment[];
 };
 
 export type ChatMessageAttachment =
   | {id: string; type: 'IMAGE'; url: string; mimeType: string; byteSize: number}
-  | {id: string; type: 'STICKER'; stickerId: string};
+  | {id: string; type: 'AUDIO'; url: string; mimeType: string; byteSize: number; durationMs: number}
+  | {id: string; type: 'STICKER'; stickerId: string; label?: string; glyph?: string};
 
 export const CHAT_STICKERS = [
   {id: 'wave', glyph: '👋', label: '挥手'},

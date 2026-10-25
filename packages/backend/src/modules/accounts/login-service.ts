@@ -22,7 +22,7 @@ export async function loginWithPassword(input: unknown) {
   const token = await signToken({userId: user.id, email: user.email, tokenVersion: user.tokenVersion});
   return {
     token,
-    user: formatUser({id: user.id, username: user.username, displayName: user.displayName, email: user.email, avatarUrl: user.avatarUrl, tier: user.tier, coins: user.coins, readingMode: user.readingMode, bannedWords: user.bannedWords, shortcuts: user.shortcuts, streakCount: user.streakCount, lastCheckin: user.lastCheckin, createdAt: user.createdAt}),
+    user: formatUser({id: user.id, username: user.username, displayName: user.displayName, email: user.email, avatarUrl: user.avatarUrl, tier: user.tier, coins: user.coins, readingMode: user.readingMode, readerPreferencesJson: user.readerPreferencesJson, bannedWords: user.bannedWords, shortcuts: user.shortcuts, streakCount: user.streakCount, lastCheckin: user.lastCheckin, createdAt: user.createdAt}),
     onboardingRequired: await shouldStartOnboarding(user.onboardedAt),
   };
 }

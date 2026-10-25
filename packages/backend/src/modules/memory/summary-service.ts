@@ -67,7 +67,7 @@ async function readMessagesAfter(conversationId: string, coveredMessageId: strin
   if (coveredMessageId && !covered) return null;
   return db.message.findMany({
     where: {
-      conversationId,
+      conversationId, contextIncluded: true,
       ...(covered
         ? {OR: [{createdAt: {gt: covered.createdAt}}, {createdAt: covered.createdAt, id: {gt: covered.id}}]}
         : {}),

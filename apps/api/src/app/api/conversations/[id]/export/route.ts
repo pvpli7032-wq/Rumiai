@@ -20,7 +20,7 @@ export async function GET(request: Request, {params: paramsPromise}: {params: Pr
       : '\ufeff' + [
           '星伴聊天记录', `角色：${conversation.character.name}`, `对话：${conversation.title || conversation.id}`, `导出时间：${exportedAt}`,
           ...(conversation.notes ? [`我的笔记：${conversation.notes}`] : []), '',
-          ...messages.map(message => `[${message.createdAt.toISOString()}] ${labels[message.role] || message.role}\n${message.content}${message.imageUrl ? '\n图片：' + message.imageUrl : ''}${message.attachments.map(attachment => attachment.type === 'IMAGE' ? '\n图片：' + attachment.url : '\n贴纸：' + attachment.stickerId).join('')}\n`),
+          ...messages.map(message => `[${message.createdAt.toISOString()}] ${labels[message.role] || message.role}\n${message.content}${message.imageUrl ? '\n图片：' + message.imageUrl : ''}${message.attachments.map(attachment => attachment.type === 'IMAGE' ? '\n图片：' + attachment.url : attachment.type==='AUDIO' ? '\n录音：'+attachment.url : '\n贴纸：' + (attachment.label||attachment.stickerId)).join('')}\n`),
         ].join('\n');
     return new Response(text, {headers: {
       'Content-Type': format === 'json' ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8',

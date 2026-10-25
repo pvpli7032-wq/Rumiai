@@ -1,4 +1,6 @@
 'use client';
+import {NotificationPreferences} from './notification-preferences';
+import {DEFAULT_READER_PREFERENCES, normalizeReaderPreferences, type ReaderPreferences as ReaderPreferenceValues} from '@rumiai/contracts/accounts/preferences';
 import { zhError } from '@rumiai/contracts/copy/zh';
 
 import { useEffect, useState } from 'react';
@@ -16,6 +18,8 @@ import {
 export function ReaderPreferences() {
   const { token, refreshUser } = useAuth();
   const [readingMode, setReadingMode] = useState(false);
+  const [preferences, setPreferences] = useState<ReaderPreferenceValues>({...DEFAULT_READER_PREFERENCES});
+  const [shortcutPreview, setShortcutPreview] = useState('');
   const [bannedWords, setBannedWords] = useState('');
   const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -45,6 +49,7 @@ export function ReaderPreferences() {
         if (!me || typeof me !== 'object') throw new Error('阅读设置返回异常，请重试。');
         if (controller.signal.aborted) return;
         setReadingMode(Boolean(me.readingMode));
+        setPreferences(normalizeReaderPreferences(me.readerPreferences, me.readingMode));
         setBannedWords(me.bannedWords ?? '');
         setShortcuts(parseShortcuts(me.shortcuts));
         setLoaded(true);
@@ -68,6 +73,7 @@ export function ReaderPreferences() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         reading_mode: readingMode,
+        readerPreferences: preferences,
         banned_words: bannedWords,
         shortcuts: serialiseShortcuts(shortcuts),
       }),
@@ -112,7 +118,7 @@ export function ReaderPreferences() {
 
       {/* Reading mode */}
       <button
-        onClick={() => setReadingMode((v) => !v)}
+        onClick={() => {setReadingMode(value => !value); setPreferences(value => ({...value, fontSize: readingMode ? 'standard' : 'large'}));}}
         aria-label="阅读模式"
         aria-pressed={readingMode}
         className="flex w-full items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-3 text-left hover:border-brand/30"
@@ -132,6 +138,20 @@ export function ReaderPreferences() {
           <span className="h-5 w-5 rounded-full bg-white" />
         </span>
       </button>
+
+
+      <details className="mt-4 rounded-xl border border-border p-3"><summary className="min-h-8 cursor-pointer text-sm">字体、排版与交互偏好</summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="text-sm">字号<select aria-label="聊天字号" className="mt-1 min-h-11 w-full rounded-xl border border-input bg-background px-3" value={preferences.fontSize} onChange={event => {const fontSize=event.target.value as ReaderPreferenceValues['fontSize'];setPreferences(value=>({...value,fontSize}));setReadingMode(fontSize!=='standard');}}><option value="standard">标准</option><option value="large">大</option><option value="larger">更大</option></select></label>
+        <label className="text-sm">行距<select aria-label="聊天行距" className="mt-1 min-h-11 w-full rounded-xl border border-input bg-background px-3" value={preferences.lineSpacing} onChange={event=>setPreferences(value=>({...value,lineSpacing:event.target.value as ReaderPreferenceValues['lineSpacing']}))}><option value="standard">标准</option><option value="relaxed">舒展</option></select></label>
+        <label className="text-sm">消息样式<select aria-label="消息样式" className="mt-1 min-h-11 w-full rounded-xl border border-input bg-background px-3" value={preferences.bubbleStyle} onChange={event=>setPreferences(value=>({...value,bubbleStyle:event.target.value as ReaderPreferenceValues['bubbleStyle']}))}><option value="soft">柔和气泡</option><option value="plain">简洁文本</option></select></label>
+        <label className="text-sm">回复展示<select aria-label="回复展示方式" className="mt-1 min-h-11 w-full rounded-xl border border-input bg-background px-3" value={preferences.streamDisplayMode} onChange={event=>setPreferences(value=>({...value,streamDisplayMode:event.target.value as ReaderPreferenceValues['streamDisplayMode']}))}><option value="stream">逐步显示</option><option value="complete">完成后显示</option></select></label>
+        <label className="text-sm">发送快捷键<select aria-label="发送快捷键" className="mt-1 min-h-11 w-full rounded-xl border border-input bg-background px-3" value={preferences.sendKey} onChange={event=>setPreferences(value=>({...value,sendKey:event.target.value as ReaderPreferenceValues['sendKey']}))}><option value="enter">Enter 发送，Shift+Enter 换行</option><option value="modifier-enter">Ctrl / ⌘ + Enter 发送</option></select></label>
+        <label className="text-sm">朗读速度<select aria-label="朗读速度" className="mt-1 min-h-11 w-full rounded-xl border border-input bg-background px-3" value={preferences.speechRate} onChange={event=>setPreferences(value=>({...value,speechRate:Number(event.target.value) as ReaderPreferenceValues['speechRate']}))}>{[0.75,1,1.25,1.5].map(rate=><option value={rate} key={rate}>{rate} 倍</option>)}</select></label>
+      </div>
+      <div aria-label="阅读效果预览" className={'mt-4 p-4 '+(preferences.bubbleStyle==='soft'?'rounded-2xl bg-muted/40':'border-l-2 border-border')+' '+(preferences.fontSize==='larger'?'text-xl':preferences.fontSize==='large'?'text-lg':'text-base')+' '+(preferences.lineSpacing==='relaxed'?'leading-loose':'leading-relaxed')}>“今天想聊一点什么？”<br/>你可以慢慢想，我会认真听。</div>
+      <button type="button" onClick={()=>{setPreferences({...DEFAULT_READER_PREFERENCES});setReadingMode(false);}} className="mt-2 min-h-11 text-sm text-muted-foreground underline">恢复阅读偏好默认值</button>
+      </details>
 
       {/* Banned words */}
       <div className="mt-4">
@@ -160,7 +180,7 @@ export function ReaderPreferences() {
 
         <div className="space-y-2">
           {shortcuts.map((s, i) => (
-            <div key={i} className="flex gap-2">
+            <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-xl border border-border p-3">
               <input
                 value={s.label}
                 aria-label="快捷短语名称"
@@ -172,7 +192,7 @@ export function ReaderPreferences() {
                   )
                 }
                 placeholder={"按钮名称"}
-                className="w-28 shrink-0 rounded-xl border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-brand-strong/50 focus:outline-hidden"
+                className="col-span-2 min-h-11 min-w-0 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-brand-strong/50 focus:outline-hidden"
               />
               <input
                 value={s.text}
@@ -185,12 +205,13 @@ export function ReaderPreferences() {
                   )
                 }
                 placeholder={"填入的文字"}
-                className="min-w-0 flex-1 rounded-xl border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-brand-strong/50 focus:outline-hidden"
+                className="col-span-2 min-h-11 min-w-0 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-brand-strong/50 focus:outline-hidden"
               />
+              <div className="flex flex-wrap gap-2"><button type="button" aria-label={'上移快捷语 '+(i+1)} disabled={i===0} className="min-h-11 px-3 text-xs disabled:opacity-30" onClick={()=>setShortcuts(list=>{const next=[...list];[next[i-1],next[i]]=[next[i],next[i-1]];return next;})}>上移</button><button type="button" aria-label={'下移快捷语 '+(i+1)} disabled={i===shortcuts.length-1} className="min-h-11 px-3 text-xs disabled:opacity-30" onClick={()=>setShortcuts(list=>{const next=[...list];[next[i],next[i+1]]=[next[i+1],next[i]];return next;})}>下移</button></div>
               <button
                 onClick={() => setShortcuts((list) => list.filter((_, j) => j !== i))}
                 aria-label={"删除快捷短语"}
-                className="shrink-0 rounded-xl px-2 text-muted-foreground hover:bg-muted hover:text-destructive"
+                className="min-h-11 min-w-11 rounded-xl px-3 text-muted-foreground hover:bg-muted hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -208,6 +229,7 @@ export function ReaderPreferences() {
         )}
       </div>
 
+      {shortcuts.some(item=>item.label.trim()&&item.text.trim())&&<div className="mt-4 rounded-xl border border-border p-3" aria-label="快捷语预览"><p className="text-sm font-medium">快捷语预览</p><div className="mt-2 flex flex-wrap gap-2">{shortcuts.filter(item=>item.label.trim()&&item.text.trim()).map((item,index)=><button type="button" key={index} className="min-h-11 rounded-full border border-border px-3 text-sm" onClick={()=>setShortcutPreview(item.text)}>{item.label}</button>)}</div>{shortcutPreview&&<p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{shortcutPreview}</p>}</div>}
       <button
         onClick={save}
         disabled={saving}
@@ -222,6 +244,7 @@ export function ReaderPreferences() {
           {notice}
         </p>
       )}
+      <NotificationPreferences />
     </div>
   );
 }

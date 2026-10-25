@@ -48,6 +48,7 @@ export async function createMemoryFact(userId: string, conversationId: string, i
   const total = await db.memoryFact.count({where: {conversationId, status: {not: 'DELETED'}}});
   if (total >= MAX_FACTS_PER_CONVERSATION) throw new MemoryError('这条会话的事实条数已达上限。', 409, 'MEMORY_FACT_LIMIT');
   const sourceMessageId = typeof input.sourceMessageId === 'string' && input.sourceMessageId ? input.sourceMessageId : null;
+  if (sourceMessageId && !await db.message.findFirst({where: {id: sourceMessageId, conversationId, contextIncluded: true}, select: {id: true}})) throw new MemoryError('来源消息不存在、已排除或不属于这条会话。', 404, 'MEMORY_SOURCE_INVALID');
   const row = await db.memoryFact.create({
     data: {conversationId, userId, text, sourceMessageId, pinned: input.pinned === true, status: 'ACTIVE'},
     select: {id: true, text: true, pinned: true, sourceMessageId: true, status: true, createdAt: true},

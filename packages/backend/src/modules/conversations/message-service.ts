@@ -1,19 +1,12 @@
 import type { Prisma } from '@prisma/client';
 import { db } from '@rumiai/backend/infrastructure/database/client';
 import { invalidateMemoryForMessages } from '@rumiai/backend/modules/memory/invalidation';
+import {ensureOriginalVersion} from '@rumiai/backend/modules/conversations/revisions/versions';
 import { readChatRules } from '@rumiai/backend/modules/settings/limits';
 import { encodeCursor } from '@rumiai/backend/infrastructure/http/pagination';
 
-export const attachmentSelect = {id: true, type: true, stickerId: true, mimeType: true, byteSize: true, uploadAsset: {select: {url: true}}} as const;
-export function messageView<T extends {attachments: Array<{id:string;type:string;stickerId:string|null;mimeType:string|null;byteSize:number|null;uploadAsset:{url:string}|null}>}>(row:T) {
-  const attachments: Array<{id:string;type:'IMAGE';url:string;mimeType:string;byteSize:number}|{id:string;type:'STICKER';stickerId:string}> = [];
-  for (const item of row.attachments) {
-    if (item.type === 'IMAGE' && item.uploadAsset && item.mimeType && item.byteSize) attachments.push({id: item.id, type: 'IMAGE', url: item.uploadAsset.url, mimeType: item.mimeType, byteSize: item.byteSize});
-    else if (item.type === 'STICKER' && item.stickerId) attachments.push({id: item.id, type: 'STICKER', stickerId: item.stickerId});
-  }
-  const {attachments: _raw, ...message} = row;
-  return {...message, attachments};
-}
+import {attachmentSelect,messageView} from './attachments/view';
+export {attachmentSelect,messageView} from './attachments/view';
 
 /**
  * Dependency inversion for story history（V3 第 16 章）：the single
@@ -45,7 +38,7 @@ export async function readConversationMessages(userId: string, conversationId: s
   // and "delete this and everything after it" would then delete the wrong rows.
   const rows = await db.message.findMany({
     where: {conversationId}, orderBy: [{createdAt: 'asc'}, {id: 'asc'}],
-    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true, attachments: {select: attachmentSelect}},
+    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true, contextIncluded: true, selectedVersionId: true, attachments: {select: attachmentSelect}},
   });
   return rows.map(messageView);
 }
@@ -100,7 +93,7 @@ export async function readConversationMessagePage(
     // 多取一条只用来判断还有没有更早的，不返回给调用方。
     orderBy: [{createdAt: 'desc'}, {id: 'desc'}],
     take: take + 1,
-    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true, attachments: {select: attachmentSelect}},
+    select: {id: true, role: true, content: true, likedAt: true, imageUrl: true, createdAt: true, contextIncluded: true, selectedVersionId: true, attachments: {select: attachmentSelect}},
   });
   const hasMore = rows.length > take;
   const page = (hasMore ? rows.slice(0, take) : rows).reverse();
@@ -118,7 +111,7 @@ export async function createUserMessage(conversationId: string, content: string)
 
 export async function readRecentMessageHistory(conversationId: string, excludedMessageId: string, limit: number) {
   const recent = await db.message.findMany({
-    where: {conversationId, id: {not: excludedMessageId}},
+    where: {conversationId, id: {not: excludedMessageId}, contextIncluded: true},
     orderBy: {createdAt: 'desc'}, take: limit, select: {role: true, content: true},
   });
   return recent.reverse();
@@ -131,9 +124,10 @@ export async function readRecentMessageHistory(conversationId: string, excludedM
  */
 export async function persistAssistantResponseInTx(tx: Prisma.TransactionClient, conversationId: string, characterId: string, content: string) {
   const hasReply = Boolean(content.trim());
-  const assistantMessage = hasReply
+  let assistantMessage = hasReply
     ? await tx.message.create({data: {conversationId, role: 'ASSISTANT', content}})
     : null;
+  if (assistantMessage) {const versionId = await ensureOriginalVersion(tx, assistantMessage); assistantMessage = {...assistantMessage, selectedVersionId: versionId};}
   await tx.conversation.update({where: {id: conversationId}, data: {updatedAt: new Date()}});
   await tx.character.update({where: {id: characterId}, data: {messageCount: {increment: hasReply ? 2 : 1}}});
   return assistantMessage;
@@ -145,26 +139,40 @@ export async function persistAssistantResponse(conversationId: string, character
 
 export async function prepareMessageRegeneration(userId: string, conversationId: string, targetMessageId: string, historyLimit: number) {
   const target = await requireOwnedMessage(db, conversationId, targetMessageId, userId);
+  if (target.role === 'USER' && !target.contextIncluded) throw new ConversationMessageError('这条消息已排除，请先重新纳入上下文。', 409);
   const prompt = target.role === 'USER'
     ? {id: target.id, content: target.content, createdAt: target.createdAt}
     : await db.message.findFirst({
-        where: {conversationId, role: 'USER', createdAt: {lt: target.createdAt}},
+        where: {conversationId, role: 'USER', contextIncluded: true, OR: [{createdAt: {lt: target.createdAt}}, {createdAt: target.createdAt, id: {lt: target.id}}]},
         orderBy: {createdAt: 'desc'},
         select: {id: true, content: true, createdAt: true},
       });
   if (!prompt) throw new ConversationMessageError('Nothing to reply to', 400);
   const history = await db.message.findMany({
-    where: {conversationId, createdAt: {lt: prompt.createdAt}},
+    where: {conversationId, contextIncluded: true, OR: [{createdAt: {lt: prompt.createdAt}}, {createdAt: prompt.createdAt, id: {lt: prompt.id}}]},
     orderBy: {createdAt: 'desc'}, take: historyLimit, select: {role: true, content: true},
   });
-  return {prompt, history: history.reverse()};
+  return {prompt, target, history: history.reverse()};
 }
 
-/** 同事务版本：重新生成时「删旧回复 + 写新回复」与费用结算同一个事务（V3 §21）。 */
-export async function replaceMessageReplyInTx(tx: Prisma.TransactionClient, conversationId: string, promptCreatedAt: Date, content: string) {
+/** Replacement keeps the message identity and earlier candidate versions. */
+export async function replaceMessageReplyInTx(tx: Prisma.TransactionClient, conversationId: string, promptCreatedAt: Date, content: string, promptId?: string, source = 'REGENERATE') {
   if (!content.trim()) return null;
-  await tx.message.deleteMany({where: {conversationId, createdAt: {gt: promptCreatedAt}}});
-  const assistant = await tx.message.create({data: {conversationId, role: 'ASSISTANT', content}});
+  const afterPrompt = {conversationId, OR: [{createdAt: {gt: promptCreatedAt}}, ...(promptId ? [{createdAt: promptCreatedAt, id: {gt: promptId}}] : [])]};
+  const target = await tx.message.findFirst({where: {...afterPrompt, role: 'ASSISTANT'}, orderBy: [{createdAt: 'asc'}, {id: 'asc'}]});
+  const affected = await tx.message.findMany({where: afterPrompt, select: {id: true}});
+  await invalidateMemoryForMessages(tx, conversationId, affected.map(row => row.id), 'REPLY_REPLACED');
+  let assistant;
+  if (target) {
+    await ensureOriginalVersion(tx, target);
+    await tx.message.deleteMany({where: {...afterPrompt, id: {not: target.id}}});
+    const version = await tx.messageVersion.create({data: {messageId: target.id, content, source}});
+    assistant = await tx.message.update({where: {id: target.id}, data: {content, selectedVersionId: version.id}});
+  } else {
+    assistant = await tx.message.create({data: {conversationId, role: 'ASSISTANT', content}});
+    const versionId = await ensureOriginalVersion(tx, assistant);
+    assistant = {...assistant, selectedVersionId: versionId};
+  }
   await tx.conversation.update({where: {id: conversationId}, data: {updatedAt: new Date()}});
   return assistant;
 }
@@ -185,7 +193,7 @@ export class ConversationMessageError extends Error {
 async function requireOwnedMessage(tx: Pick<Prisma.TransactionClient, 'message'>, conversationId: string, messageId: string, userId: string) {
   const message = await tx.message.findUnique({
     where: {id: messageId},
-    select: {id: true, conversationId: true, role: true, content: true, likedAt: true, createdAt: true, conversation: {select: {userId: true, storyRun: {select: {id: true}}}}},
+    select: {id: true, conversationId: true, role: true, content: true, likedAt: true, contextIncluded: true, selectedVersionId: true, createdAt: true, conversation: {select: {userId: true, storyRun: {select: {id: true}}}}},
   });
   if (!message || message.conversationId !== conversationId) throw new ConversationMessageError('Message not found', 404);
   if (message.conversation.userId !== userId) throw new ConversationMessageError('Forbidden', 403);

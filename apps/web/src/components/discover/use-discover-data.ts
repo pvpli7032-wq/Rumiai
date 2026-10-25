@@ -11,6 +11,7 @@ import {useUiConfig} from '@web/lib/settings/use-ui-config';
 import {useAuth} from '@web/lib/auth-context';
 import {api} from '@web/lib/api-client';
 import {useDiscoverState} from './use-discover-state';
+import {DISCOVERY_PREFERENCES_CHANGED} from '@rumiai/contracts/discovery';
 import {API} from '@rumiai/contracts/api-paths';
 
 export interface ApiCharacter extends CharacterCardData {
@@ -32,6 +33,8 @@ export function useDiscoverData() {
   const [projection, setProjection] = useState<DiscoverProjection | null>(null);
   const [following, setFollowing] = useState<ApiCharacter[]>([]);
   const [stories, setStories] = useState<StoryCatalogEntry[]>([]);
+  const [storiesError,setStoriesError]=useState(''),[followingError,setFollowingError]=useState('');
+  const [storiesLoading,setStoriesLoading]=useState(true),[followingLoading,setFollowingLoading]=useState(false);
   const [filtered, setFiltered] = useState<ApiCharacter[]>([]);
   const [catalogueLoading, setCatalogueLoading] = useState(true);
   const [catalogueError, setCatalogueError] = useState('');
@@ -43,12 +46,12 @@ export function useDiscoverData() {
     const controller = new AbortController();
     setLoading(true);
     setLoadError(false);
-    api.get<DiscoverProjection>('/api/explore?view=discover', {signal: controller.signal})
+    api.get<DiscoverProjection>('/api/explore?view=discover', {token, signal: controller.signal})
       .then(data => { if (!controller.signal.aborted) setProjection(data); })
       .catch(() => { if (!controller.signal.aborted) setLoadError(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [reload]);
+  }, [reload,token]);
 
   async function loadCatalogue(cursor: string | null = null) {
     catalogueRequest.current?.abort();
@@ -61,7 +64,7 @@ export function useDiscoverData() {
     for (const tag of [...new Set([...types, ...roles])]) params.append('tag', tag);
     if (cursor) params.set('cursor', cursor);
     try {
-      const data = await api.get<CharacterCatalogPage<ApiCharacter>>(API.characters.list(params.toString()), {signal: controller.signal});
+      const data = await api.get<CharacterCatalogPage<ApiCharacter>>(API.characters.list(params.toString()), {token, signal: controller.signal});
       if (controller.signal.aborted) return;
       setFiltered(previous => cursor ? [...new Map([...previous, ...data.items].map(item => [item.id, item])).values()] : data.items);
       setNextCursor(data.nextCursor);
@@ -79,24 +82,27 @@ export function useDiscoverData() {
     setCatalogueLoading(true);
     const timer = setTimeout(() => { void loadCatalogue(); }, 200);
     return () => { clearTimeout(timer); catalogueRequest.current?.abort(); };
-  }, [filterKey, reload]);
+  }, [filterKey, reload,token]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void api.get<{items: StoryCatalogEntry[]}>(API.stories.list(), {signal: controller.signal})
-      .then(data => { if (!controller.signal.aborted && Array.isArray(data?.items)) setStories(data.items); })
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    if (!token) { setFollowing([]); return; }
-    const controller = new AbortController();
-    void api.get<ApiCharacter[]>(API.characters.list('scope=following'), {token, signal: controller.signal})
-      .then(rows => { if (!controller.signal.aborted && Array.isArray(rows)) setFollowing(rows); })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [token]);
+    const controller=new AbortController();setStoriesLoading(true);setStoriesError('');
+    void api.get<{items:StoryCatalogEntry[]}>(API.stories.list(),{signal:controller.signal})
+      .then(data=>{if(!controller.signal.aborted)setStories(data.items??[]);})
+      .catch(e=>{if(!controller.signal.aborted)setStoriesError(e instanceof Error?e.message:'故事目录读取失败。');})
+      .finally(()=>{if(!controller.signal.aborted)setStoriesLoading(false);});
+    return()=>controller.abort();
+  },[reload]);
+  useEffect(()=>{
+    setFollowing([]);setFollowingError('');
+    if(!token){setFollowingLoading(false);return;}
+    const controller=new AbortController();setFollowingLoading(true);
+    void api.get<ApiCharacter[]>(API.characters.list('scope=following'),{token,signal:controller.signal})
+      .then(rows=>{if(!controller.signal.aborted)setFollowing(Array.isArray(rows)?rows:[]);})
+      .catch(e=>{if(!controller.signal.aborted)setFollowingError(e instanceof Error?e.message:'关注角色读取失败。');})
+      .finally(()=>{if(!controller.signal.aborted)setFollowingLoading(false);});
+    return()=>controller.abort();
+  },[token,reload]);
+  useEffect(()=>{const refresh=()=>setReload(v=>v+1);window.addEventListener(DISCOVERY_PREFERENCES_CHANGED,refresh);window.addEventListener('xingban:creator-follow-changed',refresh);return()=>{window.removeEventListener(DISCOVERY_PREFERENCES_CHANGED,refresh);window.removeEventListener('xingban:creator-follow-changed',refresh);};},[]);
 
   const tagLabels = useMemo(() => new Map(tags.map(tag => [tag.key, tag.label])), [tags]);
   const typeFilters = useMemo(() => tags.filter(tag => tag.filterRow === 'type'), [tags]);
@@ -122,7 +128,7 @@ export function useDiscoverData() {
     query, setQuery, loading, loadError, types, setTypes, roles, setRoles,
     retry: () => setReload(value => value + 1), typeFilters, roleFilters, labelsFor,
     recommended, hot: popular, newest: fresh, filtering, sceneCharacters, filtered, railItems, toggle,
-    catalogueLoading, catalogueError, hasMore: Boolean(nextCursor),
+    storiesError, storiesLoading, followingError, followingLoading, catalogueLoading, catalogueError, hasMore: Boolean(nextCursor),
     loadMore: () => { if (nextCursor && !catalogueLoading) void loadCatalogue(nextCursor); },
     retryCatalogue: () => { void loadCatalogue(filtered.length ? nextCursor : null); },
   };

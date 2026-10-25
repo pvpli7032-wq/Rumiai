@@ -10,7 +10,7 @@ export async function POST(request: Request, {params}: {params: Promise<{id:stri
     let body: unknown;
     try { body = await request.json(); } catch { body = null; }
     const message = await createUserMediaMessage(user.userId, (await params).id, body);
-    return NextResponse.json({message, aiNotice: '附件已保存。当前模型未声明图片理解能力，本条不会调用模型或扣除聊天金币。'}, {status: 201});
+    return NextResponse.json({message, aiNotice: '附件已保存；如需图片理解或语音转写，请在附件工具中单独操作。'}, {status: 201});
   } catch (error) {
     if (error instanceof ConversationAttachmentError) return NextResponse.json({error: error.message}, {status: error.status});
     logRouteError('POST /api/conversations/[id]/messages/attachments', error);

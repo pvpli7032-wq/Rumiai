@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { compactNumber } from '@web/lib/i18n';
 
@@ -106,10 +106,13 @@ export function TabButton({
 }
 
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const [expanded,setExpanded]=useState(false);
+  const long=typeof children==='string'&&children.length>300;
   return (
     <div className="rounded-[20px] border border-border bg-card p-4">
       <p className="mb-1 text-xs font-medium text-muted-foreground">{title}</p>
-      <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{children}</p>
+      <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground">{long&&!expanded?String(children).slice(0,280)+'…':children}</p>
+      {long&&<button type="button" aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)} className="mt-2 min-h-11 text-sm text-primary">{expanded?'收起':'展开完整'+title}</button>}
     </div>
   );
 }

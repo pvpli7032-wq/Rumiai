@@ -1,3 +1,4 @@
+import {normalizeResponseOptions} from '@rumiai/contracts/conversations/response-options';
 import {normalizeRelationshipLevels} from '@rumiai/contracts/conversations/relationship';
 import type {JsonValue, SettingDefinition} from '@rumiai/contracts/settings/types';
 
@@ -68,6 +69,9 @@ export function normalizeSettingValue(def: SettingDefinition, raw: unknown): Jso
       if (def.key === 'relationship.romanceLevels' || def.key === 'relationship.intimacyLevels') {
         try { return normalizeRelationshipLevels(value) as unknown as JsonValue; }
         catch (error) { return fail(def, error instanceof Error ? error.message : '关系等级无效。'); }
+      }
+      if (def.key === 'chat.responseStyles' || def.key === 'chat.responseLengths') {
+        try {return normalizeResponseOptions(value) as JsonValue;} catch (error) {return fail(def, error instanceof Error ? error.message : '回复选项格式无效。');}
       }
       if (def.key === 'growth.openingSuggestions') {
         if (!Array.isArray(value) || value.some(text => typeof text !== 'string' || !text.trim())) return fail(def, '开场建议必须是不含空项的文字数组。');

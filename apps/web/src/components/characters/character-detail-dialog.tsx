@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Heart, Flag, MessageSquare, Gift,
 } from 'lucide-react';
+import {Dialog} from '@rumiai/ui';
 import { useAuth } from '@web/lib/auth-context';
 import { useSiteContent } from '@web/lib/use-site-content';
 import { loginWithNext } from '@web/lib/next-path';
 import { ReportDialog } from '@/components/moderation/report-dialog';
 import { DesignIcon } from '@/components/primitives/design-icon';
+import {CreatorFollowAction} from './creator-follow-action';
 import { CharacterComments } from './character-comments';
 import { getSceneConfigByCharacterId } from '@rumiai/contracts/stories/scene-config';
 import { resolveScene } from '@rumiai/contracts/stories/scene-service';
@@ -33,6 +35,9 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('about');
   const [slide, setSlide] = useState(0);
+  const [fullScreen,setFullScreen]=useState(false);
+  const [failedImages,setFailedImages]=useState<string[]>([]);
+  const touchStart=useRef<number|null>(null);
   const [reporting, setReporting] = useState(false);
 
   function requireLogin(): boolean {
@@ -82,13 +87,14 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
       <Overlay onClose={onClose}>
         <div className="relative bg-background text-foreground">
           {/* Gallery */}
-          <div className="relative h-[380px] w-full overflow-hidden bg-muted sm:h-[420px]">
+          <div className="relative h-[380px] w-full overflow-hidden bg-muted sm:h-[420px]" onTouchStart={event=>{touchStart.current=event.touches[0]?.clientX??null;}} onTouchEnd={event=>{const start=touchStart.current;touchStart.current=null;const end=event.changedTouches[0]?.clientX;if(start!==null&&end!==undefined&&Math.abs(end-start)>50&&gallery.length>1)setSlide(value=>(value+(end<start?1:-1)+gallery.length)%gallery.length);}}>
             {gallery[slide] ? (
-              <CharacterVisual id={character.id} imageUrl={gallery[slide]} alt={character.name} sizes="(max-width: 768px) 100vw, 768px" className="h-full w-full object-cover" />
+              <button type="button" aria-label="全屏查看角色图片" onClick={()=>setFullScreen(true)} className="h-full w-full">{failedImages.includes(gallery[slide])?<span className="flex h-full items-center justify-center text-sm text-muted-foreground">图片暂时无法显示，可切换其他图片</span>:<img src={gallery[slide]} alt={character.name} onError={()=>setFailedImages(items=>[...items,gallery[slide]])} className="h-full w-full object-cover"/>}</button>
             ) : (
               <div className="h-full w-full bg-linear-to-br/srgb from-purple-900/40 to-zinc-900" />
             )}
-            <div className="absolute inset-0 bg-linear-to-t/srgb from-black/80 via-black/10 to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-t/srgb from-black/80 via-black/10 to-transparent" />
+            {gallery.length>0&&<span className="absolute right-3 bottom-3 rounded-full bg-black/50 px-2 py-1 text-xs text-white">{slide+1} / {gallery.length}</span>}
 
             {gallery.length > 1 && (
               <>
@@ -119,7 +125,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
             >
               <DesignIcon name="ph:arrow-left" size={20}/>
             </button>
-            <div className="absolute inset-x-0 bottom-0 p-5 text-white"><span className="inline-flex rounded-full bg-white/20 px-2.5 py-1 text-xs">AI角色</span><h2 id="character-dialog-title" className="mt-2 text-[28px] font-bold leading-tight">{character.name}</h2>{character.tagline && <p className="mt-1 text-sm text-white/90">{character.tagline}</p>}{creatorName && <p className="mt-2 text-xs text-white/80">创作者 · {creatorName}</p>}</div>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 p-5 text-white"><span className="inline-flex rounded-full bg-white/20 px-2.5 py-1 text-xs">AI角色</span><h2 id="character-dialog-title" className="mt-2 text-[28px] font-bold leading-tight">{character.name}</h2>{character.tagline && <p className="mt-1 text-sm text-white/90">{character.tagline}</p>}{creatorName && <p className="mt-2 text-xs text-white/80">创作者 · {creatorName}</p>}</div>
           </div>
 
           <div className="px-4 pb-6 pt-4 sm:px-5">
@@ -135,6 +141,7 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
               </Link>
             )}
 
+            {character.creator&&<CreatorFollowAction username={character.creator.username} creatorId={character.creator.id}/>}
             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <Stat icon={<MessageSquare className="h-3.5 w-3.5" />} value={character.chatCount} label={"聊天"} />
               <Stat icon={<Heart className="h-3.5 w-3.5" />} value={character.likeCount} label={"点赞"} />
@@ -218,6 +225,9 @@ export function CharacterDetailDialog({ characterId, onClose }: { characterId: s
         </div>
       </Overlay>
 
+      <Dialog open={fullScreen} onClose={()=>setFullScreen(false)} title={character.name+' · '+(slide+1)+'/'+gallery.length} description="图片按后台顺序展示，可切换或关闭返回详情。">
+        <div className="relative flex min-h-64 items-center justify-center bg-muted">{gallery[slide]&&!failedImages.includes(gallery[slide])?<img src={gallery[slide]} alt={character.name} className="max-h-[70dvh] w-full object-contain" onError={()=>setFailedImages(items=>[...items,gallery[slide]])}/>:<p className="p-6 text-sm">图片暂时无法显示</p>}{gallery.length>1&&<><GalleryArrow side="left" onClick={()=>setSlide(value=>(value-1+gallery.length)%gallery.length)}/><GalleryArrow side="right" onClick={()=>setSlide(value=>(value+1)%gallery.length)}/></>}</div>
+      </Dialog>
       {reporting && (
         <ReportDialog
           targetType="CHARACTER"

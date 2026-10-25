@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {Brain, Check, ChevronDown, Pencil, Pin, PinOff, Trash2, X} from 'lucide-react';
 import {api} from '@web/lib/api-client';
@@ -26,15 +27,18 @@ interface MemoryFact {
   pinned: boolean;
   status: 'ACTIVE' | 'PENDING' | 'INVALID' | 'DELETED';
   createdAt: string;
+  sourceMessageId?: string | null;
 }
 
-export function MemoryPanel({conversationId, token, defaultOpen = false}: {conversationId: string; token: string; defaultOpen?: boolean}) {
+export function MemoryPanel({conversationId, token, defaultOpen = false, onSourceNavigate}: {conversationId: string; token: string; defaultOpen?: boolean; onSourceNavigate?: () => void}) {
   const [facts, setFacts] = useState<MemoryFact[] | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [open, setOpen] = useState(defaultOpen);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [newFact, setNewFact] = useState('');
   const [notice, setNotice] = useState('');
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -54,6 +58,17 @@ export function MemoryPanel({conversationId, token, defaultOpen = false}: {conve
   }, [conversationId, token]);
 
   useEffect(() => { setFacts(null); setEnabled(false); setEditingId(null); setNotice(''); void load(); return () => { loadSequence.current++; }; }, [load]);
+
+
+  async function addFact() {
+    if (!newFact.trim() || busyId) return;
+    setBusyId('new'); setNotice('');
+    try {
+      await api.post(API.conversations.memory(conversationId), {text: newFact.trim()}, {token});
+      setCreating(false); setNewFact(''); await load(); setNotice('记忆已添加，后续会按记忆规则参考。');
+    } catch (cause) {setNotice(cause instanceof Error ? cause.message : '添加失败，请重试。');}
+    finally {setBusyId(null);}
+  }
 
   async function act(fact: MemoryFact, action: 'confirm' | 'ignore' | 'delete') {
     setBusyId(fact.id);
@@ -132,12 +147,19 @@ export function MemoryPanel({conversationId, token, defaultOpen = false}: {conve
 
       {open && (
         <div className="space-y-2 border-t border-border px-4 py-3">
+
+          {creating ? <form className="space-y-3 rounded-2xl bg-secondary/40 p-3" onSubmit={event => {event.preventDefault(); void addFact();}}>
+            <label className="block space-y-2 text-sm"><span>添加一条确定记忆</span><textarea rows={3} aria-label="新记忆内容" value={newFact} disabled={busyId === 'new'} onChange={event => setNewFact(event.target.value)} className="web-control w-full rounded-xl px-3 py-2" /></label>
+            <p className="text-xs leading-5 text-muted-foreground">只添加你确认准确、希望本次会话记住的信息。</p>
+            <div className="flex gap-3"><button type="button" disabled={busyId === 'new'} className="min-h-11 flex-1 rounded-full border border-border text-sm" onClick={() => setCreating(false)}>取消</button><button type="submit" disabled={busyId === 'new' || !newFact.trim()} className="min-h-11 flex-1 rounded-full bg-brand text-sm text-brand-foreground disabled:opacity-40">{busyId === 'new' ? '保存中…' : '保存记忆'}</button></div>
+          </form> : <button type="button" className="min-h-11 text-sm text-brand" onClick={() => {setCreating(true); setNotice('');}}>添加记忆</button>}
+
           {facts === null && <Skeleton className="h-12 w-full" />}
           {facts !== null && list.length === 0 && (
             <p className="text-xs text-muted-foreground">还没有记住什么。聊得多一些，角色会记住你在意的事。</p>
           )}
           {list.map(fact => (
-            <div key={fact.id} className="flex items-start gap-2 rounded-xl border border-border bg-secondary/60 px-3 py-2">
+            <div key={fact.id} className="flex flex-col gap-3 rounded-xl sm:flex-row sm:items-start border border-border bg-secondary/60 px-3 py-2">
               <div className="min-w-0 flex-1">
                 {editingId === fact.id ? (
                   <Input
@@ -162,36 +184,37 @@ export function MemoryPanel({conversationId, token, defaultOpen = false}: {conve
                   {fact.status === 'PENDING' ? '待确认：确认后才会被角色记住' : '已记住'}
                   {fact.pinned ? ' · 已固定' : ''}
                 </p>
+                {fact.sourceMessageId && <Link href={'/chat?conversation=' + encodeURIComponent(conversationId) + '&message=' + encodeURIComponent(fact.sourceMessageId)} onClick={() => onSourceNavigate?.()} className="inline-flex min-h-11 items-center text-xs text-brand">查看来源</Link>}
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 flex-wrap items-center gap-1">
                 {editingId === fact.id ? (
                   <>
-                    <Button size="sm" variant="ghost" loading={busyId === fact.id} onClick={() => void saveText(fact)}>
+                    <Button className="min-h-11" size="sm" variant="ghost" loading={busyId === fact.id} onClick={() => void saveText(fact)}>
                       <Check className="h-3.5 w-3.5" />保存
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => setEditingId(null)}>
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => setEditingId(null)}>
                       <X className="h-3.5 w-3.5" />取消
                     </Button>
                   </>
                 ) : fact.status === 'PENDING' ? (
                   <>
-                    <Button size="sm" variant="ghost" loading={busyId === fact.id} onClick={() => void act(fact, 'confirm')}>
+                    <Button className="min-h-11" size="sm" variant="ghost" loading={busyId === fact.id} onClick={() => void act(fact, 'confirm')}>
                       <Check className="h-3.5 w-3.5" />确认
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void act(fact, 'ignore')}>
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void act(fact, 'ignore')}>
                       <X className="h-3.5 w-3.5" />忽略
                     </Button>
                   </>
                 ) : (
                   <>
-                    <Button size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => startEdit(fact)} aria-label="编辑这条记忆">
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => startEdit(fact)} aria-label="编辑这条记忆">
                       <Pencil className="h-3.5 w-3.5" />编辑
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void togglePin(fact)} aria-label={fact.pinned ? '取消固定' : '固定这条记忆'}>
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void togglePin(fact)} aria-label={fact.pinned ? '取消固定' : '固定这条记忆'}>
                       {fact.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
                       {fact.pinned ? '取消固定' : '固定'}
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void act(fact, 'delete')} aria-label="删除这条记忆">
+                    <Button className="min-h-11" size="sm" variant="ghost" disabled={busyId === fact.id} onClick={() => void act(fact, 'delete')} aria-label="删除这条记忆">
                       <Trash2 className="h-3.5 w-3.5" />删除
                     </Button>
                   </>

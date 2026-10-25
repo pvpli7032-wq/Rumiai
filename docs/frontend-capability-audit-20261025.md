@@ -924,3 +924,52 @@ D01/D02/D08/D09/D10/D17/D21/D22/D26按P1处理；其余P2，其中云草稿D23�
 - 代码与本文档通过已授权GitHub连接同步；服务器未配置Git HTTPS凭据，因此不在服务器保存额外令牌。最终提交可从本文件所属GitHub提交记录追溯。
 
 历史基线中已存在且本轮未改动的故事生命周期、举报申诉、订单支付回调等不再重写；沿用原领域实现。没有把页面可打开当成功验证，也不把未调用过的外部服务写成已验收。
+
+
+## 19. P2 实施与移动端布局（2026-10-25）
+
+本节为第18节之后的增量交付。仅操作服务器候选版本与GitHub；不读取本地项目，不进行真实收款或邮件接入。参数仍由后台登记、权限校验和修订记录统一维护。未配置的AI任务明确关闭，不用前端假开关替代实际执行。
+
+### 模块、界面入口与真实关联
+
+| 范围 | 用户入口与实际行为 | 后台参数、接口与数据 | 模块归属 |
+|---|---|---|---|
+| C08/C28、A06/A07 | 快捷语排序、预览与插入；字号、行距、气泡、流式展示、发送键、朗读速度保存后实际消费 | users/me；User.readerPreferencesJson/shortcuts；共享ReaderPreferences验证 | contracts/accounts、accounts/profile-service、web/profile、web/chat |
+| C09 | 表情选择器读取后台目录；新增、上架、排序、删除；历史消息保存当时的名称与表情 | /admin/chat/stickers；/api/admin/chat/stickers；/api/chat/stickers；ChatSticker、MessageAttachment.stickerSnapshotJson、后台审计 | conversations/stickers、conversations/attachments、admin/chat |
+| C12/X20 | 附件工具内图片理解、麦克风录制/取消、试听、语音转写；结果先编辑再放入输入框或明确发送语音 | conversations/:id/media及image/transcription；media.*、prompt.imageUnderstanding；专用模型、正预算、日额度；MediaTaskRequest、AiCall、UploadAsset；WAV真实时长与本人读取 | conversations/media、uploads、web/chat/media-tools/audio-recorder/audio-message |
+| C15/C18/C20、X01–X03 | 消息更多菜单内版本切换、续写/按要求改写、分支；保留原消息身份与各版本；重放请求返回原版本 | MessageVersion、GenerationCharge.messageVersionId；chat.revisions.*；专用chatRevision模型与预算；显式REGENERATE计费政策后开放 | conversations/revisions/branches、原计费事务、web/chat菜单与底部面板 |
+| C30/C31/C34 | 重命名与置顶会话；正文全文搜索；点击命中加载该消息附近窗口并定位，能回到最新 | Conversation.title/pinnedAt；本人搜索API及messages/:id/window；稳定时间+id分页 | conversations/search/conversation-service、web/chat列表与history |
+| C41/C43/C44、X05–X08 | 消息记忆、身份、私人角色补充、世界书绑定、回复风格与长度、排除上下文、查看实际引用来源 | UserPersona、Worldbook/Entry/绑定表、ConversationContextUse；chat.personaMaxChars/personalOverrideMaxChars/worldbooks.*/responseStyles/responseLengths；后台指令不下发前端 | personas、worldbooks、conversations/context、memory、contracts/conversations |
+| D03–D19 | 搜索历史删除/清空；不感兴趣持久化及撤销（只影响推荐，搜索和关注仍可找回）；分区独立错误；图库滑动全屏/坏图；长资料展开；评论排序分页 | me/discovery-preferences、me/hidden-characters、角色评论与回复API；UserSearchHistory/UserHiddenCharacter；实际推荐投影 | discovery、characters、discover-projection、web/discover/characters |
+| D20–D27 | 版本云草稿保存/恢复/删除；真实角色卡预览；私有试聊副本沿现有聊天收费与权限 | creator云稿API、CharacterDraft.version；原角色创建额度与校验 | characters/creator-draft-service、web/creator |
+| D28–D37 | 故事工具内存档、恢复成独立分支、实际事实来源时间线、导出；行动建议按后台数量返回 | StorySave快照、StoryRun父来源；恢复重映射消息/回合/事件/检查点，不复制费用/会员使用；story.actionSuggestions | stories/lifecycle/save-service、workflows/story-action-suggestions、web/stories |
+| D38/D39 | 社区动态分页、评论按需加载和回复分页 | 原帖子/评论权限与真实分页接口 | community及web/community |
+| A12/A25/A31 | 本人账本按方向/来源/日期筛选与分页；会员订单分页与名称快照；邀请金币与分币种佣金展示 | CoinTransaction/GenerationCharge关联；MembershipOrder.planNameSnapshot；邀请/佣金原台账；未提供虚假提现按钮 | coins/ledger-service、memberships、referrals/service、web/shop/memberships/growth |
+| A34/D40–D42、X04/X15/X24 | 分类通知偏好、时区免打扰、延期释放、有效目标跳转；会员到期提醒；逐会话主动问候订阅与取消 | NotificationPreference、Notification.deliveryState/availableAt、ProactiveSubscription；notifications.*、proactive.*、prompt.proactiveGreeting；notification-sweep；AI预算与原子业务日尝试额度，不占聊天日次数 | notifications、tasks、admin/tasks-admin、web/profile/notifications/chat |
+
+### 移动端位置与信息层级
+
+- 保留既有主题和组件体系；聊天主任务是阅读与发送，新增低频操作放进已有菜单或底部面板。对话设置分层展示身份、世界书、记忆和主动问候，避免常驻多行按钮。
+- 附件工具关闭时卸载录音器，停止麦克风并回收临时资源；不会后台偷偷录音或自动发送转写文字。已发送录音使用本人授权加载，退出账号后不能沿用旧资源。
+- 聊天状态与动作合并一行，头像对齐正文；分享和评理进入会话菜单，接话建议进入附件面板。修复相邻组件使用相同 React key 导致工具重复显示；身份和世界书表单保留明确边界及44px操作区。
+- 创作工具、故事工具、阅读偏好、通知与账本筛选各自归组；快捷语标题与正文在手机上分行，排序/删除保持可触达。主要正文、余额、编辑内容和发送操作优先显示。
+- 背景/字体/间距沿既有设计token，新增管理能力使用列表加编辑抽屉；设置中心明确分为身份世界书、回复方式、续写改写、媒体任务、通知、主动问候，不堆入其他设置。
+- 参考实际产品的功能位置与交互：[Kindroid聊天工具](https://kindroid.ai/v2/docs/chat-features-and-tools/)、[Chub会话设置](https://docs.chub.ai/docs/the-basics/just-chatting)、[SillyTavern消息与分支](https://docs.sillytavern.app/usage/chatting/)。采用菜单、版本切换和分层设置的做法，保留项目自己的主题与模块。
+
+### 配置与历史数据说明
+
+- 新媒体能力、续写改写、主动问候默认关闭或预算为0；需要运营明确配置有效模型、正预算、日限额与功能开关。续写改写还须选择复用重生成计费。模型新增supportsChat/supportsVision/supportsTranscription，避免把纯转写模型当普通聊天模型。
+- 六个既有表情迁移为可编辑目录，同时回填旧消息快照；新消息一律存快照，删除目录不会破坏历史。
+- 旧会员订单名称只能按迁移时方案名称回填，无法凭空恢复过去改名前的文字；新订单保存购买时名称快照。
+- 主动问候每日额度按billing.dayTimezone统计已接受调用尝试，包含生成中和失败；与普通聊天免费次数及金币结算分离。
+- 通知仅为站内提醒，不含设备推送；账本日期筛选采用UTC，主动问候按后台业务时区。邀请明细为最近100人，显示实际总数；佣金按币种汇总，未开放提现。支付和退款流水当前进入资产页，非独立订单详情。
+- 真实收款继续关闭；邮件服务按用户要求后续接入。本轮不声称做过外部收费或真实邮件投递。
+
+### P2 验证进度
+
+- 已通过：发现/云稿/评论、故事存档分支、账号通知/受控并发取消、附件归属/表情CRUD历史保留/录音真实时长与私有读取、聊天版本与计费回放/上下文/分支、图片理解与转写真实协议模拟、主动问候原子每日额度。所有状态写入测试使用服务器临时SQLite和模拟上游。
+- 已通过：类型检查、应用隔离与前后端依赖边界检查、API/后台/前台三应用生产构建。
+- 到期提醒专项已通过：105条同期限权益，前100条已通知仍能处理后5条；重复执行幂等；免打扰期间续费、退款或改变期限会抑制旧提醒，正常会员提醒和回复通知仍可释放。
+- 手机实操已通过记忆新增与来源定位、菜单及单层弹窗、19px阅读设置保存后正文生效、搜索历史与隐藏推荐、创作工具折叠、故事存档恢复独立分支及实际跳转。修复故事恢复路由参数错误。后台新增表情→前台实际发送→后台下架→选择器移除且历史快照保留也已通过；保留原有效目录。浏览器未请求真实AI、支付或邮件，页面无运行错误，手机截图已人工查看。
+- 已发布：current切换至releases/p2-20261025，迁移58→59，无seed/reset。切换前后用户24、会话7、消息24、会员订单0、支付订单16数量一致；仅1个worker。线上发现、聊天、独立后台登录、会员目录与表情接口返回200，身份接口未授权401，收款响应头false。
+- 代码与本记录通过授权GitHub连接同步至main，最终提交以本文所属Git记录为准。

@@ -16,7 +16,7 @@ import type {AiBudgetBlock} from './budget-guard';
  * 匿名部分与总量共用 task_type=mirror，匿名调用另带 anonymous_subject。
  */
 
-export const AI_TASK_TYPES = ['chat', 'story', 'mirror', 'mirrorAnonymous', 'disputeVerdict', 'memorySummary', 'chatSuggestions'] as const;
+export const AI_TASK_TYPES = ['chat', 'story', 'mirror', 'mirrorAnonymous', 'disputeVerdict', 'memorySummary', 'chatSuggestions', "chatRevision", "proactiveGreeting", "imageUnderstanding", "audioTranscription"] as const;
 export type AiTaskType = (typeof AI_TASK_TYPES)[number];
 
 export const TASK_LABELS: Record<AiTaskType, string> = {
@@ -26,6 +26,10 @@ export const TASK_LABELS: Record<AiTaskType, string> = {
   mirrorAnonymous: '他眼中的你（匿名）',
   disputeVerdict: '评理回应',
   memorySummary: '记忆摘要',
+  chatRevision: "聊天续写与改写",
+  proactiveGreeting: "主动问候",
+  imageUnderstanding: "图片理解",
+  audioTranscription: "语音转写",
   chatSuggestions: '接话建议',
 };
 
@@ -37,6 +41,10 @@ const TASK_SETTING: Record<AiTaskType, string> = {
   mirrorAnonymous: 'budget.task.mirrorAnonymous',
   disputeVerdict: 'budget.task.disputeVerdict',
   memorySummary: 'budget.task.memorySummary',
+  chatRevision: 'budget.task.chatRevision',
+  proactiveGreeting: 'budget.task.proactiveGreeting',
+  imageUnderstanding: 'budget.task.imageUnderstanding',
+  audioTranscription: 'budget.task.audioTranscription',
   chatSuggestions: 'budget.task.chatSuggestions',
 };
 
@@ -47,6 +55,10 @@ const LEDGER_TASK: Record<AiTaskType, string> = {
   mirrorAnonymous: 'mirror',
   disputeVerdict: 'dispute_verdict',
   memorySummary: 'memory_summary',
+  chatRevision: 'chat_revision',
+  proactiveGreeting: 'proactive_greeting',
+  imageUnderstanding: 'image_understanding',
+  audioTranscription: 'audio_transcription',
   chatSuggestions: 'chat_suggestions',
 };
 

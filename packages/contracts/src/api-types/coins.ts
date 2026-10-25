@@ -6,6 +6,7 @@ export type CoinLedgerEntry = {
   amount: number;
   description: string | null;
   sourceKey: string;
+  sourceHref?: string | null;
   createdAt: string;
 };
 
@@ -15,4 +16,6 @@ export type CoinLedgerPage = {
   firstPurchase: boolean;
   items: CoinLedgerEntry[];
   nextCursor: string | null;
+  availableSources?: string[];
+  dateTimezone?: string;
 };

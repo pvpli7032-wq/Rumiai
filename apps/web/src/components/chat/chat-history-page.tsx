@@ -9,6 +9,7 @@ import {ReportDialog} from '@/components/moderation';
 import {MessageActions} from './message-actions';
 import {RoleplayText} from './roleplay-text';
 import {ConversationTools} from './conversation-tools';
+import {AudioMessage} from './audio-message';
 import {CHAT_STICKERS, type ChatMessage} from '@rumiai/contracts/api-types/conversations';
 
 function HistoryView() {
@@ -65,7 +66,7 @@ function HistoryView() {
       {!loading && !error && !messages.length && <p>暂无消息。</p>}
       <ul className="space-y-4">{messages.map(message => <li key={message.id} className="space-y-2 break-words rounded-xl border border-border p-4">
         <p className="text-xs text-muted-foreground">{message.role === 'USER' ? '我' : message.role === 'ASSISTANT' ? 'AI 角色' : '系统'} · {message.createdAt && new Date(message.createdAt).toLocaleString('zh-CN')}</p>
-        {message.attachments?.map(attachment => attachment.type === 'IMAGE' ? <img key={attachment.id} src={attachment.url} alt="发送的图片" className="max-h-72 max-w-full rounded-xl object-contain" /> : <span key={attachment.id} role="img" aria-label={CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.label || '表情包'} className="block text-5xl">{CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.glyph || '表情包'}</span>)}
+        {message.attachments?.map(attachment => attachment.type === 'IMAGE' ? <img key={attachment.id} src={attachment.url} alt="发送的图片" className="max-h-72 max-w-full rounded-xl object-contain" /> : attachment.type==='AUDIO'?<AudioMessage key={attachment.id} url={attachment.url}/>: <span key={attachment.id} role="img" aria-label={attachment.label||CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.label || '表情包'} className="block text-5xl">{attachment.glyph||CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.glyph || '表情包'}</span>)}
         {message.role === 'USER' ? <p className="whitespace-pre-wrap">{message.content}</p> : <RoleplayText text={message.content} />}
         <MessageActions role={message.role} content={message.content} onReport={message.role === 'ASSISTANT' ? () => setReport(message.id) : undefined} />
       </li>)}</ul>

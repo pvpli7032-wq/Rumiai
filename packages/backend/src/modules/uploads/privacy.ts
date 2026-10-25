@@ -24,7 +24,7 @@ export async function finishClosureFileCleanup(id: string): Promise<'COMPLETED' 
   try {
     const urls: string[] = [...new Set([...JSON.parse(closure.fileUrlsJson), ...await listOwnedUploadFiles(closure.userId)])];
     for (const url of urls) {
-      if (!/^\/uploads\/[A-Za-z0-9_-]+\.(?:jpg|png|webp)$/.test(url)) { remaining.push(url); continue; }
+      if (!/^\/uploads\/[A-Za-z0-9_-]+\.(?:jpg|png|webp|wav)$/.test(url)) { remaining.push(url); continue; }
       const name = url.slice('/uploads/'.length), target = path.resolve(uploadDirectory(), name);
       if (path.dirname(target) !== uploadDirectory()) { remaining.push(url); continue; }
       const ownership = await db.uploadAsset.findUnique({ where: { url }, select: { ownerId: true, siteOwned: true } });

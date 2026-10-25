@@ -11,7 +11,7 @@ import {AdminOpsError, idParam} from '@rumiai/backend/modules/admin/ops-error';
  * 与巡检走完全相同的租约、重试与上限。
  */
 
-export const ADMIN_TASK_KINDS = ['story-state', 'memory-summary', 'dispute-sweep', 'dispute-close', 'mirror-expire', 'charge-recovery', 'backup-cleanup', 'daily-backup', 'event-cleanup'] as const;
+export const ADMIN_TASK_KINDS = ['notification-sweep', 'story-state', 'memory-summary', 'dispute-sweep', 'dispute-close', 'mirror-expire', 'charge-recovery', 'backup-cleanup', 'daily-backup', 'event-cleanup'] as const;
 export type AdminTaskKind = typeof ADMIN_TASK_KINDS[number];
 
 interface TaskDefinition {
@@ -23,6 +23,7 @@ interface TaskDefinition {
 }
 
 const DEFINITIONS: readonly TaskDefinition[] = [
+  {kind: 'notification-sweep', name: '通知与主动问候巡检', description: '释放免打扰延迟通知、会员到期提醒与已订阅角色问候；分别遵守功能开关和用户偏好', switchKey: null},
   {kind: 'story-state', name: '剧情状态抽取', description: '把已保存的故事回合抽成事件与状态检查点', switchKey: null},
   {kind: 'memory-summary', name: '聊天记忆摘要', description: '普通聊天滚动摘要与事实清单', switchKey: 'memory.enabled'},
   {kind: 'dispute-sweep', name: '到期评理扫描', description: '扫描到期或达到票数的案例并登记结案任务', switchKey: 'dispute.enabled'},

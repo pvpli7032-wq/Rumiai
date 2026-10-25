@@ -19,6 +19,7 @@ export function MembershipCatalog() {
   const [loading,setLoading]=useState(true);
   const [accountLoading,setAccountLoading]=useState(false);
   const [accountRetry,setAccountRetry]=useState(0);
+  const [ordersLoading,setOrdersLoading]=useState(false);
   const [checkout,setCheckout]=useState<{enabled:boolean;reason:string}>({enabled:false,reason:''});
   const [busy,setBusy]=useState<string|null>(null);
   const [refundBusy,setRefundBusy]=useState<string|null>(null);
@@ -61,6 +62,17 @@ export function MembershipCatalog() {
     return()=>{active=false;if(timer)clearTimeout(timer);window.removeEventListener('focus',onFocus);};
   },[token, accountRetry]);
 
+  async function loadMoreOrders() {
+    const cursor=account?.nextOrderCursor;
+    if(!token||!cursor||ordersLoading)return;
+    setOrdersLoading(true);setError('');
+    try {
+      const value=await membershipApi.account(token,cursor);
+      if(sessionToken.current!==token)return;
+      setAccount(previous=>previous?{...value,orders:[...previous.orders,...value.orders.filter(order=>!previous.orders.some(existing=>existing.orderNo===order.orderNo))]}:value);
+    }catch(cause){if(sessionToken.current===token)setError(errorText(cause));}
+    finally{setOrdersLoading(false);}
+  }
   async function buy(plan:AvailablePlan) {
     if(!token||busy||refundBusy||!checkout.enabled)return;
     setBusy(plan.id);setError('');setNotice('');
@@ -111,6 +123,7 @@ export function MembershipCatalog() {
       <p className="mt-1 text-sm text-muted-foreground">含续费有效期至 {formatDateTime(visibleAccount.membership.renewalExpiresAt??visibleAccount.membership.expiresAt)}</p>
     </div>}
     {visibleAccount&&<MembershipOrders token={token} orders={visibleAccount.orders} busy={refundBusy} onRefund={orderNo=>void refund(orderNo)}/>}
+    {visibleAccount?.nextOrderCursor&&<Button variant="outline" disabled={ordersLoading} onClick={()=>void loadMoreOrders()}>{ordersLoading?'正在读取订单…':'加载更多会员订单'}</Button>}
     {catalog&&catalog.benefitDefinitions&&catalog.benefitDefinitions.length>0&&<section aria-label="会员权益说明" className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">权益如何生效</h2><div className="mt-3 space-y-4">{catalog.benefitDefinitions.map(definition=><div key={definition.key}><p className="text-sm font-medium">{definition.label} · {definition.unit}</p><p className="mt-1 text-sm text-muted-foreground">{definition.description}</p><p className="mt-1 text-xs text-muted-foreground">适用范围：{definition.scope}</p></div>)}</div></section>}
     {loading?<p role="status" className="text-sm text-muted-foreground">正在读取会员方案…</p>:!catalog?<Button variant="outline" onClick={()=>void loadCatalog()}>重新读取会员方案</Button>:plans.length===0?<div className="rounded-xl border border-border p-8 text-sm text-muted-foreground">当前没有开放购买的会员方案。</div>:<div className="grid gap-4 md:grid-cols-3">{plans.map(plan=><article key={plan.id} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
       <h2 className="text-lg font-semibold">{plan.name}</h2>

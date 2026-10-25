@@ -6,7 +6,7 @@
  * 的投递平台，V3 明确后置。
  */
 
-export const NOTIFICATION_TYPES = ['REVIEW_RESULT', 'REPLY', 'COIN_RECEIVED', 'ACTIVITY_RESULT'] as const;
+export const NOTIFICATION_TYPES = ['REVIEW_RESULT', 'REPLY', 'COIN_RECEIVED', 'ACTIVITY_RESULT', 'MEMBERSHIP_EXPIRY', 'PROACTIVE_GREETING'] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 /** 抽屉与列表上的中文标签。 */
@@ -15,6 +15,8 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   REPLY: '回复提醒',
   COIN_RECEIVED: '到账',
   ACTIVITY_RESULT: '活动结果',
+  MEMBERSHIP_EXPIRY:'会员到期',
+  PROACTIVE_GREETING:'主动问候',
 };
 
 export function isNotificationType(value: string): value is NotificationType {
@@ -79,6 +81,7 @@ export interface NotificationItem {
   targetId: string | null;
   /** 点击后进入的业务对象路径；目标缺失或类型未登记时为 null（只读，不跳转）。 */
   href: string | null;
+  targetUnavailableReason?: string;
   readAt: string | null;
   createdAt: string;
 }

@@ -240,9 +240,9 @@ try {
   assert.equal(draftOwner, mobileDraft, 'draft is scoped to the actual signed-in account and conversation');
   const moreMessage = front.getByLabel('更多消息操作', {exact: true}).first();
   await moreMessage.click();
-  assert.equal(await moreMessage.evaluate(element => element.closest('details').open), true);
-  await moreMessage.press('Escape');
-  assert.equal(await moreMessage.evaluate(element => element.closest('details').open), false, 'Escape closes message actions');
+  await front.getByRole('dialog', {name: '消息操作', exact: true}).waitFor();
+  await front.keyboard.press('Escape');
+  await front.getByRole('dialog', {name: '消息操作', exact: true}).waitFor({state: 'hidden'});
   assert.equal(await moreMessage.evaluate(element => document.activeElement === element), true, 'closing actions restores keyboard focus');
   assert.match(await front.locator('p > time').first().innerText(), /\d{4}年\d{1,2}月\d{1,2}日/, 'history has readable date separators');
   await front.getByText('已保存', {exact: true}).first().waitFor();
@@ -261,6 +261,7 @@ try {
   const privateRead = await front.request.get(origin + '/api/public-conversations/' + ids.conversationId);
   assert.equal(privateRead.status(), 404, 'raw conversation id must never authorize sharing');
   await front.goto(origin + '/chat?character=' + encodeURIComponent(ids.characterId) + '&conversation=' + encodeURIComponent(ids.conversationId), {waitUntil: 'networkidle'});
+  await front.getByRole('button', {name: '更多对话操作', exact: true}).click();
   await front.getByRole('button', {name: '分享与管理', exact: true}).click();
   const shareDialog = front.getByRole('dialog', {name: '选择分享的内容', exact: true});
   await shareDialog.getByRole('checkbox').first().waitFor();

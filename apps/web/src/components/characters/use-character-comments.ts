@@ -47,6 +47,8 @@ export function useCharacterComments(characterId: string, token: string | null, 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [sort,setSort]=useState<'new'|'popular'>('new');
+  const [replyCursors,setReplyCursors]=useState<Record<string,string|null>>({});
 
   const headers = useCallback(
     () => (token ? { Authorization: `Bearer ${token}` } : undefined),
@@ -56,81 +58,51 @@ export function useCharacterComments(characterId: string, token: string | null, 
   const load = useCallback(
     async (cursor?: string) => {
       // The token is sent so each comment comes back with whether *this* reader liked it.
-      const url = `/api/characters/${characterId}/comments${cursor ? `?cursor=${cursor}` : ''}`;
+      const params=new URLSearchParams({sort});if(cursor)params.set('cursor',cursor);
+      const url='/api/characters/'+encodeURIComponent(characterId)+'/comments?'+params;
+      setError('');
       const res = await fetch(url, { headers: headers() });
       if (!res.ok) { setError("评论加载失败"); return; }
       const data = await res.json();
       setComments((prev) => (cursor ? [...prev, ...data.comments] : data.comments));
       setNextCursor(data.nextCursor);
     },
-    [characterId, headers],
+    [characterId, headers,sort],
   );
 
   useEffect(() => {
     setLoading(true);
-    load().finally(() => setLoading(false));
+    setComments([]);setReplyCursors({});
+    load().catch(()=>setError('网络连接失败，请重试。')).finally(() => setLoading(false));
   }, [load]);
 
-  /** 返回是否发送成功；草稿的清理留给调用方，因为草稿属于界面状态。 */
-  async function post(body: string, parentId?: string): Promise<boolean> {
-    if (requireLogin() || !body.trim()) return false;
-    setBusy(true);
-    setError('');
-    const res = await fetch(`/api/characters/${characterId}/comments`, {
-      method: 'POST',
-      headers: { ...headers(), 'Content-Type': 'application/json' } as HeadersInit,
-      body: JSON.stringify({ body: body.trim(), parent_id: parentId }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      const payload = await res.json().catch(() => ({}));
-      setError(zhError(payload.error || '') || "评论发送失败");
-      return false;
-    }
-    // Re-read rather than splicing: a reply belongs under its root, and the server decides
-    // which root that is when you reply to a reply.
-    await load();
-    return true;
+  async function mutate(path:string,method:string,body?:unknown){
+    const res=await fetch(path,{method,headers:{...headers(),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+    const data=await res.json().catch(()=>({}));if(!res.ok)throw Error(zhError(data.error||'')||'评论操作失败，请重试。');return data;
   }
-
-  async function toggleLike(node: CommentNode) {
-    if (requireLogin()) return;
-    const method = node.hasLiked ? 'DELETE' : 'POST';
-    // Optimistic; the server is idempotent so a double tap cannot double count.
-    setComments((prev) => mapTree(prev, node.id, (c) => ({
-      ...c,
-      hasLiked: !node.hasLiked,
-      likeCount: Math.max(0, c.likeCount + (node.hasLiked ? -1 : 1)),
-    })));
-    const res = await fetch(`/api/comments/${node.id}/like`, { method, headers: headers() });
-    if (!res.ok) { await load(); return; }
-    const data = await res.json().catch(() => ({}));
-    if (typeof data.likeCount === 'number') {
-      setComments((prev) => mapTree(prev, node.id, (c) => ({ ...c, likeCount: data.likeCount })));
-    }
+  async function post(body:string,parentId?:string):Promise<boolean>{
+    if(requireLogin()||!body.trim()||busy)return false;setBusy(true);setError('');
+    try{await mutate('/api/characters/'+encodeURIComponent(characterId)+'/comments','POST',{body:body.trim(),parent_id:parentId});await load();return true;}
+    catch(e){setError(e instanceof Error?e.message:'评论发送失败，草稿已保留。');return false;}finally{setBusy(false);}
   }
-
-  async function saveEdit(id: string, body: string) {
-    if (!body.trim()) return;
-    setBusy(true);
-    const res = await fetch(`/api/comments/${id}`, {
-      method: 'PATCH',
-      headers: { ...headers(), 'Content-Type': 'application/json' } as HeadersInit,
-      body: JSON.stringify({ body: body.trim() }),
-    });
-    setBusy(false);
-    if (res.ok) {
-      const { comment } = await res.json();
-      setComments((prev) => mapTree(prev, id, (c) => ({ ...c, body: comment.body })));
-    }
+  async function toggleLike(node:CommentNode){
+    if(requireLogin()||busy)return;setBusy(true);setError('');
+    try{const data=await mutate('/api/comments/'+encodeURIComponent(node.id)+'/like',node.hasLiked?'DELETE':'POST');setComments(rows=>mapTree(rows,node.id,current=>({...current,hasLiked:!node.hasLiked,likeCount:data.likeCount})));}
+    catch(e){setError(e instanceof Error?e.message:'点赞失败，请重试。');}finally{setBusy(false);}
   }
-
-  async function remove(id: string) {
-    setBusy(true);
-    const res = await fetch(`/api/comments/${id}`, { method: 'DELETE', headers: headers() });
-    setBusy(false);
-    if (res.ok) await load();
+  async function saveEdit(id:string,body:string):Promise<boolean>{
+    if(!body.trim()||busy)return false;setBusy(true);setError('');
+    try{const data=await mutate('/api/comments/'+encodeURIComponent(id),'PATCH',{body:body.trim()});setComments(rows=>mapTree(rows,id,current=>({...current,body:data.comment.body})));return true;}
+    catch(e){setError(e instanceof Error?e.message:'修改失败，内容已保留。');return false;}finally{setBusy(false);}
   }
-
-  return { comments, nextCursor, loading, busy, error, load, post, toggleLike, saveEdit, remove };
+  async function remove(id:string){
+    if(busy)return;setBusy(true);setError('');
+    try{await mutate('/api/comments/'+encodeURIComponent(id),'DELETE');await load();}catch(e){setError(e instanceof Error?e.message:'删除失败，请重试。');}finally{setBusy(false);}
+  }
+  async function loadReplies(parentId:string) {
+    setBusy(true);setError('');
+    try {const cursor=replyCursors[parentId];const res=await fetch('/api/comments/'+encodeURIComponent(parentId)+'/replies'+(cursor?'?cursor='+encodeURIComponent(cursor):''),{headers:headers()});const data=await res.json();if(!res.ok)throw Error(data.error||'回复加载失败。');setComments(rows=>rows.map(row=>row.id===parentId?{...row,replies:[...new Map([...(row.replies??[]),...data.comments].map(item=>[item.id,item])).values()]}:row));setReplyCursors(values=>({...values,[parentId]:data.nextCursor}));}
+    catch(e){setError(e instanceof Error?e.message:'回复加载失败。');}finally{setBusy(false);}
+  }
+  return { sort,setSort,loadReplies,replyCursors,comments, nextCursor, loading, busy, error, load, post, toggleLike, saveEdit, remove };
 }

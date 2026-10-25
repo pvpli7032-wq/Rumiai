@@ -1,4 +1,5 @@
 'use client';
+import type {ReaderPreferences} from '@rumiai/contracts/accounts/preferences';
 import { zhError } from '@rumiai/contracts/copy/zh';
 import { API } from '@rumiai/contracts/api-paths';
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
@@ -19,6 +20,7 @@ interface User {
    * separate request per chat.
    */
   readingMode?: boolean;
+  readerPreferences?: ReaderPreferences;
   bannedWords?: string | null;
   shortcuts?: string | null;
 }

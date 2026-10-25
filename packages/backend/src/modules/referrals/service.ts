@@ -108,7 +108,9 @@ export async function readMyReferrals(userId: string) {
     db.referralRelationship.findUnique({where: {inviteeId: userId}, select: {boundAt: true, inviter: {select: {id: true, username: true, displayName: true}}}}),
     db.referralRelationship.findMany({where: {inviterId: userId}, orderBy: {boundAt: 'desc'}, take: 100, select: {boundAt: true, invitee: {select: {id: true, username: true, displayName: true}}}}),
   ]);
-  return {code, parent, children};
+  const [reward,commissionRows,totalChildren]=await Promise.all([db.coinTransaction.aggregate({where:{userId,sourceKey:'INVITE_REWARD'},_sum:{amount:true},_count:{_all:true}}),db.affiliateAccrual.findMany({where:{beneficiaryUserId:userId},select:{commissionCents:true,reversedCents:true,currency:true,status:true,availableAt:true}}),db.referralRelationship.count({where:{inviterId:userId}})]);
+  const commissionByCurrency:Record<string,{pendingCents:number;availableCents:number;processedCents:number;reversedCents:number}>={};const now=new Date();for(const row of commissionRows){const summary=commissionByCurrency[row.currency]??={pendingCents:0,availableCents:0,processedCents:0,reversedCents:0};const net=Math.max(0,row.commissionCents-row.reversedCents);summary.reversedCents+=row.reversedCents;if(row.status==='PROCESSED')summary.processedCents+=net;else if(row.status==='AVAILABLE'||row.status==='PENDING'&&row.availableAt<=now)summary.availableCents+=net;else if(row.status==='PENDING')summary.pendingCents+=net;}
+  return {code,parent,children,totalChildren,rewards:{coins:reward._sum.amount??0,events:reward._count._all},commissionByCurrency,withdrawalAvailable:false};
 }
 
 export async function listReferralRelationships(params: {q?: string; page?: number}) {

@@ -1,4 +1,6 @@
-import {createHash} from 'node:crypto';
+import {notificationDelivery} from './preferences-service';
+import {notificationId} from './identity';
+export {notificationId} from './identity';
 import {db} from '@rumiai/backend/infrastructure/database/client';
 import type {NotificationEventInput, NotificationTargetType, NotificationType} from '@rumiai/contracts/notifications/types';
 import {replyExcerpt} from '@rumiai/contracts/notifications/reply-excerpt';
@@ -19,11 +21,6 @@ export class NotificationError extends Error {
   }
 }
 
-/** 事件键决定 id：同一用户同一类型的同一事件永远落在同一行。 */
-export function notificationId(userId: string, type: NotificationType, eventKey: string): string {
-  return 'ntf_' + createHash('sha256').update([userId, type, eventKey].join('\u0000')).digest('hex').slice(0, 24);
-}
-
 /** 写一条通知。同一事件重放返回既有 id，created 为 false。 */
 export async function createNotification(event: NotificationEventInput): Promise<{id: string; created: boolean}> {
   const title = event.title.trim();
@@ -31,10 +28,12 @@ export async function createNotification(event: NotificationEventInput): Promise
     throw new NotificationError(400, 'BAD_REQUEST', '通知缺少用户、事件键或标题。');
   }
   const id = notificationId(event.userId, event.type, event.eventKey);
+  const delivery = await notificationDelivery(event.userId, event.type);
   try {
     await db.notification.create({
       data: {
         id,
+        ...delivery,
         userId: event.userId,
         type: event.type,
         title,

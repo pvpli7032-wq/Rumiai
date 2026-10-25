@@ -29,6 +29,8 @@ export function useChatTurns(opts: {
   setChatError: (value: string | null) => void;
   activeScene?: { id: string };
   isComposing: () => boolean;
+  streamDisplayMode?: 'stream' | 'complete';
+  speechRate?: 0.75 | 1 | 1.25 | 1.5;
 }) {
   const { token, userId, characterId, conversationId, messages, setMessages, applyLatestPage, reloadMessages, reloadQuota, applyCost, setChatError, activeScene, isComposing } = opts;
   const draftKey = userId && conversationId ? 'xingban:chat-draft:' + userId + ':' + conversationId : null;
@@ -51,7 +53,7 @@ export function useChatTurns(opts: {
   // 一次点击一个请求号（V3 §20）：同一条草稿重试沿用同一个编号，成功后清空。
   const pendingSend = useRef<{requestId: string; content: string} | null>(null);
   // 重新生成同理：同一个消息被连点重试时沿用同一个编号。
-  const pendingRegen = useRef<{messageId: string; requestId: string} | null>(null);
+  const pendingRegen = useRef<{messageId: string; requestId: string; signature: string} | null>(null);
 
 
   function storeDraft(value: string, pending = pendingSend.current) {
@@ -120,7 +122,7 @@ export function useChatTurns(opts: {
     return controller.signal;
   }
 
-  const chatHandlers = {onText: setStreamingText, onCost: applyCost, onMock: () => setMockNotice(true)};
+  const chatHandlers = {onText: opts.streamDisplayMode === 'complete' ? () => {} : setStreamingText, onCost: applyCost, onMock: () => setMockNotice(true)};
 
   /** 换会话/卸载时收尾：断掉在途请求，清掉流式状态。 */
   function resetTurns() {
@@ -130,6 +132,7 @@ export function useChatTurns(opts: {
   }
   function abortRequest() {
     activeRequest.current?.abort();
+    stopSpeaking();
   }
 
   async function saveAttachment(attachment: Record<string, unknown>, content = ''): Promise<boolean> {
@@ -267,14 +270,15 @@ export function useChatTurns(opts: {
     void reloadMessages().then(() => reloadQuota()).catch(() => {});
   }
 
-  async function regenerate(messageId: string) {
+  async function regenerate(messageId: string, revision?: {kind: 'CONTINUE' | 'SUGGEST'; instruction?: string}) {
     if (!conversationId || streaming) return;
     stopSpeaking();
     setSpeakingId(null);
     setBusyId(messageId);
     // 重新生成也是「一次点击一个请求号」，同一个消息重试沿用同一个编号（V3 §20）。
-    const requestId = pendingRegen.current?.messageId === messageId ? pendingRegen.current.requestId : newRequestId();
-    pendingRegen.current = {messageId, requestId};
+    const signature = JSON.stringify({messageId, revision});
+    const requestId = pendingRegen.current?.signature === signature ? pendingRegen.current.requestId : newRequestId();
+    pendingRegen.current = {messageId, requestId, signature};
     // Keep the saved reply visible until a replacement is confirmed.
     // A failed request or history refresh must not hide previously saved content.
     setStreaming(true);
@@ -283,11 +287,12 @@ export function useChatTurns(opts: {
     setMockNotice(false);
     const signal = startRequest();
     try {
-      const res = await fetch(`/api/conversations/${conversationId}/messages/${messageId}/regenerate`, {
+      const action = revision ? revision.kind === 'CONTINUE' ? 'continue' : 'suggest' : 'regenerate';
+      const res = await fetch(`/api/conversations/${conversationId}/messages/${messageId}/${action}`, {
         method: 'POST',
         signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ requestId }),
+        body: JSON.stringify({requestId, instruction: revision?.instruction}),
       });
       await consumeChatStream(res, chatHandlers);
       pendingRegen.current = null;
@@ -361,13 +366,14 @@ export function useChatTurns(opts: {
     if (speakingId === messageId) { stopSpeaking(); setSpeakingId(null); return; }
     // spokenText drops the markup and the inner thoughts — a thought is what the prose is
     // withholding, so reading it aloud would give it away.
-    const ok = speak(spokenText(content), () => setSpeakingId(null));
+    const ok = speak(spokenText(content), () => setSpeakingId(null), opts.speechRate, () => setChatError('设备朗读失败，请检查语音服务或稍后重试。'));
     setSpeakingId(ok ? messageId : null);
+    if (!ok) setChatError('当前设备不支持朗读或没有可朗读内容。');
   }
 
   return {
     input, setInput, streaming, streamingText, mockNotice, insufficientNotice, mediaNotice, mediaBusy, editingId, setEditingId,
     editDraft, setEditDraft, speakingId, busyId, sendMessage, cancelStreaming, regenerate, saveEdit,
-    deleteFollowing, toggleSpeak, resetTurns, abortRequest, sendImage, sendSticker: (stickerId: string) => saveAttachment({type: 'STICKER', stickerId}),
+    deleteFollowing, toggleSpeak, resetTurns, abortRequest, sendImage, sendAudio: (asset: {id:string;mimeType:string;size:number},caption:string) => saveAttachment({type:'AUDIO',assetId:asset.id,mimeType:asset.mimeType,byteSize:asset.size},caption), sendSticker: (stickerId: string) => saveAttachment({type: 'STICKER', stickerId}),
   };
 }

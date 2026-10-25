@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import {useSearchParams} from 'next/navigation';
 import { zhError } from '@rumiai/contracts/copy/zh';
 import { notifyChatListChanged } from '@rumiai/contracts/conversations/chat-events';
 import { fetchEarlierMessagePage, fetchLatestMessagePage, refetchPageSize } from '@web/lib/conversations/message-history-client';
@@ -25,10 +26,12 @@ export function useChatThread(opts: {
   messageListRef: RefObject<HTMLDivElement | null>;
   requireLogin: () => void;
 }) {
+  const requestedMessage = useSearchParams().get('message');
   const { charId, token, authLoading, requestedConversation, wantsNewChat, router, chatScroll, messageListRef, requireLogin } = opts;
   const [character, setCharacter] = useState<Character | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const likePending = useRef(new Set<string>());
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [earlierCursor, setEarlierCursor] = useState<string | null>(null);
   const [hasEarlier, setHasEarlier] = useState(false);
@@ -73,26 +76,17 @@ export function useChatThread(opts: {
   }
 
   async function toggleMessageLike(messageId: string) {
-    if (!conversationId) return;
+    if (!conversationId || !token || likePending.current.has(messageId)) return;
+    likePending.current.add(messageId);
     const liked = likedIds.has(messageId);
-    // Optimistic, then reconciled: liking is idempotent server-side, so a double tap
-    // cannot double count.
-    setLikedIds(prev => {
-      const next = new Set(prev);
-      if (liked) next.delete(messageId); else next.add(messageId);
-      return next;
-    });
-    const res = await fetch(`/api/conversations/${conversationId}/messages/${messageId}/like`, {
-      method: liked ? 'DELETE' : 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      setLikedIds(prev => {
-        const next = new Set(prev);
-        if (liked) next.add(messageId); else next.delete(messageId);
-        return next;
-      });
-    }
+    setLikedIds(previous => {const next = new Set(previous); if (liked) next.delete(messageId); else next.add(messageId); return next;});
+    try {
+      const response = await fetch('/api/conversations/' + conversationId + '/messages/' + messageId + '/like', {method: liked ? 'DELETE' : 'POST', headers: {Authorization: 'Bearer ' + token}});
+      if (!response.ok) {const data = await response.json().catch(() => ({})); throw Error(data.error || '点赞保存失败，请重试。');}
+    } catch (cause) {
+      setLikedIds(previous => {const next = new Set(previous); if (liked) next.add(messageId); else next.delete(messageId); return next;});
+      setChatError(cause instanceof Error ? zhError(cause.message) : '网络连接失败，点赞未确认。');
+    } finally {likePending.current.delete(messageId);}
   }
 
   useEffect(() => {
@@ -119,16 +113,21 @@ export function useChatThread(opts: {
         setConversationId(convData.conversation.id);
         // A brand new room did not exist when the sidebar last loaded.
         notifyChatListChanged();
+        if (requestedMessage) return fetch('/api/conversations/' + encodeURIComponent(convData.conversation.id) + '/messages/' + encodeURIComponent(requestedMessage) + '/window', {headers}).then(loadJSON) as Promise<MessagePage>;
         return fetchLatestMessagePage(token, convData.conversation.id);
       }
     }).then(page => {
-      if (active && page) applyLatestPage(page);
+      if (active && page) {
+        if (requestedMessage) chatScroll.skipNextFollow();
+        applyLatestPage(page);
+        if (requestedMessage) requestAnimationFrame(() => requestAnimationFrame(() => {const target = document.getElementById('chat-message-' + requestedMessage); target?.scrollIntoView({block: 'center', behavior: 'auto'}); target?.setAttribute('data-search-target', 'true');}));
+      }
     }).catch(error => { if (active) setChatError(error.message || '无法加载对话，请重试。'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
     // requireLogin 与 applyLatestPage 每次渲染都是新引用，依赖只认输入。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [charId, token, authLoading, requestedConversation, wantsNewChat]);
+  }, [charId, token, authLoading, requestedConversation, wantsNewChat, requestedMessage]);
 
   return {
     character, messages, setMessages, conversationId, likedIds, hasEarlier, loadingEarlier,

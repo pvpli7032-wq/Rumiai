@@ -47,6 +47,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     {href: '/admin/compliance', label: '注册合规', description: '年龄确认、服务条款与隐私政策版本', icon: 'compliance', permission: 'compliance.read'},
   ]},
   {id: 'content', label: '内容与社区', entries: [
+    {href: '/admin/chat/stickers', label: '聊天表情', description: '表情目录、上架、排序与历史快照', icon: 'comments', permission: 'settings.read'},
     {href: '/admin/characters', label: '角色管理', description: '角色状态、标签、内容编辑与管理预览', icon: 'characters', permission: 'characters.read'},
     {href: '/admin/site-content', label: '站点内容', description: '首页、导航、公告、品牌主题的草稿与发布', icon: 'site-content', permission: 'site.content.read', children: [
       tab('/admin/site-content', '首页横幅', '首页主视觉与行动入口', true),

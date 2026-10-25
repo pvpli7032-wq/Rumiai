@@ -1,12 +1,14 @@
 'use client';
 
-import {useEffect, useRef, useState, type RefObject} from 'react';
+import {useEffect, useRef, useState, type ReactNode, type RefObject} from 'react';
 import { CharacterAvatar, type Character } from './character-avatar';
+import {AudioMessage} from './audio-message';
 import { RoleplayText } from '@/components/chat/roleplay-text';
 import { MessageActions } from '@/components/chat/message-actions';
 import { HiddenReply } from '@/components/chat/hidden-reply';
 import { ScrollToLatest, type ChatScroll } from '@/components/chat/chat-interaction';
 import { containsBannedWord } from '@web/lib/preferences';
+import {DEFAULT_READER_PREFERENCES, type ReaderPreferences} from '@rumiai/contracts/accounts/preferences';
 import { CHAT_STICKERS, type ChatMessage as Message } from '@rumiai/contracts/api-types/conversations';
 
 /** 消息流：更早一页、空态开场、每条消息、流式气泡、回到最新。 */
@@ -15,7 +17,7 @@ export function ChatMessageList({
   editingId, editDraft, streaming, streamingText, hasEarlier, loadingEarlier,
   chatScroll, messageListRef, messagesEndRef,
   onLoadEarlier, onToggleLike, onSpeak, onRegenerate, onSaveEdit, onReportMessage,
-  setEditingId, setEditDraft, onDeleteMessage, chatMaxChars,
+  setEditingId, setEditDraft, onDeleteMessage, chatMaxChars, renderMessageTools, readerPreferences = DEFAULT_READER_PREFERENCES,
 }: {
   messages: Message[];
   character: Character | null;
@@ -42,6 +44,8 @@ export function ChatMessageList({
   onReportMessage: (messageId: string) => void;
   onDeleteMessage: (messageId: string) => void;
   chatMaxChars?: number;
+  renderMessageTools?: (message: Message) => ReactNode;
+  readerPreferences?: ReaderPreferences;
   setEditingId: (id: string | null) => void;
   setEditDraft: (value: string) => void;
 }) {
@@ -52,6 +56,7 @@ export function ChatMessageList({
     if (chatScroll.atBottom) {lastSeen.current = latestId; setHasNew(false);}
     else if (latestId !== lastSeen.current || streamingText) setHasNew(true);
   }, [chatScroll.atBottom, latestId, streamingText]);
+  const textStyle = {fontSize: readerPreferences.fontSize === 'larger' ? 19 : readerPreferences.fontSize === 'large' ? 17 : 15, lineHeight: readerPreferences.lineSpacing === 'relaxed' ? 1.9 : 1.6};
   return (
     <div ref={messageListRef} {...chatScroll.listProps} className={`min-h-0 flex-1 overflow-y-auto px-4 py-5 w-full mx-auto ${readingMode ? 'max-w-2xl space-y-6 text-[15px] leading-loose' : 'max-w-3xl space-y-4'}`}>
       {hasEarlier && (
@@ -78,11 +83,11 @@ export function ChatMessageList({
         </div>
       )}
       {messages.map((msg, index) => (
-        <div key={msg.id} className="space-y-2">
+        <div key={msg.id} id={'chat-message-'+msg.id} className="space-y-2">
         {msg.createdAt && (!messages[index - 1]?.createdAt || new Date(msg.createdAt).toLocaleDateString() !== new Date(messages[index - 1].createdAt!).toLocaleDateString()) && <p className="py-2 text-center text-xs text-muted-foreground"><time dateTime={msg.createdAt}>{new Date(msg.createdAt).toLocaleDateString('zh-CN', {year: 'numeric', month: 'long', day: 'numeric'})}</time></p>}
-        <div className={`flex ${msg.role === 'USER' ? 'items-end justify-end' : 'items-end justify-start'}`}>
+        <div className={`flex ${msg.role === 'USER' ? 'items-end justify-end' : 'items-start justify-start'}`}>
           {msg.role !== 'USER' && character && (
-            <CharacterAvatar character={character} size={32} className="mb-1 mr-2" />
+            <CharacterAvatar character={character} size={32} className="mt-1 mr-2" />
           )}
           <div className={`group/msg select-text flex min-w-0 max-w-[85%] flex-col gap-1 ${msg.role === 'USER' ? 'items-end' : 'items-start'}`}>
             {editingId === msg.id ? (
@@ -115,16 +120,16 @@ export function ChatMessageList({
               </div>
             ) : (
               <>
-                <div className={`max-w-full break-words rounded-[18px] px-4 py-3 text-[15px] leading-6 ${
-                  msg.role === 'USER'
+                <div style={textStyle} className={`[&>span]:text-[length:inherit] [&>span]:leading-[inherit] max-w-full break-words rounded-[18px] px-4 py-3 text-[15px] leading-6 ${
+                  readerPreferences.bubbleStyle === 'plain' ? 'bg-transparent text-foreground' : msg.role === 'USER'
                     ? 'bg-secondary text-foreground rounded-br-[6px]'
                     : 'border border-border bg-card text-foreground rounded-bl-[6px]'
                 }`}>
                   {msg.attachments?.map(attachment => attachment.type === 'IMAGE'
                     ? <img key={attachment.id} src={attachment.url} alt="用户发送的图片" className="mb-2 max-h-72 w-auto max-w-full rounded-xl object-contain" />
-                    : <span key={attachment.id} role="img" aria-label={CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.label || '表情包'} className="block text-6xl">{CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.glyph || '❔'}</span>)}
+                    : attachment.type === 'AUDIO' ? <AudioMessage key={attachment.id} url={attachment.url} speechRate={readerPreferences.speechRate}/> : <span key={attachment.id} role="img" aria-label={attachment.label || CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.label || '表情包'} className="block text-6xl">{attachment.glyph || CHAT_STICKERS.find(item => item.id === attachment.stickerId)?.glyph || '❔'}</span>)}
                   {msg.role === 'USER' ? (
-                    msg.content ? <p className="whitespace-pre-wrap text-[15px] leading-6">{msg.content}</p> : null
+                    msg.content ? <p className="whitespace-pre-wrap text-inherit leading-[inherit]">{msg.content}</p> : null
                   ) : containsBannedWord(msg.content, bannedWords) ? (
                     <HiddenReply>
                       <RoleplayText text={msg.content} />
@@ -133,9 +138,11 @@ export function ChatMessageList({
                     <RoleplayText text={msg.content} />
                   )}
                 </div>
-                {msg.createdAt && <time dateTime={msg.createdAt} className="px-1 text-[11px] text-muted-foreground">{new Date(msg.createdAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</time>}
+                <div className="flex w-full flex-wrap items-center justify-between gap-x-2"><div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {msg.createdAt && <time dateTime={msg.createdAt} className="text-xs text-muted-foreground">{new Date(msg.createdAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</time>}
                 {msg.role === 'USER' && <span role={(msg as Message & {clientState?: string}).clientState ? 'status' : undefined} className="px-1 text-[11px] text-muted-foreground">{(msg as Message & {clientState?: string}).clientState === 'SENDING' ? '正在发送…' : (msg as Message & {clientState?: string}).clientState === 'PENDING' ? '已接收，等待确认保存…' : '已保存'}</span>}
-                <MessageActions
+                </div><MessageActions
+                  extraActions={renderMessageTools?.(msg)}
                   role={msg.role}
                   content={msg.content}
                   liked={likedIds.has(msg.id)}
@@ -148,7 +155,7 @@ export function ChatMessageList({
                   onSpeak={() => onSpeak(msg.id, msg.content)}
                   onDelete={() => onDeleteMessage(msg.id)}
                   onReport={msg.role==='ASSISTANT'?()=>onReportMessage(msg.id):undefined}
-                />
+                /></div>
               </>
             )}
           </div>
@@ -157,8 +164,8 @@ export function ChatMessageList({
       ))}
       {streaming && (
         <div className="flex justify-start">
-          {character && <CharacterAvatar character={character} size={32} className="mb-1 mr-2" />}
-          <div className="max-w-[85%] rounded-[18px] rounded-bl-[6px] border border-border bg-card px-4 py-3">
+          {character && <CharacterAvatar character={character} size={32} className="mt-1 mr-2" />}
+          <div style={textStyle} className="[&>span]:text-[length:inherit] [&>span]:leading-[inherit] max-w-[85%] rounded-[18px] rounded-bl-[6px] border border-border bg-card px-4 py-3">
             {streamingText ? <RoleplayText text={streamingText} streaming /> : <span role="status" className="text-sm text-muted-foreground">正在输入…</span>}
           </div>
         </div>

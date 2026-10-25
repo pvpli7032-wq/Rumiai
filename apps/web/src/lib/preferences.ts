@@ -1,3 +1,4 @@
+import {MAX_SHORTCUTS, MAX_SHORTCUT_LABEL, MAX_SHORTCUT_TEXT} from '@rumiai/contracts/accounts/preferences';
 /**
  * Reader preferences stored on the user row.
  *
@@ -11,9 +12,7 @@ export interface Shortcut {
   text: string;
 }
 
-export const MAX_SHORTCUTS = 12;
-export const MAX_SHORTCUT_LABEL = 24;
-export const MAX_SHORTCUT_TEXT = 300;
+export {MAX_SHORTCUTS, MAX_SHORTCUT_LABEL, MAX_SHORTCUT_TEXT} from '@rumiai/contracts/accounts/preferences';
 
 export function parseShortcuts(raw: string | null | undefined): Shortcut[] {
   if (!raw) return [];

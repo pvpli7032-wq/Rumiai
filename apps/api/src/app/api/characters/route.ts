@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   try {
     const {searchParams} = new URL(request.url);
     const scope = searchParams.get('scope');
-    const auth = scope ? await getAuthUser(request) : null;
+    const auth = await getAuthUser(request);
     const options = {
       search: searchParams.get('search') || '',
       scope,

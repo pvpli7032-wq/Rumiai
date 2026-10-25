@@ -9,7 +9,7 @@ import {DEFAULT_LOCALE} from '@web/lib/i18n';
 import {useUiConfig} from '@web/lib/settings/use-ui-config';
 import type {ConversationSharePreview} from '@rumiai/contracts/conversations/sharing';
 
-export function ChatShareAndDispute({conversationId,disabled}:{conversationId:string;disabled:boolean}) {
+export function ChatShareAndDispute({conversationId,disabled,onOpen,menu=false}:{conversationId:string;disabled:boolean;onOpen?:()=>void;menu?:boolean}) {
  const config=useUiConfig();
  const {token}=useAuth();
  const disputeEnabled=Object.keys(config).length===0 || config['dispute.enabled']===true;
@@ -52,9 +52,9 @@ export function ChatShareAndDispute({conversationId,disabled}:{conversationId:st
   catch{if(ticket===generation.current){setUrl(link);setNotice('复制未获浏览器允许，请手动选择链接。');}}
  }
  return <div className="min-w-0">
-  <div className="flex flex-wrap items-center gap-2">
-   <button type="button" disabled={disabled||busy||!token} onClick={()=>{setOpen(true);void load();}} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm hover:bg-secondary disabled:opacity-40"><Share2 aria-hidden className="h-4 w-4"/>分享与管理</button>
-   <a href={'/'+DEFAULT_LOCALE+'/disputes/new?conversationId='+encodeURIComponent(conversationId)} aria-disabled={!disputeEnabled||undefined} className={'inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm '+(disputeEnabled?'hover:bg-secondary':'pointer-events-none text-muted-foreground')}><Flag aria-hidden className="h-4 w-4"/>评理</a>
+  <div className={menu?"space-y-1":"flex flex-wrap items-center gap-2"}>
+   <button type="button" disabled={disabled||busy||!token} onClick={()=>{onOpen?.();setOpen(true);void load();}} className={menu?"flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] hover:bg-secondary disabled:opacity-40":"inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm hover:bg-secondary disabled:opacity-40"}><Share2 aria-hidden className="h-4 w-4"/>分享与管理</button>
+   <a onClick={onOpen} href={'/'+DEFAULT_LOCALE+'/disputes/new?conversationId='+encodeURIComponent(conversationId)} aria-disabled={!disputeEnabled||undefined} className={(menu?'flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-[15px] ':'inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm ')+(disputeEnabled?'hover:bg-secondary':'pointer-events-none text-muted-foreground')}><Flag aria-hidden className="h-4 w-4"/>评理</a>
   </div>
   <Dialog open={open} onClose={()=>setOpen(false)} title="选择分享的内容" description="只公开勾选的文字。图片、贴纸、私人备注和角色设定不会公开；来源文字修改或删除后链接失效。"
    footer={<><button type="button" onClick={()=>setOpen(false)} className="min-h-11 px-4">关闭</button><button type="button" disabled={busy||!selected.length} onClick={()=>void create()} className="min-h-11 rounded-full bg-brand px-4 text-brand-foreground disabled:opacity-40">{busy?'处理中…':'确认公开所选文字'}</button></>}>

@@ -40,8 +40,8 @@ export function DiscoverPage() {
     labelsFor, recommended, filtering, sceneCharacters, filtered, railItems, toggle, catalogueLoading, catalogueError, hasMore, loadMore, retryCatalogue,
   } = data;
 
-  const cards = (rows: ApiCharacter[], limit?: number) => rows.slice(0, limit).map((character, index) => (
-    <CharacterCard key={character.id} character={{ ...character, tagLabels: labelsFor(character) }} index={index} />
+  const cards = (rows: ApiCharacter[], limit?: number, recommendation = mode === '推荐') => rows.slice(0, limit).map((character, index) => (
+    <CharacterCard key={character.id} recommendation={recommendation} character={{ ...character, tagLabels: labelsFor(character) }} index={index} />
   ));
   const retry = <button type="button" onClick={data.retry} className="web-control rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">重试</button>;
 
@@ -60,6 +60,7 @@ export function DiscoverPage() {
               setMode('角色');
             }} />
           </div>
+          <div className="desktop:hidden"><SearchRow preferencesOnly query={query} onQueryChange={setQuery} onSearch={() => setMode('角色')} onRandom={() => {}}/></div>
           <div className="relative flex items-start gap-3">
           <nav data-discover-interest-tabs aria-label="发现兴趣分类" className="mt-1 flex min-w-0 flex-1 items-center gap-5 overflow-x-auto text-sm font-semibold [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button type="button" onClick={() => { setQuery(''); setTypes([]); setRoles([]); setMode('推荐'); }} className={`relative min-h-11 shrink-0 px-1 transition-colors ${mode === '推荐' && !filtering ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>推荐{mode === '推荐' && !filtering && <span aria-hidden className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-[var(--action)]" />}</button>
@@ -111,11 +112,12 @@ export function DiscoverPage() {
               })}
             </section>}
 
+            {token && (data.following.length > 0 || data.followingError || data.followingLoading) && <section><SectionHeader title="关注的创作者" />{data.followingLoading ? <p role="status" className="mt-3 text-sm text-muted-foreground">正在读取关注角色…</p> : data.followingError ? <State kind="error" title="关注角色读取失败" description={data.followingError} action={retry}/> : data.following.length ? <div className="mt-3 flex gap-3 overflow-x-auto">{cards(data.following,undefined,false).map((card,index)=><div key={index} className="w-36 shrink-0">{card}</div>)}</div> : <p className="mt-3 text-sm text-muted-foreground">关注喜欢的创作者后，可在这里看到公开作品。</p>}</section>}
             {sceneCharacters.length > 0 && <section><SectionHeader title="精选场景" description="从一个具体事件开始" />
               <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{sceneCharacters.map(({ scene, character }) => <StoryCard key={scene.id} scene={scene} character={character} href={`/chat?character=${encodeURIComponent(character.id)}&scene=1`} />)}</div>
             </section>}
-            {stories.length > 0 && <section><SectionHeader title="故事体验" description="有固定章节与持续记忆的长故事" />
-              <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{stories.map(story => <StoryCatalogCard key={story.slug} story={story} />)}</div>
+            {(stories.length > 0 || data.storiesLoading || data.storiesError) && <section><SectionHeader title="故事体验" description="有固定章节与持续记忆的长故事" />
+              <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{data.storiesLoading ? <p role="status" className="text-sm text-muted-foreground">正在读取故事…</p> : data.storiesError ? <State kind="error" title="故事目录读取失败" description={data.storiesError} action={retry}/> : stories.map(story => <StoryCatalogCard key={story.slug} story={story} />)}</div>
             </section>}
           </div>
         )}

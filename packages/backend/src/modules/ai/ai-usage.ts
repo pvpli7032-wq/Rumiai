@@ -1,6 +1,7 @@
 import { db, pragmasReady } from '@rumiai/backend/infrastructure/database/client';
+import {readSettingValue} from '@rumiai/backend/modules/settings';
 import {readDailyRequestRules} from '@rumiai/backend/modules/settings/limits';
-import {isValidTimezone, resolveZonedDay, resolveZonedDayBoundary} from '@rumiai/backend/infrastructure/time/zoned-day';
+import {isValidTimezone, resolveZonedDay, resolveZonedDayBoundary, resolveZonedDayRange} from '@rumiai/backend/infrastructure/time/zoned-day';
 import type { AiStreamMetrics } from '@rumiai/backend/modules/ai/types';
 import { readCostBudgetBlock, type AiBudgetBlock } from './budget-guard';
 import { estimateAiCallCost } from './cost-accounting';
@@ -27,7 +28,7 @@ const logBudgetBlock = (event:string,block:AiBudgetBlock,callId?:string) => logW
  * the user's chat daily slots — 独立用量口径. Budget exhaustion defers the background
  * task instead of failing the user's already-committed replies.
  */
-export type AiOperation = 'SEND' | 'REGENERATE' | 'STATE_EXTRACT' | 'DISPUTE_VERDICT' | 'MEMORY_SUMMARY' | 'PROMPT_PREVIEW' | 'CHAT_SUGGESTIONS';
+export type AiOperation = 'SEND' | 'REGENERATE' | 'STATE_EXTRACT' | 'DISPUTE_VERDICT' | 'MEMORY_SUMMARY' | 'PROMPT_PREVIEW' | 'CHAT_SUGGESTIONS' | 'CHAT_REVISION' | 'PROACTIVE_GREETING' | 'IMAGE_UNDERSTANDING' | 'AUDIO_TRANSCRIPTION';
 /** 只有用户主动的聊天回合消耗聊天每日次数；后台任务只受成本预算约束。 */
 const CONSUMES_DAILY_SLOT = new Set<AiOperation>(['SEND', 'REGENERATE']);
 /**
@@ -45,11 +46,17 @@ export async function reserveAiCall(userId:string,conversationId:string,operatio
   if(consumesSlot&&limit===0)throw new AiQuotaError(Math.ceil((quotaReset(now,timezone).getTime()-now.getTime())/1000));
   // 任务预算在事务外读设置：设置缓存可能另开连接，别和写事务抢同一条 SQLite 连接。
   const taskLimit=task?await readTaskBudget(task):null;
+  const proactiveDailyLimit=operation==='PROACTIVE_GREETING'?await readSettingValue<number>('proactive.maxPerUserDaily'):null;
   try { return await db.$transaction(async tx=>{
     // Claim the quota writer before choosing the UTC day or inspecting completed costs.
     // A request queued behind another completion must evaluate that completion, too.
     await tx.$executeRaw`UPDATE ai_daily_usage SET count=count WHERE user_id=${userId}`;
     const now=new Date(),day=quotaDay(now,timezone);
+    if(proactiveDailyLimit!==null){
+      const {startAt,resetAt}=resolveZonedDayRange(now,timezone);
+      const accepted=await tx.aiCall.count({where:{userId,operation:'PROACTIVE_GREETING',startedAt:{gte:startAt,lt:resetAt}}});
+      if(accepted>=proactiveDailyLimit)throw new AiQuotaError(Math.max(1,Math.ceil((resetAt.getTime()-now.getTime())/1000)),{status:429,code:'AI_TASK_BUDGET',scope:'task',message:'今日主动问候尝试次数已达上限，将在下个业务日恢复。'});
+    }
     if(consumesSlot){
       const changed=await tx.$executeRaw`INSERT INTO ai_daily_usage (user_id,day,count) VALUES (${userId},${day},1)
         ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < ${limit}`;

@@ -23,6 +23,10 @@ const either = (...rules: Array<(key: string) => boolean>) => (key: string) => r
 /** 展示目录的唯一规则表。未匹配的新 registry 键会落入「其他设置」，不会静默丢失。 */
 const RULES: Record<SettingGroup, SectionRule[]> = {
   chat: [
+    {id: 'chat-media', title: '图片理解与录音', description: '媒体任务开关、每日次数与录音时长；模型和预算在AI平台配置。', matches: starts('media.')},
+    {id: 'chat-revisions', title: '续写与改写', description: '开放状态、计费方式与改写要求长度。', matches: starts('chat.revisions.')},
+    {id: 'chat-context', title: '身份与世界书', description: '用户身份、私人角色补充和世界书注入上限。', matches: either(starts('chat.worldbooks.'), exact('chat.personaMaxChars', 'chat.personalOverrideMaxChars'))},
+    {id: 'chat-response', title: '回复风格与长度', description: '配置用户可选的回复方式，后台指令不公开。', matches: exact('chat.responseStyles', 'chat.responseLengths')},
     {id: 'chat-input', title: '聊天输入与回复', description: '输入长度、历史消息、回复次数与聊天限流。', matches: either(starts('limits.chat.'), exact('chat.maxMessageChars', 'chat.historyMessages', 'billing.hardDailyMessages'))},
     {id: 'chat-relationship', title: '关系与成长', description: '关系等级、每次有效回复的成长值；关系模式提示词在提示词分类维护。', matches: starts('relationship.')},
     {id: 'chat-sharing', title: '聊天分享', description: '分享选取范围；公开链接由授权快照控制，后续私聊不会自动公开。', matches: starts('chat.share')},
@@ -43,6 +47,8 @@ const RULES: Record<SettingGroup, SectionRule[]> = {
     {id: 'billing-ai-budget', title: '各类 AI 任务预算', description: '按聊天、故事、Mirror、评理和记忆任务分别设置成本预算。', matches: starts('budget.task.')},
   ],
   growth: [
+    {id: 'growth-notifications', title: '站内通知与到期提醒', description: '会员提醒开放与提前时间，尊重用户免打扰偏好。', matches: starts('notifications.')},
+    {id: 'growth-proactive', title: '角色主动问候', description: '订阅上限、发送间隔和每日数量，须用户主动订阅。', matches: starts('proactive.')},
     {id: 'growth-grant', title: '赠币', description: '注册赠币与全站、单用户日发币上限。', matches: starts('grant.')},
     {id: 'growth-onboarding', title: '首次进入与兴趣推荐', description: '新手引导开关、可选兴趣与可编辑开场短句；参数由前台引导和服务端推荐共同读取。', matches: exact('growth.onboardingEnabled', 'growth.interestTags', 'growth.openingSuggestions')},
     {id: 'growth-discovery', title: '发现与推荐', description: '推荐分区数量和已支持的推荐策略；首次进入的推荐数量单独配置。', matches: either(starts('discovery.'), exact('growth.recommendationLimit'))},

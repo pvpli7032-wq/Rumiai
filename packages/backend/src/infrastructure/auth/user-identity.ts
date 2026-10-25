@@ -1,3 +1,4 @@
+import {normalizeReaderPreferences} from '@rumiai/contracts/accounts/preferences';
 import { randomBytes } from 'node:crypto';
 import { db } from '@rumiai/backend/infrastructure/database/client';
 
@@ -50,11 +51,13 @@ export function isUniqueViolation(error: unknown): boolean {
  * Shape a user row for API responses. `name` stays in the payload because the
  * whole client surface reads it, but it now prefers displayName over the handle.
  */
-export function formatUser<T extends { username: string; displayName?: string | null; avatarUrl?: string | null }>(
+export function formatUser<T extends { username: string; displayName?: string | null; avatarUrl?: string | null; readerPreferencesJson?: string | null; readingMode?: boolean }>(
   user: T
 ) {
+  const {readerPreferencesJson, ...publicUser} = user;
   return {
-    ...user,
+    ...publicUser,
+    readerPreferences: normalizeReaderPreferences(readerPreferencesJson, user.readingMode),
     name: user.displayName ?? user.username,
     avatar_url: user.avatarUrl ?? null,
   };

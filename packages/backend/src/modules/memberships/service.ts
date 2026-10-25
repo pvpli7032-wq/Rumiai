@@ -62,10 +62,29 @@ export async function readMembershipCurrent(userId: string, now = new Date()): P
   return {orderNo: grant.order.orderNo, planCode: grant.order.plan.code, startsAt: grant.startsAt.toISOString(), expiresAt: grant.expiresAt.toISOString(), renewalExpiresAt: renewalExpiresAt.toISOString(), benefits: parseBenefits(grant.benefitsJson)};
 }
 
-export async function readMembershipOrders(userId: string) {
+export async function readMembershipOrderPage(userId: string, input: {cursor?: string | null; limit?: string | null} = {}) {
   await pragmasReady;
-  const orders = await db.membershipOrder.findMany({where: {userId}, orderBy: {createdAt: 'desc'}, take: 50, include: {plan: true, refund: true, grant: true}});
-  return orders.map(order => ({orderNo: order.orderNo, planCode: order.plan.code, planName: order.plan.name, amountCents: order.amountCents, durationDays: order.durationDays, status: order.status, paidAt: order.paidAt?.toISOString() ?? null, createdAt: order.createdAt.toISOString(), grant: order.grant ? {startsAt: order.grant.startsAt.toISOString(), expiresAt: order.grant.expiresAt.toISOString(), status: order.grant.status} : null, refund: order.refund ? {status: order.refund.status, amountCents: order.refund.amountCents, deductedCents: order.refund.deductedCents} : null}));
+  const limit = input.limit == null || input.limit === '' ? 20 : Number(input.limit);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new MembershipError('每页数量须为 1–100。', 400);
+  let before: {createdAt: Date; id: string} | null = null;
+  if (input.cursor) try {
+    const value = JSON.parse(Buffer.from(input.cursor, 'base64url').toString('utf8'));
+    const createdAt = new Date(value.createdAt);
+    if (typeof value.id !== 'string' || !value.id || value.id.length > 100 || !Number.isFinite(createdAt.getTime())) throw Error();
+    before = {id: value.id, createdAt};
+  } catch {throw new MembershipError('会员订单游标无效。', 400);}
+  const rows = await db.membershipOrder.findMany({
+    where: {userId, ...(before ? {OR: [{createdAt: {lt: before.createdAt}}, {createdAt: before.createdAt, id: {lt: before.id}}]} : {})},
+    orderBy: [{createdAt: 'desc'}, {id: 'desc'}], take: limit + 1, include: {plan: true, refund: true, grant: true},
+  });
+  const page = rows.slice(0, limit), last = page.at(-1);
+  return {
+    items: page.map(order => ({orderNo: order.orderNo, planCode: order.plan.code, planName: order.planNameSnapshot ?? order.plan.name, amountCents: order.amountCents, durationDays: order.durationDays, status: order.status, paidAt: order.paidAt?.toISOString() ?? null, createdAt: order.createdAt.toISOString(), grant: order.grant ? {startsAt: order.grant.startsAt.toISOString(), expiresAt: order.grant.expiresAt.toISOString(), status: order.grant.status} : null, refund: order.refund ? {status: order.refund.status, amountCents: order.refund.amountCents, deductedCents: order.refund.deductedCents} : null})),
+    nextCursor: rows.length > limit && last ? Buffer.from(JSON.stringify({id: last.id, createdAt: last.createdAt.toISOString()})).toString('base64url') : null,
+  };
+}
+export async function readMembershipOrders(userId: string) {
+  return (await readMembershipOrderPage(userId, {limit: '50'})).items;
 }
 
 /** Account-management projection: membership owns its order/grant/usage rules. */
@@ -182,7 +201,7 @@ export async function createMembershipOrder(input: {userId: string; planCode: st
     if (existing) return existing;
     const [plan, policy] = await Promise.all([tx.membershipPlan.findUnique({where: {code: input.planCode.toUpperCase()}}), tx.membershipPolicy.findUnique({where: {id: 'primary'}})]);
     if (!plan || !plan.isActive || plan.priceCents === null || plan.priceCents < 1) throw new MembershipError('该会员套餐暂未开放购买。', 409, 'PLAN_UNAVAILABLE');
-    return tx.membershipOrder.create({data: {orderNo: input.orderNo, userId: input.userId, idempotencyKey: input.idempotencyKey, planId: plan.id, paymentOrderId: input.paymentOrderId, amountCents: plan.priceCents, durationDays: plan.durationDays, refundWindowHours: policy?.refundWindowHours ?? DEFAULT_POLICY.refundWindowHours, usageChargePeriodHours: policy?.usageChargePeriodHours ?? DEFAULT_POLICY.usageChargePeriodHours, benefitsJson: plan.benefitsJson}});
+    return tx.membershipOrder.create({data: {orderNo: input.orderNo, userId: input.userId, idempotencyKey: input.idempotencyKey, planId: plan.id, paymentOrderId: input.paymentOrderId, amountCents: plan.priceCents, planNameSnapshot: plan.name, durationDays: plan.durationDays, refundWindowHours: policy?.refundWindowHours ?? DEFAULT_POLICY.refundWindowHours, usageChargePeriodHours: policy?.usageChargePeriodHours ?? DEFAULT_POLICY.usageChargePeriodHours, benefitsJson: plan.benefitsJson}});
   });
 }
 

@@ -15,6 +15,17 @@ datasource db {
 
 /// User account model managing profile, auth credentials, tier, and economy state
 model User {
+  readerPreferencesJson String? @map("reader_preferences_json")
+  personas UserPersona[]
+  worldbooks Worldbook[]
+  messageFeedback MessageFeedback[]
+  searchHistory UserSearchHistory[]
+  hiddenCharacters UserHiddenCharacter[]
+  characterDrafts CharacterDraft[]
+  storySaves StorySave[]
+  notificationPreference NotificationPreference?
+  proactiveSubscriptions ProactiveSubscription[]
+  mediaTasks MediaTaskRequest[]
   suggestionRequests ChatSuggestionRequest[]
   id                   String    @id @default(cuid())
   username             String    @unique
@@ -387,6 +398,8 @@ model UploadAsset {
 
 /// Character model for AI persona (both user-created and system featured characters)
 model Character {
+  worldbookBindings CharacterWorldbook[]
+  hiddenByUsers UserHiddenCharacter[]
   communityPosts       Post[]
   id                   String             @id @default(cuid())
   name                 String
@@ -618,6 +631,18 @@ model Report {
 
 /// Conversation container between a User and a Character
 model Conversation {
+  pinnedAt DateTime? @map("pinned_at")
+  parentConversationId String? @map("parent_conversation_id")
+  forkMessageId String? @map("fork_message_id")
+  personaId String? @map("persona_id")
+  persona UserPersona? @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  personalCharacterOverride String? @map("personal_character_override")
+  responseStyle String? @map("response_style")
+  responseLength String? @map("response_length")
+  worldbookBindings ConversationWorldbook[]
+  contextUses ConversationContextUse[]
+  proactiveSubscriptions ProactiveSubscription[]
+  mediaTasks MediaTaskRequest[]
   relationshipEvents ConversationRelationshipEvent[]
   suggestionRequests ChatSuggestionRequest[]
   id                 String    @id @default(cuid())
@@ -662,6 +687,10 @@ model Conversation {
 
 /// Chat message history inside a conversation
 model Message {
+  contextIncluded Boolean @default(true) @map("context_included")
+  selectedVersionId String? @map("selected_version_id")
+  versions MessageVersion[]
+  feedback MessageFeedback[]
   id             String    @id @default(cuid())
   conversationId String    @map("conversation_id")
   role           String // USER, ASSISTANT, SYSTEM
@@ -693,6 +722,8 @@ model Message {
 /// User-sent chat media. IMAGE points to an owned upload; STICKER points to the fixed catalog.
 /// AUDIO is deliberately absent until the voice-message product and processing rules exist.
 model MessageAttachment {
+  stickerSnapshotJson String? @map("sticker_snapshot_json")
+  durationMs Int? @map("duration_ms")
   id            String      @id @default(cuid())
   messageId     String      @map("message_id")
   type          String
@@ -1044,6 +1075,7 @@ model MembershipPolicy {
 
 /// Immutable membership purchase snapshot. Payment adapters may attach their PaymentOrder later.
 model MembershipOrder {
+  planNameSnapshot String? @map("plan_name_snapshot")
   id                     String            @id @default(cuid())
   orderNo                String            @unique @map("order_no")
   userId                 String            @map("user_id")
@@ -1542,6 +1574,9 @@ model AiProvider {
 }
 
 model AiModel {
+  supportsChat Boolean @default(true) @map("supports_chat")
+  supportsVision Boolean @default(false) @map("supports_vision")
+  supportsTranscription Boolean @default(false) @map("supports_transcription")
   id              String             @id @default(cuid())
   key             String             @unique
   displayName     String             @map("display_name")
@@ -1813,6 +1848,9 @@ model StoryTemplateVersion {
 
 /// 故事运行实例。与 Conversation 一对一；没有实例的会话就是普通自由聊天。
 model StoryRun {
+  parentRunId String? @map("parent_run_id")
+  restoredFromSaveId String? @map("restored_from_save_id")
+  saves StorySave[]
   id                          String    @id @default(cuid())
   userId                      String    @map("user_id")
   conversationId              String    @unique @map("conversation_id")
@@ -2059,6 +2097,7 @@ model ModelCoinPrice {
 /// 一次生成请求的计费单。状态机：HELD → SETTLED / RELEASED，结果不明为 UNKNOWN。
 /// 价格快照在预扣时固化，后续改价不影响已开始请求。
 model GenerationCharge {
+  messageVersionId String? @map("message_version_id")
   id                String    @id @default(cuid())
   userId            String    @map("user_id")
   requestId         String    @map("request_id")
@@ -2218,6 +2257,9 @@ model BackgroundTask {
 
 /// 站内通知：审核结果、回复提醒、到账、活动结果共用一套。
 model Notification {
+  deliveryState String @default("DELIVERED") @map("delivery_state")
+  availableAt DateTime? @map("available_at")
+  @@index([userId, deliveryState, availableAt])
   id         String    @id @default(cuid())
   userId     String    @map("user_id")
   type       String
@@ -2294,4 +2336,203 @@ model ConversationRelationshipEvent {
  @@unique([conversationId,requestId])
  @@index([conversationId,createdAt])
  @@map("conversation_relationship_events")
+}
+
+model MessageVersion {
+ id String @id @default(cuid())
+ messageId String @map("message_id")
+ content String
+ source String
+ createdAt DateTime @default(now()) @map("created_at")
+ message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+ @@index([messageId, createdAt])
+ @@map("message_versions")
+}
+model UserPersona {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ name String
+ description String
+ version Int @default(0)
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ conversations Conversation[]
+ @@index([userId])
+ @@map("user_personas")
+}
+model Worldbook {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ name String
+ enabled Boolean @default(true)
+ isPublic Boolean @default(false) @map("is_public")
+ version Int @default(0)
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ entries WorldbookEntry[]
+ conversationBindings ConversationWorldbook[]
+ characterBindings CharacterWorldbook[]
+ @@index([userId])
+ @@map("worldbooks")
+}
+model WorldbookEntry {
+ id String @id @default(cuid())
+ worldbookId String @map("worldbook_id")
+ keywordsJson String @map("keywords_json")
+ content String
+ priority Int @default(0)
+ enabled Boolean @default(true)
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ worldbook Worldbook @relation(fields: [worldbookId], references: [id], onDelete: Cascade)
+ @@index([worldbookId, priority])
+ @@map("worldbook_entries")
+}
+model ConversationWorldbook {
+ conversationId String @map("conversation_id")
+ worldbookId String @map("worldbook_id")
+ conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+ worldbook Worldbook @relation(fields: [worldbookId], references: [id], onDelete: Cascade)
+ @@id([conversationId, worldbookId])
+ @@map("conversation_worldbooks")
+}
+model CharacterWorldbook {
+ characterId String @map("character_id")
+ worldbookId String @map("worldbook_id")
+ character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+ worldbook Worldbook @relation(fields: [worldbookId], references: [id], onDelete: Cascade)
+ @@id([characterId, worldbookId])
+ @@map("character_worldbooks")
+}
+model ConversationContextUse {
+ id String @id @default(cuid())
+ conversationId String @map("conversation_id")
+ requestId String @map("request_id")
+ sourcesJson String @map("sources_json")
+ createdAt DateTime @default(now()) @map("created_at")
+ conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+ @@unique([conversationId, requestId])
+ @@map("conversation_context_uses")
+}
+model MessageFeedback {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ messageId String @map("message_id")
+ reason String
+ createdAt DateTime @default(now()) @map("created_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+ @@unique([userId, messageId, reason])
+ @@map("message_feedback")
+}
+model UserSearchHistory {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ query String
+ lastUsedAt DateTime @updatedAt @map("last_used_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ @@unique([userId, query])
+ @@index([userId, lastUsedAt])
+ @@map("user_search_history")
+}
+model UserHiddenCharacter {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ characterId String @map("character_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+ @@unique([userId, characterId])
+ @@map("user_hidden_characters")
+}
+model CharacterDraft {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ slot String
+ draftJson String @map("draft_json")
+ version Int @default(0)
+ updatedAt DateTime @updatedAt @map("updated_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ @@unique([userId, slot])
+ @@map("character_drafts")
+}
+model StorySave {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ runId String @map("run_id")
+ title String
+ snapshotJson String @map("snapshot_json")
+ createdAt DateTime @default(now()) @map("created_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ run StoryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+ @@index([userId, runId, createdAt])
+ @@map("story_saves")
+}
+model NotificationPreference {
+ userId String @id @map("user_id")
+ categoriesJson String @default("{}") @map("categories_json")
+ timezone String @default("UTC")
+ quietEnabled Boolean @default(false) @map("quiet_enabled")
+ quietStartMinute Int @default(1320) @map("quiet_start_minute")
+ quietEndMinute Int @default(480) @map("quiet_end_minute")
+ version Int @default(0)
+ updatedAt DateTime @updatedAt @map("updated_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ @@map("notification_preferences")
+}
+model ProactiveSubscription {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ conversationId String @map("conversation_id")
+ enabled Boolean @default(false)
+ timezone String @default("UTC")
+ windowStartMinute Int @default(540) @map("window_start_minute")
+ windowEndMinute Int @default(1260) @map("window_end_minute")
+ intervalHours Int @default(24) @map("interval_hours")
+ nextRunAt DateTime @map("next_run_at")
+ lastAttemptAt DateTime? @map("last_attempt_at")
+ lastSentAt DateTime? @map("last_sent_at")
+ lastMessageId String? @map("last_message_id")
+ lastError String? @map("last_error")
+ version Int @default(0)
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+ @@unique([userId, conversationId])
+ @@index([enabled, nextRunAt])
+ @@map("proactive_subscriptions")
+}
+model ChatSticker {
+ id String @id
+ label String
+ glyph String
+ isActive Boolean @default(false) @map("is_active")
+ sortOrder Int @default(0) @map("sort_order")
+ version Int @default(0)
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ @@index([isActive, sortOrder, id])
+ @@map("chat_stickers")
+}
+model MediaTaskRequest {
+ id String @id @default(cuid())
+ userId String @map("user_id")
+ conversationId String @map("conversation_id")
+ operation String
+ requestId String @map("request_id")
+ requestHash String @map("request_hash")
+ assetId String? @map("asset_id")
+ resultText String? @map("result_text")
+ status String @default("PROCESSING")
+ errorCode String? @map("error_code")
+ createdAt DateTime @default(now()) @map("created_at")
+ finishedAt DateTime? @map("finished_at")
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+ @@unique([userId, operation, requestId])
+ @@index([userId, operation, createdAt])
+ @@map("media_task_requests")
 }

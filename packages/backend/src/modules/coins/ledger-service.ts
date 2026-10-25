@@ -1,47 +1,13 @@
+import type {Prisma} from '@prisma/client';
 import {db} from '@rumiai/backend/infrastructure/database/client';
-import type {CoinLedgerEntry, CoinLedgerPage} from '@rumiai/contracts/api-types/coins';
-
-export type {CoinLedgerEntry, CoinLedgerPage};
-
-/**
- * 金币流水与余额。纯读：余额取 user.coins，流水取 coin_transactions，
- * 首充判定看有没有 PURCHASE 类型的入账行——那是支付回调唯一会写的类型。
- */
-
-const TYPES = new Set(['PURCHASE', 'EARNED', 'SPENT']);
-
-function normalizeType(value: string): CoinLedgerEntry['type'] {
-  return (TYPES.has(value) ? value : 'EARNED') as CoinLedgerEntry['type'];
-}
-
-export async function readCoinLedger(userId: string, options: {cursor?: string | null; take?: number} = {}): Promise<CoinLedgerPage> {
-  const take = Math.min(Math.max(options.take ?? 20, 1), 50);
-  const cursor = options.cursor && /^[A-Za-z0-9_-]{1,64}$/.test(options.cursor) ? options.cursor : null;
-
-  const [user, purchaseCount, rows] = await Promise.all([
-    db.user.findUnique({where: {id: userId}, select: {coins: true}}),
-    db.coinTransaction.count({where: {userId, type: 'PURCHASE'}}),
-    db.coinTransaction.findMany({
-      where: {userId},
-      orderBy: [{createdAt: 'desc'}, {id: 'desc'}],
-      take: take + 1,
-      ...(cursor ? {cursor: {id: cursor}, skip: 1} : {}),
-      select: {id: true, type: true, amount: true, description: true, sourceKey: true, createdAt: true},
-    }),
-  ]);
-
-  const page = rows.slice(0, take);
-  return {
-    balance: user?.coins ?? 0,
-    firstPurchase: purchaseCount === 0,
-    items: page.map(row => ({
-      id: row.id,
-      type: normalizeType(row.type),
-      amount: row.amount,
-      description: row.description,
-      sourceKey: row.sourceKey,
-      createdAt: row.createdAt.toISOString(),
-    })),
-    nextCursor: rows.length > take ? page[page.length - 1]?.id ?? null : null,
-  };
+import type {CoinLedgerEntry,CoinLedgerPage} from '@rumiai/contracts/api-types/coins';
+export type {CoinLedgerEntry,CoinLedgerPage};
+export class CoinLedgerError extends Error {constructor(readonly status:number,message:string){super(message);}}
+export type CoinLedgerOptions={cursor?:string|null;take?:number;direction?:string|null;source?:string|null;from?:string|null;to?:string|null};
+const TYPES=new Set(['PURCHASE','EARNED','SPENT']);
+function dateBoundary(value:string|undefined|null,end=false){if(!value)return undefined;if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw new CoinLedgerError(400,'日期请使用 YYYY-MM-DD。');const date=new Date(value+'T00:00:00.000Z');if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value)throw new CoinLedgerError(400,'日期无效。');return end?new Date(date.getTime()+86400000):date;}
+/** 仅查询已入账流水；日期范围明确使用 UTC，筛选不修改账务。 */
+export async function readCoinLedger(userId:string,options:CoinLedgerOptions={}):Promise<CoinLedgerPage>{
+const take=Math.min(Math.max(Math.trunc(options.take??20)||20,1),50);const from=dateBoundary(options.from),to=dateBoundary(options.to,true);if(from&&to&&from>=to)throw new CoinLedgerError(400,'开始日期不能晚于结束日期。');if(options.direction&&!['all','in','out'].includes(options.direction))throw new CoinLedgerError(400,'收支方向无效。');if(options.source&&!/^[A-Z][A-Z0-9_]{0,63}$/.test(options.source))throw new CoinLedgerError(400,'流水来源无效。');const where:Prisma.CoinTransactionWhereInput={userId,...(options.direction==='in'?{amount:{gt:0}}:options.direction==='out'?{amount:{lt:0}}:{}),...(options.source?{sourceKey:options.source}:{}),...(from||to?{createdAt:{...(from?{gte:from}:{}),...(to?{lt:to}:{})}}:{})};const cursor=options.cursor&&/^[A-Za-z0-9_-]{1,64}$/.test(options.cursor)?await db.coinTransaction.findFirst({where:{...where,id:options.cursor},select:{id:true}}):null;if(options.cursor&&!cursor)throw new CoinLedgerError(400,'流水游标已失效，请刷新筛选。');
+const [user,purchaseCount,rows,sources]=await Promise.all([db.user.findUnique({where:{id:userId},select:{coins:true}}),db.coinTransaction.count({where:{userId,type:'PURCHASE'}}),db.coinTransaction.findMany({where,orderBy:[{createdAt:'desc'},{id:'desc'}],take:take+1,...(cursor?{cursor:{id:cursor.id},skip:1}:{}),select:{id:true,type:true,amount:true,description:true,sourceKey:true,createdAt:true,chargeId:true,paymentOrderId:true,refundId:true,refundReleaseId:true}}),db.coinTransaction.findMany({where:{userId},distinct:['sourceKey'],select:{sourceKey:true},orderBy:{sourceKey:'asc'}})]);const chargeIds=rows.flatMap(row=>row.chargeId?[row.chargeId]:[]);const charges=chargeIds.length?await db.generationCharge.findMany({where:{id:{in:chargeIds},userId},select:{id:true,conversationId:true}}):[];const conversationIds=charges.flatMap(row=>row.conversationId?[row.conversationId]:[]);const liveConversations=new Set((await db.conversation.findMany({where:{id:{in:conversationIds},userId},select:{id:true}})).map(row=>row.id));const chargeById=new Map(charges.filter(row=>row.conversationId&&liveConversations.has(row.conversationId)).map(row=>[row.id,row.conversationId]));const page=rows.slice(0,take);return {balance:user?.coins??0,firstPurchase:purchaseCount===0,items:page.map(row=>({id:row.id,type:(TYPES.has(row.type)?row.type:'EARNED') as CoinLedgerEntry['type'],amount:row.amount,description:row.description,sourceKey:row.sourceKey,createdAt:row.createdAt.toISOString(),sourceHref:row.chargeId&&chargeById.get(row.chargeId)?'/chat?conversation='+encodeURIComponent(chargeById.get(row.chargeId)!):row.paymentOrderId||row.refundId||row.refundReleaseId?'/shop':null})),nextCursor:rows.length>take?page.at(-1)?.id??null:null,availableSources:sources.map(row=>row.sourceKey),dateTimezone:'UTC'};
 }

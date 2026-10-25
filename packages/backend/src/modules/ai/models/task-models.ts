@@ -13,7 +13,7 @@ import {readAiModelPlan, type RuntimeAiModel} from './runtime-service';
  * token 上限与重试次数不在这里决定：它们来自 ai_models.maxOutputTokens / maxRetries，
  * 随 RuntimeAiModel 一起带出来，任务级不重复配置一套。
  */
-export const AI_TASK_NAMES = ['chat', 'story', 'mirror', 'disputeVerdict', 'memorySummary', 'chatSuggestions'] as const;
+export const AI_TASK_NAMES = ['chat', 'story', 'mirror', 'disputeVerdict', 'memorySummary', 'chatSuggestions', "chatRevision", "proactiveGreeting", "imageUnderstanding", "audioTranscription"] as const;
 
 export type AiTaskName = (typeof AI_TASK_NAMES)[number];
 
@@ -24,6 +24,10 @@ export const TASK_MODEL_SETTING: Record<AiTaskName, string> = {
   mirror: 'ai.taskModel.mirror',
   disputeVerdict: 'ai.taskModel.disputeVerdict',
   memorySummary: 'ai.taskModel.memorySummary',
+  chatRevision: 'ai.taskModel.chatRevision',
+  proactiveGreeting: 'ai.taskModel.proactiveGreeting',
+  imageUnderstanding: 'ai.taskModel.imageUnderstanding',
+  audioTranscription: 'ai.taskModel.audioTranscription',
   chatSuggestions: 'ai.taskModel.chatSuggestions',
 };
 
@@ -33,6 +37,10 @@ export const TASK_LABELS: Record<AiTaskName, string> = {
   mirror: '他眼中的你',
   disputeVerdict: '评理结案',
   memorySummary: '记忆摘要',
+  chatRevision: "聊天续写与改写",
+  proactiveGreeting: "主动问候",
+  imageUnderstanding: "图片理解",
+  audioTranscription: "语音转写",
   chatSuggestions: '接话建议',
 };
 
@@ -54,6 +62,11 @@ export async function readTaskModelPlan(
   options: {preferred?: string | null; characterId?: string} = {},
 ): Promise<RuntimeAiModel[] | null> {
   const configured = await readTaskModelKey(task);
+  if (task === 'imageUnderstanding' || task === 'audioTranscription') {
+    if (!configured) return [];
+    const mediaPlan = await readAiModelPlan(configured, undefined, task === 'imageUnderstanding' ? 'vision' : 'transcription');
+    return mediaPlan?.[0]?.key === configured ? mediaPlan : [];
+  }
   if (!configured) return readAiModelPlan(options.preferred, options.characterId);
 
   const plan = await readAiModelPlan(configured, options.characterId);

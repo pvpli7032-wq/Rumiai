@@ -14,6 +14,7 @@ export async function GET(request: Request, {params}: {params: Promise<{id: stri
     const result = await listCharacterComments(id, auth?.userId, {
       limit: Number(searchParams.get('limit')) || undefined,
       cursor: searchParams.get('cursor'),
+      sort: searchParams.get('sort')??'new',
     });
     return NextResponse.json(result);
   } catch (error) {

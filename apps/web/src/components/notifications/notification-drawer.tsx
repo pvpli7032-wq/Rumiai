@@ -12,6 +12,8 @@ const TYPE_ICONS: Record<string, LucideIcon> = {
   REPLY: MessageSquare,
   COIN_RECEIVED: Coins,
   ACTIVITY_RESULT: Trophy,
+  MEMBERSHIP_EXPIRY: BadgeCheck,
+  PROACTIVE_GREETING: MessageSquare,
 };
 
 /** 回复提醒正文由服务端压缩到两行以内；历史行可能更长，显示时再兜一次。 */
@@ -42,6 +44,7 @@ function NotificationRow({item, onRead}: {item: NotificationItem; onRead: (id: s
           {unread && <span aria-label="未读" className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
         </span>
         {rowBody(item) && <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{rowBody(item)}</span>}
+        {item.targetUnavailableReason&&<span className="mt-1 block text-xs text-muted-foreground">{item.targetUnavailableReason}</span>}
         <span className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
           <span>{notificationTypeLabel(item.type)}</span>
           <time dateTime={item.createdAt}>{formatTime(item.createdAt)}</time>
@@ -63,7 +66,7 @@ function NotificationRow({item, onRead}: {item: NotificationItem; onRead: (id: s
           {content}
         </Link>
       ) : (
-        <div className={className}>{content}</div>
+        <button type="button" className={className} onClick={()=>{if(unread)onRead(item.id);}}>{content}</button>
       )}
     </li>
   );

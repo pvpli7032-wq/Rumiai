@@ -59,7 +59,7 @@ export async function listPublicCharacterPosts(characterId: string) {
 
 export async function listCharacters(options: {
   search?: string; scope?: string | null; sort?: string; tags?: string[]; userId?: string;
-  exclusive?: boolean; limit?: number; after?: {id: string; chatCount: number; createdAt: string};
+  excludeHidden?: boolean; exclusive?: boolean; limit?: number; after?: {id: string; chatCount: number; createdAt: string};
 }) {
   const {search = '', scope = null, sort = 'popular', tags = [], userId, after} = options;
   if (search.length > 200) throw new CharacterCatalogError('搜索词过长。', 400);
@@ -69,8 +69,10 @@ export async function listCharacters(options: {
   if (!['new', 'popular'].includes(sort)) throw new CharacterCatalogError('未知排序方式。', 400);
 
   const normalizedTags = tags.filter(Boolean).slice(0, 10);
+  const hidden = userId && scope !== 'mine' && options.excludeHidden === true ? await db.userHiddenCharacter.findMany({where: {userId}, select: {characterId: true}}) : [];
   const characters = await db.character.findMany({
     where: {
+      ...(hidden.length ? {id: {notIn: hidden.map(row => row.characterId)}} : {}),
       ...(scope === 'mine' ? {creatorId: userId} : {isPublic: true, reviewStatus: 'APPROVED'}),
       ...(options.exclusive !== undefined ? {isExclusive: options.exclusive} : {}),
       ...(scope === 'bookmarked' && {bookmarks: {some: {userId}}}),

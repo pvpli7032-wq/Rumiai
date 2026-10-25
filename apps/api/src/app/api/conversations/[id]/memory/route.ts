@@ -1,3 +1,4 @@
+import {createMemoryFact} from '@rumiai/backend/modules/memory/fact-service';
 import {NextResponse} from 'next/server';
 import {getAuthUser} from '@rumiai/backend/infrastructure/auth/auth';
 import {logRouteError} from '@rumiai/backend/infrastructure/logging/logger';
@@ -25,3 +26,5 @@ export async function GET(request: Request, {params}: {params: Promise<{id: stri
     return NextResponse.json({error: '读取记忆失败，请重试。'}, {status: 500});
   }
 }
+
+export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){try{const auth=await getAuthUser(request);if(!auth)return NextResponse.json({error:'请先登录。'},{status:401});const id=(await params).id;if(!(await readMemorySettings(auth.userId)).enabled)return NextResponse.json({error:'聊天记忆尚未开放。'},{status:409});const body=await request.json().catch(()=>null);if(!body||typeof body!=='object'||Array.isArray(body))return NextResponse.json({error:'数据格式不正确。'},{status:400});return NextResponse.json(await createMemoryFact(auth.userId,id,body),{headers:{'Cache-Control':'private, no-store'}});}catch(error){if(error instanceof MemoryError)return NextResponse.json({error:error.message},{status:error.status});logRouteError('POST conversation memory',error);return NextResponse.json({error:'记忆保存失败，请重试。'},{status:500});}}

@@ -60,6 +60,11 @@ export async function readSiteOwnedUpload(name:string) {
 }
 
 export async function readVisibleUpload(name: string, userId: string | null) {
+  if(/^[A-Za-z0-9_-]{1,160}\.wav$/.test(name)){
+    const audio=userId?await db.uploadAsset.findFirst({where:{url:'/uploads/'+name,ownerId:userId,siteOwned:false,mimeType:'audio/wav',owner:{deletedAt:null}}}):null;
+    if(!audio)throw new UploadError('录音不存在。',404);
+    try{return{bytes:await readFile(path.join(uploadDirectory(),name)),contentType:'audio/wav'};}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')throw new UploadError('录音不存在。',404);throw error;}
+  }
   if (!/^[A-Za-z0-9_-]{1,160}\.(?:jpg|png|webp)$/.test(name)) throw new UploadError('图片不存在。', 404);
   const url = `/uploads/${name}`;
   const asset = await db.uploadAsset.findUnique({ where: { url }, select: { ownerId: true, siteOwned: true, owner: { select: { deletedAt: true } } } });

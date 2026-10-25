@@ -43,34 +43,46 @@ export default function CoinLedgerPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const loadedOnce = useRef(false);
+  const generation = useRef(0);
+  const [filters,setFilters]=useState({direction:'all',source:'',from:'',to:''});
+  const [draftFilters,setDraftFilters]=useState(filters);
+  const [sources,setSources]=useState<string[]>([]);
 
   const load = useCallback(async (nextCursor?: string | null) => {
     if (!token) return;
+    const requestGeneration=generation.current;
     const first = !loadedOnce.current;
     if (first) setLoading(true);
     else setLoadingMore(true);
     try {
-      const query = nextCursor ? `take=20&cursor=${encodeURIComponent(nextCursor)}` : 'take=20';
+      const params=new URLSearchParams({take:'20',direction:filters.direction});
+      for(const key of ['source','from','to'] as const)if(filters[key])params.set(key,filters[key]);
+      if(nextCursor)params.set('cursor',nextCursor);
+      const query=params.toString();
       const page = await api.get<CoinLedgerPage>(API.coins.ledger(query), {token});
+      if(requestGeneration!==generation.current)return;
+      setSources(page.availableSources??[]);
       setBalance(page.balance);
       setItems(previous => (nextCursor ? [...previous, ...page.items] : page.items));
       setCursor(page.nextCursor);
       setError('');
       loadedOnce.current = true;
     } catch (value) {
+      if(requestGeneration!==generation.current)return;
       setError((value as Error).message || '读取金币流水失败。');
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if(requestGeneration===generation.current){setLoading(false);setLoadingMore(false);}
     }
-  }, [token]);
+  }, [token,filters]);
 
   useEffect(() => {
+    generation.current++;loadedOnce.current=false;setItems([]);setCursor(null);setBalance(null);setError('');
     if (!token) {
       setLoading(false);
       return;
     }
     void load(null);
+    return ()=>{generation.current++;};
   }, [token, load]);
 
   return (
@@ -94,11 +106,12 @@ export default function CoinLedgerPage() {
               {(balance ?? user?.coins ?? 0).toLocaleString()}
             </p>
           </div>
-          <button onClick={() => void refreshUser()} className="rounded-lg border border-brand/30 px-3 py-2 text-xs font-semibold text-brand hover:bg-brand-soft/30">
+          <button onClick={() => {void refreshUser();void load(null);}} className="rounded-lg border border-brand/30 px-3 py-2 text-xs font-semibold text-brand hover:bg-brand-soft/30">
             刷新余额
           </button>
         </div>
 
+        {token&&<details className="rounded-xl border border-border"><summary className="cursor-pointer px-4 py-3 text-sm">筛选流水<span className="ml-2 text-xs text-muted-foreground">收支、来源与日期</span></summary><form className="grid grid-cols-2 gap-3 border-t border-border p-4" onSubmit={event=>{event.preventDefault();setFilters({...draftFilters});}}><label className="text-xs">收支方向<select className="mt-1 min-h-11 w-full rounded-xl border border-input bg-background px-2" value={draftFilters.direction} onChange={event=>setDraftFilters({...draftFilters,direction:event.target.value})}><option value="all">全部收支</option><option value="in">收入</option><option value="out">支出</option></select></label><label className="text-xs">来源<select className="mt-1 min-h-11 w-full rounded-xl border border-input bg-background px-2" value={draftFilters.source} onChange={event=>setDraftFilters({...draftFilters,source:event.target.value})}><option value="">全部来源</option>{sources.map(source=><option key={source} value={source}>{SOURCE_LABEL[source]??source}</option>)}</select></label><label className="min-w-0 text-xs">开始日期<input aria-label="流水开始日期" type="date" className="mt-1 min-h-11 w-full min-w-0 rounded-xl border border-input bg-background px-2" value={draftFilters.from} onChange={event=>setDraftFilters({...draftFilters,from:event.target.value})}/></label><label className="min-w-0 text-xs">结束日期<input aria-label="流水结束日期" type="date" className="mt-1 min-h-11 w-full min-w-0 rounded-xl border border-input bg-background px-2" value={draftFilters.to} onChange={event=>setDraftFilters({...draftFilters,to:event.target.value})}/></label><p className="col-span-2 text-xs text-muted-foreground">日期范围按 UTC 计算，含结束日期全天。</p><button type="submit" className="min-h-11 rounded-xl bg-brand-strong px-3 text-sm text-white">应用筛选</button><button type="button" className="min-h-11 rounded-xl border border-border px-3 text-sm" onClick={()=>{const empty={direction:'all',source:'',from:'',to:''};setDraftFilters(empty);setFilters(empty);}}>重置</button></form></details>}
         {!token ? (
           <p className="rounded-xl border border-border p-6 text-center text-sm text-muted-foreground">
             登录后可以查看自己的金币流水。<Link href={loginWithNext()} className="ml-1 underline underline-offset-4">去登录</Link>
@@ -108,7 +121,7 @@ export default function CoinLedgerPage() {
         ) : error ? (
           <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-red-500">{error}</p>
         ) : items.length === 0 ? (
-          <p className="rounded-xl border border-border p-8 text-center text-sm text-muted-foreground">还没有金币记录。签到、完成任务或充值后会出现在这里。</p>
+          <p className="rounded-xl border border-border p-8 text-center text-sm text-muted-foreground">当前筛选没有金币记录。可以调整条件或重置后查看全部。</p>
         ) : (
           <ul className="divide-y divide-border rounded-2xl border border-border">
             {items.map(entry => {
@@ -121,6 +134,7 @@ export default function CoinLedgerPage() {
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {TYPE_LABEL[entry.type]} · {SOURCE_LABEL[entry.sourceKey] ?? entry.sourceKey} · {new Date(entry.createdAt).toLocaleString('zh-CN')}
                     </p>
+                    {entry.sourceHref&&<Link href={entry.sourceHref} className="mt-1 inline-block py-1 text-xs text-brand underline underline-offset-4">{entry.sourceHref.startsWith('/chat')?'查看关联会话':'查看资产入口'}</Link>}
                   </div>
                   <span className={`shrink-0 text-sm font-bold tabular-nums ${positive ? 'text-foreground' : 'text-destructive'}`}>
                     {positive ? '+' : ''}{entry.amount.toLocaleString()}
