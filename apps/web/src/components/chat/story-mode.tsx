@@ -1,4 +1,7 @@
 'use client';
+import {ChatPanelSheet} from './chat-panel-sheet';
+import {StoryStateRecovery,unfinishedStoryTurns} from '@/components/stories/story-state-recovery';
+import {PlayModePicker} from '@/components/stories/play-mode-picker';
 import {StorySceneSettingsPanel} from '@/components/stories/story-scene-settings';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {useRouter} from 'next/navigation';
@@ -20,6 +23,8 @@ export function StoryMode({runId}: {runId: string}) {
   const router = useRouter(); const {token, isLoading: authLoading} = useAuth();
   const [run, setRun] = useState<StoryRunView | null>(null); const [items, setItems] = useState<ChatItem[]>([]); const [localItems, setLocalItems] = useState<ChatItem[]>([]);
   const [settingsOpen,setSettingsOpen]=useState(false);
+  const [menuOpen,setMenuOpen]=useState(false),[menuTab,setMenuTab]=useState<'chat'|'settings'>('chat');
+  useEffect(()=>{setMenuOpen(false);setSettingsOpen(false);},[runId]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(true); const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState(''); const [closeConfirmOpen, setCloseConfirmOpen] = useState(false); const [closing, setClosing] = useState(false); const [fatal, setFatal] = useState(''); const [streamText, setStreamText] = useState(''); const [historyUnavailable, setHistoryUnavailable] = useState(false);
   const requestId = useRef<string | null>(null); const requestContent = useRef<string | null>(null); const controller = useRef<AbortController | null>(null); const scrollRef = useRef<HTMLDivElement>(null);
@@ -104,11 +109,22 @@ export function StoryMode({runId}: {runId: string}) {
   if (loading) return <main className="h-full min-h-0 flex items-center justify-center bg-background text-foreground"><Loader2 className="h-6 w-6 animate-spin" /></main>;
   if (fatal) return <main className="h-full min-h-0 bg-background text-foreground p-6"><p role="alert">{fatal}</p><button className="mt-4 inline-flex items-center gap-2" onClick={back}><DesignIcon name="ph:arrow-left" size={20} />返回</button></main>;
   return <main className="h-full min-h-0 bg-background text-foreground flex flex-col">
-    <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2"><button type="button" aria-label="返回上一页" onClick={back} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-secondary"><DesignIcon name="ph:arrow-left" size={20} /></button><div className="min-w-0 flex-1"><h1 className="text-[15px] font-semibold">{run?.template.title}</h1><p className="text-sm text-muted-foreground">{run?.chapter.title}</p></div><button type="button" onClick={()=>setSettingsOpen(true)} className="flex min-h-11 shrink-0 items-center px-2 text-[15px] text-muted-foreground">场景设置</button></header>
+    <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-3 py-2"><button type="button" aria-label="返回上一页" onClick={back} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-secondary"><DesignIcon name="ph:arrow-left" size={20} /></button><div className="min-w-0 flex-1"><h1 className="text-[15px] font-semibold">{run?.template.title}</h1><p className="text-sm text-muted-foreground">{run?.chapter.title}</p></div><button type="button" aria-label="更多对话操作" aria-expanded={menuOpen} onClick={()=>{setMenuTab('chat');setMenuOpen(true);}} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"><DesignIcon name="ph:dots-three" size={24}/></button></header>
     {run&&token&&<StorySceneSettingsPanel run={run} token={token} open={settingsOpen} onClose={()=>setSettingsOpen(false)} onSaved={loadRun}/>}
+
+    {run&&token&&<ChatPanelSheet open={menuOpen} onClose={()=>setMenuOpen(false)} title="聊天与设置" size="half">
+      <div role="tablist" aria-label="聊天菜单分类" className="mb-3 grid grid-cols-2 gap-1 rounded-full bg-secondary p-1">
+        {(['chat','settings'] as const).map(tab=><button key={tab} type="button" role="tab" aria-selected={menuTab===tab} aria-controls={'story-menu-'+tab} onClick={()=>setMenuTab(tab)} className={'min-h-11 rounded-full text-[15px] '+(menuTab===tab?'bg-background text-foreground':'text-muted-foreground')}>{tab==='chat'?'聊天':'设置'}</button>)}
+      </div>
+      <div role="tabpanel" id="story-menu-chat" hidden={menuTab!=='chat'} className="space-y-4">
+        <StoryStateRecovery key={run.id} run={run} token={token} disabled={sending||closing} onRefresh={loadRun}/>
+        <div className="border-b border-border pb-3">{run.status==='ACTIVE'?<><button type="button" disabled={sending||closing||unfinishedStoryTurns(run.turns).length>0} onClick={()=>{setMenuOpen(false);setCloseConfirmOpen(true);}} className="min-h-12 w-full py-3 text-left text-[15px] disabled:opacity-40">结束本章</button>{unfinishedStoryTurns(run.turns).length>0&&<p className="text-[13px] leading-5 text-muted-foreground">请先完成上方状态整理，再结束章节。</p>}</>:<button type="button" disabled={closing} onClick={()=>{setMenuOpen(false);void resumeChapter();}} className="min-h-12 w-full py-3 text-left text-[15px] disabled:opacity-40">继续故事</button>}</div>
+        <StoryTools run={run} embedded canSave={unfinishedStoryTurns(run.turns).length===0} onSuggestion={text=>{setInput(text);setMenuOpen(false);}} onNavigateToMessage={id=>{setMenuOpen(false);requestAnimationFrame(()=>document.getElementById('story-message-'+id)?.scrollIntoView({block:'center',behavior:'smooth'}));}}/>
+      </div><div role="tabpanel" id="story-menu-settings" hidden={menuTab!=='settings'} className="divide-y divide-border"><button type="button" aria-label="场景设置" onClick={()=>{setMenuOpen(false);setSettingsOpen(true);}} className="min-h-16 w-full py-3 text-left"><span className="block text-[15px]">场景设置</span><span className="mt-1 block text-[13px] leading-5 text-muted-foreground">身份、章节目标、场景补充与叙事方式</span></button><details><summary className="min-h-14 cursor-pointer py-4 text-[15px]">切换玩法</summary><PlayModePicker characterId={run.characterId} token={token} currentMode="chapter"/></details></div>
+    </ChatPanelSheet>}
+
     <div className="mx-auto w-full max-w-3xl min-h-0 flex-1 overflow-y-auto px-4 py-5 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"><p>{run?.template.publicSummary}</p>{run?.status === 'ACTIVE' ? <button type="button" onClick={() => setCloseConfirmOpen(true)} disabled={sending || closing} className="min-h-11 rounded-full border border-border px-4 text-sm text-foreground disabled:opacity-50">{closing ? '正在结束…' : '结束本章'}</button> : <button type="button" onClick={() => void resumeChapter()} disabled={closing} className="min-h-11 rounded-full border border-border px-4 text-sm text-foreground disabled:opacity-50">{closing ? '正在继续…' : '继续故事'}</button>}</div>
-      {run&&<StoryTools run={run} onSuggestion={setInput}/>}
+      <p className="text-sm leading-6 text-muted-foreground">{run?.template.publicSummary}</p>
       {historyUnavailable && <p role="status" className="text-sm text-foreground">历史正文暂时无法读取</p>}
       {[...items, ...localItems].map(item => <article key={item.key} id={'story-message-'+item.key} className={'max-w-[85%] break-words rounded-[18px] px-4 py-3 text-[15px] leading-6 ' + (item.role === 'USER' ? 'ml-auto rounded-br-[6px] bg-secondary' : item.role === 'EVENT' ? 'mx-auto border border-border text-foreground' : 'rounded-bl-[6px] border border-border bg-card')}><p className="whitespace-pre-wrap">{item.text}</p></article>)}
       {streamText && <article className="max-w-[85%] whitespace-pre-wrap break-words rounded-[18px] rounded-bl-[6px] border border-border bg-card px-4 py-3">{streamText}</article>}

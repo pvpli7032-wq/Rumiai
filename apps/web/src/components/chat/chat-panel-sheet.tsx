@@ -4,7 +4,7 @@ import {useEffect, useId, useRef, type ReactNode} from 'react';
 import {DesignIcon} from '@/components/primitives/design-icon';
 
 /** Keep the existing panels mounted so hiding the sheet preserves unsaved fields. */
-export function ChatPanelSheet({open,onClose,title,children}:{open:boolean;onClose:()=>void;title:string;children:ReactNode}) {
+export function ChatPanelSheet({open,onClose,title,children,size='content'}:{open:boolean;onClose:()=>void;title:string;children:ReactNode;size?:'content'|'half'}) {
   const titleId=useId();
   const panel=useRef<HTMLDivElement>(null);
   const close=useRef<HTMLButtonElement>(null);
@@ -30,7 +30,7 @@ export function ChatPanelSheet({open,onClose,title,children}:{open:boolean;onClo
   },[open]);
   return <div hidden={!open} className="fixed inset-0 z-[70]">
     <div aria-hidden="true" className="absolute inset-0 bg-black/50" onClick={onClose} />
-    <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(var(--app-height,100dvh)-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-[24px] border border-border bg-card text-foreground shadow-xl sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:rounded-[24px]">
+    <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} style={size==='half'?{height:'calc(var(--app-height,100dvh) * 0.5)'}:undefined} className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(var(--app-height,100dvh)-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-[24px] border border-border bg-card text-foreground shadow-xl sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:rounded-[24px]">
       <header className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3"><h2 id={titleId} className="min-w-0 flex-1 text-lg font-semibold">{title}</h2><button ref={close} type="button" onClick={onClose} aria-label={'关闭' + title} className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"><DesignIcon name="ph:plus" size={20} className="rotate-45" /></button></header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
     </div>

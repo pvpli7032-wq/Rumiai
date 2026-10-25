@@ -17,8 +17,7 @@ import { EndChapterDialog } from '@/components/stories/end-chapter-dialog';
 import { buildChapterCloseData } from '@rumiai/contracts/stories/chapter-close';
 import {trackProductEvent} from '@web/lib/analytics-client/product-events-client';
 import { trackSceneFunnelEvent } from '@/lib/analytics-client/scene-funnel-client';
-import { Loader2 } from 'lucide-react';
-import { DesignIcon } from '@/components/primitives/design-icon';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ChatHeader } from './chat-header';
 import { BackButton } from '@/components/layout/back-button';
@@ -26,7 +25,7 @@ import { ChatMessageList } from './chat-message-list';
 import {MediaTools} from './media-tools';
 import { ChatComposer } from './chat-composer';
 import {useConversationTools} from './use-conversation-tools';
-import {ConversationContextPanel} from './conversation-context-panel';
+import {ConversationContextPanel,type ConversationSettingsView} from './conversation-context-panel';
 import {ChatAdvancedMessageTools} from './chat-advanced-message-tools';
 import { ChatSuggestions } from './chat-suggestions';
 import { ChatShareAndDispute } from './chat-share-dispute';
@@ -50,6 +49,7 @@ function ChatContent() {
   const [showChapterClose, setShowChapterClose] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [settingsView,setSettingsView]=useState<ConversationSettingsView>('settings');
   const [reportingMessage,setReportingMessage]=useState<string|null>(null);
   // Reader preferences. readingMode enlarges the prose, bannedWords hides a reply behind a
   // tap rather than deleting it, and shortcuts fill the composer.
@@ -122,8 +122,7 @@ function ChatContent() {
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-background text-foreground">
     <div className="flex min-w-0 flex-1 flex-col">
-      <ChatHeader character={character} streaming={streaming} onReport={() => setReporting(true)} />
-      {conversationId && token && <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-1"><button type="button" onClick={() => setContextOpen(true)} className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"><DesignIcon name="ph:dots-three" size={18}/>对话设置</button>{activeScene && <span className="truncate text-xs text-muted-foreground">{activeScene.title}</span>}<ConversationTools conversationId={conversationId} token={token} title={character?.name} disabled={streaming} onDeleted={()=>router.push('/chat')} extraActions={close=><><ChatShareAndDispute conversationId={conversationId} disabled={streaming} menu onOpen={close}/>{activeScene&&<button type="button" onClick={()=>{close();setEndChapterDialogOpen(true);}} className="flex min-h-12 w-full items-center px-3 text-sm">结束本次体验</button>}</>}/></div>}
+      <ChatHeader character={character} streaming={streaming} actions={conversationId&&token?<ConversationTools conversationId={conversationId} token={token} title={character?.name} disabled={streaming} onDeleted={()=>router.push('/chat')} settingsActions={close=><nav aria-label="对话设置入口">{([['play','玩法选择'],['reply','回复方式'],['memory','角色记忆'],['identity','我的身份与背景'],['worldbooks','世界书'],['personas','身份档案'],['reading','阅读与输入'],['proactive','主动问候'],['relationship','对话关系'],['usage','本轮参考']] as const).map(([view,label])=><button type="button" key={view} className="flex min-h-12 w-full items-center justify-between rounded-xl px-3 text-left text-[15px] hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring" onClick={()=>{close();setSettingsView(view);setContextOpen(true);}}><span>{label}</span><ChevronRight size={16}/></button>)}</nav>} extraActions={close=><><ChatShareAndDispute conversationId={conversationId} disabled={streaming} menu onOpen={close}/>{activeScene&&<button type="button" onClick={()=>{close();setEndChapterDialogOpen(true);}} className="flex min-h-12 w-full items-center px-3 text-[15px]">结束本次体验</button>}<button type="button" onClick={()=>{close();setReporting(true);}} className="flex min-h-12 w-full items-center px-3 text-[15px]">举报角色</button></>}/>:undefined}/>
 
       {activeScene && showChapterClose ? (
         <div className="flex-1 overflow-y-auto px-4 py-6"><div className="mx-auto max-w-3xl"><ChapterClose sceneTitle={activeScene.title} data={buildChapterCloseData(messages)} publicOpenQuestions={activeScene.publicOpenQuestions} onContinue={() => { setShowChapterClose(false); if (conversationId) trackSceneFunnelEvent(token, 'scene_close_continue_clicked', { conversationId, sceneId: activeScene.id }); }} /></div></div>
@@ -198,7 +197,7 @@ function ChatContent() {
 
       {activeScene && <EndChapterDialog open={endChapterDialogOpen} onClose={() => setEndChapterDialogOpen(false)} onConfirm={() => { setEndChapterDialogOpen(false); setShowChapterClose(true); if (conversationId) trackSceneFunnelEvent(token, 'scene_active_end_confirmed', { conversationId, sceneId: activeScene.id }); }} />}
 
-      {conversationId && token && <ConversationContextPanel currentMode={activeScene ? 'scene' : 'chat'} key={conversationId} open={contextOpen} onClose={() => setContextOpen(false)} conversationId={conversationId} token={token} data={tools.data} error={tools.error} busy={tools.busy} reload={tools.reload} save={tools.save} onArchived={() => router.push('/chat')}/>}
+      {conversationId && token && <ConversationContextPanel initialView={settingsView} currentMode={activeScene ? 'scene' : 'chat'} key={conversationId} open={contextOpen} onClose={() => setContextOpen(false)} conversationId={conversationId} token={token} data={tools.data} error={tools.error} busy={tools.busy} reload={tools.reload} save={tools.save} onArchived={() => router.push('/chat')}/>}
 
       {reportingMessage&&<ReportDialog targetType="MESSAGE" targetId={reportingMessage} targetName="这条 AI 回复" onClose={()=>setReportingMessage(null)}/>}
       {reporting && character && (

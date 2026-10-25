@@ -11,14 +11,15 @@ import {MemoryPanel} from './memory-panel';
 import {ReaderPreferences} from '@web/components/profile/reader-preferences';
 import {ProactivePreferences} from '@web/components/profile/proactive-preferences';
 import type {ConversationToolSettings} from '@rumiai/contracts/conversations/context-tools';
-type View = 'settings' | 'personas' | 'worldbooks' | 'usage' | 'proactive' | 'relationship' | 'memory' | 'reading' | 'reply' | 'identity' | 'play';
+export type ConversationSettingsView = 'settings' | 'personas' | 'worldbooks' | 'usage' | 'proactive' | 'relationship' | 'memory' | 'reading' | 'reply' | 'identity' | 'play';
 type Usage = {createdAt: string; sources: {sources: Array<{kind: string; id: string; label: string}>; truncated: boolean; memoryFactIds?: string[]}} | null;
-export function ConversationContextPanel({open,onClose,conversationId,token,data,error,busy,reload,save,onArchived,currentMode='chat'}: {
-  currentMode?:'chat'|'scene';
+export function ConversationContextPanel({open,onClose,conversationId,token,data,error,busy,reload,save,onArchived,currentMode='chat',initialView='settings'}: {
+  currentMode?:'chat'|'scene'; initialView?:ConversationSettingsView;
   open:boolean;onClose:()=>void;conversationId:string;token:string;data:ConversationToolSettings|null;error:string;busy:boolean;reload:()=>void;save:(settings:ConversationToolSettings['settings'])=>Promise<boolean>;onArchived?:()=>void;
 }) {
-  const [view,setView]=useState<View>('settings'),[draft,setDraft]=useState<ConversationToolSettings['settings']|null>(null),[dirty,setDirty]=useState(false);
+  const [view,setView]=useState<ConversationSettingsView>('settings'),[draft,setDraft]=useState<ConversationToolSettings['settings']|null>(null),[dirty,setDirty]=useState(false);
   const [usage,setUsage]=useState<Usage>(null),[usageError,setUsageError]=useState(''),[usageLoading,setUsageLoading]=useState(false);
+  useEffect(()=>{if(open)setView(initialView);},[open,initialView]);
   useEffect(()=>{setView('settings');setDirty(false);setDraft(data?.settings??null);},[conversationId]);
   useEffect(()=>{if(data&&!dirty)setDraft(data.settings);},[data,dirty]);
   useEffect(()=>{

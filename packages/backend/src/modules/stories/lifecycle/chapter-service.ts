@@ -72,7 +72,7 @@ export async function closeChapter(userId: string, runId: string, input: unknown
     const run = await requireVisibleRun(tx, userId, runId);
     if (run.status !== 'ACTIVE') throw new StoryError('RUN_NOT_ACTIVE', '故事当前不在进行中，无法结束章节。', 409);
     if (run.lastCommittedTurnNo < 1) throw new StoryError('CHAPTER_NOT_READY', '本章还没有已提交的回合，无法结束章节。', 422);
-    const unfinished = await tx.storyTurn.count({where: {runId, stateStatus: {in: ['PENDING', 'PROCESSING', 'FAILED']}}});
+    const unfinished = await tx.storyTurn.count({where: {runId,status:'COMMITTED', stateStatus: {in: ['PENDING', 'PROCESSING', 'FAILED']}}});
     if (run.stateProcessedThroughTurnNo !== run.lastCommittedTurnNo || unfinished > 0) {
       throw new StoryError('STATE_NOT_READY', '还有回合的状态尚未整理完成，暂时无法结束章节。', 422);
     }

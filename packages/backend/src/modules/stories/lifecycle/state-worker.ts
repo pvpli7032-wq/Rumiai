@@ -250,7 +250,7 @@ async function processTurn(turnId: string): Promise<'processed' | 'failed' | 'de
 /** Scan due tasks and process them sequentially (SQLite favours one writer). */
 export async function processPendingStateWork(limit = BATCH_LIMIT): Promise<StateWorkResult> {
   const due = await db.storyTurn.findMany({
-    where: {OR: [{stateStatus: 'PENDING'}, {stateStatus: 'PROCESSING', leaseExpiresAt: {lt: new Date()}}]},
+    where: {status:'COMMITTED',OR: [{stateStatus: 'PENDING'}, {stateStatus: 'PROCESSING', leaseExpiresAt: {lt: new Date()}}]},
     orderBy: [{turnNo: 'asc'}, {id: 'asc'}], take: limit, select: {id: true},
   });
   const result: StateWorkResult = {claimed: due.length, processed: 0, failed: 0, deferred: 0, skipped: 0};

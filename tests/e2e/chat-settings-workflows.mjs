@@ -80,6 +80,17 @@ async function userApi(page, route, method = 'GET', body) {
 async function screenshot(page, name) {
   await page.screenshot({path: path.join(artifacts, name + '.png'), fullPage: false});
 }
+async function openMenu(page, tab){
+  const trigger=page.getByRole('button',{name:'更多对话操作',exact:true});
+  await trigger.click();
+  const menu=page.getByRole('dialog',{name:'聊天与设置',exact:true});
+  await menu.waitFor();
+  const box=await menu.boundingBox();const height=await page.evaluate(()=>innerHeight);
+  assert.ok(box.height>=height*.45&&box.height<=height*.55,'menu should occupy half the phone screen');
+  assert.equal(await page.getByRole('dialog').count(),1,'one visible drawer');
+  await menu.getByRole('tab',{name:tab,exact:true}).click();
+  assert.equal(await menu.getByRole('tab',{name:tab,exact:true}).getAttribute('aria-selected'),'true');
+}
 async function assertNoDialog(page){await page.getByRole('dialog').waitFor({state:'hidden'});assert.equal(await page.getByRole('dialog').count(),0);}
 async function capture(page,name){const size=await page.evaluate(()=>({viewport:innerWidth,scroll:document.documentElement.scrollWidth}));assert.ok(size.scroll<=size.viewport+1,name+' must not cause horizontal page overflow');await screenshot(page,name);}
 try {
@@ -214,13 +225,36 @@ try {
   assert.ok(storedNarrative.some(style=>style.key==='browser-cinematic'));
   checks.push('independent admin/stories/settings saves configured narrative options with visible fields');
 
+  if (!process.env.CHAT_DRAWER_STORY_ONLY) {
+  phase='mobile drawer real chat actions';
+  await front.goto(chatUrl,{waitUntil:'domcontentloaded'});
+  await front.getByRole('textbox',{name:'消息内容',exact:true}).waitFor();
+  await openMenu(front,'聊天');
+  await capture(front,'00-mobile-chat-drawer');
+  await front.getByRole('button',{name:'置顶对话',exact:true}).click();
+  await assertNoDialog(front);
+  assert.ok((await fixture.db.conversation.findUniqueOrThrow({where:{id:ids.conversationId}})).pinnedAt);
+  await openMenu(front,'聊天');
+  await front.getByRole('button',{name:'取消置顶',exact:true}).click();
+  await assertNoDialog(front);
+  assert.equal((await fixture.db.conversation.findUniqueOrThrow({where:{id:ids.conversationId}})).pinnedAt,null);
+  await openMenu(front,'聊天');
+  await front.getByRole('button',{name:'重命名对话',exact:true}).click();
+  await front.getByRole('textbox',{name:'对话名称',exact:true}).fill('抽屉操作验证');
+  await front.getByRole('button',{name:'保存名称',exact:true}).click();
+  await assertNoDialog(front);
+  assert.equal((await fixture.db.conversation.findUniqueOrThrow({where:{id:ids.conversationId}})).title,'抽屉操作验证');
+  await openMenu(front,'设置');
+  await capture(front,'00b-mobile-settings-drawer');
+  await front.keyboard.press('Escape');await assertNoDialog(front);
+  assert.equal(await front.getByRole('button',{name:'更多对话操作',exact:true}).evaluate(element=>document.activeElement===element),true);
+  checks.push('top-right half drawer switches categories, restores focus, and actually renames/pins/unpins through existing APIs');
   phase='mobile chat response option consumption';
   await front.goto(chatUrl,{waitUntil:'domcontentloaded'});
   await front.getByRole('textbox',{name:'消息内容',exact:true}).waitFor();
-  await front.getByRole('button',{name:'对话设置',exact:true}).click();
-  let settings=front.getByRole('dialog',{name:'对话设置',exact:true});
-  await settings.getByRole('button',{name:'回复方式',exact:true}).click();
-  settings=front.getByRole('dialog',{name:'回复方式',exact:true});
+  await openMenu(front,'设置');
+  await front.getByRole('button',{name:'回复方式',exact:true}).click();
+  let settings=front.getByRole('dialog',{name:'回复方式',exact:true});
   await settings.getByRole('combobox',{name:'回复风格',exact:true}).selectOption('browser-natural');
   const contextWrite=front.waitForResponse(r=>r.url().endsWith('/context')&&r.request().method()==='PATCH');
   await settings.getByRole('button',{name:'保存对话设置',exact:true}).click();
@@ -231,8 +265,8 @@ try {
   assert.ok(contextRead.body.styles.some(style=>style.key==='browser-natural'&&style.label==='专项自然风格'));
   await front.keyboard.press('Escape');await assertNoDialog(front);
   await front.reload({waitUntil:'domcontentloaded'});
-  await front.getByRole('button',{name:'对话设置',exact:true}).click();
-  settings=front.getByRole('dialog',{name:'对话设置',exact:true});
+  await openMenu(front,'设置');
+  settings=front.getByRole('dialog',{name:'聊天与设置',exact:true});
   await capture(front,'04-mobile-chat-settings');
   await settings.getByRole('button',{name:'回复方式',exact:true}).click();
   settings=front.getByRole('dialog',{name:'回复方式',exact:true});
@@ -322,8 +356,10 @@ try {
   checks.push('summary edit and delete use real version CAS; conflicts retain input and confirmed facts survive summary deletion');
   await front.keyboard.press('Escape');await assertNoDialog(front);
 
+  }
   phase='story settings persist and bind to run';
   await front.goto(origin+'/chat?storyRun='+encodeURIComponent(ids.storyRunId),{waitUntil:'domcontentloaded'});
+  await openMenu(front,'设置');
   await front.getByRole('button',{name:'场景设置',exact:true}).click();
   let scene=front.getByRole('dialog',{name:'故事场景设置',exact:true});
   await scene.getByRole('textbox',{name:'我在故事中的身份',exact:true}).waitFor();
@@ -346,6 +382,7 @@ try {
   await capture(front,'10-mobile-story-settings');
   await front.keyboard.press('Escape');await assertNoDialog(front);
   await front.reload({waitUntil:'domcontentloaded'});
+  await openMenu(front,'设置');
   await front.getByRole('button',{name:'场景设置',exact:true}).click();
   scene=front.getByRole('dialog',{name:'故事场景设置',exact:true});
   await scene.getByRole('textbox',{name:'我在故事中的身份',exact:true}).waitFor();
@@ -367,6 +404,41 @@ try {
   assert.equal(otherSettings.body.settings.narrativeStyle,'');
   await capture(front,'11-mobile-story-settings-refreshed');
   checks.push('story admin narrative option reaches actual run settings, revision save persists after refresh and another run remains separate');
+
+  phase='story failed state retry from drawer';
+  await front.keyboard.press('Escape');await assertNoDialog(front);
+  const pendingRun=await fixture.db.storyRun.findUniqueOrThrow({where:{id:ids.storyRunId}});
+  const maxTurn=await fixture.db.storyTurn.aggregate({where:{runId:ids.storyRunId},_max:{turnNo:true}});
+  const turnNo=(maxTurn._max.turnNo??0)+1;
+  const inputMessage=await fixture.db.message.create({data:{conversationId:pendingRun.conversationId,role:'USER',content:'测试：回到车站。'}});
+  const outputMessage=await fixture.db.message.create({data:{conversationId:pendingRun.conversationId,role:'ASSISTANT',content:'测试：角色站在站台等你。'}});
+  const failedTurn=await fixture.db.storyTurn.create({data:{runId:ids.storyRunId,turnNo,requestId:'drawer-state-retry',requestHash:'drawer-state-retry',status:'COMMITTED',stateStatus:'FAILED',operation:'CHAT',inputMessageId:inputMessage.id,assistantMessageId:outputMessage.id,startedAt:new Date(),committedAt:new Date()}});
+  await fixture.db.storyRun.update({where:{id:ids.storyRunId},data:{lastCommittedTurnNo:turnNo}});
+  const messageCount=await fixture.db.message.count({where:{conversationId:pendingRun.conversationId}});
+  await front.reload({waitUntil:'domcontentloaded'});
+  await openMenu(front,'聊天');
+  await front.getByRole('button',{name:'重试整理 第'+turnNo+'回合',exact:true}).waitFor();
+  assert.equal(await front.getByRole('button',{name:'结束本章',exact:true}).isDisabled(),true);
+  await capture(front,'12-story-retry-drawer');
+  const retryResult=front.waitForResponse(r=>r.url().endsWith('/retry-state')&&r.request().method()==='POST');
+  await front.getByRole('button',{name:'重试整理 第'+turnNo+'回合',exact:true}).click();
+  assert.equal((await retryResult).status(),200);
+  await front.getByText('等待后台整理；长时间未变化时可重新提交。',{exact:true}).waitFor();
+  assert.equal((await fixture.db.storyTurn.findUniqueOrThrow({where:{id:failedTurn.id}})).stateStatus,'PENDING');
+  assert.equal(await fixture.db.message.count({where:{conversationId:pendingRun.conversationId}}),messageCount);
+  // Fixture represents the worker's successful completion; the actual worker is separately covered by the D31 integration test.
+  await fixture.db.storyTurn.update({where:{id:failedTurn.id},data:{stateStatus:'PROCESSED'}});
+  await fixture.db.storyRun.update({where:{id:ids.storyRunId},data:{stateProcessedThroughTurnNo:turnNo,revision:{increment:1}}});
+  await front.getByRole('button',{name:'刷新整理状态',exact:true}).click();
+  await front.getByText('已保存回合的状态整理完成。',{exact:true}).waitFor();
+  assert.equal(await front.getByRole('button',{name:'结束本章',exact:true}).isEnabled(),true);
+  await capture(front,'13-story-recovered-drawer');
+  await front.getByText('存档与分支',{exact:true}).click();
+  await front.getByRole('textbox',{name:'存档名称',exact:true}).fill('切换标签保留的名称');
+  await front.getByRole('tab',{name:'设置',exact:true}).click();
+  await front.getByRole('tab',{name:'聊天',exact:true}).click();
+  assert.equal(await front.getByRole('textbox',{name:'存档名称',exact:true}).inputValue(),'切换标签保留的名称');
+  checks.push('failed story state really retries to PENDING without resending messages; refreshed completion unlocks chapter actions');
 
   phase='guarded services remain closed';
   const checkout=await front.request.get(origin+'/api/coins/packages');
