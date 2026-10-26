@@ -66,7 +66,7 @@ export async function generateChatSuggestions(userId:string,conversationId:strin
     const plan=await readTaskModelPlan('chatSuggestions',{characterId:conversation.characterId});
     if(!plan?.length||plan[0].key!==config.modelKey)throw new ChatSuggestionError('建议模型不可用。',503,'SUGGESTIONS_NO_MODEL');
     const rules=await readChatRules();
-    const rows=await db.message.findMany({where:{conversationId},orderBy:[{createdAt:'desc'},{id:'desc'}],take:rules.historyMessages,select:{role:true,content:true}});
+    const rows=await db.message.findMany({where:{conversationId,contextIncluded:true},orderBy:[{createdAt:'desc'},{id:'desc'}],take:rules.historyMessages,select:{role:true,content:true}});
     const memory=await buildMemoryContext(conversationId,{userId,reservedTokens:rows.reduce((n,r)=>n+r.content.length,0)});
     call=await reserveAiCall(userId,conversationId,'CHAT_SUGGESTIONS',plan.map(x=>x.key),'chatSuggestions');
     const count = options.count ?? config.count;

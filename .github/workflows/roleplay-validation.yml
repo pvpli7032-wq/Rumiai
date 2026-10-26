@@ -1,0 +1,36 @@
+name: Roleplay phase validation
+on:
+  pull_request:
+    paths:
+      - 'packages/backend/src/modules/conversations/**'
+      - 'tests/integration/chat-suggestions-pagination.test.ts'
+      - '.github/workflows/roleplay-validation.yml'
+  push:
+    branches: ['codex/roleplay-staged-development']
+    paths:
+      - 'packages/backend/src/modules/conversations/**'
+      - 'tests/integration/chat-suggestions-pagination.test.ts'
+      - '.github/workflows/roleplay-validation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: roleplay-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  context-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - name: Suggestions use only included conversation history
+        run: node --import tsx --test tests/integration/chat-suggestions-pagination.test.ts
+      - run: npm run typecheck
+      - run: npm run architecture:check
