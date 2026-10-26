@@ -29,16 +29,32 @@ test('conversation pagination and suggestions preserve ownership, task cost and 
   const {encryptProviderSecret} = await import('@rumiai/backend/modules/ai/providers/secret');
   const provider = await fixture.db.aiProvider.create({data: {name: 'fixture-suggestions', baseUrl: 'https://suggestions.example.test/v1', isActive: true, ...encryptProviderSecret('fixture-key-no-real-service')}});
   await fixture.db.aiModel.create({data: {key: 'suggestion-model', displayName: 'Suggestion fixture', modelCode: 'fixture', providerId: provider.id, isActive: true}});
-  for (const [key, value] of Object.entries({'chat.suggestions.enabled': true, 'chat.suggestions.count': 2, 'chat.suggestions.maxChars': 120, 'chat.suggestions.dailyLimit': 1, 'ai.taskModel.chatSuggestions': 'suggestion-model', 'budget.task.chatSuggestions': 1, 'prompt.chatSuggestions': 'fixture suggestions prompt', 'billing.dayTimezone': 'Asia/Taipei'})) {
+  for (const [key, value] of Object.entries({'chat.historyMessages': 2, 'chat.suggestions.enabled': true, 'chat.suggestions.count': 2, 'chat.suggestions.maxChars': 120, 'chat.suggestions.dailyLimit': 1, 'ai.taskModel.chatSuggestions': 'suggestion-model', 'budget.task.chatSuggestions': 1, 'prompt.chatSuggestions': 'fixture suggestions prompt', 'billing.dayTimezone': 'Asia/Taipei'})) {
     await fixture.db.operationSetting.upsert({where: {key}, create: {key, group: 'chat', value: JSON.stringify(value), updatedBy: fixture.admin.id}, update: {value: JSON.stringify(value)}});
   }
   clearCache();
   const configured = await readChatSuggestionCapability(fixture.user.id, conversationId);
   assert.equal(new Date(configured.resetAt).getUTCHours(), 16, 'suggestions reset in the configured business timezone');
+  // Exclusion must happen before the history limit, and ties keep a stable order.
+  const historyTime = new Date('2026-01-01T00:00:00Z');
+  await fixture.db.message.createMany({data: [
+    {id: 'suggestion-history-00', conversationId, role: 'USER', content: 'older included outside limit', contextIncluded: true, createdAt: historyTime},
+    {id: 'suggestion-history-01', conversationId, role: 'USER', content: 'included user history', contextIncluded: true, createdAt: historyTime},
+    {id: 'suggestion-history-02', conversationId, role: 'ASSISTANT', content: 'included assistant history', contextIncluded: true, createdAt: historyTime},
+    ...[3, 4, 5].map(i => ({id: 'suggestion-history-0' + i, conversationId, role: 'USER', content: 'excluded secret ' + i, contextIncluded: false, createdAt: historyTime})),
+    {id: 'suggestion-other-conversation', conversationId: ids[1], role: 'USER', content: 'other conversation private history', contextIncluded: true, createdAt: historyTime},
+  ]});
   let calls = 0;
   globalThis.fetch = async (input, init) => {
     assert.equal(String(input), 'https://suggestions.example.test/v1/chat/completions', 'no paid or external endpoint is permitted');
     const body = JSON.parse(String(init?.body)); assert.ok(body.messages[0].content.includes('fixture suggestions prompt'));
+    assert.deepEqual(body.messages.slice(1, -1), [
+      {role: 'user', content: 'included user history'},
+      {role: 'assistant', content: 'included assistant history'},
+    ], 'only the latest included messages reach the provider, in chronological order');
+    const transmitted = JSON.stringify(body.messages);
+    assert.ok(!transmitted.includes('excluded secret'), 'excluded history must not reach the provider');
+    assert.ok(!transmitted.includes('other conversation private history'), 'history must remain conversation-scoped');
     calls++;
     return new Response('data: ' + JSON.stringify({choices: [{delta: {content: JSON.stringify(['可以讲讲今天的小事吗？', '你最近喜欢读什么？'])}}]}) + '\n\ndata: [DONE]\n\n', {headers: {'Content-Type': 'text/event-stream'}});
   };

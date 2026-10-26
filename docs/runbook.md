@@ -69,7 +69,7 @@ tests/helpers/frontend-redesign-route-fixture.mjs 在隔离库创建真实 CMS H
 FRONTEND_REDESIGN_WEB_DIST_DIR=<本次Web构建目录> npm run test:e2e:frontend
 ~~~
 
-若 API 产物位于另一个已验证 release，按 runner 的 FRONTEND_REDESIGN_API_RELEASE 与 FRONTEND_REDESIGN_API_DIST_DIR 指向该产物。runner 创建独立 SQLite、端口与完整 manifest，运行状态互操作、86组矩阵、五业务域和 mobile-navigation.mjs 的六条导航旅程；直接运行单域脚本须使用该 runner 生成且带 expected 与 sitemapFile 的合成 manifest，不能拿缺少这些字段的开发探测 manifest 代替。导航脚本沿用 FRONTEND_REDESIGN_FIXTURE_MANIFEST、FRONTEND_REDESIGN_BASE_URL、FRONTEND_REDESIGN_OUTPUT_DIR 与 PLAYWRIGHT_CHROMIUM_EXECUTABLE，结果进入 domains/navigation 并参与聚合失败判定。测试代理必须传递浏览器 host 至 x-forwarded-host 和 http 至 x-forwarded-proto，使308/307保持外部测试入口同源，不能把内部 Next 端口误当最终地址。测试和文档改动先用 node --check 与 git diff --check 检查；通过不等于整套浏览器已运行。本轮未改 API、Admin、Worker、contracts 或数据库结构，无需重跑全后端构建来替代前台验收。
+若 API 产物位于另一个已验证 release，按 runner 的 FRONTEND_REDESIGN_API_RELEASE 与 FRONTEND_REDESIGN_API_DIST_DIR 指向该产物。runner 创建独立 SQLite、端口与完整 manifest，运行状态互操作、86组矩阵、五业务域和 mobile-navigation.mjs 的六条导航旅程；直接运行单域脚本须使用该 runner 生成且带 expected 与 sitemapFile 的合成 manifest，不能拿缺少这些字段的开发探测 manifest 代替。导航脚本沿用 FRONTEND_REDESIGN_FIXTURE_MANIFEST、FRONTEND_REDESIGN_BASE_URL、FRONTEND_REDESIGN_OUTPUT_DIR 与 PLAYWRIGHT_CHROMIUM_EXECUTABLE，结果进入 domains/navigation 并参与聚合失败判定。测试代理必须传递浏览器 host 至 x-forwarded-host 和 http 至 x-forwarded-proto，使308/307保持外部测试入口同源，不能把内部 Next 端口误当最终地址。测试和文档改动先用 node --check 与 git diff --check 检查；通过不等于整套浏览器已运行。是否增加API、Admin、Worker、contracts或数据库检查，按当前改动范围决定；不能用其他层构建代替受影响行为的验收。
 
 ## 服务器优先发布
 
@@ -92,3 +92,8 @@ Git只提交源码、必要配置、迁移与可重复运行的测试。排除no
 同步前检查线上独有改动、源分支、目标main和实际diff，避免把旧服务器修复误报为单次前台变更。校验允许路径与敏感数据边界后提交，推送前重新核对远端main与祖先关系，使用普通快进push。凭据由授权会话瞬态提供，不打印、不写入仓库；不force push，不把Git同步等同重新部署。
 
 真实收款、退款和付费AI调用按现有服务器开关及明确授权执行。套餐金额、权益和退款参数来自后台与订单快照，不由文档或前台编造。正式渠道还需单独验证验签回调、真实到账与部分金额退款；隔离测试通过不能代替商户验收。
+
+
+## 角色扮演阶段执行
+
+当前方案与执行状态统一维护在[角色扮演计划](roleplay/README.md)。第一阶段验收按[矩阵](roleplay/acceptance.md)执行，只在AGENTS.md允许的云环境、GitHub工作流或明确授权线上工作区运行。新能力未通过对应门禁，不进入下一依赖包或上线。旧审计历史留Git，不用其旧通过记录替代当前输出。

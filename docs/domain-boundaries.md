@@ -99,7 +99,7 @@ database: GrowthModuleState                             只保存状态和声明
 
 本实现没有预填用户口述的 275k 或任何金额，也没有改变用户侧“每次回复扣币”的 `ModelCoinPrice`。供应商 Token 成本与用户币价仍是两套独立版本。
 
-## 消息媒体与未来语音
+## 消息媒体与语音边界
 
 建议归 `modules/conversations/attachments`，存储仍由 `infrastructure/storage` 适配：
 
@@ -107,12 +107,12 @@ database: GrowthModuleState                             只保存状态和声明
 contracts: MessageAttachment {type, assetId, mime, size, metadata}
 database: MessageAttachment（关联 Message/UploadAsset）
 api: 上传授权、附件提交、访问校验
-web chat: emoji picker、贴纸选择、图片上传、渲染与失败重试
+web chat: emoji picker、贴纸选择、图片上传/理解、录音/转写、渲染与失败重试
 ```
 
-当前实现沿用 `/api/upload` 的 JPG/PNG/WebP 魔数、动态体积上限、账号所有权与频率限制；消息附件通过独立请求号幂等写入 `MessageAttachment`，刷新后仍可展示。emoji 是纯文本 Unicode，表情包只能选静态目录中的 ID。当前模型没有“视觉能力”配置字段，所以图片仅保存与展示，接口明确说明不调用模型、不扣聊天金币，不伪装成模型已理解图片。
+当前实现沿用 `/api/upload` 的 JPG/PNG/WebP 魔数、动态体积上限、账号所有权与频率限制；消息附件通过独立请求号幂等写入 `MessageAttachment`，刷新后仍可展示。emoji是纯文本Unicode；贴纸来自后台可编辑目录，历史消息保存快照。AiModel已有supportsChat/supportsVision/supportsTranscription；图片理解和录音转写通过独立媒体任务、有效模型、预算和日额度执行。普通附件上传不等于调用视觉模型，直接多模态聊天历史仍需另行实现。
 
-未来语音消息可复用附件模型，但启用前必须增加 AUDIO 类型、时长/波形/转码与内容审核状态；语音电话仍是实时会话、信令、TURN、计费和风控的独立模块，不塞进消息上传接口。
+当前附件已支持AUDIO、录制试听、真实WAV时长检查和本人授权读取；图片理解/转写任务有MediaTaskRequest与AiCall记录。外部TTS、声音转换和完整转码/审核流水线不能据此视为已实现。语音电话仍涉及实时会话、信令、TURN与独立计费设计，不塞进消息上传接口。角色扮演待补能力与阶段见[能力总登记](roleplay/capability-register.md)。
 
 ## 金币套餐权益与订单快照
 
